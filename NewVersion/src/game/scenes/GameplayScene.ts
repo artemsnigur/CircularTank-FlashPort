@@ -795,7 +795,6 @@ export class GameplayScene extends Phaser.Scene {
       enemy.health = result.health;
 
       if (result.killed) {
-        this.kills += 1;
         this.removeEnemy(enemy, true);
       } else {
         enemy.flashDamage(impactFeedback(enemy.damageMultipliers, 'Laser'));
@@ -1074,10 +1073,7 @@ export class GameplayScene extends Phaser.Scene {
 
       if (result.damage > 0) {
         enemy.health -= result.damage;
-        if (enemy.health <= 0) {
-          this.kills += 1;
-          this.removeEnemy(enemy, true);
-        }
+        if (enemy.health <= 0) this.removeEnemy(enemy, true);
       }
 
       blasts.push(...result.explosions);
@@ -1480,7 +1476,6 @@ export class GameplayScene extends Phaser.Scene {
       enemy.health -= damage;
 
       if (enemy.health <= 0) {
-        this.kills += 1;
         this.removeEnemy(enemy, true);
       } else {
         enemy.flashDamage(impactFeedback(enemy.damageMultipliers, 'Explosions'));
@@ -1533,7 +1528,6 @@ export class GameplayScene extends Phaser.Scene {
       return;
     }
 
-    this.kills += 1;
     this.removeEnemy(enemy, true);
   }
 
@@ -1544,7 +1538,29 @@ export class GameplayScene extends Phaser.Scene {
    * `noMoney = true` on contact, so a suicide attack earns the player nothing.
    */
   private removeEnemy(enemy: Enemy, payMoney: boolean): void {
+    // Everything below is once-per-enemy, so the guard is the first thing in
+    // the function.
+    //
+    // It used to sit lower, immediately above `registerEnemyKilled` — the line
+    // it was added to protect. That left the payout and the kill tally outside
+    // it, so a double call no-oped the wave counter while paying twice and
+    // counting the kill twice. The counter looked right and the summary read
+    // exactly 2x the real total.
+    const index = this.enemies.indexOf(enemy);
+    if (index === -1) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[GameplayScene] removeEnemy called twice for ${enemy.enemyType}. ` +
+            'Harmless now, but a caller is resolving the same death twice.',
+        );
+      }
+      return;
+    }
+
     if (payMoney) {
+      // A kill counts exactly where the removal counts. Contact deaths pass
+      // false — a suicide attack pays nothing and is not a kill.
+      this.kills += 1;
       getSoundManager(this)?.queue('EnemySquish');
       // Money is the enemy's own reward value, already scaled by tier.
       this.currency += enemy.stats.money;
@@ -1553,14 +1569,6 @@ export class GameplayScene extends Phaser.Scene {
         total: this.currency,
       });
     }
-
-    // Guard against a double removal. `filter` below is idempotent but
-    // `registerEnemyKilled` is not, so calling this twice for one enemy used
-    // to drop the wave's `currentEnemies` by two while the live list lost one.
-    // The counter then hit zero with enemies still on screen and the level
-    // completed early.
-    const index = this.enemies.indexOf(enemy);
-    if (index === -1) return;
 
     if (this.wave) registerEnemyKilled(this.wave, enemy.enemyLevel === 'B');
 
