@@ -90,17 +90,28 @@ function canSearchOffCamera(context: PlacementContext): boolean {
 
   if (countDownDone) return false;
   if (mode === 'Defense') return false;
-  // AS3 `roomWidth == cameraWidth || roomHeight == cameraHeight` (:7245).
-  // Widened to `<=` for one reason: the AS3's camera was a fixed 640x400 and
-  // its rooms came from a five-value table, so equality caught every case where
-  // a dimension had no off-camera space. This port's camera height is dynamic
-  // and routinely *exceeds* the room, where equality is false but there is
-  // still nowhere off screen to hide. Without this the search runs, finds
-  // nothing across all 25 attempts (every margin is negative, so every
-  // candidate reads as visible) and falls through to the edge anyway — the
-  // same outcome, reached wastefully. Same behaviour on every room size the
-  // AS3 could actually produce.
-  if (roomWidth <= cameraWidth || roomHeight <= cameraHeight) return false;
+  // AS3 `roomWidth == cameraWidth || roomHeight == cameraHeight` (:7245), kept
+  // as equality.
+  //
+  // This was briefly widened to `<=`, on the reasoning that a dimension the
+  // camera fully covers has no off-camera space. That reasoning was made in the
+  // AS3's world — a fixed 640x400 camera — and is wrong in this port's, where
+  // the viewport is dynamic. It cost the feature entirely: at any logical height
+  // >= 720 the search became disabled on all 405 levels, so on a phone
+  // (logicalHeight ~1385) every enemy would enter from an edge.
+  //
+  // Equality is right because the two dimensions are independent. A 900-wide
+  // room in a 640-wide camera has off-camera space to the left and right no
+  // matter how tall the viewport is — 28.9% of candidates are still valid at
+  // any height. And the "camera covers this dimension" case needs no guard: it
+  // makes the margin negative, which widens that band past the room, so the
+  // test falls through to the other axis on its own. The arithmetic already
+  // does what the guard was trying to do.
+  //
+  // Consequence worth knowing: with a continuous cameraHeight, the height half
+  // of this condition is now almost never true, so it is close to dead. Its
+  // intent survives in the arithmetic above.
+  if (roomWidth === cameraWidth || roomHeight === cameraHeight) return false;
   if (mode === 'Boss' && isBoss) return false;
   return true;
 }

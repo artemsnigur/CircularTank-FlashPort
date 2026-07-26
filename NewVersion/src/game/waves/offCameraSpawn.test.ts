@@ -158,9 +158,8 @@ describe('the defect, stated as a measurement', () => {
 
 describe('when the viewport covers the room there is nowhere to hide', () => {
   it('falls back to an edge rather than claiming an off-camera spot', () => {
-    // A tall window on a short room: the camera shows the whole height, so no
-    // point in the room is ever outside the view. Every placement must be an
-    // edge, or the search is lying.
+    // 640-wide room in a 640-wide camera: the width disqualifier fires, and
+    // there is no horizontal space either way. Every placement must be an edge.
     const random = lcg(7);
     for (let i = 0; i < 200; i += 1) {
       const p = placeWarning({
@@ -173,6 +172,71 @@ describe('when the viewport covers the room there is nowhere to hide', () => {
       });
       expect(p.offCamera).toBe(false);
       expect(p.wall).toBeGreaterThan(0);
+    }
+  });
+});
+
+/**
+ * The axes are independent, and this is the test that would have caught a
+ * regression I shipped for one commit.
+ *
+ * `canSearchOffCamera`'s room/camera check was briefly widened from `==` to
+ * `<=`, reasoning that a dimension the camera fully covers has no off-camera
+ * space. True of that dimension, irrelevant to the other one — and it disabled
+ * the search on all 405 levels at any logical height >= 720, i.e. everywhere on
+ * a phone. A 900-wide room in a 640-wide camera has space to the left and right
+ * however tall the window is.
+ */
+describe('a tall viewport does not remove horizontal off-camera space', () => {
+  // 720 is deliberately absent: it exactly equals the room height, so the AS3's
+  // equality disqualifier fires. That case is pinned separately below.
+  it.each([721, 900, 1100, 1385, 1440])(
+    'still places off-camera in a 900x720 room at logical height %i',
+    (cameraHeight) => {
+      const random = lcg(99);
+      let offCamera = 0;
+
+      for (let i = 0; i < 300; i += 1) {
+        const p = placeWarning({
+          mode: 'Normal',
+          roomWidth: 900,
+          roomHeight: 720,
+          cameraWidth: 640,
+          cameraHeight,
+          random,
+        });
+        if (!p.offCamera) continue;
+        offCamera += 1;
+
+        // Every acceptance must be horizontal, since the camera covers the
+        // full height: outside the 640-wide band centred in a 900-wide room.
+        expect(p.x < 130 || p.x > 770, `x=${p.x.toFixed(1)} is inside the 640-wide band`).toBe(
+          true,
+        );
+        expect(insideCore(p.x, p.y, 900, 720, 640, cameraHeight)).toBe(false);
+      }
+
+      expect(offCamera, 'the search found nothing — the feature is off').toBeGreaterThan(0);
+    },
+  );
+
+  it('is disabled when the viewport height exactly equals the room height', () => {
+    // The AS3's equality disqualifier, surviving. In the original this was a
+    // static property of a level, because the camera was a fixed 640x400. Here
+    // cameraHeight is continuous, so this is a measure-zero coincidence rather
+    // than a level property — a window resized one pixel either way re-enables
+    // the search. Recorded as a known divergence in docs/AUDIT-2026-07.md.
+    const random = lcg(5);
+    for (let i = 0; i < 100; i += 1) {
+      const p = placeWarning({
+        mode: 'Normal',
+        roomWidth: 900,
+        roomHeight: 720,
+        cameraWidth: 640,
+        cameraHeight: 720,
+        random,
+      });
+      expect(p.offCamera).toBe(false);
     }
   });
 });
