@@ -8,7 +8,7 @@
  */
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
-import { DEV_LEVEL, DEV_WORLD } from '../../game/levels/devTestLevel';
+import { DEV_COMBINED_LEVEL, DEV_WORLD } from '../../game/levels/devLevels';
 
 export function MainMenuScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
@@ -68,7 +68,7 @@ export function MainMenuScreen(): React.ReactElement | null {
             // Every enemy type in one arena. Enemy variety lives in worlds 7-9,
             // which the pinned world-1 level select cannot reach.
             onClick={() =>
-              GameEvents.emit('ui:start-game', { world: DEV_WORLD, level: DEV_LEVEL })
+              GameEvents.emit('ui:start-game', { world: DEV_WORLD, level: DEV_COMBINED_LEVEL })
             }
           >
             Dev: all-enemy test level

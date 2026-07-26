@@ -80,7 +80,7 @@ import { chooseWeapon, equipPrimary } from '../loadout/loadout';
 import { isWaveComplete, registerEnemyKilled, registerFlagCaptured } from '../waves/waveState';
 import { canCaptureFlag, placeFlag, tickFlag } from '../waves/flag';
 import { deathExplosion } from '../enemies/enemyDeath';
-import { createDevTestLevel, isDevLevel } from '../levels/devTestLevel';
+import { devLevelSpec } from '../levels/devLevels';
 import {
   advanceEnemyBullet,
   applyBulletToTank,
@@ -596,12 +596,10 @@ export class GameplayScene extends Phaser.Scene {
   private startWave(): void {
     const world = this.world;
     const level = this.level;
-    // The dev test level is a synthetic spec, not a table row. Guarded so it
-    // cannot be reached in a production build even if something asks for it.
+    // Dev levels are synthetic specs, not table rows. Guarded so they cannot
+    // be reached in a production build even if something asks for one.
     const spec =
-      import.meta.env.DEV && isDevLevel(world, level)
-        ? createDevTestLevel()
-        : getLevel(world, level);
+      (import.meta.env.DEV ? devLevelSpec(world, level) : null) ?? getLevel(world, level);
     if (!spec) return;
 
     this.levelSpec = spec;

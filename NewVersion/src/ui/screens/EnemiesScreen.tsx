@@ -13,6 +13,7 @@ import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 import { behaviourTotals, describeAllEnemies } from '../../game/enemies/enemyBehaviour';
 import type { BehaviourStatus } from '../../game/enemies/enemyBehaviour';
+import { DEV_SINGLE_TYPE_COUNT, DEV_WORLD, devLevelForType } from '../../game/levels/devLevels';
 
 const STATUS_LABEL: Record<BehaviourStatus, string> = {
   implemented: 'Implemented',
@@ -67,12 +68,34 @@ export function EnemiesScreen(): React.ReactElement | null {
                       <span className="enemies__missing">missing: {r.missingMechanic}</span>
                     )}
                   </span>
+                  {import.meta.env.DEV && devLevelForType(r.type) !== null && (
+                    <button
+                      type="button"
+                      className="enemies__test"
+                      title={`Fight ${DEV_SINGLE_TYPE_COUNT} ${r.type} on their own`}
+                      onClick={() =>
+                        GameEvents.emit('ui:start-game', {
+                          world: DEV_WORLD,
+                          level: devLevelForType(r.type)!,
+                        })
+                      }
+                    >
+                      Test ›
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
           </section>
         );
       })}
+
+      {import.meta.env.DEV && (
+        <p className="screen__hint">
+          Test launches a dev-only level with {DEV_SINGLE_TYPE_COUNT} of that type and nothing
+          else. It records no progress.
+        </p>
+      )}
 
       <p className="screen__hint">
         All {totals.total} types move and use the real stat and resistance tables. This lists

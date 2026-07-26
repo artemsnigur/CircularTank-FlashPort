@@ -826,3 +826,17 @@ code {
 }
 .enemies__tag--missing { color: var(--text-dim); }
 .enemies__missing { font-size: 0.7rem; color: var(--text-dim); }
+
+/* Per-type dev launcher on the behaviour screen. */
+.enemies__row { justify-content: space-between; }
+.enemies__test {
+  flex: none;
+  padding: 0.2rem 0.5rem;
+  border-radius: 5px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 6%);
+  color: inherit;
+  font: inherit;
+  font-size: 0.65rem;
+  cursor: pointer;
+}
