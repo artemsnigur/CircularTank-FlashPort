@@ -158,6 +158,8 @@ const FPS_EMIT_INTERVAL_MS = 500;
 interface GameplayData {
   world?: number;
   level?: number;
+  /** See `ui:start-game` — a run that must not reach the player's save. */
+  sandbox?: boolean;
 }
 
 export class GameplayScene extends Phaser.Scene {
@@ -175,6 +177,15 @@ export class GameplayScene extends Phaser.Scene {
   /** Which level is being played — set from LevelSelect via scene data. */
   private world = 1;
   private level = 1;
+
+  /**
+   * A sandbox run persists nothing — see `ui:start-game`.
+   *
+   * Set for every level reached through a dev affordance. It is the one guard
+   * that keeps development play off the real save, so it sits on the single
+   * block that writes rather than being spread across the individual writers.
+   */
+  private sandbox = false;
   private lastFpsEmit = 0;
   private teardown: Array<() => void> = [];
 
@@ -300,6 +311,7 @@ export class GameplayScene extends Phaser.Scene {
   init(data: GameplayData): void {
     this.world = data.world ?? 1;
     this.level = data.level ?? 1;
+    this.sandbox = data.sandbox === true;
     // Seeded from the profile below — the AS3 has one running `money` total,
     // not a per-level takings counter.
     this.currency = 0;
@@ -395,14 +407,16 @@ export class GameplayScene extends Phaser.Scene {
           // so it has to be resumed before the restart takes effect.
           if (this.outcome.finished) {
             this.scene.resume();
-            this.scene.restart({ world: this.world, level: this.level });
+            // `sandbox` rides along: retrying a dev run must not become a
+            // real one.
+            this.scene.restart({ world: this.world, level: this.level, sandbox: this.sandbox });
           }
           return;
         }
         this.scene.resume();
         this.scene.start(key);
       }),
-      GameEvents.subscribe('ui:start-game', ({ world, level }) => {
+      GameEvents.subscribe('ui:start-game', ({ world, level, sandbox }) => {
         // "Next level" from the results overlay.
         //
         // Gameplay has to listen for this itself. MainMenuScene and
@@ -412,7 +426,14 @@ export class GameplayScene extends Phaser.Scene {
         // the completion handler, leaving no UI and no input path. It looked
         // like a freeze; it was an event with no live listener.
         this.scene.resume();
-        this.scene.restart({ world, level });
+        // Sandbox is sticky across "Next level". The Hud emits this without a
+        // sandbox flag — it has no way to know, and giving React the run's
+        // provenance to hand back would be a longer wire than the rule
+        // deserves. Falling back to the current run means a chain of levels
+        // entered from a dev jump stays off the save for its whole length,
+        // which is the only useful reading: the player did not legitimately
+        // reach level N+1 either.
+        this.scene.restart({ world, level, sandbox: sandbox ?? this.sandbox });
       }),
       GameEvents.subscribe('ui:pause', ({ paused }) => {
         if (paused) this.scene.pause();
@@ -1488,21 +1509,34 @@ export class GameplayScene extends Phaser.Scene {
     }
 
     if (this.outcome.finished && !this.banked) {
-      // Bank the level's takings into the persistent profile and write it out.
-      // The AS3 saves at defined moments rather than continuously; level end
-      // is one of them.
-      // `currency` already includes the opening balance, so this assigns the
-      // new total rather than adding to it — adding would double-count.
+      // Latched whether or not anything is written, so a sandbox run cannot
+      // re-enter this block every frame looking for work it will never do.
       this.banked = true;
-      this.profile.setUpgrades({ ...this.upgrades, money: this.currency });
 
-      // A win records a value against the level, which is what unlocks the
-      // next one (`ScreenLevelSelect.as:842` locks a level whose predecessor
-      // scored zero). A loss still updates "where the player was" but scores
-      // nothing, so it cannot unlock anything.
-      const won = this.outcome.result === 'won';
-      this.profile.recordLevel(this.world, this.level, DIFFICULTY, won ? 1 : 0, won);
-      this.profile.save();
+      // ── The whole of persistence, behind one guard ──────────────────────
+      // A sandbox run writes nothing. The guard is here rather than inside
+      // `recordLevel`/`save` because the rule is about the *run*, not about
+      // any one writer: money, the level result and "where the player was"
+      // must all stay out of the save together, or the profile ends up
+      // half-updated. Dev levels used to bank money and write previousWorld: 0
+      // in spite of a comment promising they could not — see
+      // docs/AUDIT-2026-07.md.
+      if (!this.sandbox) {
+        // Bank the level's takings into the persistent profile and write it
+        // out. The AS3 saves at defined moments rather than continuously;
+        // level end is one of them.
+        // `currency` already includes the opening balance, so this assigns the
+        // new total rather than adding to it — adding would double-count.
+        this.profile.setUpgrades({ ...this.upgrades, money: this.currency });
+
+        // A win records a value against the level, which is what unlocks the
+        // next one (`ScreenLevelSelect.as:842` locks a level whose predecessor
+        // scored zero). A loss still updates "where the player was" but scores
+        // nothing, so it cannot unlock anything.
+        const won = this.outcome.result === 'won';
+        this.profile.recordLevel(this.world, this.level, DIFFICULTY, won ? 1 : 0, won);
+        this.profile.save();
+      }
     }
 
     if (this.outcome.finished) {

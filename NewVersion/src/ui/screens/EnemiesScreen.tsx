@@ -77,6 +77,10 @@ export function EnemiesScreen(): React.ReactElement | null {
                         GameEvents.emit('ui:start-game', {
                           world: DEV_WORLD,
                           level: devLevelForType(r.type)!,
+                          // Makes the "records no progress" claim below true.
+                          // It was not: the level-end block banked the run's
+                          // money and wrote previousWorld: 0 regardless.
+                          sandbox: true,
                         })
                       }
                     >

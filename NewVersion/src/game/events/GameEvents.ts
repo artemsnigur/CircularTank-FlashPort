@@ -142,7 +142,17 @@ export interface GameEventMap {
   'debug:fps': { fps: number };
 
   /* ── React -> Phaser ─────────────────────────────────────────────────── */
-  'ui:start-game': { world: number; level: number };
+  /**
+   * Start a level.
+   *
+   * `sandbox` marks a run that must not touch the player's save: no banked
+   * money, no recorded result, no "where the player was" write. Set it for
+   * anything reached through a dev affordance — the enemy Test buttons and the
+   * dev level picker — so a development session cannot overwrite real progress.
+   * It rides on the event because it has to survive the hop through whichever
+   * scene forwards it, and back again on a retry.
+   */
+  'ui:start-game': { world: number; level: number; sandbox?: boolean };
   /**
    * The selectable levels of a world, pushed by LevelSelectScene.
    *

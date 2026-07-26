@@ -25,9 +25,22 @@
  * ── World 0 is the sentinel ───────────────────────────────────────────────
  * `getLevel` has no world 0, so nothing in the normal path can collide with
  * these. `recordLevelResult` indexes `progress[world - 1]`, which is
- * `undefined` for world 0 and makes recording a silent no-op — so playing them
- * cannot pollute a save. `hasNextLevel` finds nothing either, so the results
- * overlay offers no onward level.
+ * `undefined` for world 0 and makes *that one write* a silent no-op.
+ * `hasNextLevel` finds nothing either, so the results overlay offers no onward
+ * level.
+ *
+ * ── What actually keeps them off the save ─────────────────────────────────
+ * Not the sentinel. This comment used to claim world 0 meant "playing them
+ * cannot pollute a save", and that was false in two places the sentinel never
+ * reached: the level-end block banked the run's money into the real profile,
+ * and `recordLevel` wrote `previousWorld: 0` / `previousLevel` /
+ * `previousLevelWon` outside the no-op. Both were persisted. The resume point
+ * survived only because `MainMenuScene` happens to fall back on a falsy world.
+ *
+ * The guarantee now comes from `sandbox` on `ui:start-game`, which every dev
+ * entry point sets and which gates the whole persistence block in
+ * `GameplayScene`. That covers the dev level picker too, which uses real world
+ * numbers and so gets no protection from the sentinel at all.
  */
 
 import { ENEMY_STATS } from '../enemies/enemyStatsData';

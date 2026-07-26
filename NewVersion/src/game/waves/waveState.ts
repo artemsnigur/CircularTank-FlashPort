@@ -81,21 +81,26 @@ export function bossCountFor(spec: LevelSpec): number {
 }
 
 /**
- * `bossAmount` **defaults to the level's own composition**, and that default is
- * the fix for a real bug rather than a convenience.
+ * `bossAmount` is **derived from the spec and cannot be supplied**, which is the
+ * fix for a real bug rather than a style preference.
  *
- * It used to default to `0`, and `GameplayScene` called `createWaveState(spec)`
- * without the second argument. On a Boss level that made `isWaveComplete` return
- * true on the first frame (`bossAmountKilled >= bossAmount` is `0 >= 0`) while
- * `canSpawn` returned false forever — so all 45 Boss levels auto-won with an
- * empty arena, starting at 1-9. Every Boss test supplied the argument by hand,
- * so the suite never saw it.
+ * It used to be a parameter defaulting to `0`, and `GameplayScene` called
+ * `createWaveState(spec)` without it. On a Boss level that made `isWaveComplete`
+ * return true on the first frame (`bossAmountKilled >= bossAmount` is `0 >= 0`)
+ * while `canSpawn` returned false forever — so all 45 Boss levels auto-won with
+ * an empty arena, starting at 1-9. Every Boss test supplied the argument by
+ * hand, so the suite never saw it.
  *
- * Deriving it from `spec` is what stops that recurring: the caller can no longer
- * forget a value it does not have to pass. The parameter stays so a test can
- * still force a count that the composition does not describe.
+ * Defaulting it to `bossCountFor(spec)` fixed the omission. Removing the
+ * parameter outright closes the rest: an overridable value is a loaded gun on a
+ * quantity that is a pure function of the spec, because the next test to pass
+ * its own number re-blinds the suite exactly as before, and it can describe
+ * states the game cannot reach — a Boss level whose quota bears no relation to
+ * its composition. If a real caller ever needs to override this, give it a named
+ * entry point rather than restoring the parameter.
  */
-export function createWaveState(spec: LevelSpec, bossAmount = bossCountFor(spec)): WaveState {
+export function createWaveState(spec: LevelSpec): WaveState {
+  const bossAmount = bossCountFor(spec);
   return {
     mode: spec.mode,
     pool: spec.enemies.map((entry) => ({

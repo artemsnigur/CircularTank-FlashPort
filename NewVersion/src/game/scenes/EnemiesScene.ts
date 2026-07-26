@@ -38,8 +38,8 @@ export class EnemiesScene extends Phaser.Scene {
     // scene has to handle `ui:start-game` itself: while it is active every
     // other scene is torn down, and the event would reach nobody. Same class
     // as the Next-level freeze — see uiEventListeners.test.ts.
-    const offStart = GameEvents.subscribe('ui:start-game', ({ world, level }) => {
-      this.scene.start(SceneKeys.Gameplay, { world, level });
+    const offStart = GameEvents.subscribe('ui:start-game', ({ world, level, sandbox }) => {
+      this.scene.start(SceneKeys.Gameplay, { world, level, sandbox });
     });
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.Enemies) this.scene.start(key);

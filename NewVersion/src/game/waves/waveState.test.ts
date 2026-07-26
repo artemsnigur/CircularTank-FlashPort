@@ -23,12 +23,15 @@ const world1Level2 = () => createWaveState(getLevel(1, 2)!);
 /**
  * The wiring seam, not the module.
  *
- * Every other Boss test in this file and in flag.test.ts passes `bossAmount`
+ * Every Boss test in this file and in flag.test.ts used to pass `bossAmount`
  * explicitly, which is precisely why the suite stayed green while all 45 Boss
  * levels auto-won: the module was right and the *call* was wrong. These tests
- * therefore call `createWaveState(spec)` with **one argument**, exactly as
- * `GameplayScene.ts:606` does, on a real level from `getLevel`. Do not add a
- * second argument to anything in this block — that is the bug.
+ * therefore build the wave exactly as `GameplayScene` does — from a real level
+ * out of `getLevel`, with the quota derived rather than asserted alongside.
+ *
+ * `createWaveState` no longer takes a `bossAmount` at all, so that particular
+ * blindness cannot return by hand. What these still guard is the derivation
+ * itself, and the two rules that read it: completion and the spawn gate.
  */
 describe('a Boss level built the way the scene builds it', () => {
   const bossLevel = () => getLevel(1, 9)!;
@@ -260,25 +263,29 @@ describe('drawEnemy — Flag and Boss modes', () => {
     expect(drawn?.type).toBe('Fast');
   });
 
+  // These build a Boss-mode spec and let the quota derive from its composition,
+  // rather than declaring a mode after the fact and asserting a count beside it.
+  // The old shape could describe states the game cannot reach — mode Boss with a
+  // quota unrelated to the entries — which is how a wrong quota stayed invisible.
   it('spawns bosses until the quota is met', () => {
-    const spec = { ...getLevel(1, 1)! };
-    const state = createWaveState(
-      { ...spec, enemies: [{ type: 'Basic', level: 'B', count: 3 }] },
-      3,
-    );
-    state.mode = 'Boss';
+    const state = createWaveState({
+      ...getLevel(1, 1)!,
+      mode: 'Boss',
+      enemies: [{ type: 'Basic', level: 'B', count: 3 }],
+    });
 
+    expect(state.bossAmount).toBe(3);
     expect(drawEnemy(state)).toEqual({ type: 'Basic', level: 'B' });
     expect(state.bossAmountSpawned).toBe(1);
   });
 
   it('stops drawing bosses once the quota is met', () => {
-    const spec = getLevel(1, 1)!;
-    const state = createWaveState(
-      { ...spec, enemies: [{ type: 'Basic', level: 'B', count: 3 }] },
-      1,
-    );
-    state.mode = 'Boss';
+    const state = createWaveState({
+      ...getLevel(1, 1)!,
+      mode: 'Boss',
+      enemies: [{ type: 'Basic', level: 'B', count: 1 }],
+    });
+    expect(state.bossAmount).toBe(1);
     drawEnemy(state);
 
     // Quota met; the normal path runs and finds no non-boss entries.
@@ -287,17 +294,16 @@ describe('drawEnemy — Flag and Boss modes', () => {
   });
 
   it('never draws a boss entry through the normal path', () => {
-    const spec = getLevel(1, 1)!;
-    const state = createWaveState(
-      {
-        ...spec,
-        enemies: [
-          { type: 'Basic', level: '1', count: 5 },
-          { type: 'Fast', level: 'B', count: 1 },
-        ],
-      },
-      0,
-    );
+    // Stays in the level's own Normal mode, so the quota derives to 0 — the
+    // boss path is unreachable and only the normal draw runs.
+    const state = createWaveState({
+      ...getLevel(1, 1)!,
+      enemies: [
+        { type: 'Basic', level: '1', count: 5 },
+        { type: 'Fast', level: 'B', count: 1 },
+      ],
+    });
+    expect(state.bossAmount).toBe(0);
 
     for (let i = 0; i < 50; i += 1) {
       const drawn = drawEnemy(state, undefined, () => Math.random());

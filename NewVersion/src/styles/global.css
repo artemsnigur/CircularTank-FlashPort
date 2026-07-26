@@ -840,3 +840,97 @@ code {
   font-size: 0.65rem;
   cursor: pointer;
 }
+
+/* ── Dev level jump ────────────────────────────────────────────────────────
+   Dev-only affordance on the level select screen; the component behind it is
+   behind `import.meta.env.DEV`, so these rules are dead weight in production
+   CSS but harmless. Deliberately drab, so it never reads as game UI. */
+.dev-jump {
+  margin-top: 1.5rem;
+  padding: 0.75rem;
+  border: 1px dashed rgb(255 255 255 / 25%);
+  border-radius: 6px;
+  opacity: 0.85;
+}
+
+.dev-jump__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.dev-jump__worlds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.6rem;
+}
+
+.dev-jump__world {
+  min-width: 2rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid rgb(255 255 255 / 25%);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.dev-jump__world--on {
+  border-color: rgb(140 230 140 / 70%);
+  background: rgb(140 230 140 / 15%);
+}
+
+.dev-jump__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(3.2rem, 1fr));
+  gap: 0.25rem;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.dev-jump__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.3rem 0.15rem;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dev-jump__cell:active {
+  transform: translateY(1px);
+}
+
+/* Mode at a glance — Boss and Flag are the ones worth finding quickly. */
+.dev-jump__cell--boss {
+  border-color: rgb(240 140 140 / 60%);
+}
+
+.dev-jump__cell--flag {
+  border-color: rgb(240 220 140 / 60%);
+}
+
+.dev-jump__number {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.dev-jump__mode {
+  font-size: 0.55rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}

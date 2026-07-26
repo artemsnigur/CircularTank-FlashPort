@@ -79,12 +79,19 @@ The current 242 sort roughly as:
   `knownBestiary`, `knownCount`), `applyFreeze`, and the achievement value
   sources (`countMaxed*`, `getTotalValues`, `getAchievementTiers`,
   `getLevelValues`).
-- **Category 1, duplicated instead of called** — a smaller and more actionable
-  group, where a tested helper exists and the caller reimplements it inline:
-  `countCrowd` (`weapons/flames.ts`) against `GameplayScene`'s own crowd loop,
-  `canAfford` (`upgrades/upgradeState.ts`) against `UpgradesScene`'s inline
-  comparison, `flagReward` (`waves/flag.ts`) against an inlined `spec.flagMoney`.
-  Two copies of one rule, and the tested copy is the unused one.
+- **Category 1, duplicated instead of called — treat these first.** A tested
+  helper exists and the caller reimplements the same rule inline: `countCrowd`
+  (`weapons/flames.ts`) against `GameplayScene`'s own crowd loop, `canAfford`
+  (`upgrades/upgradeState.ts`) against `UpgradesScene`'s inline comparison,
+  `flagReward` (`waves/flag.ts`) against an inlined `spec.flagMoney`.
+
+  **These are the one category where the obvious reading of knip's output is
+  wrong.** "Unused export" reads as "safe to delete", and deleting here removes
+  the tested copy and leaves the untested live copy behind. The rule is real and
+  running; what is unused is the guarded version of it. Two copies can drift
+  apart while the suite stays green, because the test is pointed at the copy
+  that never executes. Fix by calling the helper, never by dropping it. Full
+  write-up in `docs/AUDIT-2026-07.md`, "One rule, two copies".
 - **Category 2** — the bulk of the 136 values: stat constants, frame counts and
   fixture tables exported so a test can assert the exact figure.
 - **Category 3** — module-private helpers that never needed exporting, e.g.
