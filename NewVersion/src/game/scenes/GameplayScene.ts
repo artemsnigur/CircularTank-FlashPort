@@ -15,6 +15,7 @@
  */
 import Phaser from 'phaser';
 import { SceneKeys } from '../config/constants';
+import type { Difficulty } from '../config/constants';
 import { GameEvents } from '../events/GameEvents';
 import { PlayerTank } from '../entities/PlayerTank';
 import type { PlayerInput } from '../entities/PlayerTank';
@@ -118,12 +119,20 @@ const PLACEHOLDER_AMMO = 12;
  */
 const FIRE_THAW_FRAMES = 15;
 
+/**
+ * Difficulty is pinned until the difficulty selector is ported. It decides
+ * which of the three progress slots a result is written to, and how enemy
+ * stats scale.
+ */
+const DIFFICULTY: Difficulty = 'Easy';
+
 /** Stand-in size for the flag; the extracted art is not among the assets. */
 const FLAG_RADIUS = 14;
 const FPS_EMIT_INTERVAL_MS = 500;
 
 interface GameplayData {
-  levelIndex?: number;
+  world?: number;
+  level?: number;
 }
 
 export class GameplayScene extends Phaser.Scene {
@@ -138,7 +147,9 @@ export class GameplayScene extends Phaser.Scene {
   private wasd: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key> | null = null;
 
   private currency = 0;
-  private levelIndex = 0;
+  /** Which level is being played — set from LevelSelect via scene data. */
+  private world = 1;
+  private level = 1;
   private lastFpsEmit = 0;
   private teardown: Array<() => void> = [];
 
@@ -223,7 +234,8 @@ export class GameplayScene extends Phaser.Scene {
   }
 
   init(data: GameplayData): void {
-    this.levelIndex = data.levelIndex ?? 0;
+    this.world = data.world ?? 1;
+    this.level = data.level ?? 1;
     // Seeded from the profile below — the AS3 has one running `money` total,
     // not a per-level takings counter.
     this.currency = 0;
@@ -322,7 +334,7 @@ export class GameplayScene extends Phaser.Scene {
           // so it has to be resumed before the restart takes effect.
           if (this.outcome.finished) {
             this.scene.resume();
-            this.scene.restart({ levelIndex: this.levelIndex });
+            this.scene.restart({ world: this.world, level: this.level });
           }
           return;
         }
@@ -357,7 +369,7 @@ export class GameplayScene extends Phaser.Scene {
       maxHealth: TANK_MAX_HP,
     });
     GameEvents.emit('wave:changed', {
-      wave: this.levelIndex + 1,
+      wave: this.level,
       // Enemies left in the wave — not PICKUP_COUNT, which counts decorative
       // coins and had nothing to do with the number displayed.
       enemiesRemaining: (this.wave?.enemiesLeft ?? 0) + this.enemies.length,
@@ -521,9 +533,8 @@ export class GameplayScene extends Phaser.Scene {
    * level's own spawn interval, each announced by a warning marker.
    */
   private startWave(): void {
-    // World 1 while there is no level select; levelIndex is a stand-in.
-    const world = 1;
-    const level = this.levelIndex + 1;
+    const world = this.world;
+    const level = this.level;
     const spec = getLevel(world, level);
     if (!spec) return;
 
@@ -614,7 +625,7 @@ export class GameplayScene extends Phaser.Scene {
     const enemy = Enemy.spawn(this, {
       type: warning.type,
       level: warning.level,
-      difficulty: 'Easy',
+      difficulty: DIFFICULTY,
       mode: spec.mode,
       roomWidth: ROOM_WIDTH,
       roomHeight: ROOM_HEIGHT,
@@ -1274,7 +1285,7 @@ export class GameplayScene extends Phaser.Scene {
         this.player.setVisible(false);
       }
 
-      console.info(`[GameplayScene] Level ${this.levelIndex + 1}: ${this.outcome.result}.`);
+      console.info(`[GameplayScene] Level ${this.level}: ${this.outcome.result}.`);
     }
 
     if (this.outcome.finished && !this.banked) {
@@ -1285,13 +1296,20 @@ export class GameplayScene extends Phaser.Scene {
       // new total rather than adding to it — adding would double-count.
       this.banked = true;
       this.profile.setUpgrades({ ...this.upgrades, money: this.currency });
+
+      // A win records a value against the level, which is what unlocks the
+      // next one (`ScreenLevelSelect.as:842` locks a level whose predecessor
+      // scored zero). A loss still updates "where the player was" but scores
+      // nothing, so it cannot unlock anything.
+      const won = this.outcome.result === 'won';
+      this.profile.recordLevel(this.world, this.level, DIFFICULTY, won ? 1 : 0, won);
       this.profile.save();
     }
 
     if (this.outcome.finished) {
       GameEvents.emit('level:ended', {
         result: this.outcome.result!,
-        level: this.levelIndex + 1,
+        level: this.level,
         kills: this.kills,
         currency: this.currency,
       });
@@ -1496,7 +1514,7 @@ export class GameplayScene extends Phaser.Scene {
     enemy.destroy();
 
     GameEvents.emit('wave:changed', {
-      wave: this.levelIndex + 1,
+      wave: this.level,
       enemiesRemaining: (this.wave?.enemiesLeft ?? 0) + this.enemies.length,
     });
   }
@@ -1516,7 +1534,7 @@ export class GameplayScene extends Phaser.Scene {
   private spawnPickups(): void {
     // Deterministic layout: the same seed gives the same board, which makes a
     // "did my change break collection?" check reproducible.
-    const rng = new Phaser.Math.RandomDataGenerator([`level-${this.levelIndex}`]);
+    const rng = new Phaser.Math.RandomDataGenerator([`level-${this.world}-${this.level}`]);
     for (let i = 0; i < PICKUP_COUNT; i += 1) {
       const x = rng.between(60, ROOM_WIDTH - 60);
       const y = rng.between(60, ROOM_HEIGHT - 60);
@@ -1541,7 +1559,7 @@ export class GameplayScene extends Phaser.Scene {
 
     const remaining = this.pickups.countActive(true);
     GameEvents.emit('wave:changed', {
-      wave: this.levelIndex + 1,
+      wave: this.level,
       enemiesRemaining: remaining,
     });
 

@@ -630,3 +630,27 @@ code {
   justify-content: center;
   gap: 0.75rem;
 }
+
+/* Level select cells. Locked cells stay visible but inert, matching the AS3's
+   padlock rather than hiding levels the player has not reached. */
+.level-grid__cell--locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.level-grid__cell--cleared {
+  border-color: rgb(140 230 140 / 60%);
+}
+
+.level-grid__number {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.level-grid__mode {
+  display: block;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}

@@ -126,7 +126,23 @@ export interface GameEventMap {
   'debug:fps': { fps: number };
 
   /* ── React -> Phaser ─────────────────────────────────────────────────── */
-  'ui:start-game': { levelIndex: number };
+  'ui:start-game': { world: number; level: number };
+  /**
+   * The selectable levels of a world, pushed by LevelSelectScene.
+   *
+   * React never reads the profile directly — it lives in the Phaser registry,
+   * and a scene owns it. This is the sanctioned channel.
+   */
+  'levels:listed': {
+    world: number;
+    worldName: string;
+    levels: Array<{
+      level: number;
+      mode: string;
+      cleared: boolean;
+      unlocked: boolean;
+    }>;
+  };
   'ui:pause': { paused: boolean };
   'ui:goto': { key: SceneKey };
   'ui:run-audio-selftest': Record<string, never>;

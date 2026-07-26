@@ -31,6 +31,9 @@ import { EMPTY_SAVE_STRING } from '../save/saveString';
 import type { SaveSlotData } from '../save/saveSlot';
 import type { UpgradeState } from '../upgrades/upgradeState';
 import type { LoadoutState } from '../loadout/loadout';
+import { recordLevelResult } from '../levels/levelProgress';
+import type { ProgressTable } from '../levels/levelProgress';
+import type { Difficulty } from '../config/constants';
 
 export const PROFILE_REGISTRY_KEY = 'playerProfile';
 
@@ -87,6 +90,41 @@ export class PlayerProfile {
 
   setLoadout(loadout: LoadoutState): void {
     this.data = { ...this.data, loadout };
+  }
+
+  get progress(): ProgressTable {
+    return this.data.levelSelect.progress;
+  }
+
+  /**
+   * Records a level result and remembers where the player was.
+   *
+   * `recordLevelResult` only ever raises a slot, so replaying a level on an
+   * easier difficulty cannot erase a better score.
+   */
+  recordLevel(
+    world: number,
+    level: number,
+    difficulty: Difficulty,
+    value: number,
+    won: boolean,
+  ): void {
+    this.data = {
+      ...this.data,
+      levelSelect: {
+        ...this.data.levelSelect,
+        progress: recordLevelResult(
+          this.data.levelSelect.progress,
+          world,
+          level,
+          difficulty,
+          value,
+        ),
+        previousWorld: world,
+        previousLevel: level,
+        previousLevelWon: won,
+      },
+    };
   }
 
   /**

@@ -314,6 +314,31 @@ simulating the module's lifecycle in a throwaway test, computing the actual arit
 (level 1-1 is 10 enemies at 5 damage against 100 HP, so defeat was *unreachable*, not
 broken), and logging real values. Reach for an experiment before a third hypothesis.
 
+### A test can pin a bug and still look like coverage
+
+Distinct from the wiring failures above: there the test was right and the caller was
+wrong. Here the **test itself encodes the defect as the specification**, so it is green,
+it looks like the behaviour is deliberate, and it actively resists the fix.
+
+`waveState.test.ts` carried `it('never reports a Flag level complete')`. That was an
+accurate description of `isWaveComplete` — which had no Flag branch — and it read as a
+documented design decision. It was neither: 90 Flag levels and 45 Boss levels could not
+finish, and the test would have failed the moment anyone fixed it.
+
+The tell is a test asserting that something **cannot** happen, where the reason is "we did
+not implement it" rather than a rule from the source. When writing one, say which it is:
+
+```ts
+// Flag levels end on flags, not an empty arena — PartGameArea.as:2708.
+// (a rule; keep it)
+
+// Flag completion is not ported yet, so this must return false.
+// (a limitation; delete this test when it is)
+```
+
+Before "fixing" a failing test that has always passed, check whether the assertion was
+ever a requirement. If it only ever described a gap, replace it rather than restore it.
+
 ### Test assertions
 
 Prefer the **computed value** over a comparative whenever the number is knowable when the

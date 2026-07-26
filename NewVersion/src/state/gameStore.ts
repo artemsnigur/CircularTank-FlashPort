@@ -45,6 +45,18 @@ export interface LevelOutcomeSummary {
   currency: number;
 }
 
+/** One world's levels with their unlock state. */
+export interface LevelListing {
+  world: number;
+  worldName: string;
+  levels: Array<{
+    level: number;
+    mode: string;
+    cleared: boolean;
+    unlocked: boolean;
+  }>;
+}
+
 export interface GameState {
   /* Loading */
   phase: LoadPhase;
@@ -70,6 +82,9 @@ export interface GameState {
   /** Set when a level finishes; null while one is in progress. */
   levelOutcome: LevelOutcomeSummary | null;
 
+  /** The selectable levels of the current world, published by LevelSelectScene. */
+  levelList: LevelListing | null;
+
   /* Diagnostics */
   viewport: ViewportSnapshot | null;
   safeArea: SafeAreaInsets;
@@ -91,6 +106,7 @@ export interface GameState {
   endLevel: (summary: LevelOutcomeSummary) => void;
   /** Clears the result so the next level starts clean. */
   clearLevelOutcome: () => void;
+  setLevelList: (listing: LevelListing) => void;
   pushAchievement: (toast: AchievementToast) => void;
   dismissAchievement: (id: string) => void;
   setViewport: (viewport: ViewportSnapshot) => void;
@@ -113,6 +129,7 @@ const initialRunState = {
   enemiesRemaining: 0,
   achievements: [] as AchievementToast[],
   levelOutcome: null as LevelOutcomeSummary | null,
+  levelList: null as LevelListing | null,
 };
 
 export const useGameStore = create<GameState>()((set) => ({
@@ -149,6 +166,7 @@ export const useGameStore = create<GameState>()((set) => ({
   setWave: (wave, enemiesRemaining) => set({ wave, enemiesRemaining }),
   endLevel: (levelOutcome) => set({ levelOutcome }),
   clearLevelOutcome: () => set({ levelOutcome: null }),
+  setLevelList: (levelList) => set({ levelList }),
 
   pushAchievement: (toast) =>
     set((s) =>

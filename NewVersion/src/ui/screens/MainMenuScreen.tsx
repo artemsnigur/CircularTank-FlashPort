@@ -23,7 +23,7 @@ export function MainMenuScreen(): React.ReactElement | null {
         <button
           type="button"
           className="menu__button menu__button--primary"
-          onClick={() => GameEvents.emit('ui:start-game', { levelIndex: 0 })}
+          onClick={() => GameEvents.emit('ui:start-game', { world: 1, level: 1 })}
         >
           Play
         </button>

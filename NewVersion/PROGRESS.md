@@ -203,7 +203,7 @@ below — everything else hangs off those.
 - [ ] `ScreenAchievements` — ported
 - [ ] `ScreenEnemies` — ported
 - [ ] `ScreenGame` — not started
-- [ ] `ScreenLevelSelect` — ported
+- [ ] `ScreenLevelSelect` — ported · wired
 - [ ] `ScreenLoad` — not started
 - [ ] `ScreenMenu` — not started
 - [ ] `ScreenOptions` — not started

@@ -68,8 +68,8 @@ export class MainMenuScene extends Phaser.Scene {
       getSoundManager(this)?.setMusic('Menu');
     });
 
-    const offStart = GameEvents.subscribe('ui:start-game', ({ levelIndex }) => {
-      this.scene.start(SceneKeys.Gameplay, { levelIndex });
+    const offStart = GameEvents.subscribe('ui:start-game', ({ world, level }) => {
+      this.scene.start(SceneKeys.Gameplay, { world, level });
     });
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.MainMenu) this.scene.start(key);
