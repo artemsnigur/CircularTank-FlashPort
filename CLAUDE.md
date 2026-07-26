@@ -60,9 +60,12 @@ React UI     --emit--> GameEvents --> scene listener   --> gameplay
 - Every event and payload is declared in `GameEventMap`
   (`src/game/events/GameEvents.ts`). Adding a member there is the only way to add an
   event — that is deliberate, so typos and missing fields are compile errors.
-- `src/state/bridge.ts` is the **sole** event→store translator. When a HUD value is
-  wrong, that is the one file to read. Gameplay code emits events; it does not call store
-  setters.
+- `src/state/bridge.ts` is the event→store translator for **all gameplay**. When a HUD
+  value is wrong, that is the one file to read. Scene code emits events; it does not call
+  store setters, and no scene does. Two `state/` installers are the exception and write
+  directly because they *originate* their data rather than consume an event:
+  `safeArea.ts:87` (`setSafeArea`, which has no bridge handler) and `errorCapture.ts:36`
+  (`setLoadError`).
 - React must never hold a reference to a `Scene`. Scenes are torn down and rebuilt
   constantly and a stale reference leaks. Phaser reads state with
   `useGameStore.getState()`; React reads with selectors (never the whole store).
@@ -110,7 +113,8 @@ exports only its component (mixing exports silently breaks Fast Refresh).
 
 ### Scene chain
 
-`Boot → Preload → MainMenu → LevelSelect → Gameplay`.
+`Boot → Preload → MainMenu → LevelSelect → Gameplay`, plus `Upgrades` and `Enemies`,
+both reached from the main menu. All seven are registered in `gameConfig.ts`.
 
 **BootScene must always hand off to Preload, whatever happens.** Phaser does not await
 `Scene.create()`, so a rejected promise there is unhandled and the game strands with the
@@ -184,11 +188,16 @@ They are excluded from every total, so the percentages keep meaning something �
 Start from **Core systems** — everything else hangs off those. Do **not** port the ~81
 third-party classes (`com/google/analytics`, `FGL`, `fl`, `mx`); replace or drop them.
 
-**`PM_PRNG` is reproducibility-critical.** It is seeded per level from
-`levelDataModel[...][9]` and drives deterministic background-prop placement. It is a Lehmer
-generator whose product reaches ~7.2e13 — exact in a double, but destroyed by `Math.imul`,
-`| 0` or `>>> 0`. `src/game/core/PM_PRNG.ts` says so at length; the differential test
-against BigInt is the guard. Do not "optimise" it.
+**`PM_PRNG` is reproducibility-critical, and is not yet wired.** In the AS3 it is seeded
+per level from `levelDataModel[...][9]` and drives deterministic background-prop placement.
+In the port it has **no production importer**: `LevelSpec.seed` is extracted for all 405
+levels and read by nothing, and `GameplayScene` uses `Phaser.Math.RandomDataGenerator`
+seeded from a string key for spawn placement instead. Background props are unported, so
+this is not yet a divergence — but the sites that would use it have already chosen a
+different generator. It is a Lehmer generator whose product reaches ~7.2e13 — exact in a
+double, but destroyed by `Math.imul`, `| 0` or `>>> 0`. `src/game/core/PM_PRNG.ts` says so
+at length; the differential test against BigInt is the guard. Do not "optimise" it, and do
+not delete it as unused — see `docs/AUDIT-2026-07.md`.
 
 When lifting constants out of AS3, keep the origin in a comment (`ScreenGame.as`
 `levelDataModelW1`, `PartGameArea.cameraWidth`, …). The level tables and enemy stat rows
@@ -235,9 +244,12 @@ The failures look like this:
   that rule evaluates to `tower.rotation - 0/2 + random()*0` — a no-op. A line of dead
   arithmetic was recorded as a blocker.
 
-Meanwhile Timed Bomb Cannon and Poison Cannon *are* blocked, and on the same thing: a
-persistent per-enemy status timer. That is the useful unit — build it once, several
-weapons unblock together.
+Meanwhile Timed Bomb Cannon and Poison Cannon *were* blocked, and on the same thing: a
+persistent per-enemy status timer. That was the useful unit — build it once, several
+weapons unblock together. **That prediction held**: `enemies/statusEffects.ts` is the
+timer, it carries poison, attached bombs and freeze, and both weapons shipped on it. Name
+the shared dependency and the grouping pays for itself. (Freeze is still inert — nothing
+deals Ice damage yet — which is a missing *source*, not a missing subsystem.)
 
 Before writing "blocked" or "needs its own session":
 
