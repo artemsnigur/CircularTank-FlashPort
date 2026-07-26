@@ -203,6 +203,56 @@ When lifting constants out of AS3, keep the origin in a comment (`ScreenGame.as`
 `levelDataModelW1`, `PartGameArea.cameraWidth`, …). The level tables and enemy stat rows
 are dense magic numbers and unattributed ones become unverifiable.
 
+### An AS3 constant that became a runtime variable
+
+The Flash build ran at one fixed size on one fixed platform. This port does not,
+and **any AS3 value that was a compile-time constant but is a runtime variable here
+will port term-for-term while silently changing meaning**. The arithmetic survives;
+the semantics do not. Camera size is the instance that has bitten twice, but the
+class is wider — frame rate, stage size, pixel density and safe-area insets are all
+constants-that-became-variables.
+
+Both instances so far involved `cameraWidth`/`cameraHeight`, a fixed 640×400 in the
+AS3 and `640 × logicalHeight` here, where `logicalHeight` is `renderHeight / zoom`
+clamped to `[400, 1440]`:
+
+- The off-camera spawn search compared candidates against 640×400 while the game
+  rendered up to 1440 tall, so it protected a rectangle less than half the height of
+  the real view and placed enemies on screen. The *predicate* was a faithful port;
+  the *operand* was not.
+- The fix then over-corrected: a `==` disqualifier was widened to `<=` and justified
+  as "identical on every room size the AS3 could produce" — reasoning in the AS3's
+  world about a change that only matters in this one. It disabled the feature on
+  every level at any height ≥ 720.
+
+**The platform-blindness consequence is the important part.** That second defect was
+*invisible at desktop viewports and total at phone ones*: a wide window gives a
+logical height near the 400 floor, where everything looked correct, while a portrait
+phone sits near 1385, where the feature was entirely gone. This port ships to
+iOS/Android via Capacitor. **A desktop-only visual pass proves nothing about mobile**,
+and neither defect was found by tests or by play — one surfaced because a reviewer
+questioned a justification.
+
+This is a different failure class from the wiring bugs above. There the code was
+wrong everywhere and nobody had looked. Here the code is *correct on the platform you
+test on* and absent on the platform you ship to, so looking harder in the same place
+never finds it.
+
+Before porting any expression involving a screen, camera, viewport or timing value:
+
+1. **Ask whether the AS3 value was constant.** If it was, the port almost certainly
+   needs the live value, not the transcribed number.
+2. **Make the live value non-optional.** `PlacementContext` now requires
+   `cameraWidth`/`cameraHeight`; omitting them is a compile error rather than a
+   silent fallback to the Flash stage. A default that happens to be right on your
+   machine is the trap.
+3. **Check the behaviour at both extremes of the range**, not at the value your
+   window happens to produce. For the viewport that means a logical height of 400
+   *and* 1440.
+4. **Keep the AS3 constant as documentation, never as a fallback.**
+   `AS3_CAMERA_WIDTH`/`AS3_CAMERA_HEIGHT` exist to record what the original was, and
+   nothing reads them at runtime.
+
 ### Claiming something is unused
 
 **A name-based grep is not sufficient evidence that a field is dead**, and saying so in a
