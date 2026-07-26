@@ -17,5 +17,5 @@
     "checkJs": false,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "capacitor.config.ts", "scripts/**/*.mjs"]
+  "include": ["vite.config.ts", "capacitor.config.ts", "scripts/**/*.mjs", "scripts/**/*.ts"]
 }
