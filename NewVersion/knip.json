@@ -1,6 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  "vite": false,
+  "vitest": false,
   "entry": [
+    "src/main.tsx",
     "scripts/*.mjs"
   ],
   "project": [
@@ -8,10 +11,17 @@
     "scripts/**/*.mjs"
   ],
   "ignore": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "src/test/**",
     "src/assets/*Manifest.ts",
     "src/game/**/*Data.ts"
   ],
   "ignoreDependencies": [
-    "@capacitor/core"
+    "@capacitor/core",
+    "@testing-library/dom",
+    "@testing-library/jest-dom",
+    "@testing-library/react",
+    "@vitejs/plugin-react"
   ]
 }
