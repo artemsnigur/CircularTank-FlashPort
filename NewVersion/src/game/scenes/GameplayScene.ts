@@ -72,7 +72,7 @@ import {
 } from '../weapons/secondaries';
 import type { SecondarySpec, SecondaryStats } from '../weapons/secondaries';
 import { Mine } from '../entities/Mine';
-import { createInitialUpgradeState } from '../upgrades/upgradeState';
+import { createInitialUpgradeState, maxedUpgradeState } from '../upgrades/upgradeState';
 import type { UpgradeState } from '../upgrades/upgradeState';
 import { getPlayerProfile } from '../player/playerProfile';
 import type { PlayerProfile } from '../player/playerProfile';
@@ -107,6 +107,7 @@ import {
   resolveContact,
   TANK_MAX_HP,
 } from '../player/tankDamage';
+import { bankLevelOutcome } from '../player/levelBanking';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 
 /**
@@ -160,6 +161,8 @@ interface GameplayData {
   level?: number;
   /** See `ui:start-game` — a run that must not reach the player's save. */
   sandbox?: boolean;
+  /** See `ui:start-game` — honoured only alongside `sandbox`. */
+  equipped?: boolean;
 }
 
 export class GameplayScene extends Phaser.Scene {
@@ -186,6 +189,9 @@ export class GameplayScene extends Phaser.Scene {
    * block that writes rather than being spread across the individual writers.
    */
   private sandbox = false;
+
+  /** Dev: arrive fully upgraded. Only honoured on a sandbox run. */
+  private equipped = false;
   private lastFpsEmit = 0;
   private teardown: Array<() => void> = [];
 
@@ -312,6 +318,7 @@ export class GameplayScene extends Phaser.Scene {
     this.world = data.world ?? 1;
     this.level = data.level ?? 1;
     this.sandbox = data.sandbox === true;
+    this.equipped = data.equipped === true;
     // Seeded from the profile below — the AS3 has one running `money` total,
     // not a per-level takings counter.
     this.currency = 0;
@@ -327,7 +334,19 @@ export class GameplayScene extends Phaser.Scene {
     // Real upgrades and loadout, shared across scenes and persisted — not a
     // throwaway state rebuilt on every restart.
     this.profile = getPlayerProfile(this);
-    this.upgrades = this.profile.upgrades;
+
+    // A dev jump can ask to arrive equipped, because the starting Cannon makes
+    // a late level unreadable — 1-9's boss is 500 HP against 7 damage, so a
+    // fresh tank needs 31s of perfect fire and reads as "the boss won't die".
+    //
+    // Gated on `sandbox` as well as `equipped`, deliberately: this replaces the
+    // profile's upgrades for the run, and the only thing keeping that out of
+    // the save is that a sandbox run never banks. Honouring `equipped` on its
+    // own would hand a maxed profile straight to `bankLevelOutcome`.
+    this.upgrades =
+      this.sandbox && this.equipped
+        ? maxedUpgradeState(this.profile.upgrades.money)
+        : this.profile.upgrades;
 
     // `ScreenUpgrades.money` is a single running total that levels add to, so
     // the counter starts from what the player already has rather than at zero.
@@ -409,14 +428,14 @@ export class GameplayScene extends Phaser.Scene {
             this.scene.resume();
             // `sandbox` rides along: retrying a dev run must not become a
             // real one.
-            this.scene.restart({ world: this.world, level: this.level, sandbox: this.sandbox });
+            this.scene.restart({ world: this.world, level: this.level, sandbox: this.sandbox, equipped: this.equipped });
           }
           return;
         }
         this.scene.resume();
         this.scene.start(key);
       }),
-      GameEvents.subscribe('ui:start-game', ({ world, level, sandbox }) => {
+      GameEvents.subscribe('ui:start-game', ({ world, level, sandbox, equipped }) => {
         // "Next level" from the results overlay.
         //
         // Gameplay has to listen for this itself. MainMenuScene and
@@ -433,7 +452,7 @@ export class GameplayScene extends Phaser.Scene {
         // entered from a dev jump stays off the save for its whole length,
         // which is the only useful reading: the player did not legitimately
         // reach level N+1 either.
-        this.scene.restart({ world, level, sandbox: sandbox ?? this.sandbox });
+        this.scene.restart({ world, level, sandbox: sandbox ?? this.sandbox, equipped: equipped ?? this.equipped });
       }),
       GameEvents.subscribe('ui:pause', ({ paused }) => {
         if (paused) this.scene.pause();
@@ -1513,30 +1532,20 @@ export class GameplayScene extends Phaser.Scene {
       // re-enter this block every frame looking for work it will never do.
       this.banked = true;
 
-      // ── The whole of persistence, behind one guard ──────────────────────
-      // A sandbox run writes nothing. The guard is here rather than inside
-      // `recordLevel`/`save` because the rule is about the *run*, not about
-      // any one writer: money, the level result and "where the player was"
-      // must all stay out of the save together, or the profile ends up
-      // half-updated. Dev levels used to bank money and write previousWorld: 0
-      // in spite of a comment promising they could not — see
-      // docs/AUDIT-2026-07.md.
-      if (!this.sandbox) {
-        // Bank the level's takings into the persistent profile and write it
-        // out. The AS3 saves at defined moments rather than continuously;
-        // level end is one of them.
-        // `currency` already includes the opening balance, so this assigns the
-        // new total rather than adding to it — adding would double-count.
-        this.profile.setUpgrades({ ...this.upgrades, money: this.currency });
-
-        // A win records a value against the level, which is what unlocks the
-        // next one (`ScreenLevelSelect.as:842` locks a level whose predecessor
-        // scored zero). A loss still updates "where the player was" but scores
-        // nothing, so it cannot unlock anything.
-        const won = this.outcome.result === 'won';
-        this.profile.recordLevel(this.world, this.level, DIFFICULTY, won ? 1 : 0, won);
-        this.profile.save();
-      }
+      // The AS3 saves at defined moments rather than continuously; level end is
+      // one of them. The sandbox rule and all three writes live in
+      // `bankLevelOutcome` so they can be tested against a real profile — the
+      // scene cannot be instantiated, and a regex over this file cannot tell
+      // whether the guard is actually reached.
+      bankLevelOutcome(this.profile, {
+        sandbox: this.sandbox,
+        upgrades: this.upgrades,
+        currency: this.currency,
+        world: this.world,
+        level: this.level,
+        difficulty: DIFFICULTY,
+        won: this.outcome.result === 'won',
+      });
     }
 
     if (this.outcome.finished) {

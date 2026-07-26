@@ -46,8 +46,8 @@ export class LevelSelectScene extends Phaser.Scene {
 
     this.publishLevels();
 
-    const offStart = GameEvents.subscribe('ui:start-game', ({ world, level, sandbox }) => {
-      this.scene.start(SceneKeys.Gameplay, { world, level, sandbox });
+    const offStart = GameEvents.subscribe('ui:start-game', ({ world, level, sandbox, equipped }) => {
+      this.scene.start(SceneKeys.Gameplay, { world, level, sandbox, equipped });
     });
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.LevelSelect) this.scene.start(key);

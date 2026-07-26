@@ -934,3 +934,13 @@ code {
   text-transform: uppercase;
   opacity: 0.65;
 }
+
+.dev-jump__equip {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-bottom: 0.6rem;
+  font-size: 0.75rem;
+  opacity: 0.8;
+  cursor: pointer;
+}

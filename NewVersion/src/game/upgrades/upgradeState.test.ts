@@ -18,6 +18,7 @@ import {
   getStatValue,
   isMaxed,
   isOwned,
+  maxedUpgradeState,
   nextLevelCost,
   purchaseNextLevel,
   totalCostToMaxEverything,
@@ -303,5 +304,27 @@ describe('totalCostToMaxEverything', () => {
     );
     expect(totalCostToMaxEverything()).toBe(expected);
     expect(totalCostToMaxEverything()).toBeGreaterThan(0);
+  });
+});
+
+describe('maxedUpgradeState (dev affordance)', () => {
+  it('owns and maxes every upgrade in all three categories', () => {
+    const state = maxedUpgradeState();
+    for (const spec of ALL_UPGRADES) {
+      expect(isOwned(state, spec), spec.id).toBe(true);
+      expect(isMaxed(state, spec), spec.id).toBe(true);
+    }
+  });
+
+  it('carries the money through rather than inventing a fortune', () => {
+    // The dev jump passes the profile's real balance, so the HUD reads true.
+    expect(maxedUpgradeState(1234).money).toBe(1234);
+    expect(maxedUpgradeState().money).toBe(0);
+  });
+
+  it('nothing is left to buy', () => {
+    const state = maxedUpgradeState();
+    expect(countMaxedPrimary(state)).toBe(PRIMARY_UPGRADES.length);
+    expect(countMaxedSecondary(state)).toBe(SECONDARY_UPGRADES.length);
   });
 });

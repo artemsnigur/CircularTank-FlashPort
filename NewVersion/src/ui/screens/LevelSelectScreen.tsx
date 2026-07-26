@@ -43,11 +43,23 @@ import { Worlds } from '../../game/config/constants';
  */
 function DevLevelJump(): React.ReactElement {
   const [world, setWorld] = useState(1);
+  const [equipped, setEquipped] = useState(true);
   const levels = LEVELS[world - 1] ?? [];
 
   return (
     <section className="dev-jump">
       <h3 className="dev-jump__title">Dev · jump to any level</h3>
+
+      <label className="dev-jump__equip">
+        <input
+          type="checkbox"
+          checked={equipped}
+          onChange={(e) => setEquipped(e.target.checked)}
+        />
+        {/* Default on: arriving at a late level with the starting Cannon reads
+            as "the boss will not die" when it is really 31s of perfect fire. */}
+        <span>Arrive fully upgraded</span>
+      </label>
 
       <div className="dev-jump__worlds">
         {LEVELS.map((_, index) => {
@@ -77,7 +89,7 @@ function DevLevelJump(): React.ReactElement {
                 title={`World ${world} level ${level} — ${spec.mode}, ${spec.roomWidth}x${spec.roomHeight}`}
                 aria-label={`World ${world}, level ${level}, ${spec.mode}`}
                 onClick={() =>
-                  GameEvents.emit('ui:start-game', { world, level, sandbox: true })
+                  GameEvents.emit('ui:start-game', { world, level, sandbox: true, equipped })
                 }
               >
                 <span className="dev-jump__number">{level}</span>
@@ -91,6 +103,9 @@ function DevLevelJump(): React.ReactElement {
       <p className="screen__hint">
         {Worlds[world - 1] ?? `World ${world}`} · {levels.length} levels. Runs launched here
         are sandboxed: no money banked, no result recorded, no change to your save.
+        {equipped
+          ? ' Upgrades are maxed for the run only and are never written back.'
+          : ' Using your real upgrades — a late level may be unwinnable at low damage.'}
       </p>
     </section>
   );

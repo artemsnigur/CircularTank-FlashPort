@@ -56,8 +56,12 @@ describe('every scene that starts Gameplay forwards the flag', () => {
 
   it.each(forwarders)('%s passes sandbox through to scene.start', (path) => {
     const source = readFileSync(path, 'utf8');
-    expect(source).toContain("GameEvents.subscribe('ui:start-game', ({ world, level, sandbox })");
-    expect(source).toContain('this.scene.start(SceneKeys.Gameplay, { world, level, sandbox })');
+    expect(source).toContain(
+      "GameEvents.subscribe('ui:start-game', ({ world, level, sandbox, equipped })",
+    );
+    expect(source).toContain(
+      'this.scene.start(SceneKeys.Gameplay, { world, level, sandbox, equipped })',
+    );
   });
 
   it('no scene starts Gameplay without passing sandbox', () => {
@@ -71,7 +75,7 @@ describe('every scene that starts Gameplay forwards the flag', () => {
   });
 });
 
-describe('GameplayScene keeps a sandbox run out of the profile', () => {
+describe('GameplayScene hands the flag to the banker', () => {
   const source = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
 
   function persistBlock(): string {
@@ -84,34 +88,46 @@ describe('GameplayScene keeps a sandbox run out of the profile', () => {
     return source.slice(start, end);
   }
 
+  // What the rule *does* is covered behaviourally in
+  // player/levelBanking.test.ts, against a real profile over real storage.
+  // These only pin the two things that live in the scene and nowhere else:
+  // where the flag comes from, and that it survives the routes back in here.
+
   it('reads the flag off the scene data', () => {
     expect(source).toContain('this.sandbox = data.sandbox === true');
   });
 
-  it('guards every write with one check, not three', () => {
+  it('passes it to bankLevelOutcome rather than writing inline', () => {
     const body = persistBlock();
-    const guard = body.indexOf('if (!this.sandbox)');
-    expect(guard).toBeGreaterThan(-1);
-
-    // All three writers sit behind it. Matched against calls, not prose.
-    for (const write of ['this.profile.setUpgrades(', 'this.profile.recordLevel(', 'this.profile.save()']) {
-      const at = body.indexOf(write);
-      expect(at, write).toBeGreaterThan(guard);
-    }
+    expect(body).toContain('bankLevelOutcome(this.profile, {');
+    expect(body).toContain('sandbox: this.sandbox');
+    // The writes must not have crept back into the scene alongside the call.
+    expect(body).not.toContain('this.profile.setUpgrades(');
+    expect(body).not.toContain('this.profile.save()');
   });
 
-  it('latches `banked` outside the guard', () => {
+  it('latches `banked` before it calls out', () => {
     // Otherwise a sandbox run re-enters the block every frame forever.
     const body = persistBlock();
-    expect(body.indexOf('this.banked = true')).toBeLessThan(body.indexOf('if (!this.sandbox)'));
+    expect(body.indexOf('this.banked = true')).toBeLessThan(body.indexOf('bankLevelOutcome('));
   });
 
   it('keeps the flag across a retry and a Next level', () => {
     expect(source).toContain(
-      'this.scene.restart({ world: this.world, level: this.level, sandbox: this.sandbox })',
+      'this.scene.restart({ world: this.world, level: this.level, sandbox: this.sandbox, equipped: this.equipped })',
     );
     // Next level inherits when the emitter does not say — the Hud cannot know.
     expect(source).toContain('sandbox: sandbox ?? this.sandbox');
+  });
+
+  it('honours `equipped` only alongside `sandbox`', () => {
+    // The safety property. `equipped` swaps the run's upgrades for a maxed set;
+    // the only thing keeping that out of the save is that a sandbox run never
+    // banks. Honouring it on its own would hand a maxed profile straight to
+    // bankLevelOutcome, which would then persist it.
+    expect(source).toContain('this.sandbox && this.equipped');
+    // And it must never be the sole condition.
+    expect(source).not.toMatch(/[^&]\bif \(this\.equipped\)/);
   });
 });
 

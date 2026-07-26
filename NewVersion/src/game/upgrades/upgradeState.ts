@@ -54,6 +54,28 @@ export function createInitialUpgradeState(): UpgradeState {
   };
 }
 
+/**
+ * Everything owned and maxed. **Dev affordance — never persist this.**
+ *
+ * Exists so a dev jump can arrive equipped. Jumping to a late level with the
+ * starting Cannon makes a fight unreadable: level 1-9's boss is 500 HP against
+ * 7 damage on a 13-frame reload, so a perfectly-aimed fresh tank needs 31
+ * seconds of uninterrupted fire, and a tester would reasonably conclude the
+ * boss was unkillable rather than under-gunned.
+ *
+ * Safe only because it is applied to the scene's in-memory copy on a run that
+ * is already `sandbox`, so `bankLevelOutcome` refuses to write it. Do not call
+ * it on a path that can reach `PlayerProfile.save()`.
+ */
+export function maxedUpgradeState(money = 0): UpgradeState {
+  return {
+    money,
+    primary: PRIMARY_UPGRADES.map(() => MAX_UPGRADE_LEVEL),
+    misc: MISC_UPGRADES.map(() => MAX_UPGRADE_LEVEL),
+    secondary: SECONDARY_UPGRADES.map(() => MAX_UPGRADE_LEVEL),
+  };
+}
+
 function levelsFor(state: UpgradeState, category: UpgradeCategory): number[] {
   return category === 'misc' ? state.misc : category === 'primary' ? state.primary : state.secondary;
 }

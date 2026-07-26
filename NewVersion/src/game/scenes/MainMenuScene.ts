@@ -75,8 +75,8 @@ export class MainMenuScene extends Phaser.Scene {
 
     this.publishResumePoint();
 
-    const offStart = GameEvents.subscribe('ui:start-game', ({ world, level, sandbox }) => {
-      this.scene.start(SceneKeys.Gameplay, { world, level, sandbox });
+    const offStart = GameEvents.subscribe('ui:start-game', ({ world, level, sandbox, equipped }) => {
+      this.scene.start(SceneKeys.Gameplay, { world, level, sandbox, equipped });
     });
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.MainMenu) this.scene.start(key);

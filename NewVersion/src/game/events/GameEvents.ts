@@ -152,7 +152,16 @@ export interface GameEventMap {
    * It rides on the event because it has to survive the hop through whichever
    * scene forwards it, and back again on a retry.
    */
-  'ui:start-game': { world: number; level: number; sandbox?: boolean };
+  'ui:start-game': {
+    world: number;
+    level: number;
+    sandbox?: boolean;
+    /**
+     * Arrive fully upgraded. **Only honoured on a `sandbox` run**, so it can
+     * never reach the save — see `GameplayScene.create`.
+     */
+    equipped?: boolean;
+  };
   /**
    * The selectable levels of a world, pushed by LevelSelectScene.
    *
