@@ -277,6 +277,45 @@ If tracing the aliases is impractical, extract the field with a neutral name and
 that its meaning is unknown. Carrying an unexplained value is cheap; silently dropping a
 load-bearing one is not.
 
+#### The second variant: duplicated logic with no name at all
+
+The alias trap above is one rule under several *names*. There is a worse variant in this
+source — one rule where the second copy has **no name**, because the helper's body was
+pasted inline. Grepping the identifier does not undercount by a little; it can miss most
+of the uses.
+
+The worked example. `checkWithinScreen` (`PartGameArea.as:4329`) tests whether a point is
+within the camera's rect. `grep checkWithinScreen` finds **4** sites. The rule itself —
+identifiable by its distinctive operand `cameraPosX`, which appears nowhere else — is
+computed at **10**, the other six written out longhand at `:1716`, `:1814`, `:1906`,
+`:4115`, `:4761`, `:5195`, `:5565` and `:6901`. I concluded from the name grep that the
+laser had no on-screen gate, and was wrong: `:5565` is that gate, inlined.
+
+The same shape shows up on our side of the port — `countCrowd`, `canAfford` and
+`flagReward` are each tested helpers whose caller reimplements them inline
+(`docs/AUDIT-2026-07.md`, "One rule, two copies"). So this is a habit of the original
+source *and* of the port, and it defeats the same tool in both.
+
+**Match on the expression's shape, not on its identifier.** In practice:
+
+1. **Probe on a distinctive operand**, not the function name. A variable that appears
+   only inside that one rule — `cameraPosX` here — finds every copy in one grep.
+   Skeleton-matching whole lines (identifiers → `X`, numbers → `N`) also works, but is
+   conservative: it missed `:5565` because that inline drops the `distanceAdd` terms.
+2. **Assume the count is a floor.** "This appears N times" from a name grep means "at
+   least N".
+3. **Any status resting on a name grep is systematically low.** That includes
+   `PROGRESS.md`, and it includes claims of the form "no branch exists for X".
+
+`enemies/enemyBehaviour.ts` is a live instance. Its `branched` set is built from two
+idioms, `enemyType == "X"` and `[object EnemyX]`. A **third** exists —
+`instance.enemy == "X"`, the spawn-time dispatch, present for all 20 types — and the
+regex matches neither. Two of those spawn branches carry real behaviour
+(`:3475` gives `Accelerating` a 2.7x speed multiplier, `:3479` gives `Temperamental` 2x),
+so a type whose only distinguishing behaviour lives there would be reported as having no
+branch, and therefore as fully implemented. That is exactly the mistake that put a false
+"no branch for this type" line into the generated `docs/ENEMIES.md` for `Exploding`.
+
 ### Calling something blocked
 
 **Grade by dependencies, not by novelty.** Of the eight primary weapons first flagged as
