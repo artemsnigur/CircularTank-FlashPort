@@ -16,7 +16,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { bankLevelOutcome } from './levelBanking';
 import { PlayerProfile } from './playerProfile';
 import { MemoryBackend, SaveStore } from '../save/SaveStore';
-import { createInitialUpgradeState } from '../upgrades/upgradeState';
+import {
+  createInitialUpgradeState,
+  findUpgradeById,
+  getLevel,
+  maxedUpgradeState,
+  purchaseNextLevel,
+} from '../upgrades/upgradeState';
 import type { UpgradeState } from '../upgrades/upgradeState';
 
 const SAVE_KEY = 'saveString';
@@ -206,5 +212,71 @@ describe('a sandbox run writes nothing', () => {
     // Not just unpersisted — unset. Otherwise a later non-sandbox save in the
     // same session would flush the sandbox run's money to disk.
     expect(profile.upgrades.money).toBe(moneyBefore);
+  });
+});
+
+/**
+ * The seam between the equipped grant and the shop.
+ *
+ * Two separately-true facts that needed joining: a maxed upgrade set is only
+ * kept out of the save by the banking guard, and a shop purchase calls
+ * `profile.save()` directly, bypassing that guard entirely. If the grant were
+ * applied to the profile, visiting the shop after a dev jump would flush a maxed
+ * loadout to a real save.
+ *
+ * It is not, and these pin why: `maxedUpgradeState()` returns a detached object
+ * that `GameplayScene` holds in its own field, and every shop write reads
+ * `profile.upgrades` rather than the scene's copy. The run's grant and the
+ * profile never share a reference.
+ */
+describe('an equipped dev run cannot leak into the shop', () => {
+  it('maxedUpgradeState is detached from the profile', () => {
+    const { profile } = freshProfile();
+    const realBefore = JSON.stringify(profile.upgrades);
+
+    const granted = maxedUpgradeState(profile.upgrades.money);
+    // Mutating the grant as hard as possible must not reach the profile.
+    granted.primary[0] = 99;
+    granted.money = 999_999;
+
+    expect(JSON.stringify(profile.upgrades)).toBe(realBefore);
+    expect(profile.upgrades.primary[0]).not.toBe(99);
+  });
+
+  it('a shop purchase after an equipped run persists real upgrades, not maxed ones', () => {
+    const { profile, store } = freshProfile();
+
+    // A modest real profile with money to spend.
+    profile.setUpgrades({ ...createInitialUpgradeState(), money: 5000 });
+    profile.save();
+
+    // The dev run: granted a maxed set, and banked as a sandbox (writes nothing).
+    const granted = maxedUpgradeState(profile.upgrades.money);
+    bankLevelOutcome(profile, {
+      sandbox: true,
+      upgrades: granted,
+      currency: 999_999,
+      world: 9,
+      level: 45,
+      difficulty: 'Easy',
+      won: true,
+    });
+
+    // Now the shop, which reads the profile and saves directly — exactly the
+    // path that bypasses the banking guard.
+    const cannon = findUpgradeById('MiniGun')!;
+    const result = purchaseNextLevel(profile.upgrades, cannon);
+    expect(result.purchased).toBe(true);
+    profile.setUpgrades(result.state);
+    profile.save();
+
+    // What landed on disk is the real profile plus that one purchase — not the
+    // maxed grant, and not the sandbox run's fortune.
+    const reloaded = new PlayerProfile(store);
+    expect(reloaded.upgrades.money).toBeLessThan(5000);
+    expect(reloaded.upgrades.money).not.toBe(999_999);
+    expect(getLevel(reloaded.upgrades, cannon)).toBe(1);
+    // Everything else is still at its starting level, i.e. not maxed.
+    expect(getLevel(reloaded.upgrades, findUpgradeById('BigCannon')!)).toBe(0);
   });
 });
