@@ -1,0 +1,23 @@
+# Normalise line endings to LF in the repository and in the working tree.
+#
+# Why this is not the usual Windows setup: the seven code generators under
+# NewVersion/scripts/ write LF, and `npm run data:check` compares their output
+# byte-for-byte against the committed files. With Git's default
+# `core.autocrlf=true` on Windows, checkout rewrites those files to CRLF, every
+# generated file then differs from what its generator produces, and the check
+# fails on a clean tree — as it did the moment this repo was initialised.
+#
+# Forcing LF everywhere keeps generated and committed bytes identical on every
+# platform. Editors on Windows handle LF fine.
+* text=auto eol=lf
+
+# Extracted SWF assets are binary; never touch them.
+*.mp3 binary
+*.png binary
+*.jpg binary
+*.ttf binary
+*.swf binary
+
+# JPEXS writes these; keep them exactly as extracted so the extraction stays
+# byte-comparable against a fresh export.
+SWFimported/** -text

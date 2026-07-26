@@ -159,6 +159,22 @@ export class GameplayScene extends Phaser.Scene {
   /** Guards against banking the same level's takings on every frame. */
   private banked = false;
 
+  /**
+   * The balance the level opened on.
+   *
+   * Takings are committed **only** when a level finishes — win or lose. Quit
+   * partway and everything earned since is forfeit, because the profile is
+   * never written. That is deliberate, and this field makes it explicit rather
+   * than an accident of where `save()` happens to be called: the shutdown
+   * handler restores the HUD to this figure so a forfeited balance is not left
+   * on screen.
+   *
+   * Any new save site must respect it. Persisting mid-level — on pause, say —
+   * would silently turn quitting into a way to bank a level's earnings without
+   * finishing it.
+   */
+  private openingBalance = 0;
+
   /** Weapon state. Only the Cannon is ported — see weapons/firing.ts. */
   private bullets: Bullet[] = [];
   private firing: FiringState = createFiringState();
@@ -216,6 +232,7 @@ export class GameplayScene extends Phaser.Scene {
     // Starting at zero made banked money invisible: it persisted correctly and
     // the HUD showed 0 on every fresh level, which reads as "nothing saved".
     this.currency = this.upgrades.money;
+    this.openingBalance = this.upgrades.money;
 
     if (import.meta.env.DEV) {
       // Dev-only: own every primary, since the upgrade screen that would sell
@@ -305,17 +322,30 @@ export class GameplayScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       for (const off of this.teardown) off();
       this.teardown = [];
+      // Abandoned partway: the takings are forfeit, so put the HUD back to the
+      // balance actually held rather than leaving unbanked money on screen.
+      if (!this.outcome.finished && this.currency !== this.openingBalance) {
+        GameEvents.emit('currency:earned', { amount: 0, total: this.openingBalance });
+      }
       GameEvents.emit('scene:shutdown', { key: SceneKeys.Gameplay });
     });
 
     GameEvents.emit('scene:ready', { key: SceneKeys.Gameplay });
-    GameEvents.emit('currency:earned', { amount: 0, total: 0 });
+    // The player's actual balance, not zero. Emitting a hardcoded 0 here made
+    // the HUD show 0 on every level start until the first coin corrected it,
+    // which read as "the save did not load".
+    GameEvents.emit('currency:earned', { amount: 0, total: this.currency });
     GameEvents.emit('player:damaged', {
       amount: 0,
       health: this.hp,
       maxHealth: TANK_MAX_HP,
     });
-    GameEvents.emit('wave:changed', { wave: this.levelIndex + 1, enemiesRemaining: PICKUP_COUNT });
+    GameEvents.emit('wave:changed', {
+      wave: this.levelIndex + 1,
+      // Enemies left in the wave — not PICKUP_COUNT, which counts decorative
+      // coins and had nothing to do with the number displayed.
+      enemiesRemaining: (this.wave?.enemiesLeft ?? 0) + this.enemies.length,
+    });
     GameEvents.emit('ammo:changed', {
       current: PLACEHOLDER_AMMO,
       capacity: PLACEHOLDER_AMMO,

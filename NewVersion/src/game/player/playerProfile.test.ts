@@ -184,6 +184,71 @@ describe('surviving a page reload', () => {
   });
 });
 
+describe('quitting mid-level forfeits its takings', () => {
+  const storeName = saveSlotStoreName(ACTIVE_SLOT);
+
+  /** Models a level: opens on the banked balance, earns, maybe commits. */
+  function playLevel(profile: PlayerProfile, earned: number, finished: boolean) {
+    const opening = profile.upgrades.money;
+    const currency = opening + earned;
+    // The scene writes the profile only when the level finishes.
+    if (finished) {
+      profile.setUpgrades({ ...profile.upgrades, money: currency });
+      profile.save(new Date('2026-01-01T00:00:00Z'));
+    }
+    return { opening, currency };
+  }
+
+  it('keeps the earnings when the level is seen through', () => {
+    window.localStorage.clear();
+    const profile = new PlayerProfile(new SaveStore(storeName, new LocalStorageBackend()));
+
+    playLevel(profile, 150, true);
+
+    expect(
+      new PlayerProfile(new SaveStore(storeName, new LocalStorageBackend())).upgrades.money,
+    ).toBe(150);
+  });
+
+  it('forfeits them when the level is abandoned', () => {
+    window.localStorage.clear();
+    const profile = new PlayerProfile(new SaveStore(storeName, new LocalStorageBackend()));
+
+    playLevel(profile, 150, false);
+
+    expect(
+      new PlayerProfile(new SaveStore(storeName, new LocalStorageBackend())).upgrades.money,
+    ).toBe(0);
+  });
+
+  it('forfeits only the abandoned level, not the banked balance', () => {
+    window.localStorage.clear();
+    const profile = new PlayerProfile(new SaveStore(storeName, new LocalStorageBackend()));
+
+    playLevel(profile, 200, true); // banked
+    const abandoned = playLevel(profile, 90, false); // quit
+
+    // The HUD showed 290 mid-level; the balance actually held is 200.
+    expect(abandoned.currency).toBe(290);
+    expect(abandoned.opening).toBe(200);
+    expect(
+      new PlayerProfile(new SaveStore(storeName, new LocalStorageBackend())).upgrades.money,
+    ).toBe(200);
+  });
+
+  it('banks on a loss too — finishing is what counts, not winning', () => {
+    window.localStorage.clear();
+    const profile = new PlayerProfile(new SaveStore(storeName, new LocalStorageBackend()));
+
+    // The scene banks on `outcome.finished`, which covers won and lost alike.
+    playLevel(profile, 60, true);
+
+    expect(
+      new PlayerProfile(new SaveStore(storeName, new LocalStorageBackend())).upgrades.money,
+    ).toBe(60);
+  });
+});
+
 describe('what gameplay reads', () => {
   it('exposes the same upgrade object gameplay mutates', () => {
     // GameplayScene grants dev weapons by writing into `profile.upgrades`, so

@@ -47,6 +47,37 @@ describe('Hud', () => {
     expect(screen.getByText('10')).toBeInTheDocument();
   });
 
+  it('opens on the saved balance rather than zero', () => {
+    // Regression: GameplayScene.create emitted a hardcoded `total: 0`, which
+    // overwrote the real opening balance until the first coin corrected it —
+    // indistinguishable from the save having failed to load.
+    enterGameplay();
+    render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('currency:earned', { amount: 0, total: 500 });
+    });
+    expect(screen.getByText('500')).toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+
+  it('drops back to the banked balance when a level is abandoned', () => {
+    enterGameplay();
+    render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('currency:earned', { amount: 0, total: 200 });
+      GameEvents.emit('currency:earned', { amount: 90, total: 290 });
+    });
+    expect(screen.getByText('290')).toBeInTheDocument();
+
+    // Shutdown without finishing restores the figure actually held.
+    act(() => {
+      GameEvents.emit('currency:earned', { amount: 0, total: 200 });
+    });
+    expect(screen.getByText('200')).toBeInTheDocument();
+  });
+
   it('renders health as an accessible progress bar', () => {
     enterGameplay();
     render(<Hud />);

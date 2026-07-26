@@ -6,7 +6,17 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'coverage', 'node_modules', 'android', 'ios', 'src/assets/**'],
+    // `.vite` is Vite's dependency pre-bundle cache — generated, and large
+    // enough that linting it reports warnings from inside Phaser's bundle.
+    ignores: [
+      'dist',
+      'coverage',
+      'node_modules',
+      '.vite',
+      'android',
+      'ios',
+      'src/assets/**',
+    ],
   },
 
   /* ── Application code ──────────────────────────────────────────────────── */
