@@ -34,7 +34,8 @@
     "data:check": "npm run audio:manifest:check && npm run achievements:data:check && npm run levels:data:check && npm run upgrades:data:check && npm run bestiary:data:check && npm run enemy-stats:data:check && npm run enemies:doc:check && npm run progress:check",
     "progress": "node scripts/gen-progress.mjs",
     "progress:check": "node scripts/gen-progress.mjs --check",
-    "cap:sync": "cap sync"
+    "cap:sync": "cap sync",
+    "prepare": "node scripts/install-hooks.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0",
@@ -57,6 +58,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.2.0",
+    "husky": "^9.1.7",
     "jsdom": "^26.1.0",
     "knip": "^6.29.0",
     "typescript": "^5.8.3",

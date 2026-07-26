@@ -1,0 +1,36 @@
+#!/bin/sh
+# Fast gate. Anything slower than a few seconds belongs in pre-push.
+#
+# Timings that set this split (measured 2026-07-27):
+#   typecheck 2.8s | lint 5.2s | test 6.8s | data:check 3.0s
+# Lint sits in pre-push despite catching real defects — two eslint errors were
+# committed this session — because an 8s commit gate gets bypassed with
+# --no-verify, and a guarantee enforced by patience is not enforced.
+#
+# Hooks run from the repo root; the npm project is NewVersion/.
+
+set -e
+
+# ── 1. Never commit on main ──────────────────────────────────────────────
+branch="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$branch" = "main" ]; then
+  echo "pre-commit: refusing to commit on main. Work happens on develop."
+  echo "            git switch develop   (or git checkout -b <branch>)"
+  exit 1
+fi
+
+# ── 2. SWFimported/ is read-only ─────────────────────────────────────────
+# It is the JPEXS extraction and the source being ported from. The leading
+# number on each file is the SWF library ID and the only link back to
+# symbolClass/symbols.csv, so a rename severs provenance silently.
+staged_swf="$(git diff --cached --name-only --diff-filter=ACMRD | grep '^SWFimported/' || true)"
+if [ -n "$staged_swf" ]; then
+  echo "pre-commit: SWFimported/ is read-only. Staged changes to:"
+  echo "$staged_swf" | sed 's/^/  /'
+  echo "            git restore --staged SWFimported/"
+  exit 1
+fi
+
+# ── 3. Typecheck ─────────────────────────────────────────────────────────
+cd NewVersion
+npm run typecheck

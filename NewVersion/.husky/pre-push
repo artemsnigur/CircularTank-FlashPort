@@ -1,0 +1,17 @@
+#!/bin/sh
+# Slow gate — everything that must be true before code leaves this machine.
+#
+# ~15s total (lint 5.2s, tests 6.8s, data:check 3.0s). Deliberately here rather
+# than in pre-commit: a gate slow enough to be annoying is a gate that gets
+# --no-verify'd, and then it enforces nothing.
+#
+# data:check is included because six generated files and PROGRESS.md can go
+# stale without any test failing — the generators are the mechanism, and this
+# is what makes them one.
+
+set -e
+
+cd NewVersion
+npm run lint
+npm test
+npm run data:check
