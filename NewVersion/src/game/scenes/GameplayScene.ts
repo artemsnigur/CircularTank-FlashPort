@@ -109,9 +109,17 @@ import {
 } from '../player/tankDamage';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 
-/** Matches the largest "Defense" room in ScreenGame.as levelDataModel tables. */
-const ROOM_WIDTH = 640;
-const ROOM_HEIGHT = 960;
+/**
+ * Used **only** when no level spec resolves.
+ *
+ * Every real room size comes from `LevelSpec.roomWidth`/`roomHeight`
+ * (`levelDataModel` columns 0 and 1), which vary per level — 640x400, 800x600,
+ * 900x720 and 640x960 all occur. This pair matches the largest "Defense" room
+ * and used to be hardcoded for every level, which meant all 405 played at
+ * 640x960 and the off-camera spawn search could never run (see
+ * `resolveLevelSpec` and `docs/AUDIT-2026-07.md`).
+ */
+const FALLBACK_ROOM = { width: 640, height: 960 } as const;
 
 const PICKUP_COUNT = 8;
 const PICKUP_VALUE = 5;
@@ -179,6 +187,16 @@ export class GameplayScene extends Phaser.Scene {
   /** Wave pacing and the draw-without-replacement pool. */
   private wave: WaveState | null = null;
   private levelSpec: LevelSpec | null = null;
+
+  /**
+   * This level's room, in design units — `LevelSpec.roomWidth`/`roomHeight`.
+   *
+   * Set by `resolveLevelSpec()` before anything that sizes the world, and read
+   * everywhere the arena's extent matters: physics bounds, the ground tile,
+   * camera bounds, spawn placement, bullet culling and pickup scatter.
+   */
+  private roomWidth: number = FALLBACK_ROOM.width;
+  private roomHeight: number = FALLBACK_ROOM.height;
 
   /** Pending spawn warnings and their on-screen markers, kept in step. */
   private warnings: Warning[] = [];
@@ -336,21 +354,24 @@ export class GameplayScene extends Phaser.Scene {
     const controller = getViewportController(this);
     if (controller) applyViewportToScene(this, controller.current);
 
-    this.physics.world.setBounds(0, 0, ROOM_WIDTH, ROOM_HEIGHT);
+    // Before anything below reads roomWidth/roomHeight.
+    this.resolveLevelSpec();
+
+    this.physics.world.setBounds(0, 0, this.roomWidth, this.roomHeight);
 
     // Real extracted bitmap, tiled across the room. `ground-desert` is
     // 351.png, a 256x256 seamless tile from the Desert world.
     this.ground = this.add
-      .tileSprite(0, 0, ROOM_WIDTH, ROOM_HEIGHT, 'ground-desert')
+      .tileSprite(0, 0, this.roomWidth, this.roomHeight, 'ground-desert')
       .setOrigin(0, 0)
       .setDepth(0);
 
     this.player = new PlayerTank(
       this,
-      ROOM_WIDTH / 2,
-      ROOM_HEIGHT / 2,
-      ROOM_WIDTH,
-      ROOM_HEIGHT,
+      this.roomWidth / 2,
+      this.roomHeight / 2,
+      this.roomWidth,
+      this.roomHeight,
       this.upgrades,
     );
 
@@ -488,7 +509,7 @@ export class GameplayScene extends Phaser.Scene {
 
   private setupCamera(): void {
     const camera = this.cameras.main;
-    camera.setBounds(0, 0, ROOM_WIDTH, ROOM_HEIGHT);
+    camera.setBounds(0, 0, this.roomWidth, this.roomHeight);
     // lerp < 1 gives the soft trailing camera PartGameArea.as approximates
     // with its manual clamping, without the per-frame arithmetic.
     camera.startFollow(this.player, true, 0.12, 0.12);
@@ -498,7 +519,7 @@ export class GameplayScene extends Phaser.Scene {
   private setupInput(): void {
     // Aiming reticle — the extracted CustomCursor bitmap (symbol 166).
     this.crosshair = this.add
-      .image(ROOM_WIDTH / 2, ROOM_HEIGHT / 2, 'cursor')
+      .image(this.roomWidth / 2, this.roomHeight / 2, 'cursor')
       .setDisplaySize(28, 28)
       .setDepth(30)
       .setVisible(false);
@@ -593,16 +614,33 @@ export class GameplayScene extends Phaser.Scene {
    * than all at once: the pool is drawn without replacement, paced by the
    * level's own spawn interval, each announced by a warning marker.
    */
-  private startWave(): void {
-    const world = this.world;
-    const level = this.level;
+  /**
+   * Resolves the level and adopts its room size.
+   *
+   * Must run before anything that sizes the world — physics bounds, the ground
+   * tile, the tank's clamp and the camera all take the room's extent, and they
+   * are built at the top of `create()`. This used to sit inside `startWave()`,
+   * which runs after all of them, so the room size could not come from the spec
+   * and was hardcoded to 640x960 instead.
+   */
+  private resolveLevelSpec(): void {
     // Dev levels are synthetic specs, not table rows. Guarded so they cannot
     // be reached in a production build even if something asks for one.
     const spec =
-      (import.meta.env.DEV ? devLevelSpec(world, level) : null) ?? getLevel(world, level);
+      (import.meta.env.DEV ? devLevelSpec(this.world, this.level) : null) ??
+      getLevel(this.world, this.level);
+
+    this.levelSpec = spec ?? null;
+    this.roomWidth = spec?.roomWidth ?? FALLBACK_ROOM.width;
+    this.roomHeight = spec?.roomHeight ?? FALLBACK_ROOM.height;
+  }
+
+  private startWave(): void {
+    const world = this.world;
+    const level = this.level;
+    const spec = this.levelSpec;
     if (!spec) return;
 
-    this.levelSpec = spec;
     this.wave = createWaveState(spec);
     this.spawnRng = new Phaser.Math.RandomDataGenerator([`spawn-${world}-${level}`]);
 
@@ -628,8 +666,8 @@ export class GameplayScene extends Phaser.Scene {
       if (drawn) {
         const placement = placeWarning({
           mode: spec.mode,
-          roomWidth: ROOM_WIDTH,
-          roomHeight: ROOM_HEIGHT,
+          roomWidth: this.roomWidth,
+          roomHeight: this.roomHeight,
           isBoss: drawn.level === 'B',
           countDownDone: wave.countDownDone,
           random,
@@ -691,8 +729,8 @@ export class GameplayScene extends Phaser.Scene {
       level: warning.level,
       difficulty: DIFFICULTY,
       mode: spec.mode,
-      roomWidth: ROOM_WIDTH,
-      roomHeight: ROOM_HEIGHT,
+      roomWidth: this.roomWidth,
+      roomHeight: this.roomHeight,
       x: warning.x,
       y: warning.y,
       wall: warning.wall,
@@ -773,7 +811,7 @@ export class GameplayScene extends Phaser.Scene {
           : null;
         for (const spec of shots) {
           this.bullets.push(
-            new Bullet(this, spec, ROOM_WIDTH, ROOM_HEIGHT, bulletClass, flame),
+            new Bullet(this, spec, this.roomWidth, this.roomHeight, bulletClass, flame),
           );
         }
       }
@@ -1092,7 +1130,7 @@ export class GameplayScene extends Phaser.Scene {
 
     getSoundManager(this)?.queue('ImpactCake');
     for (const piece of pieces) {
-      out.push(new Bullet(this, piece, ROOM_WIDTH, ROOM_HEIGHT, 'BulletCakePiece'));
+      out.push(new Bullet(this, piece, this.roomWidth, this.roomHeight, 'BulletCakePiece'));
     }
   }
 
@@ -1303,7 +1341,7 @@ export class GameplayScene extends Phaser.Scene {
     for (const entry of this.enemyBullets) {
       const next = advanceEnemyBullet(
         entry.state,
-        { roomWidth: ROOM_WIDTH, roomHeight: ROOM_HEIGHT },
+        { roomWidth: this.roomWidth, roomHeight: this.roomHeight },
         deltaMs,
       );
       if (!next) {
@@ -1353,8 +1391,8 @@ export class GameplayScene extends Phaser.Scene {
       const placed = placeFlag({
         tankX: this.player.x,
         tankY: this.player.y,
-        roomWidth: ROOM_WIDTH,
-        roomHeight: ROOM_HEIGHT,
+        roomWidth: this.roomWidth,
+        roomHeight: this.roomHeight,
         flagRadius: FLAG_RADIUS,
         random: () => this.spawnRng.frac(),
       });
@@ -1788,8 +1826,8 @@ export class GameplayScene extends Phaser.Scene {
     // "did my change break collection?" check reproducible.
     const rng = new Phaser.Math.RandomDataGenerator([`level-${this.world}-${this.level}`]);
     for (let i = 0; i < PICKUP_COUNT; i += 1) {
-      const x = rng.between(60, ROOM_WIDTH - 60);
-      const y = rng.between(60, ROOM_HEIGHT - 60);
+      const x = rng.between(60, this.roomWidth - 60);
+      const y = rng.between(60, this.roomHeight - 60);
       this.pickups.add(new Pickup(this, x, y, PICKUP_VALUE));
     }
   }
