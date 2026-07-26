@@ -201,6 +201,19 @@ export class TypedGameEmitter {
   private readonly emitter = new Phaser.Events.EventEmitter();
 
   emit<K extends GameEventName>(event: K, payload: GameEventMap[K]): boolean {
+    // A `ui:` event with no live listener is silent and can strand the player.
+    // "Next level" emitted `ui:start-game` while only MainMenu and LevelSelect
+    // subscribed to it — both torn down during a level — so nothing happened,
+    // the overlay had already dismissed itself, and the paused scene looked
+    // frozen. Dev-only, because the cost is a listener count per emit.
+    if (import.meta.env.DEV && event.startsWith('ui:')) {
+      if (this.emitter.listenerCount(event) === 0) {
+        console.warn(
+          `[GameEvents] "${event}" was emitted with no listener. ` +
+            'Whichever scene should act on it is not subscribed right now.',
+        );
+      }
+    }
     return this.emitter.emit(event, payload);
   }
 

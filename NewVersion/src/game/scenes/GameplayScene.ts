@@ -335,6 +335,18 @@ export class GameplayScene extends Phaser.Scene {
         this.scene.resume();
         this.scene.start(key);
       }),
+      GameEvents.subscribe('ui:start-game', ({ world, level }) => {
+        // "Next level" from the results overlay.
+        //
+        // Gameplay has to listen for this itself. MainMenuScene and
+        // LevelSelectScene are the only other subscribers and both are torn
+        // down while a level is running, so the event reached nobody: the
+        // overlay had already dismissed itself and the scene was paused by
+        // the completion handler, leaving no UI and no input path. It looked
+        // like a freeze; it was an event with no live listener.
+        this.scene.resume();
+        this.scene.restart({ world, level });
+      }),
       GameEvents.subscribe('ui:pause', ({ paused }) => {
         if (paused) this.scene.pause();
         else this.scene.resume();

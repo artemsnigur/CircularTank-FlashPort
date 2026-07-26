@@ -89,7 +89,7 @@ export function UpgradesScreen(): React.ReactElement | null {
           className="menu__button menu__button--ghost"
           onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
         >
-          ‹ Back
+          ‹ Menu
         </button>
         <h2 className="screen__title">Upgrades</h2>
         <span className="shop__balance" aria-label="Coins">
@@ -125,6 +125,16 @@ export function UpgradesScreen(): React.ReactElement | null {
           Dev: +{formatNumber(DEV_GRANT)} coins
         </button>
       )}
+
+      <div className="shop__exits">
+        <button
+          type="button"
+          className="menu__button menu__button--primary"
+          onClick={() => GameEvents.emit('ui:goto', { key: 'LevelSelect' })}
+        >
+          Level select ›
+        </button>
+      </div>
 
       <p className="screen__hint">
         Equipping is not ported yet — buying makes a weapon available, and Q cycles the

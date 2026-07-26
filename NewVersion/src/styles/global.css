@@ -665,6 +665,17 @@ code {
   overflow-y: auto;
 }
 
+/* The shop scrolls, and its header scrolls with it — with 28 upgrade rows the
+   Back button left the viewport entirely and there was no way out. Pinned so
+   an exit is always reachable. */
+.screen--shop .screen__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.5rem 0;
+  background: var(--surface, #1b1710);
+}
+
 .shop__balance {
   margin-left: auto;
   font-family: var(--font-display);
@@ -771,4 +782,12 @@ code {
 
 .level-outcome__actions .hud__button--primary {
   border-color: rgb(140 230 140 / 60%);
+}
+
+/* Second shop exit, at the end of the list — reachable after scrolling
+   through the catalogue without needing to scroll back up. */
+.shop__exits {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0 0.5rem;
 }
