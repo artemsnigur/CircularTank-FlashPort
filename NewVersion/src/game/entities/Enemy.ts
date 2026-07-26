@@ -22,6 +22,8 @@ import type { SteeringState } from '../enemies/enemySteering';
 import { resolveDamageMultipliers } from '../enemies/damageTypes';
 import type { DamageMultipliers, ImpactFeedback } from '../enemies/damageTypes';
 import { createStatusState, tickStatuses } from '../enemies/statusEffects';
+import { createShooter } from '../enemies/enemyFiring';
+import type { ShooterState } from '../enemies/enemyFiring';
 import type { StatusState, StatusTickResult } from '../enemies/statusEffects';
 import type { Difficulty, EnemyLevel } from '../config/constants';
 import type { LevelMode } from '../levels/levelData';
@@ -83,6 +85,14 @@ export class Enemy extends Phaser.GameObjects.Container {
 
   /** Poison, attached bombs and freeze. See enemies/statusEffects.ts. */
   readonly status: StatusState = createStatusState();
+
+  /**
+   * Reload clock, or null for an enemy that does not shoot.
+   *
+   * Seeded with a randomised initial value so a wave spawned from one timer
+   * does not fire in unison — see `initialReloadTime`.
+   */
+  shooter: ShooterState | null = null;
 
   private steering: SteeringState;
   private readonly roomWidth: number;
@@ -150,6 +160,13 @@ export class Enemy extends Phaser.GameObjects.Container {
     // Bosses inherit their base type's table; the AS3 looks it up by the type
     // name with the level suffix already stripped.
     this.damageMultipliers = resolveDamageMultipliers(config.type);
+
+    // Only the shooting types get a clock; everything else stays null and the
+    // scene skips them entirely.
+    if (stats.shoot && stats.reloadTimeMax) {
+      this.shooter = createShooter(stats.reloadTimeMax, Math.random);
+    }
+
     this.radius = diameter / 2;
     this.roomWidth = config.roomWidth;
     this.roomHeight = config.roomHeight;
@@ -221,6 +238,17 @@ export class Enemy extends Phaser.GameObjects.Container {
   }
 
   /** Current speed in design units per frame, for the debug readout. */
+  /**
+   * Facing in degrees — where a `Front` shot goes.
+   *
+   * Read from the steering state rather than the display rotation: the sprite
+   * carries art offsets, and the AS3 fires along `theEnemy.rotation`, which is
+   * the steering value.
+   */
+  get facingDegrees(): number {
+    return this.steering.rotation;
+  }
+
   get speed(): number {
     return Math.hypot(this.steering.xVel, this.steering.yVel);
   }

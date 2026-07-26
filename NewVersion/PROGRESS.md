@@ -5,10 +5,10 @@
 
 Tracking the rewrite of 643 decompiled ActionScript 3 classes (`SWFimported/scripts`) into TypeScript/Phaser.
 
-**21 / 557** game classes started · **13** verified · 5 marked not applicable · 81 third-party classes excluded.
+**23 / 557** game classes started · **13** verified · 5 marked not applicable · 81 third-party classes excluded.
 
 ```
-█░░░░░░░░░░░░░░░░░░░░░░░  3.8%
+█░░░░░░░░░░░░░░░░░░░░░░░  4.1%
 ```
 
 ## How to use this file
@@ -41,7 +41,7 @@ below — everything else hangs off those.
 - [Core systems](#core-systems) — 5/6
 - [Screens and screen parts](#screens-and-screen-parts) — 5/49
 - [Player tank](#player-tank) — 1/6
-- [Enemies](#enemies) — 0/52
+- [Enemies](#enemies) — 2/52
 - [Projectiles, weapons and objects](#projectiles-weapons-and-objects) — 10/33
 - [Achievements](#achievements) — 0/38
 - [Tutorial](#tutorial) — 0/25
@@ -228,14 +228,14 @@ below — everything else hangs off those.
 
 > Each type has a matching `*Boss` variant; port the base first.
 
-`░░░░░░░░░░░░░░░░░░░░░░░░` 0/52
+`█░░░░░░░░░░░░░░░░░░░░░░░` 2/52
 
 - [ ] `Crown` — not started
 - [ ] `EnemyAccelerating` — not started
 - [ ] `EnemyAcceleratingBoss` — not started
 - [ ] `EnemyBasic` — not started
 - [ ] `EnemyBasicBoss` — not started
-- [ ] `EnemyBulletBasic` — not started
+- [ ] `EnemyBulletBasic` — ported · wired
 - [ ] `EnemyBulletBasicBoss` — not started
 - [ ] `EnemyBulletFollowing` — not started
 - [ ] `EnemyBulletFollowingBoss` — not started
@@ -262,7 +262,7 @@ below — everything else hangs off those.
 - [ ] `EnemyRandomBoss` — not started
 - [ ] `EnemyScaredGhost` — not started
 - [ ] `EnemyScaredGhostBoss` — not started
-- [ ] `EnemyShooting` — not started
+- [ ] `EnemyShooting` — ported · wired
 - [ ] `EnemyShootingBoss` — not started
 - [ ] `EnemyShrinking` — not started
 - [ ] `EnemyShrinkingBoss` — not started

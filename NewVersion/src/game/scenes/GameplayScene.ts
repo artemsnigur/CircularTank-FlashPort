@@ -79,6 +79,18 @@ import type { PlayerProfile } from '../player/playerProfile';
 import { chooseWeapon, equipPrimary } from '../loadout/loadout';
 import { isWaveComplete, registerEnemyKilled, registerFlagCaptured } from '../waves/waveState';
 import { canCaptureFlag, placeFlag, tickFlag } from '../waves/flag';
+import {
+  advanceEnemyBullet,
+  applyBulletToTank,
+  bulletAlpha,
+  canShoot,
+  createBasicFrontBullet,
+  hitsTank,
+  registerShot,
+  tickShooter,
+} from '../enemies/enemyFiring';
+import type { EnemyBulletState } from '../enemies/enemyFiring';
+import { getDifficultyProfile } from '../config/difficultyMultipliers';
 import type { FlagState } from '../waves/flag';
 import {
   createLevelOutcome,
@@ -197,6 +209,16 @@ export class GameplayScene extends Phaser.Scene {
   private flagMarker: Phaser.GameObjects.Image | null = null;
 
   /**
+   * Bullets fired *at* the tank — `PartGameArea.enemyBulletArray`.
+   *
+   * Kept separate from `this.bullets`: they collide with the tank rather than
+   * with enemies, and nothing the player fires interacts with them yet
+   * (`reflected` is not ported).
+   */
+  private enemyBullets: Array<{ state: EnemyBulletState; sprite: Phaser.GameObjects.Image }> =
+    [];
+
+  /**
    * The balance the level opened on.
    *
    * Takings are committed **only** when a level finishes — win or lose. Quit
@@ -292,6 +314,7 @@ export class GameplayScene extends Phaser.Scene {
     this.lastWaveSignature = '';
     this.flag = null;
     this.flagMarker = null;
+    this.enemyBullets = [];
     this.hp = TANK_MAX_HP;
     this.pushedFrames = 0;
   }
@@ -435,6 +458,7 @@ export class GameplayScene extends Phaser.Scene {
       enemy.update({ x: this.player.x, y: this.player.y }, delta);
     }
 
+    this.updateEnemyFire(delta);
     this.updateFlag(delta);
     this.updateOutcome(delta);
     this.emitWaveState();
@@ -1188,6 +1212,83 @@ export class GameplayScene extends Phaser.Scene {
 
       if (this.hp <= 0) return;
     }
+  }
+
+  /**
+   * Enemies shooting, and their bullets reaching the tank.
+   *
+   * Scope is `shootType: Basic` with `shootAngle: Front` — see
+   * enemies/enemyFiring.ts for what is deliberately left out.
+   */
+  private updateEnemyFire(deltaMs: number): void {
+    // A destroyed tank neither shoots at nor is shot by anything.
+    if (this.outcome.result !== null) return;
+
+    const speedMultiplier = getDifficultyProfile(DIFFICULTY).enemyBulletSpeed;
+
+    for (const enemy of this.enemies) {
+      if (!enemy.shooter) continue;
+      enemy.shooter = tickShooter(enemy.shooter, deltaMs);
+
+      // Freeze stops shooting as well as movement — `:6889`.
+      if (!canShoot(enemy.shooter, enemy.status.frozen)) continue;
+      // Only the ported combination fires; the rest wait for their own pass.
+      if (enemy.stats.shootType !== 'Basic' || enemy.stats.shootAngle !== 'Front') continue;
+
+      enemy.shooter = registerShot(enemy.shooter);
+      getSoundManager(this)?.queue('EnemyShoot');
+
+      const state = createBasicFrontBullet(
+        { x: enemy.x, y: enemy.y, rotation: enemy.facingDegrees, radius: enemy.radius },
+        speedMultiplier,
+      );
+      const sprite = this.add
+        .image(state.x, state.y, 'particle-dot')
+        .setDisplaySize(state.radius * 2.5, state.radius * 2.5)
+        .setTint(0xff6b6b)
+        .setDepth(11);
+      this.enemyBullets.push({ state, sprite });
+    }
+
+    this.advanceEnemyBullets(deltaMs);
+  }
+
+  private advanceEnemyBullets(deltaMs: number): void {
+    if (this.enemyBullets.length === 0) return;
+
+    const surviving: typeof this.enemyBullets = [];
+    const tank = { x: this.player.x, y: this.player.y, radius: this.player.radius };
+
+    for (const entry of this.enemyBullets) {
+      const next = advanceEnemyBullet(
+        entry.state,
+        { roomWidth: ROOM_WIDTH, roomHeight: ROOM_HEIGHT },
+        deltaMs,
+      );
+      if (!next) {
+        entry.sprite.destroy();
+        continue;
+      }
+
+      if (hitsTank(next, tank)) {
+        this.hp = applyBulletToTank(this.hp, next.damage);
+        getSoundManager(this)?.queue('TankDamaged');
+        this.cameras.main.shake(60, 0.0008);
+        GameEvents.emit('player:damaged', {
+          amount: next.damage,
+          health: this.hp,
+          maxHealth: TANK_MAX_HP,
+        });
+        entry.sprite.destroy();
+        continue;
+      }
+
+      entry.state = next;
+      entry.sprite.setPosition(next.x, next.y).setAlpha(bulletAlpha(next));
+      surviving.push(entry);
+    }
+
+    this.enemyBullets = surviving;
   }
 
   /**
