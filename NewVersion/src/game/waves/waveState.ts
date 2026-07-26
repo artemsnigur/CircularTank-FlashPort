@@ -56,6 +56,8 @@ export interface WaveState {
   bossAmount: number;
   bossAmountSpawned: number;
   bossAmountKilled: number;
+  /** AS3 `ScreenGame.flagsLeft` — flags still to capture on a Flag level. */
+  flagsLeft: number;
   /** True once the level's opening countdown has finished. */
   countDownDone: boolean;
 }
@@ -78,6 +80,7 @@ export function createWaveState(spec: LevelSpec, bossAmount = 0): WaveState {
     bossAmount,
     bossAmountSpawned: 0,
     bossAmountKilled: 0,
+    flagsLeft: spec.flagCount,
     countDownDone: false,
   };
 }
@@ -236,10 +239,31 @@ export function tickWave(state: WaveState, deltaMs: number): void {
   state.reloadTimeEnemy = Math.max(0, state.reloadTimeEnemy - frames);
 }
 
-/** True once nothing is left to spawn and the arena is clear. */
+/**
+ * Whether the level's win condition is met.
+ *
+ * `PartGameArea.as:2708` is a single expression covering every mode, and the
+ * modes do not share a rule:
+ *
+ *     Normal / Tower / Defense   currentEnemies + enemiesLeft == 0
+ *     Flag                       flagsLeft == 0
+ *     Boss                       bossAmountKilled == bossAmount
+ *
+ * That matters because Flag and Boss levels **spawn indefinitely** — neither
+ * decrements `enemiesLeft` (see `registerSpawn`), so the arena never empties
+ * and the default rule can never fire for them. This previously returned false
+ * for Flag by design and, unnoticed, never returned true for Boss either:
+ * together that is 135 of the 405 levels unable to finish.
+ */
 export function isWaveComplete(state: WaveState): boolean {
-  if (state.mode === 'Flag') return false;
+  if (state.mode === 'Flag') return state.flagsLeft <= 0;
+  if (state.mode === 'Boss') return state.bossAmountKilled >= state.bossAmount;
   return (
     state.enemiesLeft <= 0 && state.currentEnemies <= 0 && state.pendingWarnings <= 0
   );
+}
+
+/** A flag was captured — `--ScreenGame.flagsLeft`. */
+export function registerFlagCaptured(state: WaveState): void {
+  state.flagsLeft = Math.max(0, state.flagsLeft - 1);
 }

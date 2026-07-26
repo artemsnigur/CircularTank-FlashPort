@@ -355,11 +355,31 @@ describe('a full level drains', () => {
     expect(isWaveComplete(state)).toBe(true);
   });
 
-  it('never reports a Flag level complete', () => {
+  it('ignores the arena rule on a Flag level', () => {
+    // Previously this asserted a Flag level is *never* complete, which pinned
+    // a limitation rather than a requirement: `isWaveComplete` had no Flag
+    // branch, so 90 levels could not finish. It now ends on flags.
     const state = world1Level2();
     state.mode = 'Flag';
     state.enemiesLeft = 0;
+    state.flagsLeft = 3;
     expect(isWaveComplete(state)).toBe(false);
+
+    state.flagsLeft = 0;
+    // Complete on flags even with the arena full — Flag levels spawn forever.
+    state.currentEnemies = 7;
+    expect(isWaveComplete(state)).toBe(true);
+  });
+
+  it('ends a Boss level on the boss count', () => {
+    const state = world1Level2();
+    state.mode = 'Boss';
+    state.bossAmount = 2;
+    state.currentEnemies = 5;
+
+    expect(isWaveComplete(state)).toBe(false);
+    state.bossAmountKilled = 2;
+    expect(isWaveComplete(state)).toBe(true);
   });
 
   it('respects the enemy cap when nothing dies', () => {

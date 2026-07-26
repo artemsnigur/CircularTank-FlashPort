@@ -76,7 +76,9 @@ import type { UpgradeState } from '../upgrades/upgradeState';
 import { getPlayerProfile } from '../player/playerProfile';
 import type { PlayerProfile } from '../player/playerProfile';
 import { chooseWeapon, equipPrimary } from '../loadout/loadout';
-import { isWaveComplete, registerEnemyKilled } from '../waves/waveState';
+import { isWaveComplete, registerEnemyKilled, registerFlagCaptured } from '../waves/waveState';
+import { canCaptureFlag, placeFlag, tickFlag } from '../waves/flag';
+import type { FlagState } from '../waves/flag';
 import {
   createLevelOutcome,
   outcomeMusic,
@@ -115,6 +117,9 @@ const PLACEHOLDER_AMMO = 12;
  * (`PartGameArea.as:5924`).
  */
 const FIRE_THAW_FRAMES = 15;
+
+/** Stand-in size for the flag; the extracted art is not among the assets. */
+const FLAG_RADIUS = 14;
 const FPS_EMIT_INTERVAL_MS = 500;
 
 interface GameplayData {
@@ -158,6 +163,15 @@ export class GameplayScene extends Phaser.Scene {
 
   /** Guards against banking the same level's takings on every frame. */
   private banked = false;
+
+  /**
+   * The live flag on a Flag level, and its marker.
+   *
+   * Exactly one exists at a time — `handleFlag` respawns as soon as the last
+   * is taken, until `flagsLeft` reaches zero. Null on every other mode.
+   */
+  private flag: FlagState | null = null;
+  private flagMarker: Phaser.GameObjects.Image | null = null;
 
   /**
    * The balance the level opened on.
@@ -260,6 +274,8 @@ export class GameplayScene extends Phaser.Scene {
     this.secondaryPressed = false;
     this.outcome = createLevelOutcome();
     this.banked = false;
+    this.flag = null;
+    this.flagMarker = null;
     this.hp = TANK_MAX_HP;
     this.pushedFrames = 0;
   }
@@ -396,6 +412,7 @@ export class GameplayScene extends Phaser.Scene {
       enemy.update({ x: this.player.x, y: this.player.y }, delta);
     }
 
+    this.updateFlag(delta);
     this.updateOutcome(delta);
     this.updateHud(delta);
 
@@ -1141,6 +1158,69 @@ export class GameplayScene extends Phaser.Scene {
 
       if (this.hp <= 0) return;
     }
+  }
+
+  /**
+   * Flag levels — `PartGameArea.handleFlag`.
+   *
+   * Keeps exactly one flag on the field while any remain, arms it, and credits
+   * the reward when the tank reaches it. See waves/flag.ts, including why the
+   * money is awarded directly rather than scattered as pickups.
+   */
+  private updateFlag(deltaMs: number): void {
+    const wave = this.wave;
+    const spec = this.levelSpec;
+    if (!wave || !spec || spec.mode !== 'Flag') return;
+    // Nothing more to place once the last flag is taken.
+    if (wave.flagsLeft <= 0) {
+      this.clearFlagMarker();
+      return;
+    }
+
+    if (!this.flag) {
+      const placed = placeFlag({
+        tankX: this.player.x,
+        tankY: this.player.y,
+        roomWidth: ROOM_WIDTH,
+        roomHeight: ROOM_HEIGHT,
+        flagRadius: FLAG_RADIUS,
+        random: () => this.spawnRng.frac(),
+      });
+      // Null means no legal position this frame; try again next one rather
+      // than crashing the way the AS3's unguarded array index would.
+      if (!placed) return;
+
+      this.flag = placed;
+      this.flagMarker = this.add
+        .image(placed.x, placed.y, 'particle-dot')
+        .setDisplaySize(FLAG_RADIUS * 2, FLAG_RADIUS * 2)
+        .setTint(0x6ee7ff)
+        .setDepth(9);
+    }
+
+    this.flag = tickFlag(this.flag, deltaMs);
+    // Dimmed while arming, so "cannot take this yet" is visible.
+    this.flagMarker?.setAlpha(this.flag.timer > 0 ? 0.45 : 1);
+
+    if (!canCaptureFlag(this.flag, { x: this.player.x, y: this.player.y, radius: this.player.radius })) {
+      return;
+    }
+
+    getSoundManager(this)?.queue('FlagPickup');
+    registerFlagCaptured(wave);
+
+    // Divergence: credited straight to the balance rather than scattered as
+    // ItemMoney pickups. See waves/flag.ts.
+    this.currency += spec.flagMoney;
+    GameEvents.emit('currency:earned', { amount: spec.flagMoney, total: this.currency });
+
+    this.flag = null;
+    this.clearFlagMarker();
+  }
+
+  private clearFlagMarker(): void {
+    this.flagMarker?.destroy();
+    this.flagMarker = null;
   }
 
   /**
