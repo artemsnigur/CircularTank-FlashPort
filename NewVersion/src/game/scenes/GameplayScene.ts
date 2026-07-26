@@ -368,12 +368,7 @@ export class GameplayScene extends Phaser.Scene {
       health: this.hp,
       maxHealth: TANK_MAX_HP,
     });
-    GameEvents.emit('wave:changed', {
-      wave: this.level,
-      // Enemies left in the wave — not PICKUP_COUNT, which counts decorative
-      // coins and had nothing to do with the number displayed.
-      enemiesRemaining: (this.wave?.enemiesLeft ?? 0) + this.enemies.length,
-    });
+    this.emitWaveState();
     GameEvents.emit('ammo:changed', {
       current: PLACEHOLDER_AMMO,
       capacity: PLACEHOLDER_AMMO,
@@ -1227,6 +1222,7 @@ export class GameplayScene extends Phaser.Scene {
 
     this.flag = null;
     this.clearFlagMarker();
+    this.emitWaveState();
   }
 
   private clearFlagMarker(): void {
@@ -1247,11 +1243,10 @@ export class GameplayScene extends Phaser.Scene {
     this.outcome = tickOutcome(
       this.outcome,
       {
-        // `isWaveComplete` reads the wave's own counters; `this.enemies` is
-        // the arena itself. Requiring both means a counter that drifts can
-        // only ever delay completion, never trigger it early.
-        waveComplete:
-          this.wave !== null && isWaveComplete(this.wave) && this.enemies.length === 0,
+        // The live count goes *into* isWaveComplete, which applies it only to
+        // the arena-clearing modes. Applying it here vetoed Flag and Boss,
+        // whose arenas never empty.
+        waveComplete: this.wave !== null && isWaveComplete(this.wave, this.enemies.length),
         tankHp: this.hp,
         // The AS3 counts `ItemMoney` — coins *dropped by killed enemies* —
         // and holds the level open until they are picked up. This port has no
@@ -1513,9 +1508,32 @@ export class GameplayScene extends Phaser.Scene {
     this.enemies.splice(index, 1);
     enemy.destroy();
 
+    this.emitWaveState();
+  }
+
+  /**
+   * Publishes wave state to the HUD.
+   *
+   * Single path on purpose: this was emitted from three places with three
+   * different values, and the one in `collect()` sent the *pickup* count, so
+   * grabbing a coin turned the enemy counter into a coin counter.
+   *
+   * Flag and Boss levels spawn indefinitely, so `enemiesLeft` is not a
+   * countdown for them — it never decrements. For those the honest figure is
+   * how many are on screen; the meaningful progress counter is flags or
+   * bosses.
+   */
+  private emitWaveState(): void {
+    const spec = this.levelSpec;
+    const indefinite = spec?.mode === 'Flag' || spec?.mode === 'Boss';
+
     GameEvents.emit('wave:changed', {
       wave: this.level,
-      enemiesRemaining: (this.wave?.enemiesLeft ?? 0) + this.enemies.length,
+      enemiesRemaining: indefinite
+        ? this.enemies.length
+        : (this.wave?.enemiesLeft ?? 0) + this.enemies.length,
+      mode: spec?.mode ?? 'Normal',
+      flagsRemaining: this.wave?.flagsLeft ?? 0,
     });
   }
 
@@ -1558,10 +1576,6 @@ export class GameplayScene extends Phaser.Scene {
     GameEvents.emit('currency:earned', { amount: pickup.value, total: this.currency });
 
     const remaining = this.pickups.countActive(true);
-    GameEvents.emit('wave:changed', {
-      wave: this.level,
-      enemiesRemaining: remaining,
-    });
 
     if (this.currency >= PICKUP_VALUE * 3) {
       GameEvents.emit('achievement:unlocked', {

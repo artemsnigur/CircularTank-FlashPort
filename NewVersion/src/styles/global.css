@@ -654,3 +654,8 @@ code {
   letter-spacing: 0.08em;
   color: var(--text-dim);
 }
+
+/* Flag counter — only rendered on Flag levels. */
+.hud-stat--flags {
+  color: #6ee7ff;
+}

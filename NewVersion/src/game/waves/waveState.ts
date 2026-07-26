@@ -254,12 +254,24 @@ export function tickWave(state: WaveState, deltaMs: number): void {
  * and the default rule can never fire for them. This previously returned false
  * for Flag by design and, unnoticed, never returned true for Boss either:
  * together that is 135 of the 405 levels unable to finish.
+ *
+ * ── Why `liveEnemies` belongs in here and not at the call site ────────────
+ * `currentEnemies` is a counter and can drift; the scene's actual enemy list
+ * is ground truth, so the default branch requires both. That check was
+ * originally applied by the caller as `isWaveComplete(wave) && enemies.length
+ * === 0`, which silently broke Flag and Boss — their arenas are *never* empty,
+ * so a guard meant for the arena-clearing modes vetoed the two modes that do
+ * not use the arena rule at all. It only makes sense inside the branch whose
+ * rule it guards.
  */
-export function isWaveComplete(state: WaveState): boolean {
+export function isWaveComplete(state: WaveState, liveEnemies = 0): boolean {
   if (state.mode === 'Flag') return state.flagsLeft <= 0;
   if (state.mode === 'Boss') return state.bossAmountKilled >= state.bossAmount;
   return (
-    state.enemiesLeft <= 0 && state.currentEnemies <= 0 && state.pendingWarnings <= 0
+    state.enemiesLeft <= 0 &&
+    state.currentEnemies <= 0 &&
+    state.pendingWarnings <= 0 &&
+    liveEnemies <= 0
   );
 }
 

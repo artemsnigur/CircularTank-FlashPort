@@ -98,7 +98,14 @@ export interface GameEventMap {
   'player:damaged': { amount: number; health: number; maxHealth: number };
   'player:healed': { amount: number; health: number; maxHealth: number };
   'ammo:changed': { current: number; capacity: number; weapon: string };
-  'wave:changed': { wave: number; enemiesRemaining: number };
+  'wave:changed': {
+    wave: number;
+    enemiesRemaining: number;
+    /** Level mode, so the HUD knows which counters are meaningful. */
+    mode: string;
+    /** Flags still to capture; only meaningful on a Flag level. */
+    flagsRemaining: number;
+  };
   'achievement:unlocked': { id: string; title: string };
   /**
    * A level has ended and the results should be shown.

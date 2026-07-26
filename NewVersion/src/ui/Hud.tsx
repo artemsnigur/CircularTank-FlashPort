@@ -58,12 +58,42 @@ function HealthBar(): React.ReactElement {
 function WaveIndicator(): React.ReactElement | null {
   const wave = useGameStore((s) => s.wave);
   const remaining = useGameStore((s) => s.enemiesRemaining);
+  const mode = useGameStore((s) => s.levelMode);
   if (wave <= 0) return null;
+
+  // Flag and Boss levels spawn indefinitely, so there is no finite total to
+  // count down — the figure is how many are on screen right now.
+  const label = mode === 'Flag' || mode === 'Boss' ? 'on screen' : 'left';
+
   return (
     <div className="hud-stat hud-stat--right">
-      <span className="hud-stat__label">wave</span>
+      <span className="hud-stat__label">level {mode !== 'Normal' ? `· ${mode}` : ''}</span>
       <span className="hud-stat__value">{wave}</span>
-      <span className="hud-stat__sub">{remaining} left</span>
+      <span className="hud-stat__sub">
+        {remaining} {label}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Flags still to capture.
+ *
+ * Flag levels end on flags, not on clearing the arena, so this is the only
+ * counter that reflects progress towards finishing one. Hidden everywhere else.
+ */
+function FlagCounter(): React.ReactElement | null {
+  const mode = useGameStore((s) => s.levelMode);
+  const flagsRemaining = useGameStore((s) => s.flagsRemaining);
+  if (mode !== 'Flag') return null;
+
+  return (
+    <div className="hud-stat hud-stat--flags" aria-live="polite">
+      <span className="hud-stat__icon" aria-hidden="true">
+        ⚑
+      </span>
+      <span className="hud-stat__value">{flagsRemaining}</span>
+      <span className="hud-stat__label">flags left</span>
     </div>
   );
 }
@@ -175,6 +205,7 @@ export function Hud(): React.ReactElement | null {
     <div className="hud">
       <div className="hud__row hud__row--top">
         <CurrencyCounter />
+        <FlagCounter />
         <WaveIndicator />
       </div>
 

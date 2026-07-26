@@ -96,7 +96,12 @@ describe('Hud', () => {
     render(<Hud />);
 
     act(() => {
-      GameEvents.emit('wave:changed', { wave: 3, enemiesRemaining: 7 });
+      GameEvents.emit('wave:changed', {
+        wave: 3,
+        enemiesRemaining: 7,
+        mode: 'Normal',
+        flagsRemaining: 0,
+      });
     });
 
     expect(screen.getByText('3')).toBeInTheDocument();
@@ -196,6 +201,56 @@ describe('Hud', () => {
 
     expect(screen.getByText('Tank Destroyed')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('keeps the enemy counter clear of coin pickups', () => {
+    // Regression: collect() emitted wave:changed carrying the *pickup* count,
+    // so grabbing a coin turned the enemy counter into a coin counter.
+    enterGameplay();
+    render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('wave:changed', {
+        wave: 3,
+        enemiesRemaining: 9,
+        mode: 'Normal',
+        flagsRemaining: 0,
+      });
+      GameEvents.emit('currency:earned', { amount: 5, total: 5 });
+    });
+
+    expect(screen.getByText('9 left')).toBeInTheDocument();
+  });
+
+  it('shows a flag counter only on Flag levels', () => {
+    enterGameplay();
+    const { rerender } = render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('wave:changed', {
+        wave: 3,
+        enemiesRemaining: 4,
+        mode: 'Normal',
+        flagsRemaining: 0,
+      });
+    });
+    rerender(<Hud />);
+    expect(screen.queryByText('flags left')).not.toBeInTheDocument();
+
+    act(() => {
+      GameEvents.emit('wave:changed', {
+        wave: 3,
+        enemiesRemaining: 4,
+        mode: 'Flag',
+        flagsRemaining: 7,
+      });
+    });
+    rerender(<Hud />);
+
+    expect(screen.getByText('flags left')).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
+    // Flag levels spawn forever, so the enemy figure is what is on screen.
+    expect(screen.getByText('4 on screen')).toBeInTheDocument();
   });
 
   it('surfaces an achievement toast', () => {

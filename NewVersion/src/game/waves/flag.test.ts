@@ -163,6 +163,56 @@ describe('the completion rule', () => {
   });
 });
 
+describe('the live-enemy guard must not veto Flag or Boss', () => {
+  // Regression: the scene applied `isWaveComplete(wave) && enemies.length === 0`
+  // as a guard against counter drift. Correct for the arena-clearing modes,
+  // fatal for Flag and Boss — those spawn indefinitely, so the arena is never
+  // empty and the guard blocked completion permanently. The check now lives
+  // inside the branch whose rule it guards.
+  const flagLevel = () =>
+    [...Array(60).keys()].map((i) => getLevel(1, i + 1)).find((s) => s?.mode === 'Flag')!;
+
+  it('completes a Flag level with enemies still on screen', () => {
+    const wave = createWaveState(flagLevel());
+    wave.flagsLeft = 0;
+    expect(isWaveComplete(wave, 12)).toBe(true);
+  });
+
+  it('completes a Boss level with enemies still on screen', () => {
+    const bossLevel = [...Array(60).keys()]
+      .map((i) => getLevel(1, i + 1))
+      .find((s) => s?.mode === 'Boss')!;
+    const wave = createWaveState(bossLevel, 2);
+    wave.bossAmountKilled = 2;
+    expect(isWaveComplete(wave, 12)).toBe(true);
+  });
+
+  it('still blocks an arena level whose counters drifted', () => {
+    const wave = createWaveState(getLevel(1, 1)!);
+    wave.enemiesLeft = 0;
+    wave.currentEnemies = 0;
+    wave.pendingWarnings = 0;
+
+    // Counters say clear, the arena says otherwise. The arena wins.
+    expect(isWaveComplete(wave, 3)).toBe(false);
+    expect(isWaveComplete(wave, 0)).toBe(true);
+  });
+
+  it('level 1-3 specifically: ten flags, then done', () => {
+    // The level manual QA failed on.
+    const spec = getLevel(1, 3)!;
+    expect(spec.mode).toBe('Flag');
+    expect(spec.flagCount).toBe(10);
+
+    const wave = createWaveState(spec);
+    for (let i = 0; i < 10; i += 1) {
+      expect(isWaveComplete(wave, 5)).toBe(false);
+      registerFlagCaptured(wave);
+    }
+    expect(isWaveComplete(wave, 5)).toBe(true);
+  });
+});
+
 describe('the reward', () => {
   it('reads flagMoney from the level table', () => {
     const flagLevel = [...Array(60).keys()]

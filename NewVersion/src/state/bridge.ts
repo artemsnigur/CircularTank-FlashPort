@@ -86,8 +86,8 @@ export function attachStoreBridge(): () => void {
     store.getState().endLevel(summary);
   });
 
-  on('wave:changed', ({ wave, enemiesRemaining }) => {
-    store.getState().setWave(wave, enemiesRemaining);
+  on('wave:changed', ({ wave, enemiesRemaining, mode, flagsRemaining }) => {
+    store.getState().setWave(wave, enemiesRemaining, mode, flagsRemaining);
   });
 
   on('achievement:unlocked', ({ id, title }) => {

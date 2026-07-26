@@ -77,6 +77,10 @@ export interface GameState {
   weapon: string;
   wave: number;
   enemiesRemaining: number;
+  /** Level mode, so the HUD can show mode-specific counters. */
+  levelMode: string;
+  /** Flags still to capture; only shown on a Flag level. */
+  flagsRemaining: number;
   achievements: AchievementToast[];
 
   /** Set when a level finishes; null while one is in progress. */
@@ -102,7 +106,12 @@ export interface GameState {
   addCurrency: (amount: number) => void;
   setHealth: (health: number, maxHealth?: number) => void;
   setAmmo: (current: number, capacity: number, weapon: string) => void;
-  setWave: (wave: number, enemiesRemaining: number) => void;
+  setWave: (
+    wave: number,
+    enemiesRemaining: number,
+    levelMode: string,
+    flagsRemaining: number,
+  ) => void;
   endLevel: (summary: LevelOutcomeSummary) => void;
   /** Clears the result so the next level starts clean. */
   clearLevelOutcome: () => void;
@@ -127,6 +136,8 @@ const initialRunState = {
   weapon: 'none',
   wave: 0,
   enemiesRemaining: 0,
+  levelMode: 'Normal',
+  flagsRemaining: 0,
   achievements: [] as AchievementToast[],
   levelOutcome: null as LevelOutcomeSummary | null,
   levelList: null as LevelListing | null,
@@ -163,7 +174,8 @@ export const useGameStore = create<GameState>()((set) => ({
     })),
 
   setAmmo: (ammo, ammoCapacity, weapon) => set({ ammo, ammoCapacity, weapon }),
-  setWave: (wave, enemiesRemaining) => set({ wave, enemiesRemaining }),
+  setWave: (wave, enemiesRemaining, levelMode, flagsRemaining) =>
+    set({ wave, enemiesRemaining, levelMode, flagsRemaining }),
   endLevel: (levelOutcome) => set({ levelOutcome }),
   clearLevelOutcome: () => set({ levelOutcome: null }),
   setLevelList: (levelList) => set({ levelList }),
