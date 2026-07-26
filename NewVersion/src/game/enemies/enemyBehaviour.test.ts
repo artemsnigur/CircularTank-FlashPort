@@ -116,11 +116,11 @@ describe('every declared mechanic exists in the AS3', () => {
     lines.forEach((l, i) => {
       const m = l.match(/instance\.enemy == "(\w+)"/);
       // The constructor switch only; the speedMultiplier switch is at :3475.
-      if (m && i + 1 >= 2934 && i + 1 <= 3246) starts.push({ line: i, type: m[1]! });
+      if (m && i + 1 >= 2934 && i + 1 <= 3246) starts.push({ line: i, type: m[1] });
     });
     const out = new Map<string, string[]>();
     starts.forEach((s, k) => {
-      const end = k + 1 < starts.length ? starts[k + 1]!.line : 3250;
+      const end = k + 1 < starts.length ? starts[k + 1].line : 3250;
       out.set(
         s.type,
         lines
@@ -164,10 +164,12 @@ describe('every declared mechanic exists in the AS3', () => {
     (type) => {
       expect(
         branched.has(type),
-        `SPECIAL_MECHANICS declares a mechanic for "${type}", but PartGameArea.as ` +
-          `has no "enemyType == \\"${type}\\"" or "[object Enemy${type}]" branch. ` +
-          `A type with no branch has no mechanic — its behaviour is its stat row ` +
-          `and its firing pattern. Verify against the source before adding an entry.`,
+        `SPECIAL_MECHANICS declares a mechanic for "${type}", but no ` +
+          `"enemyType == \\"${type}\\"" or "[object Enemy${type}]" branch was FOUND ` +
+          `in PartGameArea.as by this survey. Note "found", not "exists": the AS3 ` +
+          `also branches as \`instance.enemy == "X"\` and inlines helper bodies, so ` +
+          `this is a floor. Verify against the source — probing on a distinctive ` +
+          `operand, not on a name — before adding or keeping an entry.`,
       ).toBe(true);
     },
   );
