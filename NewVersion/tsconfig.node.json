@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": false,
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts", "capacitor.config.ts", "scripts/**/*.mjs"]
+}

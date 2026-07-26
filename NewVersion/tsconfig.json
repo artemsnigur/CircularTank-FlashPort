@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+
+    /* Strictness — on from the start, per the port brief. */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "useUnknownInCatchVariables": true,
+    /* Deliberately NOT enabled: noUncheckedIndexedAccess. The AS3 source is
+       dense with fixed-shape numeric arrays (level tables, enemy stat rows);
+       forcing an undefined check on every index would add noise without
+       catching real bugs during the port. Revisit once the data tables are
+       modelled as typed records. */
+
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src"]
+}

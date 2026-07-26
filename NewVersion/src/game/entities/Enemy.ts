@@ -1,0 +1,266 @@
+/**
+ * A spawned enemy — the first entity driven by real extracted data.
+ *
+ * Stats come from `resolveEnemyStats` (the `ScreenGame.enemy*Stats` tables
+ * scaled by difficulty and tier), the starting position and facing from
+ * `resolveSpawn`, and movement from `steerToward`.
+ *
+ * ── What this is not ──────────────────────────────────────────────────────
+ * Only the spawn path and base steering are ported. `PartGameArea`'s enemy
+ * behaviour loop — damage, freezing, poison, burning, teleporting, healing,
+ * bullet collision, death, money drops, strengths and weaknesses — is 2,545
+ * lines and is not ported. An enemy here moves toward the tank and nothing
+ * else; `health`, `damage` and `money` are carried but unused.
+ */
+import Phaser from 'phaser';
+import { resolveEnemyStats } from '../enemies/enemyStats';
+import type { ResolvedEnemyStats } from '../enemies/enemyStats';
+import { resolveSpawn } from '../enemies/enemySpawn';
+import type { SpawnGeometry } from '../enemies/enemySpawn';
+import { clampToRoom, steerToward } from '../enemies/enemySteering';
+import type { SteeringState } from '../enemies/enemySteering';
+import { resolveDamageMultipliers } from '../enemies/damageTypes';
+import type { DamageMultipliers, ImpactFeedback } from '../enemies/damageTypes';
+import { createStatusState, tickStatuses } from '../enemies/statusEffects';
+import type { StatusState, StatusTickResult } from '../enemies/statusEffects';
+import type { Difficulty, EnemyLevel } from '../config/constants';
+import type { LevelMode } from '../levels/levelData';
+
+/** Body diameter in design units, by tier. The AS3 scales the boss art up. */
+const BASE_DIAMETER = 26;
+const BOSS_DIAMETER = 46;
+
+/** How long the damage flash holds before reverting, in ms. */
+const FLASH_MS = 80;
+
+/** Particle key -> tint, so the extracted `particle` column drives colour. */
+const PARTICLE_TINTS: Record<string, number> = {
+  EnemyGreen: 0x7ed957,
+  EnemyGreen2: 0x4caf50,
+  EnemyGreen3: 0x2e7d32,
+  EnemyRed: 0xef5350,
+  EnemyRedGrey: 0xa04a4a,
+  EnemyYellow: 0xffe066,
+  EnemyYellow2: 0xffd11a,
+  EnemyBlue: 0x5b8def,
+  EnemyLightBlue: 0x8fd3ff,
+  EnemyCyan: 0x4dd0e1,
+  EnemyPurple: 0xb07cd6,
+  EnemyPink: 0xf48fb1,
+  EnemyOrange: 0xffa726,
+  EnemyOrangeBrown: 0xc77b3a,
+  EnemyGrey: 0x9e9e9e,
+  EnemyBlack: 0x4a4a4a,
+  EnemyWhite: 0xf5f5f5,
+  EnemyWhite2: 0xe0e0e0,
+  EnemyWhiteRed: 0xffbdbd,
+};
+
+export interface EnemySpawnConfig {
+  type: string;
+  level: EnemyLevel;
+  difficulty: Difficulty;
+  mode: LevelMode;
+  roomWidth: number;
+  roomHeight: number;
+  /** Spawn marker position and edge. */
+  x: number;
+  y: number;
+  wall: SpawnGeometry['wall'];
+  bossAmount?: number;
+}
+
+export class Enemy extends Phaser.GameObjects.Container {
+  readonly enemyType: string;
+  readonly enemyLevel: EnemyLevel;
+  readonly stats: ResolvedEnemyStats;
+  readonly radius: number;
+  /** Per-channel resistances from this type's strengths/weaknesses tables. */
+  readonly damageMultipliers: DamageMultipliers;
+
+  /** Carried from the stat tables; unused until the behaviour loop is ported. */
+  health: number;
+
+  /** Poison, attached bombs and freeze. See enemies/statusEffects.ts. */
+  readonly status: StatusState = createStatusState();
+
+  private steering: SteeringState;
+  private readonly roomWidth: number;
+  private readonly roomHeight: number;
+  /** Named `shell`, not `body`: Container.body is the physics body. */
+  private readonly shell: Phaser.GameObjects.Sprite;
+
+  /**
+   * The enemy's resting tint, captured once.
+   *
+   * Must not be re-read from the sprite when a flash ends: with a fast weapon
+   * the next hit lands mid-flash, and reading live would capture the flash
+   * colour as the "original" and strand the enemy red.
+   */
+  private readonly baseTint: number;
+  private flashTimer: Phaser.Time.TimerEvent | null = null;
+
+  /**
+   * Returns null when the type has no stat table, rather than throwing —
+   * a bad level row should not take the scene down.
+   */
+  static spawn(scene: Phaser.Scene, config: EnemySpawnConfig): Enemy | null {
+    const stats = resolveEnemyStats(config.type, config.level, config.difficulty, {
+      bossAmount: config.bossAmount ?? 1,
+    });
+    if (!stats) {
+      console.warn(`[Enemy] No stats for "${config.type}"; not spawning.`);
+      return null;
+    }
+    return new Enemy(scene, config, stats);
+  }
+
+  private constructor(
+    scene: Phaser.Scene,
+    config: EnemySpawnConfig,
+    stats: ResolvedEnemyStats,
+  ) {
+    const isBoss = config.level === 'B';
+    const diameter = isBoss ? BOSS_DIAMETER : BASE_DIAMETER;
+
+    const spawn = resolveSpawn(
+      {
+        roomWidth: config.roomWidth,
+        roomHeight: config.roomHeight,
+        x: config.x,
+        y: config.y,
+        wall: config.wall,
+        width: diameter,
+        height: diameter,
+      },
+      {
+        mode: config.mode,
+        target: { x: config.roomWidth / 2, y: config.roomHeight / 2 },
+        moveSpeedMax: stats.moveSpeedMax,
+        enemyType: config.type,
+      },
+    );
+
+    super(scene, spawn.x, spawn.y);
+
+    this.enemyType = config.type;
+    this.enemyLevel = config.level;
+    this.stats = stats;
+    this.health = stats.health;
+    // Bosses inherit their base type's table; the AS3 looks it up by the type
+    // name with the level suffix already stripped.
+    this.damageMultipliers = resolveDamageMultipliers(config.type);
+    this.radius = diameter / 2;
+    this.roomWidth = config.roomWidth;
+    this.roomHeight = config.roomHeight;
+
+    this.steering = {
+      x: spawn.x,
+      y: spawn.y,
+      rotation: spawn.rotation,
+      xVel: spawn.xVel,
+      yVel: spawn.yVel,
+    };
+
+    // `particle-dot` is the extracted 1.svg circle, tinted by the enemy's
+    // particle colour so the stat table drives appearance.
+    this.baseTint = PARTICLE_TINTS[stats.particle] ?? 0xffffff;
+    this.shell = scene.add
+      .sprite(0, 0, 'particle-dot')
+      .setDisplaySize(diameter, diameter)
+      .setTint(this.baseTint);
+
+    // A short nose showing which way it is heading.
+    const nose = scene.add
+      .sprite(diameter * 0.32, 0, 'particle-dot')
+      .setDisplaySize(diameter * 0.34, diameter * 0.34)
+      .setTint(0x1b1b1b);
+
+    this.add([this.shell, nose]);
+    this.setDepth(8);
+    this.setRotation(Phaser.Math.DegToRad(spawn.rotation));
+
+    scene.add.existing(this);
+  }
+
+  /**
+   * Advances status timers, returning any damage or blast they produced.
+   *
+   * Kept separate from `update` so the scene can act on the result — poison
+   * can kill, and a bomb going off has to reach the explosion path.
+   */
+  tickStatus(deltaMs: number): StatusTickResult {
+    return tickStatuses(this.status, { x: this.x, y: this.y, radius: this.radius }, deltaMs);
+  }
+
+  /** True while frozen — the scene skips contact damage against it. */
+  get frozen(): boolean {
+    return this.status.frozen;
+  }
+
+  /** Advances steering. Call once per frame with the tank's position. */
+  override update(target: { x: number; y: number }, deltaMs: number): void {
+    // `PartGameArea.as:5027` gates the whole acceleration block on `!frozen`,
+    // so a frozen enemy holds position rather than coasting.
+    if (this.status.frozen) return;
+
+    const stepped = steerToward(
+      this.steering,
+      {
+        rotSpeedMax: this.stats.rotSpeedMax,
+        accSpeed: this.stats.accSpeed,
+        moveSpeedMax: this.stats.moveSpeedMax,
+      },
+      target,
+      deltaMs,
+    );
+
+    this.steering = clampToRoom(stepped, this.roomWidth, this.roomHeight, this.radius);
+    this.setPosition(this.steering.x, this.steering.y);
+    this.setRotation(Phaser.Math.DegToRad(this.steering.rotation));
+  }
+
+  /** Current speed in design units per frame, for the debug readout. */
+  get speed(): number {
+    return Math.hypot(this.steering.xVel, this.steering.yVel);
+  }
+
+  override destroy(fromScene?: boolean): void {
+    // A pending flash would otherwise fire against a destroyed sprite.
+    this.flashTimer?.remove();
+    this.flashTimer = null;
+    super.destroy(fromScene);
+  }
+
+  /**
+   * Brief red flash on a non-fatal hit.
+   *
+   * The AS3 tints via `colorClip` and counts a `damageIndicator` down over 20
+   * frames inside the behaviour loop; this is the visual only.
+   */
+  flashDamage(feedback: ImpactFeedback = null): void {
+    // The AS3 spawns a Strength/Weakness/Immune particle alongside the red
+    // flash; particles are unported, so the flash colour carries the signal.
+    const colour =
+      feedback === 'Weakness'
+        ? 0xffe066
+        : feedback === 'Strength'
+          ? 0x9e9e9e
+          : feedback === 'Immune'
+            ? 0x5b8def
+            : 0xff4444;
+
+    // Cancel any flash still in flight, so a rapid second hit restarts the
+    // full flash rather than being cut short by the earlier hit's timer.
+    this.flashTimer?.remove();
+
+    this.shell.setTint(colour);
+    this.flashTimer = this.scene.time.delayedCall(FLASH_MS, () => {
+      this.flashTimer = null;
+      // Restores the tint captured at construction, never the live one: reading
+      // `shell.tintTopLeft` here would pick up a previous flash's colour on an
+      // overlapping hit and leave the enemy permanently red.
+      if (this.active) this.shell.setTint(this.baseTint);
+    });
+  }
+}

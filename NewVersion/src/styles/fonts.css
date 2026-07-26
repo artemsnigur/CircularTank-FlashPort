@@ -1,0 +1,39 @@
+/*
+ * @font-face for the two fonts extracted from the SWF.
+ *
+ * Family names are namespaced (SWFMainFont / SWFMainFont2) rather than using
+ * the fonts' internal names ("JG" and "Arial"). The second one matters: the
+ * embedded face literally identifies itself as Arial, and registering it under
+ * that name would shadow the system Arial across the whole document.
+ *
+ * font-display: block — we deliberately want no flash of fallback text. Boot
+ * blocks on document.fonts before the first Phaser Text is drawn, because
+ * Phaser rasterises text to a texture and would otherwise cache the fallback.
+ *
+ * NOTE: these are raw TTFs straight out of JPEXS (821 KB + 201 KB). Convert to
+ * WOFF2 before shipping — typically a 60-75% reduction. Tracked in PROGRESS.md.
+ */
+
+@font-face {
+  font-family: 'SWFMainFont';
+  src: url('../assets/fonts/50_Main_font_JG.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'SWFMainFont2';
+  src: url('../assets/fonts/49_Main_font2_Arial.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  /* Display face: titles, headings, numeric HUD readouts. */
+  --font-display: 'SWFMainFont', 'Trebuchet MS', system-ui, sans-serif;
+  /* Body face: paragraphs, hints, anything that needs full glyph coverage.
+     SWFMainFont has only 581 glyphs, so it cannot render arbitrary text. */
+  --font-body: 'SWFMainFont2', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}

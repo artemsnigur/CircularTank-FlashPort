@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      viewport-fit=cover is mandatory: without it the browser insets the layout
+      viewport itself and every env(safe-area-inset-*) reads 0px, which looks
+      exactly like "safe areas are handled" until the app is packaged.
+      user-scalable=no / maximum-scale=1 stop a double-tap on the canvas from
+      zooming the page mid-game.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#12161f" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- black-translucent is what makes the status bar overlay the canvas, which
+         is the condition under which safe-area-inset-top becomes non-zero. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="Mobile port of a Flash/AS3 wave-defense game." />
+    <title>Circle Defense</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>This game requires JavaScript.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

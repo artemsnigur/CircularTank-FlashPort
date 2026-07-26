@@ -1,0 +1,1486 @@
+/**
+ * Placeholder gameplay scene.
+ *
+ * Proves, in one screen:
+ *   - a real extracted bitmap renders (351.png, the Desert ground tile),
+ *   - a real extracted vector shape renders (3.svg, the tank body),
+ *   - keyboard/WASD input drives arcade physics,
+ *   - the camera scrolls over a room larger than the viewport, the way
+ *     PartGameArea.as does,
+ *   - in-canvas text uses the extracted font and respects the safe area,
+ *   - gameplay events reach the React HUD with no polling.
+ *
+ * Everything here is scaffolding. Real waves, weapons and enemies arrive as
+ * the AS3 classes in PROGRESS.md get ported.
+ */
+import Phaser from 'phaser';
+import { SceneKeys } from '../config/constants';
+import { GameEvents } from '../events/GameEvents';
+import { PlayerTank } from '../entities/PlayerTank';
+import type { PlayerInput } from '../entities/PlayerTank';
+import { Pickup } from '../entities/Pickup';
+import { Enemy } from '../entities/Enemy';
+import { getSoundManager } from '../audio/soundService';
+import { getLevel } from '../levels/levelData';
+import type { LevelSpec } from '../levels/levelData';
+import {
+  canSpawn,
+  createWaveState,
+  drawEnemy,
+  registerEnemySpawned,
+  registerSpawn,
+  tickWave,
+} from '../waves/waveState';
+import type { WaveState } from '../waves/waveState';
+import { placeWarning } from '../waves/spawnPlacement';
+import { createWarning, tickWarnings, warningScale } from '../waves/warnings';
+import type { Warning } from '../waves/warnings';
+import { Bullet } from '../entities/Bullet';
+import {
+  createFiringState,
+  fire,
+  getWeapon,
+  PRIMARY_WEAPONS,
+  FLAME_RANGE_MULTIPLIER,
+  resolveWeaponStats,
+  tickFiring,
+} from '../weapons/firing';
+import type { FiringState, WeaponStats } from '../weapons/firing';
+import type { WeaponSpec } from '../weapons/firing';
+import { applyBulletDamage, findAllHits, findHit } from '../weapons/bullets';
+import { flameLifetimeMax, FLAME_CROWD_RADIUS } from '../weapons/flames';
+import { spawnCakePieces } from '../weapons/cake';
+import { createBeam, findBeamHits } from '../weapons/laser';
+import { findMagicTarget, magicVelocity } from '../weapons/magic';
+import type { HitTarget } from '../weapons/bullets';
+import { applyBomb, applyPoison } from '../enemies/statusEffects';
+import { impactFeedback } from '../enemies/damageTypes';
+import {
+  blastDamage,
+  createExplosion,
+  explosionSound,
+  findEnemiesInBlast,
+} from '../weapons/explosions';
+import type { ExplosionSpec } from '../weapons/explosions';
+import { Explosion } from '../entities/Explosion';
+import {
+  getSecondary,
+  placeMine,
+  resolveSecondaryStats,
+  sweepMines,
+} from '../weapons/secondaries';
+import type { SecondarySpec, SecondaryStats } from '../weapons/secondaries';
+import { Mine } from '../entities/Mine';
+import { createInitialUpgradeState } from '../upgrades/upgradeState';
+import type { UpgradeState } from '../upgrades/upgradeState';
+import { getPlayerProfile } from '../player/playerProfile';
+import type { PlayerProfile } from '../player/playerProfile';
+import { chooseWeapon, equipPrimary } from '../loadout/loadout';
+import { isWaveComplete, registerEnemyKilled } from '../waves/waveState';
+import {
+  createLevelOutcome,
+  outcomeMusic,
+  tickOutcome,
+  TANK_DEATH_BLAST_RADIUS,
+} from '../waves/levelOutcome';
+import type { LevelOutcomeState } from '../waves/levelOutcome';
+import {
+  isTouchingTank,
+  PUSHED_TIMER_MAX,
+  resolveContact,
+  TANK_MAX_HP,
+} from '../player/tankDamage';
+import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
+
+/** Matches the largest "Defense" room in ScreenGame.as levelDataModel tables. */
+const ROOM_WIDTH = 640;
+const ROOM_HEIGHT = 960;
+
+const PICKUP_COUNT = 8;
+const PICKUP_VALUE = 5;
+
+/**
+ * Placeholder magazine size for the HUD's ammo readout.
+ *
+ * The AS3 has no magazines — weapons gate on `reloadTime`, not a round count —
+ * so there is nothing real to report yet. It matters only that it stays
+ * **above zero**: `AmmoReadout` in Hud.tsx returns null on `capacity <= 0`, so
+ * emitting a zero capacity unmounts the whole readout, taking the weapon name
+ * with it. Both emit sites must use this.
+ */
+const PLACEHOLDER_AMMO = 12;
+
+/**
+ * Frames of freeze a flame burns off instead of dealing damage
+ * (`PartGameArea.as:5924`).
+ */
+const FIRE_THAW_FRAMES = 15;
+const FPS_EMIT_INTERVAL_MS = 500;
+
+interface GameplayData {
+  levelIndex?: number;
+}
+
+export class GameplayScene extends Phaser.Scene {
+  private player!: PlayerTank;
+  private ground!: Phaser.GameObjects.TileSprite;
+  private pickups!: Phaser.Physics.Arcade.Group;
+  private hudText!: Phaser.GameObjects.Text;
+  private crosshair!: Phaser.GameObjects.Image;
+
+  /** Null on touch-only devices, where there is no keyboard plugin at all. */
+  private cursors: Phaser.Types.Input.Keyboard.CursorKeys | null = null;
+  private wasd: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key> | null = null;
+
+  private currency = 0;
+  private levelIndex = 0;
+  private lastFpsEmit = 0;
+  private teardown: Array<() => void> = [];
+
+  /**
+   * Enemies spawned from the real level tables. Only the spawn path and base
+   * steering are ported — see Enemy.ts for what deliberately is not.
+   */
+  private enemies: Enemy[] = [];
+
+  /** Wave pacing and the draw-without-replacement pool. */
+  private wave: WaveState | null = null;
+  private levelSpec: LevelSpec | null = null;
+
+  /** Pending spawn warnings and their on-screen markers, kept in step. */
+  private warnings: Warning[] = [];
+  private warningMarkers = new Map<Warning, Phaser.GameObjects.Image>();
+  /** Deterministic per-level, so a run is reproducible. */
+  private spawnRng!: Phaser.Math.RandomDataGenerator;
+
+  /** The player's persistent upgrades and loadout. */
+  private profile!: PlayerProfile;
+
+  /** Guards against banking the same level's takings on every frame. */
+  private banked = false;
+
+  /** Weapon state. Only the Cannon is ported — see weapons/firing.ts. */
+  private bullets: Bullet[] = [];
+  private firing: FiringState = createFiringState();
+  private upgrades: UpgradeState = createInitialUpgradeState();
+  private weapon: WeaponSpec | undefined;
+  private weaponStats: WeaponStats | null = null;
+  private firePressed = false;
+  private kills = 0;
+
+  /**
+   * Secondary weapon — a separate clock and trigger from the primary. Only
+   * Mine is ported; see weapons/secondaries.ts.
+   */
+  private mines: Mine[] = [];
+  private secondaryFiring: FiringState = createFiringState();
+  private secondary: SecondarySpec | undefined;
+  private secondaryStats: SecondaryStats | null = null;
+  private secondaryPressed = false;
+
+  /** Scratch vector for the per-frame aim point, to avoid allocating each frame. */
+  private readonly aimScratch = new Phaser.Math.Vector2();
+
+  /** Win/lose state and the handover countdown. See waves/levelOutcome.ts. */
+  private outcome: LevelOutcomeState = createLevelOutcome();
+
+  /** Tank health and the post-knockback grace window. */
+  private hp = TANK_MAX_HP;
+  private pushedFrames = 0;
+
+  constructor() {
+    super(SceneKeys.Gameplay);
+  }
+
+  init(data: GameplayData): void {
+    this.levelIndex = data.levelIndex ?? 0;
+    // Seeded from the profile below — the AS3 has one running `money` total,
+    // not a per-level takings counter.
+    this.currency = 0;
+    this.teardown = [];
+    this.enemies = [];
+    this.warnings = [];
+    this.warningMarkers = new Map();
+    this.wave = null;
+    this.levelSpec = null;
+    this.bullets = [];
+    this.firing = createFiringState();
+
+    // Real upgrades and loadout, shared across scenes and persisted — not a
+    // throwaway state rebuilt on every restart.
+    this.profile = getPlayerProfile(this);
+    this.upgrades = this.profile.upgrades;
+
+    // `ScreenUpgrades.money` is a single running total that levels add to, so
+    // the counter starts from what the player already has rather than at zero.
+    // Starting at zero made banked money invisible: it persisted correctly and
+    // the HUD showed 0 on every fresh level, which reads as "nothing saved".
+    this.currency = this.upgrades.money;
+
+    if (import.meta.env.DEV) {
+      // Dev-only: own every primary, since the upgrade screen that would sell
+      // them is not ported. This writes into the real profile rather than a
+      // scratch copy, so the loadout below sees consistent ownership.
+      for (const index of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) {
+        if (this.upgrades.primary[index] < 1) this.upgrades.primary[index] = 1;
+      }
+    }
+
+    // The equipped weapon comes from the loadout — `ScreenGame.primaryWeapon`.
+    this.weapon = getWeapon(this.profile.loadout.primaryWeapon);
+    this.weaponStats = this.weapon
+      ? resolveWeaponStats(this.weapon, this.upgrades)
+      : null;
+    this.firePressed = false;
+    this.kills = 0;
+    this.mines = [];
+    this.secondaryFiring = createFiringState();
+    // From the loadout — `ScreenGame.secondaryWeapon`, which defaults to Mine.
+    this.secondary = getSecondary(this.profile.loadout.secondaryWeapon);
+    this.secondaryStats = this.secondary
+      ? resolveSecondaryStats(this.secondary, this.upgrades)
+      : null;
+    this.secondaryPressed = false;
+    this.outcome = createLevelOutcome();
+    this.banked = false;
+    this.hp = TANK_MAX_HP;
+    this.pushedFrames = 0;
+  }
+
+  create(): void {
+    const controller = getViewportController(this);
+    if (controller) applyViewportToScene(this, controller.current);
+
+    this.physics.world.setBounds(0, 0, ROOM_WIDTH, ROOM_HEIGHT);
+
+    // Real extracted bitmap, tiled across the room. `ground-desert` is
+    // 351.png, a 256x256 seamless tile from the Desert world.
+    this.ground = this.add
+      .tileSprite(0, 0, ROOM_WIDTH, ROOM_HEIGHT, 'ground-desert')
+      .setOrigin(0, 0)
+      .setDepth(0);
+
+    this.player = new PlayerTank(
+      this,
+      ROOM_WIDTH / 2,
+      ROOM_HEIGHT / 2,
+      ROOM_WIDTH,
+      ROOM_HEIGHT,
+      this.upgrades,
+    );
+
+    this.pickups = this.physics.add.group();
+    this.spawnPickups();
+
+    this.startWave();
+
+    this.setupCamera();
+    this.setupInput();
+    this.setupHud();
+
+    const onResize = (): void => this.layout();
+    GameEvents.on('viewport:changed', onResize);
+    this.teardown.push(() => GameEvents.off('viewport:changed', onResize));
+
+    this.teardown.push(
+      GameEvents.subscribe('ui:goto', ({ key }) => {
+        if (key === SceneKeys.Gameplay) {
+          // Retry from the results overlay. The scene is paused at that point,
+          // so it has to be resumed before the restart takes effect.
+          if (this.outcome.finished) {
+            this.scene.resume();
+            this.scene.restart({ levelIndex: this.levelIndex });
+          }
+          return;
+        }
+        this.scene.resume();
+        this.scene.start(key);
+      }),
+      GameEvents.subscribe('ui:pause', ({ paused }) => {
+        if (paused) this.scene.pause();
+        else this.scene.resume();
+      }),
+    );
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      for (const off of this.teardown) off();
+      this.teardown = [];
+      GameEvents.emit('scene:shutdown', { key: SceneKeys.Gameplay });
+    });
+
+    GameEvents.emit('scene:ready', { key: SceneKeys.Gameplay });
+    GameEvents.emit('currency:earned', { amount: 0, total: 0 });
+    GameEvents.emit('player:damaged', {
+      amount: 0,
+      health: this.hp,
+      maxHealth: TANK_MAX_HP,
+    });
+    GameEvents.emit('wave:changed', { wave: this.levelIndex + 1, enemiesRemaining: PICKUP_COUNT });
+    GameEvents.emit('ammo:changed', {
+      current: PLACEHOLDER_AMMO,
+      capacity: PLACEHOLDER_AMMO,
+      weapon: this.weapon?.name ?? 'Cannon',
+    });
+  }
+
+  override update(time: number, delta: number): void {
+    const cursors = this.cursors;
+    const wasd = this.wasd;
+    const input: PlayerInput = {
+      up: (cursors?.up.isDown ?? false) || (wasd?.W.isDown ?? false),
+      down: (cursors?.down.isDown ?? false) || (wasd?.S.isDown ?? false),
+      left: (cursors?.left.isDown ?? false) || (wasd?.A.isDown ?? false),
+      right: (cursors?.right.isDown ?? false) || (wasd?.D.isDown ?? false),
+    };
+
+    const aim = this.pointerWorldPoint();
+
+    // On a loss the tank is gone, so it neither drives nor shoots. On a win it
+    // keeps playing — the AS3 leaves the level running so remaining coins can
+    // be collected before the results screen.
+    const destroyed = this.outcome.result === 'lost';
+
+    if (!destroyed) {
+      this.player.drive(input, aim, delta);
+      if (aim) this.crosshair.setPosition(aim.x, aim.y).setVisible(true);
+
+      this.updateFiring(delta);
+      this.updateSecondary(delta);
+      this.updateContactDamage(delta);
+    }
+
+    this.collectPickups();
+
+    // Parallax: the ground scrolls slightly slower than the camera, which is
+    // enough to read as depth without a second art layer.
+    this.ground.setTilePosition(
+      this.cameras.main.scrollX * 0.06,
+      this.cameras.main.scrollY * 0.06,
+    );
+
+    this.updateWave(delta);
+
+    this.updateStatusEffects(delta);
+
+    for (const enemy of this.enemies) {
+      enemy.update({ x: this.player.x, y: this.player.y }, delta);
+    }
+
+    this.updateOutcome(delta);
+    this.updateHud(delta);
+
+    if (time - this.lastFpsEmit > FPS_EMIT_INTERVAL_MS) {
+      this.lastFpsEmit = time;
+      GameEvents.emit('debug:fps', { fps: Math.round(this.game.loop.actualFps) });
+    }
+  }
+
+  /* ── setup ─────────────────────────────────────────────────────────────── */
+
+  private setupCamera(): void {
+    const camera = this.cameras.main;
+    camera.setBounds(0, 0, ROOM_WIDTH, ROOM_HEIGHT);
+    // lerp < 1 gives the soft trailing camera PartGameArea.as approximates
+    // with its manual clamping, without the per-frame arithmetic.
+    camera.startFollow(this.player, true, 0.12, 0.12);
+    camera.setRoundPixels(false);
+  }
+
+  private setupInput(): void {
+    // Aiming reticle — the extracted CustomCursor bitmap (symbol 166).
+    this.crosshair = this.add
+      .image(ROOM_WIDTH / 2, ROOM_HEIGHT / 2, 'cursor')
+      .setDisplaySize(28, 28)
+      .setDepth(30)
+      .setVisible(false);
+
+    const keyboard = this.input.keyboard;
+    if (!keyboard) {
+      // Touch-only device. Virtual controls land later; movement is simply
+      // unavailable rather than crashing.
+      console.info('[GameplayScene] No keyboard plugin; aiming only.');
+      return;
+    }
+
+    this.cursors = keyboard.createCursorKeys();
+    this.wasd = keyboard.addKeys('W,A,S,D') as Record<
+      'W' | 'A' | 'S' | 'D',
+      Phaser.Input.Keyboard.Key
+    >;
+
+    // Stop arrow keys and space from scrolling the page underneath the canvas.
+    keyboard.addCapture(['UP', 'DOWN', 'LEFT', 'RIGHT', 'SPACE', 'W', 'A', 'S', 'D', 'E']);
+
+    // Space is the *secondary* trigger — `Main.space` in the AS3, against
+    // `Main.mouse` for the primary. It stood in for the primary while there was
+    // no secondary to bind it to; now that Mine exists it goes back to its real
+    // job, and E takes over as the mouseless primary trigger.
+    keyboard.on('keydown-SPACE', () => {
+      this.secondaryPressed = true;
+    });
+    keyboard.on('keyup-SPACE', () => {
+      this.secondaryPressed = false;
+    });
+
+    keyboard.on('keydown-E', () => {
+      this.firePressed = true;
+    });
+    keyboard.on('keyup-E', () => {
+      this.firePressed = false;
+    });
+
+    // Q cycles the ported primaries. The AS3 switches between the two equipped
+    // slots on Shift/Q (ScreenGame.chooseWeapon); the equip screen that fills
+    // those slots is not ported, so this cycles what exists instead.
+    keyboard.on('keydown-Q', () => this.cycleWeapon());
+
+    if (import.meta.env.DEV) {
+      // Dev-only: destroy the tank, so the defeat path is reachable at all.
+      // Contact is the only ported damage source and it is capped by enemy
+      // count — level 1-1 is 10 enemies at 5 damage against 100 HP, so losing
+      // is arithmetically impossible until shooting enemies are ported.
+      // Delete this with the rest of the dev aids.
+      keyboard.on('keydown-K', () => {
+        this.hp = 0;
+        GameEvents.emit('player:damaged', {
+          amount: 0,
+          health: 0,
+          maxHealth: TANK_MAX_HP,
+        });
+      });
+    }
+  }
+
+  private setupHud(): void {
+    // In-canvas text: it scrolls and scales with the world camera, so it stays
+    // welded to the play area. Menu text lives in React instead.
+    this.hudText = this.add
+      .text(0, 0, '', {
+        fontFamily: '"SWFMainFont", sans-serif',
+        fontSize: '18px',
+        color: '#fff4d6',
+        stroke: '#2b1d05',
+        strokeThickness: 4,
+      })
+      .setScrollFactor(0)
+      .setDepth(100);
+
+    this.layout();
+  }
+
+  /**
+   * Prepares the wave for this level. Enemies now arrive progressively rather
+   * than all at once: the pool is drawn without replacement, paced by the
+   * level's own spawn interval, each announced by a warning marker.
+   */
+  private startWave(): void {
+    // World 1 while there is no level select; levelIndex is a stand-in.
+    const world = 1;
+    const level = this.levelIndex + 1;
+    const spec = getLevel(world, level);
+    if (!spec) return;
+
+    this.levelSpec = spec;
+    this.wave = createWaveState(spec);
+    this.spawnRng = new Phaser.Math.RandomDataGenerator([`spawn-${world}-${level}`]);
+
+    console.info(
+      `[GameplayScene] Wave ${world}-${level} (${spec.mode}): ` +
+        `${spec.totalEnemies} enemies, interval ${spec.spawnInterval} frames, ` +
+        `${spec.enemies.map((e) => `${e.count}x${e.type}${e.level}`).join(', ')}`,
+    );
+  }
+
+  /** Draws, places and announces one enemy when the wave allows it. */
+  private updateWave(deltaMs: number): void {
+    const wave = this.wave;
+    const spec = this.levelSpec;
+    if (!wave || !spec) return;
+
+    const random = (): number => this.spawnRng.frac();
+
+    tickWave(wave, deltaMs);
+
+    if (canSpawn(wave)) {
+      const drawn = drawEnemy(wave, { countsByType: this.livePopulation() }, random);
+      if (drawn) {
+        const placement = placeWarning({
+          mode: spec.mode,
+          roomWidth: ROOM_WIDTH,
+          roomHeight: ROOM_HEIGHT,
+          isBoss: drawn.level === 'B',
+          countDownDone: wave.countDownDone,
+          random,
+        });
+
+        const warning = createWarning({ ...drawn, ...placement });
+        this.warnings.push(warning);
+        this.addWarningMarker(warning);
+        registerSpawn(wave);
+      }
+    }
+
+    this.advanceWarnings(deltaMs);
+  }
+
+  /** Counts down the markers and spawns whatever has matured. */
+  private advanceWarnings(deltaMs: number): void {
+    if (this.warnings.length === 0) return;
+
+    const { pending, matured } = tickWarnings(this.warnings, deltaMs);
+
+    // tickWarnings returns fresh objects, so remap the markers by index.
+    const markers = this.warnings.map((w) => this.warningMarkers.get(w));
+    this.warningMarkers.clear();
+    for (const [index, warning] of this.warnings.entries()) {
+      const marker = markers[index];
+      const stillPending = pending.find(
+        (p) => p.x === warning.x && p.y === warning.y && p.type === warning.type,
+      );
+      if (stillPending && marker) {
+        this.warningMarkers.set(stillPending, marker);
+        marker.setScale(warningScale(stillPending) * 0.5);
+      } else if (marker) {
+        marker.destroy();
+      }
+    }
+
+    this.warnings = pending;
+    for (const warning of matured) this.spawnFromWarning(warning);
+  }
+
+  private addWarningMarker(warning: Warning): void {
+    const marker = this.add
+      .image(warning.x, warning.y, 'particle-dot')
+      .setDisplaySize(34, 34)
+      .setTint(0xff5252)
+      .setAlpha(0.75)
+      .setDepth(6);
+    this.warningMarkers.set(warning, marker);
+  }
+
+  private spawnFromWarning(warning: Warning): void {
+    const wave = this.wave;
+    const spec = this.levelSpec;
+    if (!wave || !spec) return;
+
+    const enemy = Enemy.spawn(this, {
+      type: warning.type,
+      level: warning.level,
+      difficulty: 'Easy',
+      mode: spec.mode,
+      roomWidth: ROOM_WIDTH,
+      roomHeight: ROOM_HEIGHT,
+      x: warning.x,
+      y: warning.y,
+      wall: warning.wall,
+    });
+
+    if (enemy) {
+      this.enemies.push(enemy);
+      registerEnemySpawned(wave);
+    }
+  }
+
+  /**
+   * The pointer's current world position, recomputed every frame.
+   *
+   * Deliberately not `pointer.worldX/worldY`: Phaser writes those in exactly
+   * one place — `InputManager.hitTest`, reached only from
+   * `InputPlugin.hitTestPointer` during pointer *event* processing. Nothing
+   * refreshes them when the camera scrolls, so with the mouse held still while
+   * the tank drives, the aim point stays pinned to the world position the
+   * cursor was last over instead of tracking the cursor on screen.
+   *
+   * `camera.getWorldPoint` applies the current camera transform to the
+   * pointer's screen coordinates, which is correct on every frame.
+   */
+  private pointerWorldPoint(): Phaser.Math.Vector2 | null {
+    const pointer = this.input.activePointer;
+    if (!pointer.active) return null;
+    // Reuses a scratch vector; getWorldPoint writes into the output argument.
+    return this.cameras.main.getWorldPoint(pointer.x, pointer.y, this.aimScratch);
+  }
+
+  /**
+   * Fires while held, advances bullets, and resolves hits.
+   *
+   * The AS3 fires on `Main.mouse`; here either the pointer or Space works so
+   * the scene is usable without a mouse.
+   */
+  private updateFiring(deltaMs: number): void {
+    tickFiring(this.firing, deltaMs);
+
+    const held = this.input.activePointer.isDown || this.firePressed;
+    if (held && this.weapon && this.weaponStats) {
+      const shots = fire(this.firing, this.weapon, this.weaponStats, {
+        x: this.player.x,
+        y: this.player.y,
+        towerRotation: this.player.towerRotationDegrees,
+        // Only the Flamethrower consumes these; every other spec ignores them.
+        tankXVel: this.player.xVelPerFrame,
+        tankYVel: this.player.yVelPerFrame,
+      });
+
+      // A beam has nothing in flight: it resolves entirely on the frame it
+      // fires, so it never becomes a Bullet.
+      if (shots.length > 0 && this.weapon.isBeam) {
+        this.fireBeam();
+        this.advanceBullets(deltaMs);
+        return;
+      }
+
+      if (shots.length > 0) {
+        // An empty key means the weapon has no one-shot report — the
+        // Flamethrower drives a sustained loop the port does not have yet.
+        if (this.weapon.sound) getSoundManager(this)?.queue(this.weapon.sound);
+        const bulletClass = this.weapon.bulletClass ?? 'Bullet';
+        // Range is a distance in the table; a flame's life is that distance
+        // divided by its speed. See weapons/flames.ts.
+        // The multiplier has to reach the flame itself, not just the range it
+        // was derived from — the density rule overwrites lifetime two frames
+        // in, and would otherwise discard it. See FLAME_RANGE_MULTIPLIER.
+        const flame = this.weapon.isFlame
+          ? {
+              lifetimeMax: flameLifetimeMax(
+                this.weaponStats.flameRange ?? 0,
+                this.weapon.bulletSpeed,
+              ),
+              rangeMultiplier: FLAME_RANGE_MULTIPLIER,
+            }
+          : null;
+        for (const spec of shots) {
+          this.bullets.push(
+            new Bullet(this, spec, ROOM_WIDTH, ROOM_HEIGHT, bulletClass, flame),
+          );
+        }
+      }
+    }
+
+    this.advanceBullets(deltaMs);
+  }
+
+  /**
+   * Lays down the laser segment and damages everything on it, once.
+   *
+   * The AS3 restricts hits to enemies inside the camera view (`:5565`), which
+   * matters because the beam is 1000 units long and outruns the screen.
+   */
+  private fireBeam(): void {
+    if (!this.weaponStats) return;
+
+    const beam = createBeam(
+      this.player.x,
+      this.player.y,
+      this.player.towerRotationDegrees,
+    );
+
+    getSoundManager(this)?.queue('WeaponLaser');
+    this.drawBeam(beam);
+
+    const targets = this.enemies.map((enemy) => ({
+      x: enemy.x,
+      y: enemy.y,
+      radius: enemy.radius,
+    }));
+
+    const view = this.cameras.main.worldView;
+    const onScreen = (_t: { x: number; y: number }, i: number): boolean => {
+      const enemy = this.enemies[i];
+      return view.contains(enemy.x, enemy.y);
+    };
+
+    // Snapshot first: removing an enemy mid-loop would shift the indices.
+    const caught = findBeamHits(beam, targets, onScreen).map((i) => this.enemies[i]);
+
+    for (const enemy of caught) {
+      // Immune enemies take nothing at all — the AS3 gates the whole block on
+      // `laserDamageMultiplier > 0`.
+      if (enemy.damageMultipliers.Laser <= 0) continue;
+
+      // Unlike fire, the laser thaws *and* damages.
+      if (enemy.status.frozen) {
+        enemy.status.frozen = false;
+        enemy.status.frozenTimer = 0;
+      }
+
+      getSoundManager(this)?.queue('ImpactLaser');
+      const result = applyBulletDamage(
+        enemy.health,
+        this.weaponStats.damage,
+        enemy.damageMultipliers,
+        'Laser',
+      );
+      enemy.health = result.health;
+
+      if (result.killed) {
+        this.kills += 1;
+        this.removeEnemy(enemy, true);
+      } else {
+        enemy.flashDamage(impactFeedback(enemy.damageMultipliers, 'Laser'));
+      }
+    }
+  }
+
+  /** Stand-in visual: the extracted BulletLaser art is not among the assets. */
+  private drawBeam(beam: ReturnType<typeof createBeam>): void {
+    const line = this.add
+      .line(0, 0, beam.start.x, beam.start.y, beam.end.x, beam.end.y, 0xff3b6b)
+      .setOrigin(0, 0)
+      .setLineWidth(beam.radius / 2)
+      .setDepth(13)
+      .setAlpha(0.9);
+
+    this.tweens.add({
+      targets: line,
+      alpha: 0,
+      duration: 140,
+      onComplete: () => line.destroy(),
+    });
+  }
+
+  /**
+   * Re-acquires and steers a homing round.
+   *
+   * `:1716` only rescans when the current target is gone — null, destroyed,
+   * invisible, teleporting or off-screen — so a round keeps its target while
+   * it remains valid rather than re-picking the nearest every frame.
+   */
+  private steerMagic(bullet: Bullet): void {
+    const view = this.cameras.main.worldView;
+    const valid = (enemy: Enemy): boolean =>
+      enemy.active && this.enemies.includes(enemy) && view.contains(enemy.x, enemy.y);
+
+    let target = bullet.magicTarget as Enemy | null;
+    if (!target || !valid(target)) {
+      const targets = this.enemies.map((enemy) => ({
+        x: enemy.x,
+        y: enemy.y,
+        radius: enemy.radius,
+      }));
+      const index = findMagicTarget(
+        { x: bullet.x, y: bullet.y },
+        targets,
+        // On screen and not already chained through. `invisible` and
+        // `teleporting` come from the unported loop and no enemy sets them.
+        (_t, i) => valid(this.enemies[i]) && !bullet.hasHit(this.enemies[i]),
+      );
+      target = index === -1 ? null : this.enemies[index];
+      bullet.magicTarget = target;
+    }
+
+    if (!target) return;
+
+    // Instant turn at full speed — the AS3 overwrites velocity outright.
+    const { xVel, yVel } = magicVelocity(
+      { x: bullet.x, y: bullet.y },
+      { x: target.x, y: target.y },
+      bullet.speedPerFrame,
+    );
+    bullet.steer(xVel, yVel);
+  }
+
+  private advanceBullets(deltaMs: number): void {
+    if (this.bullets.length === 0) return;
+
+    const surviving: Bullet[] = [];
+
+    // `enemy.onFire` — reset before the bullet loop at `PartGameArea.as:5554`,
+    // so it is a same-frame dedup flag rather than a status effect. It stops
+    // several overlapping flames all burning one enemy in a single frame.
+    const burnedThisFrame = new Set<Enemy>();
+
+    // `enemy.hitByCake`, reset alongside `onFire` at `:5556`. One cake burst
+    // per enemy per frame; later fragments touching the same enemy pass
+    // through instead of re-bursting, which is what stops the cascade running
+    // away when a ring spawns on top of a crowd.
+    const cakedThisFrame = new Set<Enemy>();
+    const spawnedPieces: Bullet[] = [];
+
+    // Flame positions for the density rule; every bullet counts, as in the AS3.
+    const flamePoints = this.bullets.map((b) => ({ x: b.x, y: b.y }));
+
+    for (const bullet of this.bullets) {
+      if (!bullet.advance(deltaMs)) {
+        bullet.destroy();
+        continue;
+      }
+
+      // Homing runs before flight, so a newly acquired target is steered to on
+      // the same frame the old one died.
+      if (bullet.isSeeking) this.steerMagic(bullet);
+
+      // A flame dies on its own timer, not at the border. Counting its
+      // neighbours here is what implements the density rule — a lone flame is
+      // cut short two frames after it leaves the muzzle.
+      if (bullet.isFlame) {
+        let crowd = 0;
+        for (const point of flamePoints) {
+          if (Math.hypot(point.x - bullet.x, point.y - bullet.y) < FLAME_CROWD_RADIUS) {
+            crowd += 1;
+          }
+        }
+        if (!bullet.advanceFlameLife(deltaMs, crowd)) {
+          bullet.destroy();
+          continue;
+        }
+      }
+
+      const targets = this.enemies.map((enemy) => ({
+        x: enemy.x,
+        y: enemy.y,
+        radius: enemy.radius,
+      }));
+      // Two reasons to skip an otherwise valid target:
+      //   - a penetrating round would re-trigger every frame it spent inside
+      //     an enemy it has already damaged
+      //   - a bomb round passes straight over anything already carrying one,
+      //     because `:5826` guards the whole attach block on `!gotBomb`
+      let canHit: ((target: HitTarget, i: number) => boolean) | undefined;
+      if (bullet.isFlame) canHit = (_t, i) => !burnedThisFrame.has(this.enemies[i]);
+      // `:5917` — a magic round damages anything before it has a target, and
+      // only its target once it does. Never the same enemy twice.
+      else if (bullet.isMagic) {
+        canHit = (_t, i) => {
+          const enemy = this.enemies[i];
+          if (bullet.hasHit(enemy)) return false;
+          return bullet.magicTarget === null || bullet.magicTarget === enemy;
+        };
+      }
+      else if (bullet.penetrates) canHit = (_t, i) => !bullet.hasHit(this.enemies[i]);
+      else if (bullet.attachesBomb) canHit = (_t, i) => !this.enemies[i].status.gotBomb;
+
+      // A flame keeps burning for its whole life and hits everything it
+      // overlaps, so it resolves against every target rather than the first.
+      // It never records hits — there is no already-hit list for fire, only
+      // the per-frame flag, so one flame burns the same enemy every frame.
+      if (bullet.isFlame) {
+        // Resolve indices to enemies *before* burning any of them: burnEnemy
+        // can kill, which splices the live array and leaves every later index
+        // pointing at the wrong enemy — or past the end. Same snapshot rule
+        // queueExplosion already follows.
+        const caught = findAllHits(bullet.hitState, targets, canHit).map(
+          (i) => this.enemies[i],
+        );
+        for (const enemy of caught) {
+          burnedThisFrame.add(enemy);
+          this.burnEnemy(enemy, bullet);
+        }
+        surviving.push(bullet);
+        continue;
+      }
+
+      const index = findHit(bullet.hitState, targets, canHit);
+
+      if (index === -1) {
+        surviving.push(bullet);
+        continue;
+      }
+
+      const struck = this.enemies[index];
+
+      // A bomb round does nothing on contact: direct damage is closed by
+      // `explosion == true` and the impact blast excludes BulletBomb, so the
+      // attachment is its entire effect. The blast comes later, from the
+      // status tick, wherever the host has walked to by then.
+      if (bullet.attachesBomb) {
+        applyBomb(struck.status, {
+          bombTimer: bullet.bombTimer,
+          explosionRadius: bullet.explosionRadius,
+          damage: bullet.damage,
+        });
+        getSoundManager(this)?.queue('ImpactTimedBomb');
+      }
+      // An exploding round deals no direct damage — the AS3 branches on
+      // `theBullet.explosion == false` for the direct path and only queues a
+      // blast otherwise. See weapons/explosions.ts.
+      else if (bullet.explodes) this.queueExplosion(bullet);
+      else this.hitEnemy(struck, bullet);
+
+      // A magic round chains: it damages, spends one of its targets, and
+      // carries on unless that was the last. `:5822` evaluates the budget
+      // *before* the decrement, so `targetsLeft == 1` means this hit is final.
+      if (bullet.isMagic) {
+        this.hitEnemy(struck, bullet);
+        getSoundManager(this)?.queue('ImpactMagic');
+
+        const wasFinal = bullet.onFinalTarget;
+        bullet.recordHit(struck);
+        bullet.registerMagicHit();
+
+        // `:5949` nudges the round forward a frame so it clears the enemy it
+        // just hit rather than sitting inside it.
+        bullet.advance((1000 / 30) * 1);
+
+        if (wasFinal) bullet.destroy();
+        else surviving.push(bullet);
+        continue;
+      }
+
+      // A cake round bursts into a ring around the enemy — but only the first
+      // one to reach it this frame. `:5822` folds `hitByCake` into the
+      // `dead = true` condition, so a later fragment neither bursts nor dies.
+      if (bullet.burstsIntoCake) {
+        if (!cakedThisFrame.has(struck)) {
+          cakedThisFrame.add(struck);
+          this.burstCake(bullet, struck, spawnedPieces);
+          bullet.destroy();
+        } else {
+          surviving.push(bullet);
+        }
+        continue;
+      }
+
+      // `dead = true` at PartGameArea.as:5822 is guarded by an exclusion list
+      // that BulletPenetrate is on, so it carries on instead of being removed.
+      if (bullet.penetrates) {
+        bullet.recordHit(struck);
+        surviving.push(bullet);
+      } else {
+        bullet.destroy();
+      }
+    }
+
+    // Fragments join at the end, so they cannot burst again in the frame that
+    // created them.
+    this.bullets = [...surviving, ...spawnedPieces];
+  }
+
+  /**
+   * Shatters a cake round into its ring of fragments around the enemy it hit.
+   *
+   * Damage lands first, then the burst — the parent still hits for its own
+   * value on the way in. Fragments carry the parent's piece count, so any of
+   * them can burst again on another enemy; see weapons/cake.ts.
+   */
+  private burstCake(bullet: Bullet, struck: Enemy, out: Bullet[]): void {
+    this.hitEnemy(struck, bullet);
+
+    // The enemy may have died to that hit; the ring still spawns around where
+    // it was, which is what the AS3 does — the burst block runs off the
+    // bullet's target regardless of the kill.
+    const pieces = spawnCakePieces(
+      {
+        pieces: bullet.cakePieces,
+        damage: bullet.damage,
+        // Only the parent round halves; a fragment passes its damage on.
+        isParent: bullet.isCakeParent,
+      },
+      { x: struck.x, y: struck.y, radius: struck.radius },
+    );
+
+    getSoundManager(this)?.queue('ImpactCake');
+    for (const piece of pieces) {
+      out.push(new Bullet(this, piece, ROOM_WIDTH, ROOM_HEIGHT, 'BulletCakePiece'));
+    }
+  }
+
+  /**
+   * Ticks every enemy's poison/bomb/freeze timers and acts on the result.
+   *
+   * Poison damage is applied here rather than in `Enemy` so that a kill goes
+   * through the same `removeEnemy` path as any other, and a bomb blast reaches
+   * `spawnExplosion` — which is what lets it damage neighbours, not just its
+   * host.
+   */
+  private updateStatusEffects(deltaMs: number): void {
+    if (this.enemies.length === 0) return;
+
+    const blasts: ExplosionSpec[] = [];
+
+    for (const enemy of [...this.enemies]) {
+      const result = enemy.tickStatus(deltaMs);
+
+      if (result.damage > 0) {
+        enemy.health -= result.damage;
+        if (enemy.health <= 0) {
+          this.kills += 1;
+          this.removeEnemy(enemy, true);
+        }
+      }
+
+      blasts.push(...result.explosions);
+    }
+
+    // Deferred: a bomb can kill its own host, and spawning the blast inside the
+    // loop above would mutate `this.enemies` while it is being walked.
+    for (const blast of blasts) this.spawnExplosion(blast);
+  }
+
+  /**
+   * The secondary weapon: places mines on Space, then detonates any an enemy
+   * has walked into.
+   *
+   * Mines are checked *after* placement in the same frame, matching the AS3's
+   * ordering — `tankAttack` runs before `handleMines`. In practice a mine
+   * dropped under the tank cannot detonate on the placing frame anyway, since
+   * an enemy that close would already have hit the tank.
+   */
+  private updateSecondary(deltaMs: number): void {
+    tickFiring(this.secondaryFiring, deltaMs);
+
+    if (this.secondaryPressed && this.secondaryStats) {
+      const placed = placeMine(this.secondaryFiring, this.secondaryStats, {
+        x: this.player.x,
+        y: this.player.y,
+      });
+      if (placed) {
+        getSoundManager(this)?.queue(this.secondary!.sound);
+        this.mines.push(new Mine(this, placed));
+      }
+    }
+
+    if (this.mines.length === 0) return;
+
+    // `invisible` and `teleporting` come from status effects in the unported
+    // enemy loop, so no enemy sets them yet; passing them through keeps the
+    // sweep correct once they exist.
+    const targets = this.enemies.map((enemy) => ({
+      x: enemy.x,
+      y: enemy.y,
+      radius: enemy.radius,
+    }));
+
+    const { mines, detonations } = sweepMines(
+      this.mines.map((mine) => mine.spec),
+      targets,
+    );
+
+    if (detonations.length === 0) return;
+
+    const survivors = new Set(mines);
+    this.mines = this.mines.filter((mine) => {
+      if (survivors.has(mine.spec)) return true;
+      mine.destroy();
+      return false;
+    });
+
+    for (const spec of detonations) this.spawnExplosion(spec);
+  }
+
+  /**
+   * Enemy contact damage.
+   *
+   * Non-bosses die on contact and pay nothing — a suicide attack, so the only
+   * way to earn from an enemy is to kill it first.
+   */
+  private updateContactDamage(deltaMs: number): void {
+    const frames = (deltaMs / 1000) * 30;
+    if (this.pushedFrames > 0) this.pushedFrames = Math.max(0, this.pushedFrames - frames);
+
+    for (const enemy of [...this.enemies]) {
+      const participants = {
+        tankX: this.player.x,
+        tankY: this.player.y,
+        tankRadius: this.player.radius,
+        enemyX: enemy.x,
+        enemyY: enemy.y,
+        enemyRadius: enemy.radius,
+        isBoss: enemy.enemyLevel === 'B',
+      };
+      if (!isTouchingTank(participants)) continue;
+
+      const result = resolveContact(
+        participants,
+        {
+          enemyDamage: enemy.stats.damage,
+          upgrades: this.upgrades,
+          pushed: this.pushedFrames > 0,
+        },
+        this.hp,
+      );
+
+      if (result.damage > 0) {
+        this.hp = result.hp;
+        getSoundManager(this)?.queue('TankEnemyCollision');
+        this.cameras.main.shake(90, 0.0012);
+        GameEvents.emit('player:damaged', {
+          amount: result.damage,
+          health: this.hp,
+          maxHealth: TANK_MAX_HP,
+        });
+      }
+
+      if (result.push) {
+        this.pushedFrames = PUSHED_TIMER_MAX;
+        // Knockback is not yet fed back into the tank's velocity — that needs
+        // Tank.as's `pushed` branch, which is part of the unported loop.
+      }
+
+      if (result.enemyDies) this.removeEnemy(enemy, false);
+
+      if (this.hp <= 0) return;
+    }
+  }
+
+  /**
+   * Decides and advances the end of the level.
+   *
+   * The AS3 does not hand over the instant the last enemy dies: it waits until
+   * every dropped coin is collected (or the player is dead), then counts down
+   * 15 frames. See waves/levelOutcome.ts.
+   */
+  private updateOutcome(deltaMs: number): void {
+    const before = this.outcome.result;
+
+    this.outcome = tickOutcome(
+      this.outcome,
+      {
+        // `isWaveComplete` reads the wave's own counters; `this.enemies` is
+        // the arena itself. Requiring both means a counter that drifts can
+        // only ever delay completion, never trigger it early.
+        waveComplete:
+          this.wave !== null && isWaveComplete(this.wave) && this.enemies.length === 0,
+        tankHp: this.hp,
+        // The AS3 counts `ItemMoney` — coins *dropped by killed enemies* —
+        // and holds the level open until they are picked up. This port has no
+        // drops: `removeEnemy` pays out directly on death. So there is never
+        // anything to wait for.
+        //
+        // This previously read `this.pickups.countActive(true)`, which counts
+        // the eight decorative placeholder coins scattered at level start.
+        // Those are scaffolding, not drops, and a player has no reason to
+        // collect them — so the handover was gated forever and no level could
+        // ever finish. Restore the real count when ItemMoney is ported.
+        moneyOnFloor: 0,
+      },
+      deltaMs,
+    );
+
+    // The frame the outcome is first decided: music, and the tank's send-off.
+    if (before === null && this.outcome.result !== null) {
+      getSoundManager(this)?.setMusic(outcomeMusic(this.outcome.result));
+
+      if (this.outcome.result === 'lost') {
+        // Radius 150, damage 0 — spectacle only, it cannot hurt anything.
+        this.spawnExplosion({
+          x: this.player.x,
+          y: this.player.y,
+          radius: TANK_DEATH_BLAST_RADIUS,
+          damage: 0,
+          type: 'Normal',
+          smallSound: false,
+        });
+        this.player.setVisible(false);
+      }
+
+      console.info(`[GameplayScene] Level ${this.levelIndex + 1}: ${this.outcome.result}.`);
+    }
+
+    if (this.outcome.finished && !this.banked) {
+      // Bank the level's takings into the persistent profile and write it out.
+      // The AS3 saves at defined moments rather than continuously; level end
+      // is one of them.
+      // `currency` already includes the opening balance, so this assigns the
+      // new total rather than adding to it — adding would double-count.
+      this.banked = true;
+      this.profile.setUpgrades({ ...this.upgrades, money: this.currency });
+      this.profile.save();
+    }
+
+    if (this.outcome.finished) {
+      GameEvents.emit('level:ended', {
+        result: this.outcome.result!,
+        level: this.levelIndex + 1,
+        kills: this.kills,
+        currency: this.currency,
+      });
+      // Stop simulating; the result overlay owns the screen from here.
+      this.scene.pause();
+    }
+  }
+
+  /**
+   * Distance-based pickup collection.
+   *
+   * The tank is no longer an arcade sprite — it moves through the ported
+   * `Tank.as` integration — so this replaces the physics overlap with the same
+   * circle test the bullet hits use.
+   */
+  private collectPickups(): void {
+    for (const child of this.pickups.getChildren()) {
+      const pickup = child as Pickup;
+      if (!pickup.active) continue;
+      const distance = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        pickup.x,
+        pickup.y,
+      );
+      if (distance <= this.player.radius + pickup.displayWidth / 2) this.collect(pickup);
+    }
+  }
+
+  /**
+   * Cycles through the primaries that have been ported.
+   *
+   * Both are owned from the start here: `Cannon` ships at level 1, and MiniGun
+   * is granted so it can be tried. Buying it properly needs the upgrade screen.
+   */
+  private cycleWeapon(): void {
+    const names = Object.keys(PRIMARY_WEAPONS);
+    const current = this.weapon ? names.indexOf(this.weapon.name) : -1;
+    const next = getWeapon(names[(current + 1) % names.length]);
+    if (!next) return;
+
+    const stats = resolveWeaponStats(next, this.upgrades);
+    if (!stats) return;
+
+    // Write the choice into the loadout rather than holding it beside one.
+    // The AS3 toggles between two equipped slots (`ScreenGame.chooseWeapon`);
+    // there is no equip screen yet, so this cycles slot 1 through everything
+    // ported. When that screen lands it mutates the same state and gameplay
+    // needs no change.
+    //
+    // Both calls are required: `equipPrimary` fills the slot, `chooseWeapon`
+    // promotes it to the active `primaryWeapon`. Doing only the first leaves
+    // the active weapon on whatever it was, which is what gameplay reads back
+    // on the next restart.
+    this.profile.setLoadout(
+      chooseWeapon(equipPrimary(this.profile.loadout, 1, next.name), 1),
+    );
+
+    this.weapon = next;
+    this.weaponStats = stats;
+    // Reset the timer so switching cannot be used to bypass a long reload.
+    this.firing = createFiringState();
+
+    getSoundManager(this)?.queue('WeaponChange');
+    // Capacity must stay above zero or the readout unmounts — see
+    // PLACEHOLDER_AMMO. Emitting 0 here is what made the weapon name vanish on
+    // the first weapon switch.
+    GameEvents.emit('ammo:changed', {
+      current: PLACEHOLDER_AMMO,
+      capacity: PLACEHOLDER_AMMO,
+      weapon: next.name,
+    });
+    console.info(`[GameplayScene] Weapon: ${next.name}`);
+  }
+
+  /**
+   * Spawns a blast at the bullet's position and applies it once.
+   *
+   * The AS3 queues explosions and resolves them on the next frame; resolving
+   * immediately is equivalent because `canDamage` is true for exactly one frame
+   * either way, and it avoids a frame of latency between impact and damage.
+   */
+  private queueExplosion(bullet: Bullet): void {
+    this.spawnExplosion({
+      x: bullet.x,
+      y: bullet.y,
+      radius: bullet.explosionRadius,
+      damage: bullet.damage,
+      type: 'Normal',
+      // Bullet impacts use the small sound; grenades and mines use the big one.
+      smallSound: true,
+    });
+  }
+
+  /** `spawnExplosion` — the one path every blast in the scene goes through. */
+  private spawnExplosion(spec: ExplosionSpec): void {
+    const explosion = createExplosion(spec);
+
+    getSoundManager(this)?.queue(explosionSound(explosion.smallSound));
+    new Explosion(this, explosion);
+
+    const targets = this.enemies.map((enemy) => ({
+      x: enemy.x,
+      y: enemy.y,
+      radius: enemy.radius,
+    }));
+
+    // Snapshot the caught enemies first: removing one mid-loop would shift the
+    // indices findEnemiesInBlast returned.
+    const caught = findEnemiesInBlast(explosion, targets).map((i) => this.enemies[i]);
+
+    for (const enemy of caught) {
+      const damage = blastDamage(explosion, enemy.damageMultipliers);
+      enemy.health -= damage;
+
+      if (enemy.health <= 0) {
+        this.kills += 1;
+        this.removeEnemy(enemy, true);
+      } else {
+        enemy.flashDamage(impactFeedback(enemy.damageMultipliers, 'Explosions'));
+      }
+    }
+  }
+
+  /**
+   * A flame touching an enemy.
+   *
+   * Fire and freeze are exclusive: `:6002` requires `frozen == false` before
+   * any fire damage lands, and `:5922` instead knocks 15 frames off the freeze
+   * timer. Fire thaws a frozen enemy rather than burning it.
+   */
+  private burnEnemy(enemy: Enemy, bullet: Bullet): void {
+    if (enemy.status.frozen) {
+      enemy.status.frozenTimer = Math.max(0, enemy.status.frozenTimer - FIRE_THAW_FRAMES);
+      if (enemy.status.frozenTimer === 0) enemy.status.frozen = false;
+      return;
+    }
+
+    this.hitEnemy(enemy, bullet);
+  }
+
+  private hitEnemy(enemy: Enemy, bullet: Bullet): void {
+    // Poison lands before the direct hit is resolved, matching the AS3 order
+    // (`:5927` sits inside the damage block, ahead of the kill check at
+    // `:5981`). It is scaled by the enemy's own Poison resistance, and an
+    // immune enemy takes none — applyPoison refuses outright.
+    if (bullet.appliesPoison) {
+      applyPoison(
+        enemy.status,
+        { poisonTime: bullet.poisonTime, poisonDamage: bullet.poisonDamage },
+        enemy.damageMultipliers.Poison,
+      );
+    }
+
+    // The Cannon's plain `Bullet` is untyped, so this is a no-op multiplier
+    // today — it becomes load-bearing as the typed weapons are ported.
+    const result = applyBulletDamage(
+      enemy.health,
+      bullet.damage,
+      enemy.damageMultipliers,
+      bullet.damageType,
+    );
+    enemy.health = result.health;
+
+    if (!result.killed) {
+      enemy.flashDamage(impactFeedback(enemy.damageMultipliers, bullet.damageType));
+      return;
+    }
+
+    this.kills += 1;
+    this.removeEnemy(enemy, true);
+  }
+
+  /**
+   * Removes an enemy from play.
+   *
+   * `payMoney` is false when the enemy reached the tank: the AS3 sets
+   * `noMoney = true` on contact, so a suicide attack earns the player nothing.
+   */
+  private removeEnemy(enemy: Enemy, payMoney: boolean): void {
+    if (payMoney) {
+      getSoundManager(this)?.queue('EnemySquish');
+      // Money is the enemy's own reward value, already scaled by tier.
+      this.currency += enemy.stats.money;
+      GameEvents.emit('currency:earned', {
+        amount: enemy.stats.money,
+        total: this.currency,
+      });
+    }
+
+    // Guard against a double removal. `filter` below is idempotent but
+    // `registerEnemyKilled` is not, so calling this twice for one enemy used
+    // to drop the wave's `currentEnemies` by two while the live list lost one.
+    // The counter then hit zero with enemies still on screen and the level
+    // completed early.
+    const index = this.enemies.indexOf(enemy);
+    if (index === -1) return;
+
+    if (this.wave) registerEnemyKilled(this.wave, enemy.enemyLevel === 'B');
+
+    this.enemies.splice(index, 1);
+    enemy.destroy();
+
+    GameEvents.emit('wave:changed', {
+      wave: this.levelIndex + 1,
+      enemiesRemaining: (this.wave?.enemiesLeft ?? 0) + this.enemies.length,
+    });
+  }
+
+  /** Live counts by type, for the Flag/Boss balancing branch of the draw. */
+  private livePopulation(): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const enemy of this.enemies) {
+      counts[enemy.enemyType] = (counts[enemy.enemyType] ?? 0) + 1;
+    }
+    for (const warning of this.warnings) {
+      counts[warning.type] = (counts[warning.type] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  private spawnPickups(): void {
+    // Deterministic layout: the same seed gives the same board, which makes a
+    // "did my change break collection?" check reproducible.
+    const rng = new Phaser.Math.RandomDataGenerator([`level-${this.levelIndex}`]);
+    for (let i = 0; i < PICKUP_COUNT; i += 1) {
+      const x = rng.between(60, ROOM_WIDTH - 60);
+      const y = rng.between(60, ROOM_HEIGHT - 60);
+      this.pickups.add(new Pickup(this, x, y, PICKUP_VALUE));
+    }
+  }
+
+  /* ── runtime ───────────────────────────────────────────────────────────── */
+
+  private collect(pickup: Pickup): void {
+    if (!pickup.active) return;
+    pickup.destroy();
+
+    this.currency += pickup.value;
+    // "Coin" has three variants in the manifest, picked by a single random
+    // draw exactly as playSound() does.
+    getSoundManager(this)?.queue('Coin');
+
+    // The one event the brief asks to demonstrate: React's currency counter
+    // updates from this, with no polling and no shared mutable object.
+    GameEvents.emit('currency:earned', { amount: pickup.value, total: this.currency });
+
+    const remaining = this.pickups.countActive(true);
+    GameEvents.emit('wave:changed', {
+      wave: this.levelIndex + 1,
+      enemiesRemaining: remaining,
+    });
+
+    if (this.currency >= PICKUP_VALUE * 3) {
+      GameEvents.emit('achievement:unlocked', {
+        id: 'first-coins',
+        title: 'Pocket Change',
+      });
+    }
+
+    if (remaining === 0) {
+      GameEvents.emit('achievement:unlocked', {
+        id: 'clear-board',
+        title: 'Swept the Field',
+      });
+    }
+  }
+
+  private updateHud(delta: number): void {
+    // The Mine's cooldown is a flat 600 frames — 20 seconds — so it needs a
+    // readout, unlike the primaries where the reload is barely perceptible.
+    const cooldown = this.secondaryFiring.reloadTime;
+    const secondary =
+      this.secondary === undefined
+        ? '—'
+        : cooldown > 0
+          ? `${this.secondary.name} ${Math.ceil(cooldown / 30)}s`
+          : `${this.secondary.name} [SPACE]`;
+
+    this.hudText.setText(
+      [
+        `${this.weapon?.name ?? '—'} [Q]`,
+        secondary,
+        `COINS ${this.currency}`,
+        `KILLS ${this.kills}`,
+        `LEFT ${(this.wave?.enemiesLeft ?? 0) + this.enemies.length}`,
+      ].join('    '),
+    );
+
+    void delta;
+  }
+
+  private layout(): void {
+    const controller = getViewportController(this);
+    if (controller) applyViewportToScene(this, controller.current);
+
+    // Anchor in-canvas HUD text to the safe rect, not to the camera edge — on
+    // a notched phone the camera edge is under the status bar.
+    const safe = controller?.safeRect;
+    this.hudText.setPosition((safe?.x ?? 0) + 12, (safe?.y ?? 0) + 10);
+  }
+}
