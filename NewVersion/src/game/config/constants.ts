@@ -10,6 +10,7 @@ export const SceneKeys = {
   MainMenu: 'MainMenu',
   LevelSelect: 'LevelSelect',
   Upgrades: 'Upgrades',
+  Enemies: 'Enemies',
   Gameplay: 'Gameplay',
 } as const;
 

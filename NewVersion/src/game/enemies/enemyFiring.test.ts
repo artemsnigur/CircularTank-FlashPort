@@ -11,8 +11,12 @@ import {
   BASIC_BULLET_SPEED,
   bulletAlpha,
   canShoot,
-  createBasicFrontBullet,
+  BASIC_BULLET,
+  BASIC_BOSS_BULLET,
+  createCircleShot,
+  createFrontShot,
   createShooter,
+  createVolley,
   hitsTank,
   initialReloadTime,
   registerShot,
@@ -96,26 +100,26 @@ describe('the shot', () => {
   const origin = { x: 300, y: 300, rotation: 0, radius: 13 };
 
   it('leaves the enemy edge, not its centre', () => {
-    const bullet = createBasicFrontBullet(origin);
+    const bullet = createFrontShot(origin, BASIC_BULLET)[0];
     expect(bullet.x).toBeCloseTo(300 + 13 + BASIC_BULLET_RADIUS, 6);
     expect(bullet.y).toBeCloseTo(300, 6);
   });
 
   it('travels along the enemy facing', () => {
-    const bullet = createBasicFrontBullet({ ...origin, rotation: 90 });
+    const bullet = createFrontShot({ ...origin, rotation: 90 }, BASIC_BULLET)[0];
     expect(bullet.xVel).toBeCloseTo(0, 6);
     expect(bullet.yVel).toBeCloseTo(BASIC_BULLET_SPEED, 6);
   });
 
   it('carries the Basic stats', () => {
-    const bullet = createBasicFrontBullet(origin);
+    const bullet = createFrontShot(origin, BASIC_BULLET)[0];
     expect(bullet.damage).toBe(BASIC_BULLET_DAMAGE);
     expect(bullet.lifeTime).toBe(BASIC_BULLET_LIFETIME);
   });
 
   it('is sped up on harder difficulties', () => {
-    const easy = createBasicFrontBullet(origin, 1);
-    const hard = createBasicFrontBullet(origin, 1.3);
+    const easy = createFrontShot(origin, BASIC_BULLET, 1)[0];
+    const hard = createFrontShot(origin, BASIC_BULLET, 1.3)[0];
     expect(Math.hypot(hard.xVel, hard.yVel)).toBeCloseTo(
       Math.hypot(easy.xVel, easy.yVel) * 1.3,
       6,
@@ -123,8 +127,104 @@ describe('the shot', () => {
   });
 });
 
+describe('the Circle pattern', () => {
+  const origin = { x: 300, y: 300, rotation: 0, radius: 13 };
+
+  it('fires one bullet per bulletAmount', () => {
+    expect(createCircleShot(origin, BASIC_BULLET, 6, () => 0)).toHaveLength(6);
+    expect(createCircleShot(origin, BASIC_BULLET, 1, () => 0)).toHaveLength(1);
+  });
+
+  it('spaces them evenly around a full turn', () => {
+    const rotations = createCircleShot(origin, BASIC_BULLET, 6, () => 0).map((b) => b.rotation);
+    for (let i = 1; i < rotations.length; i += 1) {
+      expect(rotations[i] - rotations[i - 1]).toBeCloseTo(60, 10);
+    }
+  });
+
+  it('starts from a random angle, so volleys cannot be dodged by standing still', () => {
+    const a = createCircleShot(origin, BASIC_BULLET, 6, () => 0)[0].rotation;
+    const b = createCircleShot(origin, BASIC_BULLET, 6, () => 0.5)[0].rotation;
+    expect(a).not.toBeCloseTo(b, 3);
+  });
+
+  it('ignores the enemy facing entirely', () => {
+    // Unlike Front, a Circle volley is the same wherever the enemy points.
+    const facingEast = createCircleShot(origin, BASIC_BULLET, 4, () => 0).map((b) => b.rotation);
+    const facingSouth = createCircleShot(
+      { ...origin, rotation: 90 },
+      BASIC_BULLET,
+      4,
+      () => 0,
+    ).map((b) => b.rotation);
+    expect(facingSouth).toEqual(facingEast);
+  });
+
+  it('sends every bullet at full speed', () => {
+    for (const b of createCircleShot(origin, BASIC_BULLET, 6, () => 0.3)) {
+      expect(Math.hypot(b.xVel, b.yVel)).toBeCloseTo(BASIC_BULLET_SPEED, 6);
+    }
+  });
+
+  it('never produces zero bullets from a bad count', () => {
+    expect(createCircleShot(origin, BASIC_BULLET, 0, () => 0)).toHaveLength(1);
+  });
+});
+
+describe('the boss bullet', () => {
+  const origin = { x: 0, y: 0, rotation: 0, radius: 10 };
+
+  it('hits harder but expires far sooner', () => {
+    const boss = createFrontShot(origin, BASIC_BOSS_BULLET)[0];
+    const basic = createFrontShot(origin, BASIC_BULLET)[0];
+    expect(boss.damage).toBe(basic.damage * 2);
+    expect(boss.lifeTime).toBeLessThan(basic.lifeTime / 5);
+    expect(boss.radius).toBeGreaterThan(basic.radius);
+  });
+});
+
+describe('createVolley dispatch', () => {
+  const origin = { x: 0, y: 0, rotation: 0, radius: 10 };
+
+  it('matches every ported enemy to a volley', () => {
+    // Crazy and Random are Circle; Shooting and Ninja are Front.
+    for (const type of ['Shooting', 'Ninja', 'Crazy', 'Random']) {
+      const stats = resolveEnemyStats(type, '1', 'Easy')!;
+      const volley = createVolley(
+        origin,
+        stats.shootType,
+        stats.shootAngle,
+        stats.bulletAmount ?? 1,
+        () => 0.5,
+      );
+      expect(volley.length, type).toBeGreaterThan(0);
+    }
+  });
+
+  it('produces nothing for an unported combination', () => {
+    // Soldier is Following (homing); Trap is a speed-0 hazard. Both must stay
+    // harmless rather than throw or fire a wrong-looking shot.
+    for (const type of ['Soldier', 'Trap']) {
+      const stats = resolveEnemyStats(type, '1', 'Easy')!;
+      expect(
+        createVolley(origin, stats.shootType, stats.shootAngle, stats.bulletAmount ?? 1, () => 0.5),
+        type,
+      ).toHaveLength(0);
+    }
+  });
+
+  it('Crazy throws a six-bullet ring', () => {
+    const stats = resolveEnemyStats('Crazy', '1', 'Easy')!;
+    expect(stats.shootAngle).toBe('Circle');
+    expect(
+      createVolley(origin, stats.shootType, stats.shootAngle, stats.bulletAmount ?? 1, () => 0),
+    ).toHaveLength(6);
+  });
+});
+
 describe('flight', () => {
-  const bullet = () => createBasicFrontBullet({ x: 320, y: 480, rotation: 0, radius: 13 });
+  const bullet = () =>
+    createFrontShot({ x: 320, y: 480, rotation: 0, radius: 13 }, BASIC_BULLET)[0];
 
   it('moves along its velocity', () => {
     const next = advanceEnemyBullet(bullet(), bounds, FRAME)!;
@@ -159,7 +259,7 @@ describe('flight', () => {
 });
 
 describe('hitting the tank', () => {
-  const bullet = createBasicFrontBullet({ x: 100, y: 100, rotation: 0, radius: 0 });
+  const bullet = createFrontShot({ x: 100, y: 100, rotation: 0, radius: 0 }, BASIC_BULLET)[0];
 
   it('needs the radii to overlap', () => {
     expect(hitsTank(bullet, { x: bullet.x + 16, y: 100, radius: 13 })).toBe(true);

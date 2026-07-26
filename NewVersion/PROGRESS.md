@@ -5,10 +5,10 @@
 
 Tracking the rewrite of 643 decompiled ActionScript 3 classes (`SWFimported/scripts`) into TypeScript/Phaser.
 
-**23 / 557** game classes started · **13** verified · 5 marked not applicable · 81 third-party classes excluded.
+**27 / 557** game classes started · **13** verified · 5 marked not applicable · 81 third-party classes excluded.
 
 ```
-█░░░░░░░░░░░░░░░░░░░░░░░  4.1%
+█░░░░░░░░░░░░░░░░░░░░░░░  4.8%
 ```
 
 ## How to use this file
@@ -41,7 +41,7 @@ below — everything else hangs off those.
 - [Core systems](#core-systems) — 5/6
 - [Screens and screen parts](#screens-and-screen-parts) — 5/49
 - [Player tank](#player-tank) — 1/6
-- [Enemies](#enemies) — 2/52
+- [Enemies](#enemies) — 6/52
 - [Projectiles, weapons and objects](#projectiles-weapons-and-objects) — 10/33
 - [Achievements](#achievements) — 0/38
 - [Tutorial](#tutorial) — 0/25
@@ -228,7 +228,7 @@ below — everything else hangs off those.
 
 > Each type has a matching `*Boss` variant; port the base first.
 
-`█░░░░░░░░░░░░░░░░░░░░░░░` 2/52
+`███░░░░░░░░░░░░░░░░░░░░░` 6/52
 
 - [ ] `Crown` — not started
 - [ ] `EnemyAccelerating` — not started
@@ -236,12 +236,12 @@ below — everything else hangs off those.
 - [ ] `EnemyBasic` — not started
 - [ ] `EnemyBasicBoss` — not started
 - [ ] `EnemyBulletBasic` — ported · wired
-- [ ] `EnemyBulletBasicBoss` — not started
+- [ ] `EnemyBulletBasicBoss` — ported · wired
 - [ ] `EnemyBulletFollowing` — not started
 - [ ] `EnemyBulletFollowingBoss` — not started
 - [ ] `EnemyBulletHook` — not started
 - [ ] `EnemyBulletTrap` — not started
-- [ ] `EnemyCrazy` — not started
+- [ ] `EnemyCrazy` — ported · wired
 - [ ] `EnemyCrazyBoss` — not started
 - [ ] `EnemyDamageAddict` — not started
 - [ ] `EnemyDamageAddictBoss` — not started
@@ -256,9 +256,9 @@ below — everything else hangs off those.
 - [ ] `EnemyMedic` — not started
 - [ ] `EnemyMedicBoss` — not started
 - [ ] `EnemyMerge` — not started
-- [ ] `EnemyNinja` — not started
+- [ ] `EnemyNinja` — ported · wired
 - [ ] `EnemyNinjaBoss` — not started
-- [ ] `EnemyRandom` — not started
+- [ ] `EnemyRandom` — ported · wired
 - [ ] `EnemyRandomBoss` — not started
 - [ ] `EnemyScaredGhost` — not started
 - [ ] `EnemyScaredGhostBoss` — not started

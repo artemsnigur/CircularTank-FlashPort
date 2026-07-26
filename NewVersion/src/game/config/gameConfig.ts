@@ -5,6 +5,7 @@ import { MainMenuScene } from '../scenes/MainMenuScene';
 import { LevelSelectScene } from '../scenes/LevelSelectScene';
 import { GameplayScene } from '../scenes/GameplayScene';
 import { UpgradesScene } from '../scenes/UpgradesScene';
+import { EnemiesScene } from '../scenes/EnemiesScene';
 import { INITIAL_HEIGHT, INITIAL_WIDTH } from './viewport';
 
 /**
@@ -116,6 +117,7 @@ export function createGameConfig({
       MainMenuScene,
       LevelSelectScene,
       UpgradesScene,
+      EnemiesScene,
       GameplayScene,
     ],
   };

@@ -84,7 +84,7 @@ import {
   applyBulletToTank,
   bulletAlpha,
   canShoot,
-  createBasicFrontBullet,
+  createVolley,
   hitsTank,
   registerShot,
   tickShooter,
@@ -1232,22 +1232,29 @@ export class GameplayScene extends Phaser.Scene {
 
       // Freeze stops shooting as well as movement — `:6889`.
       if (!canShoot(enemy.shooter, enemy.status.frozen)) continue;
-      // Only the ported combination fires; the rest wait for their own pass.
-      if (enemy.stats.shootType !== 'Basic' || enemy.stats.shootAngle !== 'Front') continue;
+      const volley = createVolley(
+        { x: enemy.x, y: enemy.y, rotation: enemy.facingDegrees, radius: enemy.radius },
+        enemy.stats.shootType,
+        enemy.stats.shootAngle,
+        enemy.stats.bulletAmount ?? 1,
+        () => this.spawnRng.frac(),
+        speedMultiplier,
+      );
+      // An unported type/pattern yields no bullets; leave the clock alone so
+      // it is not silently "firing" blanks on a timer.
+      if (volley.length === 0) continue;
 
       enemy.shooter = registerShot(enemy.shooter);
       getSoundManager(this)?.queue('EnemyShoot');
 
-      const state = createBasicFrontBullet(
-        { x: enemy.x, y: enemy.y, rotation: enemy.facingDegrees, radius: enemy.radius },
-        speedMultiplier,
-      );
-      const sprite = this.add
-        .image(state.x, state.y, 'particle-dot')
-        .setDisplaySize(state.radius * 2.5, state.radius * 2.5)
-        .setTint(0xff6b6b)
-        .setDepth(11);
-      this.enemyBullets.push({ state, sprite });
+      for (const state of volley) {
+        const sprite = this.add
+          .image(state.x, state.y, 'particle-dot')
+          .setDisplaySize(state.radius * 2.5, state.radius * 2.5)
+          .setTint(state.damage > 1 ? 0xff3b6b : 0xff6b6b)
+          .setDepth(11);
+        this.enemyBullets.push({ state, sprite });
+      }
     }
 
     this.advanceEnemyBullets(deltaMs);

@@ -3,16 +3,17 @@
  * `:1491` (bullet flight), `:1574` (the hit on the tank), `:3286` (spawn).
  *
  * ── Scope ─────────────────────────────────────────────────────────────────
- * `shootType: "Basic"` with `shootAngle: "Front"` only — one bullet, straight
- * ahead, on a reload timer. That is the `Shooting` enemy, and it is the first
- * thing in the port that can hurt the tank from a distance.
+ * Two bullet classes — `Basic` and `BasicBoss` — across two firing patterns,
+ * `Front` and `Circle`. Between them that is the full ranged behaviour of
+ * `Shooting`, `Ninja` (Front), `Crazy` and `Random` (Circle), normal variants.
  *
  * Deliberately **not** covered, and each needs its own pass:
  *
- *   BasicBoss, Hook, Trap        other bullet classes and lifetimes
+ *   Hook, Trap                   other bullet classes; Trap is a speed-0
+ *                                stationary hazard on its own display layer
  *   Following, FollowingBoss     homing; would reuse weapons/magic.ts
- *   FrontAmount, FrontSides,     the four other firing patterns
- *   BackTrap, Circle
+ *   FrontAmount, FrontSides,     three other firing patterns
+ *   BackTrap
  *   reflected                    the BulletReflect upgrade bouncing shots back
  *   bulletsShooting              GrapplingHook's tether accounting
  *
@@ -33,6 +34,17 @@ const AS3_FPS = 30;
 export const BASIC_BULLET_RADIUS = 4;
 export const BASIC_BULLET_DAMAGE = 1;
 export const BASIC_BULLET_SPEED = 4;
+
+/**
+ * `EnemyBulletBasicBoss` — bigger, twice the damage, and far shorter-lived.
+ *
+ * The 90-frame life is the real difference: a boss shot expires after three
+ * seconds where a Basic runs for thirty, so boss fire does not accumulate
+ * across the arena.
+ */
+export const BOSS_BULLET_RADIUS = 6;
+export const BOSS_BULLET_DAMAGE = 2;
+export const BOSS_BULLET_LIFETIME = 90;
 
 /**
  * `lifeTimeMax = 900` — thirty seconds.
@@ -115,33 +127,125 @@ export interface ShooterOrigin {
 }
 
 /**
- * The bullet a `Front` shot produces.
+ * The per-class figures a shot is built from.
  *
- * Leaves the enemy's edge rather than its centre — `enemy.radius +
- * bullet.radius` along its facing — so a shot never starts inside its owner.
- *
+ * Every bullet leaves the enemy's edge rather than its centre — `enemy.radius +
+ * bullet.radius` along its heading — so a shot never starts inside its owner.
  * `bulletSpeedMultiplier` is the difficulty scaling applied at `:6905`; Easy
  * is 1.
  */
-export function createBasicFrontBullet(
+export interface BulletClassSpec {
+  radius: number;
+  damage: number;
+  lifeTime: number;
+}
+
+export const BASIC_BULLET: BulletClassSpec = {
+  radius: BASIC_BULLET_RADIUS,
+  damage: BASIC_BULLET_DAMAGE,
+  lifeTime: BASIC_BULLET_LIFETIME,
+};
+
+export const BASIC_BOSS_BULLET: BulletClassSpec = {
+  radius: BOSS_BULLET_RADIUS,
+  damage: BOSS_BULLET_DAMAGE,
+  lifeTime: BOSS_BULLET_LIFETIME,
+};
+
+/** Bullet classes this slice can build; anything else is not ported. */
+export const SUPPORTED_SHOOT_TYPES = ['Basic', 'BasicBoss'] as const;
+/** Firing patterns this slice can lay out. */
+export const SUPPORTED_SHOOT_ANGLES = ['Front', 'Circle'] as const;
+
+export function bulletClassFor(shootType: string | undefined): BulletClassSpec | null {
+  if (shootType === 'Basic') return BASIC_BULLET;
+  if (shootType === 'BasicBoss') return BASIC_BOSS_BULLET;
+  return null;
+}
+
+/** Builds one bullet at a given heading. Shared by both patterns. */
+function bulletAtAngle(
   origin: ShooterOrigin,
-  bulletSpeedMultiplier = 1,
+  degrees: number,
+  spec: BulletClassSpec,
+  bulletSpeedMultiplier: number,
 ): EnemyBulletState {
-  const radians = (origin.rotation * Math.PI) / 180;
+  const radians = (degrees * Math.PI) / 180;
   const speed = BASIC_BULLET_SPEED * bulletSpeedMultiplier;
-  const offset = origin.radius + BASIC_BULLET_RADIUS;
+  const offset = origin.radius + spec.radius;
 
   return {
     x: origin.x + Math.cos(radians) * offset,
     y: origin.y + Math.sin(radians) * offset,
     xVel: Math.cos(radians) * speed,
     yVel: Math.sin(radians) * speed,
-    rotation: origin.rotation,
-    radius: BASIC_BULLET_RADIUS,
-    damage: BASIC_BULLET_DAMAGE,
-    lifeTime: BASIC_BULLET_LIFETIME,
-    lifeTimeMax: BASIC_BULLET_LIFETIME,
+    rotation: degrees,
+    radius: spec.radius,
+    damage: spec.damage,
+    lifeTime: spec.lifeTime,
+    lifeTimeMax: spec.lifeTime,
   };
+}
+
+/**
+ * `shootAngle: "Front"` — a single shot along the enemy's facing (`:6981`).
+ */
+export function createFrontShot(
+  origin: ShooterOrigin,
+  spec: BulletClassSpec,
+  bulletSpeedMultiplier = 1,
+): EnemyBulletState[] {
+  return [bulletAtAngle(origin, origin.rotation, spec, bulletSpeedMultiplier)];
+}
+
+/**
+ * `shootAngle: "Circle"` — `bulletAmount` shots evenly around a full turn,
+ * from a **random** starting angle (`:7016`).
+ *
+ *     rotation = random()*360 + b * (360 / bulletAmount)
+ *
+ * The random offset is what stops a Crazy's six-bullet ring landing in the
+ * same six directions every time, so consecutive volleys cannot be dodged by
+ * standing in a fixed gap. It ignores the enemy's facing entirely, which is
+ * why Circle enemies threaten in every direction regardless of where they are
+ * pointed.
+ */
+export function createCircleShot(
+  origin: ShooterOrigin,
+  spec: BulletClassSpec,
+  bulletAmount: number,
+  random: () => number,
+  bulletSpeedMultiplier = 1,
+): EnemyBulletState[] {
+  const count = Math.max(1, Math.trunc(bulletAmount));
+  const start = random() * 360;
+
+  return Array.from({ length: count }, (_, b) =>
+    bulletAtAngle(origin, start + b * (360 / count), spec, bulletSpeedMultiplier),
+  );
+}
+
+/**
+ * The volley an enemy fires, or an empty array when its combination is not
+ * ported. Returning empty rather than throwing keeps an unported enemy
+ * harmless instead of taking the scene down.
+ */
+export function createVolley(
+  origin: ShooterOrigin,
+  shootType: string | undefined,
+  shootAngle: string | undefined,
+  bulletAmount: number,
+  random: () => number,
+  bulletSpeedMultiplier = 1,
+): EnemyBulletState[] {
+  const spec = bulletClassFor(shootType);
+  if (!spec) return [];
+
+  if (shootAngle === 'Front') return createFrontShot(origin, spec, bulletSpeedMultiplier);
+  if (shootAngle === 'Circle') {
+    return createCircleShot(origin, spec, bulletAmount, random, bulletSpeedMultiplier);
+  }
+  return [];
 }
 
 export interface RoomBounds {
