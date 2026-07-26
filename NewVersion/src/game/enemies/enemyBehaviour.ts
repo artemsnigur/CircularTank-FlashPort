@@ -3,8 +3,9 @@
  *
  * Exists because "ported" has meant several different things in this project.
  * All 20 types have stat tables, resistances and bestiary text; all 20 steer at
- * the tank. Almost none of their *characteristic* behaviour is ported, and
- * nothing in the code made that visible without reading `PartGameArea.as`.
+ * the tank. Rather less of their *characteristic* behaviour is ported than the
+ * stat coverage suggests, and nothing in the code made that visible without
+ * reading `PartGameArea.as`.
  *
  * ── Derived where possible, declared only where it must be ────────────────
  * Ranged support is **computed** from the shoot type and pattern this port can
@@ -14,7 +15,9 @@
  * mechanical way to ask "is teleporting implemented".
  *
  * **Update `SPECIAL_MECHANICS` when you port one.** It is the one thing here
- * that can lie.
+ * that can lie, and it has — in both directions. It has claimed mechanics were
+ * missing that were finished, and mechanics existed that were never in the
+ * game at all. The test now pins each entry to a branch in the AS3.
  */
 
 import { ENEMY_STATS } from './enemyStatsData';
@@ -22,26 +25,52 @@ import type { EnemyBaseStats } from './enemyStatsData';
 import { bulletClassFor, SUPPORTED_SHOOT_ANGLES } from './enemyFiring';
 
 /**
- * The signature behaviour of each type, beyond moving and shooting — named
- * from `PartGameArea.as` and the bestiary text.
+ * The signature behaviour of each type, beyond moving and shooting.
  *
  * An entry here means **not ported**. Remove it when the behaviour lands.
+ *
+ * ── Every entry must name a real branch in PartGameArea.as ────────────────
+ * Special behaviour in the AS3 is always a branch keyed on `enemyType == "X"`
+ * or on the display class, `theEnemy == "[object EnemyX]"`. Exactly eleven
+ * types have one. A type with no branch has no mechanic — its character comes
+ * entirely from its stat row and its firing pattern.
+ *
+ * This list originally carried five entries that named no branch at all, four
+ * of which described behaviour that does not exist anywhere in the source:
+ *
+ *   Crazy   "erratic steering"       — bestiary: "Shoots bursts of bullets in
+ *                                      all directions". That is shootAngle
+ *                                      Circle with bulletAmount 6, ported.
+ *   Ninja   "invisible between       — every write to `.invisible` is inside
+ *           attacks"                   the Ghost and ScaredGhost branches
+ *                                      (:4821, :4843, :4850). Ninja is simply
+ *                                      the fastest type: moveSpeedMax 3,
+ *                                      reloadTimeMax 60.
+ *   Random  "randomised movement"    — the randomness is in the *shot*: a
+ *                                      Circle volley starts at random()*360
+ *                                      (:7016), already ported.
+ *   Tiny    "splits into smaller     — all 11 mentions of Tiny are spawn and
+ *           copies"                    border-sound. It is just small.
+ *   Soldier "fires homing rounds"    — real, but shootType "Following" is
+ *                                      already unsupported, so the derived
+ *                                      ranged check reports it. Duplicating a
+ *                                      derived fact by hand can only drift.
+ *
+ * They were written from guesses at what the names suggested rather than from
+ * the source, and they read as findings for months. `enemyBehaviour.test.ts`
+ * now checks every key here against the branches actually present in
+ * PartGameArea.as, so an invented mechanic fails the suite.
  */
-const SPECIAL_MECHANICS: Record<string, string> = {
+export const SPECIAL_MECHANICS: Record<string, string> = {
   Accelerating: 'speeds up the longer it chases',
-  Crazy: 'erratic steering',
   DamageAddict: 'healed by damage instead of hurt',
   Ghost: 'passes through obstacles, periodically invisible',
   GrapplingHook: 'tethers the tank and reels it in',
   Medic: 'heals nearby enemies',
-  Ninja: 'goes invisible between attacks',
-  Random: 'randomised movement',
   ScaredGhost: 'flees the tank',
   Shrinking: 'shrinks as it takes damage',
-  Soldier: 'fires homing rounds',
   Teleporting: 'blinks across the arena',
   Temperamental: 'enrages when provoked',
-  Tiny: 'splits into smaller copies',
   Trap: 'lays stationary hazards',
 };
 
