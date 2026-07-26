@@ -11,6 +11,35 @@
 
 set -e
 
+# ── 0. This hook must match the committed source ─────────────────────────
+# `install-hooks.mjs` *copies* into .git/hooks, so the running copy can drift
+# from the version-controlled one. `prepare` covers npm install; it does not
+# cover a branch switch or a pull that changes a hook. Without this check,
+# "the installed hooks match the committed ones" would be enforced by
+# remembering to reinstall — the same asserted-guarantee shape these hooks
+# exist to replace.
+#
+# Compares against the source **in this working tree**, not against HEAD.
+# Against HEAD it would block the very commit that updates a hook, since the
+# installed copy is by then already newer than the committed one. Working-tree
+# comparison gives the property actually wanted: the gate that runs is the gate
+# this checkout describes. Edit a hook and reinstall and it passes; switch
+# branch or pull a hook change without reinstalling and it does not.
+#
+# Skips silently when the source is absent — a branch without .husky/, e.g.
+# main. The guards below still run there, which is the whole reason these are
+# installed outside the working tree.
+hook_self="$(git rev-parse --git-path hooks/pre-commit)"
+hook_source="NewVersion/.husky/pre-commit"
+if [ -f "$hook_source" ]; then
+  if [ "$(git hash-object "$hook_self")" != "$(git hash-object "$hook_source")" ]; then
+    echo "pre-commit: the installed hook does not match $hook_source."
+    echo "            Refusing to run a stale gate — reinstall with:"
+    echo "              cd NewVersion && npm run prepare"
+    exit 1
+  fi
+fi
+
 # ── 1. Never commit on main ──────────────────────────────────────────────
 branch="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$branch" = "main" ]; then
