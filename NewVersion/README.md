@@ -13,9 +13,11 @@ layer.
 Coverage behind that is uneven, and deliberately tracked rather than estimated:
 **9 of the 20 enemy types** have their characteristic behaviour built, and
 **1 of the 12 secondaries** (Mine). `src/game/enemies/enemyBehaviour.ts` is the
-honest board for the enemy half — it derives what it can from the code and pins
-the rest to branches in `PartGameArea.as`, so it cannot quietly drift
-optimistic. `docs/ENEMIES.md` is generated from it. See `PROGRESS.md` for the
+honest board for the enemy half — it derives what it can from the code, pins the
+rest to branches in `PartGameArea.as`, and its tests require every type it calls
+*implemented* to carry no hidden setup in the AS3 spawn dispatch. Treat the
+branch survey as a floor rather than a census: the source also inlines helper
+bodies, so a pattern sweep undercounts. `docs/ENEMIES.md` is generated from it. See `PROGRESS.md` for the
 643-class checklist.
 
 ## Stack
@@ -129,7 +131,9 @@ report. A typo in an asset name fails the build instead of 404-ing on a phone.
 
 **Filenames are never changed.** The leading number is the SWF library ID,
 which cross-references `../SWFimported/symbolClass/symbols.csv` — the only link
-back to the original symbol names. There is a test asserting this.
+back to the original symbol names. `registry.test.ts` walks the whole extraction
+(not a sample) and checks every named file against that table on **both id and
+name**, so a rename fails the suite rather than 404-ing on a device.
 
 ## Design decisions
 
