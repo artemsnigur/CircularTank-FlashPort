@@ -314,6 +314,33 @@ simulating the module's lifecycle in a throwaway test, computing the actual arit
 (level 1-1 is 10 enemies at 5 damage against 100 HP, so defeat was *unreachable*, not
 broken), and logging real values. Reach for an experiment before a third hypothesis.
 
+### Scope a guard to the rule it enforces
+
+A guard's **reach must match its reason**. Both times this has gone wrong, the check was
+correct for the case that motivated it and was then applied one level too broadly, where
+it silently vetoed something it was never meant to touch.
+
+- `GameplayScene` used `isWaveComplete(wave) && enemies.length === 0`. The live-count
+  check existed because `currentEnemies` can drift, and drift completed *arena* levels
+  early. But Flag and Boss levels spawn indefinitely and their arenas are never empty, so
+  a guard for the arena rule permanently blocked the two modes that do not use it —
+  135 levels. It belongs inside `isWaveComplete`'s default branch, not beside the call.
+- `AmmoReadout` returns null on `capacity <= 0`. The reason is "there is no magazine to
+  show", but the reach is the whole component, so an unrelated `capacity: 0` emit took
+  the **weapon name** down with it.
+
+Before adding a check, say what it is protecting against, then confirm it covers only
+that. Two questions that catch it:
+
+1. **Where does the reason live?** If it guards one branch of a function, put it in that
+   branch. A guard bolted on at the call site applies to every branch, including the ones
+   whose rule it contradicts.
+2. **What else is behind it?** A guard on a component, an early `return`, or an `&&` at a
+   call site takes everything downstream with it. List what that includes.
+
+The failure is invisible in tests: both guards were individually correct and every test
+of the guarded unit passed. What broke was a case the guard should never have reached.
+
 ### A test can pin a bug and still look like coverage
 
 Distinct from the wiring failures above: there the test was right and the caller was
