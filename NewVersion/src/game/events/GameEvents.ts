@@ -151,6 +151,28 @@ export interface GameEventMap {
     }>;
   };
   'ui:pause': { paused: boolean };
+  /** A purchase request from the shop; the scene owns the transaction. */
+  'ui:buy-upgrade': { id: string };
+  /**
+   * The shop catalogue, published by UpgradesScene after reading the profile.
+   *
+   * Everything the rows need is precomputed here so React does no game-rule
+   * arithmetic — affordability and cost come from `upgradeState`, not the UI.
+   */
+  'upgrades:listed': {
+    money: number;
+    upgrades: Array<{
+      id: string;
+      name: string;
+      category: string;
+      level: number;
+      maxLevel: number;
+      /** Null when maxed — there is no next level to price. */
+      cost: number | null;
+      affordable: boolean;
+      owned: boolean;
+    }>;
+  };
   'ui:goto': { key: SceneKey };
   'ui:run-audio-selftest': Record<string, never>;
   'ui:safe-area-changed': { top: number; right: number; bottom: number; left: number };

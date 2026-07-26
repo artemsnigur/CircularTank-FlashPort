@@ -57,6 +57,21 @@ export interface LevelListing {
   }>;
 }
 
+/** Everything the shop rows render, precomputed by UpgradesScene. */
+export interface ShopCatalogue {
+  money: number;
+  upgrades: Array<{
+    id: string;
+    name: string;
+    category: string;
+    level: number;
+    maxLevel: number;
+    cost: number | null;
+    affordable: boolean;
+    owned: boolean;
+  }>;
+}
+
 export interface GameState {
   /* Loading */
   phase: LoadPhase;
@@ -89,6 +104,9 @@ export interface GameState {
   /** The selectable levels of the current world, published by LevelSelectScene. */
   levelList: LevelListing | null;
 
+  /** The shop catalogue, published by UpgradesScene. */
+  shop: ShopCatalogue | null;
+
   /* Diagnostics */
   viewport: ViewportSnapshot | null;
   safeArea: SafeAreaInsets;
@@ -116,6 +134,7 @@ export interface GameState {
   /** Clears the result so the next level starts clean. */
   clearLevelOutcome: () => void;
   setLevelList: (listing: LevelListing) => void;
+  setShop: (shop: ShopCatalogue) => void;
   pushAchievement: (toast: AchievementToast) => void;
   dismissAchievement: (id: string) => void;
   setViewport: (viewport: ViewportSnapshot) => void;
@@ -141,6 +160,7 @@ const initialRunState = {
   achievements: [] as AchievementToast[],
   levelOutcome: null as LevelOutcomeSummary | null,
   levelList: null as LevelListing | null,
+  shop: null as ShopCatalogue | null,
 };
 
 export const useGameStore = create<GameState>()((set) => ({
@@ -179,6 +199,7 @@ export const useGameStore = create<GameState>()((set) => ({
   endLevel: (levelOutcome) => set({ levelOutcome }),
   clearLevelOutcome: () => set({ levelOutcome: null }),
   setLevelList: (levelList) => set({ levelList }),
+  setShop: (shop) => set({ shop }),
 
   pushAchievement: (toast) =>
     set((s) =>

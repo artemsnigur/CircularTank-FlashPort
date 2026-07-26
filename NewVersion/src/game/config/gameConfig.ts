@@ -4,6 +4,7 @@ import { PreloadScene } from '../scenes/PreloadScene';
 import { MainMenuScene } from '../scenes/MainMenuScene';
 import { LevelSelectScene } from '../scenes/LevelSelectScene';
 import { GameplayScene } from '../scenes/GameplayScene';
+import { UpgradesScene } from '../scenes/UpgradesScene';
 import { INITIAL_HEIGHT, INITIAL_WIDTH } from './viewport';
 
 /**
@@ -109,6 +110,13 @@ export function createGameConfig({
     disableContextMenu: true,
     banner: false,
 
-    scene: [BootScene, PreloadScene, MainMenuScene, LevelSelectScene, GameplayScene],
+    scene: [
+      BootScene,
+      PreloadScene,
+      MainMenuScene,
+      LevelSelectScene,
+      UpgradesScene,
+      GameplayScene,
+    ],
   };
 }

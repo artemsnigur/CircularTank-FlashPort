@@ -78,6 +78,10 @@ export function attachStoreBridge(): () => void {
     store.getState().setAmmo(current, capacity, weapon);
   });
 
+  on('upgrades:listed', (catalogue) => {
+    store.getState().setShop(catalogue);
+  });
+
   on('levels:listed', (listing) => {
     store.getState().setLevelList(listing);
   });

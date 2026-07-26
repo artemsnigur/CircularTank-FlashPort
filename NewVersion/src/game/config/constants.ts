@@ -9,6 +9,7 @@ export const SceneKeys = {
   Preload: 'Preload',
   MainMenu: 'MainMenu',
   LevelSelect: 'LevelSelect',
+  Upgrades: 'Upgrades',
   Gameplay: 'Gameplay',
 } as const;
 

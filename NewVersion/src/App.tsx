@@ -3,6 +3,7 @@ import { Hud } from './ui/Hud';
 import { LoadingScreen } from './ui/screens/LoadingScreen';
 import { MainMenuScreen } from './ui/screens/MainMenuScreen';
 import { LevelSelectScreen } from './ui/screens/LevelSelectScreen';
+import { UpgradesScreen } from './ui/screens/UpgradesScreen';
 import { DiagnosticsPanel } from './ui/DiagnosticsPanel';
 
 /**
@@ -24,6 +25,7 @@ export function App(): React.ReactElement {
         <LoadingScreen />
         <MainMenuScreen />
         <LevelSelectScreen />
+        <UpgradesScreen />
         <Hud />
         <DiagnosticsPanel />
       </div>

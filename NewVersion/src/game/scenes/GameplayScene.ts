@@ -126,6 +126,9 @@ const FIRE_THAW_FRAMES = 15;
  */
 const DIFFICULTY: Difficulty = 'Easy';
 
+/** Dev-only top-up, so the shop can be exercised without grinding levels. */
+const DEV_MONEY_GRANT = 5000;
+
 /** Stand-in size for the flag; the extracted art is not among the assets. */
 const FLAG_RADIUS = 14;
 const FPS_EMIT_INTERVAL_MS = 500;
@@ -259,15 +262,6 @@ export class GameplayScene extends Phaser.Scene {
     // the HUD showed 0 on every fresh level, which reads as "nothing saved".
     this.currency = this.upgrades.money;
     this.openingBalance = this.upgrades.money;
-
-    if (import.meta.env.DEV) {
-      // Dev-only: own every primary, since the upgrade screen that would sell
-      // them is not ported. This writes into the real profile rather than a
-      // scratch copy, so the loadout below sees consistent ownership.
-      for (const index of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) {
-        if (this.upgrades.primary[index] < 1) this.upgrades.primary[index] = 1;
-      }
-    }
 
     // The equipped weapon comes from the loadout — `ScreenGame.primaryWeapon`.
     this.weapon = getWeapon(this.profile.loadout.primaryWeapon);
@@ -463,7 +457,7 @@ export class GameplayScene extends Phaser.Scene {
     >;
 
     // Stop arrow keys and space from scrolling the page underneath the canvas.
-    keyboard.addCapture(['UP', 'DOWN', 'LEFT', 'RIGHT', 'SPACE', 'W', 'A', 'S', 'D', 'E']);
+    keyboard.addCapture(['UP', 'DOWN', 'LEFT', 'RIGHT', 'SPACE', 'W', 'A', 'S', 'D', 'E', 'M']);
 
     // Space is the *secondary* trigger — `Main.space` in the AS3, against
     // `Main.mouse` for the primary. It stood in for the primary while there was
@@ -494,6 +488,17 @@ export class GameplayScene extends Phaser.Scene {
       // count — level 1-1 is 10 enemies at 5 damage against 100 HP, so losing
       // is arithmetically impossible until shooting enemies are ported.
       // Delete this with the rest of the dev aids.
+      // Dev-only: fund the shop. Replaces the old "own every primary" grant —
+      // buying weapons is the real path now, and grants made the shop a no-op.
+      keyboard.on('keydown-M', () => {
+        this.currency += DEV_MONEY_GRANT;
+        GameEvents.emit('currency:earned', {
+          amount: DEV_MONEY_GRANT,
+          total: this.currency,
+        });
+        console.info(`[GameplayScene] Dev: +${DEV_MONEY_GRANT} coins (banked on finish).`);
+      });
+
       keyboard.on('keydown-K', () => {
         this.hp = 0;
         GameEvents.emit('player:damaged', {
@@ -1343,11 +1348,24 @@ export class GameplayScene extends Phaser.Scene {
   private cycleWeapon(): void {
     const names = Object.keys(PRIMARY_WEAPONS);
     const current = this.weapon ? names.indexOf(this.weapon.name) : -1;
-    const next = getWeapon(names[(current + 1) % names.length]);
-    if (!next) return;
 
-    const stats = resolveWeaponStats(next, this.upgrades);
-    if (!stats) return;
+    // Walk to the next weapon the player actually owns. `resolveWeaponStats`
+    // returns null at level 0, which is the ownership test. This used to try a
+    // single candidate and give up, so one unowned weapon in the ring blocked
+    // everything past it — invisible while the dev grant owned all twelve.
+    let next: WeaponSpec | undefined;
+    let stats: WeaponStats | null = null;
+    for (let step = 1; step <= names.length; step += 1) {
+      const candidate = getWeapon(names[(current + step) % names.length]);
+      if (!candidate) continue;
+      const candidateStats = resolveWeaponStats(candidate, this.upgrades);
+      if (candidateStats) {
+        next = candidate;
+        stats = candidateStats;
+        break;
+      }
+    }
+    if (!next || !stats) return;
 
     // Write the choice into the loadout rather than holding it beside one.
     // The AS3 toggles between two equipped slots (`ScreenGame.chooseWeapon`);

@@ -37,6 +37,13 @@ export function MainMenuScreen(): React.ReactElement | null {
         <button
           type="button"
           className="menu__button"
+          onClick={() => GameEvents.emit('ui:goto', { key: 'Upgrades' })}
+        >
+          Upgrades
+        </button>
+        <button
+          type="button"
+          className="menu__button"
           onClick={() => GameEvents.emit('ui:run-audio-selftest', {})}
         >
           Re-run audio self-test

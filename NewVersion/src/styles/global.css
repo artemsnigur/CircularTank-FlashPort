@@ -659,3 +659,105 @@ code {
 .hud-stat--flags {
   color: #6ee7ff;
 }
+
+/* Shop — ScreenUpgrades. */
+.screen--shop {
+  overflow-y: auto;
+}
+
+.shop__balance {
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.shop-section {
+  margin: 0 0 1.25rem;
+}
+
+.shop-section__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+
+.shop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.shop-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 4%);
+}
+
+.shop-row__info {
+  min-width: 9rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.shop-row__name {
+  font-size: 0.9rem;
+}
+
+.shop-row__level {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+}
+
+.shop-row__meter {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+}
+
+.shop-row__pip {
+  width: 6px;
+  height: 12px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 12%);
+}
+
+.shop-row__pip--filled {
+  background: var(--accent, #ffb03a);
+}
+
+.shop-row__buy {
+  min-width: 6.5rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 6%);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.shop-row__buy:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.shop-row__verb {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.shop-row__price {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
