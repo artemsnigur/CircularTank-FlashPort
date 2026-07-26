@@ -179,6 +179,15 @@ export class GameplayScene extends Phaser.Scene {
   private banked = false;
 
   /**
+   * Last wave figures published, so the per-frame refresh only emits on change.
+   *
+   * The counter used to be pushed from three places, none of which was the
+   * spawn path — so it only moved when something died and read stale while
+   * enemies were arriving.
+   */
+  private lastWaveSignature = '';
+
+  /**
    * The live flag on a Flag level, and its marker.
    *
    * Exactly one exists at a time — `handleFlag` respawns as soon as the last
@@ -280,6 +289,7 @@ export class GameplayScene extends Phaser.Scene {
     this.secondaryPressed = false;
     this.outcome = createLevelOutcome();
     this.banked = false;
+    this.lastWaveSignature = '';
     this.flag = null;
     this.flagMarker = null;
     this.hp = TANK_MAX_HP;
@@ -427,6 +437,7 @@ export class GameplayScene extends Phaser.Scene {
 
     this.updateFlag(delta);
     this.updateOutcome(delta);
+    this.emitWaveState();
     this.updateHud(delta);
 
     if (time - this.lastFpsEmit > FPS_EMIT_INTERVAL_MS) {
@@ -1573,15 +1584,34 @@ export class GameplayScene extends Phaser.Scene {
    */
   private emitWaveState(): void {
     const spec = this.levelSpec;
+    const wave = this.wave;
     const indefinite = spec?.mode === 'Flag' || spec?.mode === 'Boss';
+
+    // An enemy of an arena wave is in exactly one of three places, and the
+    // three move between each other without changing the total:
+    //
+    //   enemiesLeft      not yet announced   (registerSpawn takes one)
+    //   pendingWarnings  announced, marker on screen, not yet spawned
+    //   this.enemies     alive in the arena
+    //
+    // `pendingWarnings` was missing, so the count dipped by one for the whole
+    // time a warning marker was counting down — which is most of the time at a
+    // 45-frame spawn interval.
+    const remaining = indefinite
+      ? this.enemies.length
+      : (wave?.enemiesLeft ?? 0) + (wave?.pendingWarnings ?? 0) + this.enemies.length;
+
+    // Emitting only on change: this is called every frame so the figure cannot
+    // go stale, and a level is ~10 changes rather than ~10,000 events.
+    const signature = `${this.level}|${remaining}|${spec?.mode ?? 'Normal'}|${wave?.flagsLeft ?? 0}`;
+    if (signature === this.lastWaveSignature) return;
+    this.lastWaveSignature = signature;
 
     GameEvents.emit('wave:changed', {
       wave: this.level,
-      enemiesRemaining: indefinite
-        ? this.enemies.length
-        : (this.wave?.enemiesLeft ?? 0) + this.enemies.length,
+      enemiesRemaining: remaining,
       mode: spec?.mode ?? 'Normal',
-      flagsRemaining: this.wave?.flagsLeft ?? 0,
+      flagsRemaining: wave?.flagsLeft ?? 0,
     });
   }
 
