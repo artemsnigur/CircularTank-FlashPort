@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "scripts/*.mjs"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "scripts/**/*.mjs"
+  ],
+  "ignore": [
+    "src/assets/*Manifest.ts",
+    "src/game/**/*Data.ts"
+  ],
+  "ignoreDependencies": [
+    "@capacitor/core"
+  ]
+}
