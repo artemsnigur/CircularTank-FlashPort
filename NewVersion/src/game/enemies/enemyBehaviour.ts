@@ -9,10 +9,24 @@
  *
  * ── Derived where possible, declared only where it must be ────────────────
  * Ranged support is **computed** from the shoot type and pattern this port can
- * actually build, so it cannot drift: widen `SUPPORTED_SHOOT_TYPES` or
- * `SUPPORTED_SHOOT_ANGLES` in enemyFiring.ts and the answer here changes with
- * it. Only the special mechanics below are hand-declared, because there is no
- * mechanical way to ask "is teleporting implemented".
+ * actually build, so *that field* cannot drift: widen `SUPPORTED_SHOOT_TYPES`
+ * or `SUPPORTED_SHOOT_ANGLES` in enemyFiring.ts and the answer here changes
+ * with it. Only the special mechanics below are hand-declared, because there is
+ * no mechanical way to ask "is teleporting implemented".
+ *
+ * **The board as a whole can still drift, and did.** This docstring used to say
+ * so less carefully, and the gap was real: the guard that keeps
+ * `SPECIAL_MECHANICS` honest surveys two AS3 idioms, `enemyType == "X"` and
+ * `[object EnemyX]`, and a third exists — `instance.enemy == "X"`, the spawn
+ * dispatch — where `Temperamental` and `Accelerating` set up state. A type
+ * whose only distinguishing behaviour lived there would have been reported
+ * `implemented`. `enemyBehaviour.test.ts` now closes that mechanically by
+ * requiring every `implemented` type's spawn case to be constructor and stats
+ * only. All nine currently pass, checked rather than assumed.
+ *
+ * Treat the branch survey as a **floor**, not a census: the AS3 also inlines
+ * helper bodies, so any pattern-based sweep undercounts. See CLAUDE.md, "A
+ * guarantee is only worth what enforces it".
  *
  * **Update `SPECIAL_MECHANICS` when you port one.** It is the one thing here
  * that can lie, and it has — in both directions. It has claimed mechanics were

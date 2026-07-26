@@ -238,6 +238,21 @@ wrong everywhere and nobody had looked. Here the code is *correct on the platfor
 test on* and absent on the platform you ship to, so looking harder in the same place
 never finds it.
 
+**The project rule, settled rather than decided case by case: where the AS3 froze a
+screen dimension into a constant, this port uses the live value.** Spawn placement
+takes the live camera size; weapon reach takes the live `worldView`. The reasoning is
+the same both times — the AS3's 640×400 is not a balance number, it *is* the screen,
+so porting the literal inverts the rule it came from. "Don't hit what you can't see"
+becomes "can't hit what you can see". Measured: a faithful 640×400 reach rect would
+leave a dead zone averaging 44% of the visible play area on 375 of 405 levels at
+phone viewports.
+
+The cost is that these mechanics are viewport-dependent, which the original's were
+not. That is accepted and aggregated in `docs/AUDIT-2026-07.md` rather than argued
+per site — a responsive camera cannot be made viewport-independent without
+letterboxing the game to a fixed aspect, which is a design decision and not a
+porting one.
+
 Before porting any expression involving a screen, camera, viewport or timing value:
 
 1. **Ask whether the AS3 value was constant.** If it was, the port almost certainly
@@ -252,6 +267,59 @@ Before porting any expression involving a screen, camera, viewport or timing val
 4. **Keep the AS3 constant as documentation, never as a fallback.**
    `AS3_CAMERA_WIDTH`/`AS3_CAMERA_HEIGHT` exist to record what the original was, and
    nothing reads them at runtime.
+
+### A guarantee is only worth what enforces it
+
+**This rule sits above the specific cases below, because all of them are instances of
+it.** When a doc, a comment or a module name claims a property holds, name the
+mechanism that makes it hold, and check that the mechanism actually covers the claim.
+An unenforced guarantee is worse than none: it reads as diligence, it stops anyone
+looking, and it is believed for exactly as long as nobody tests it.
+
+Three have been caught so far, months apart, and every one by accident:
+
+- **`KNIP.md` promised "unused export means nothing outside a test calls it."**
+  `knip.json` never disabled the vitest plugin, so test files were entry points and
+  test imports counted as consumers — the precise opposite. The tool could not see a
+  single one of the ported-but-unwired functions it was added to find. Findings went
+  from 49 to 242 once the config matched the promise.
+- **Source-shape tests were treated as seam coverage.** A regex over a scene's source
+  cannot see a guard that is present but never reached, or an argument forwarded and
+  then ignored — which is the whole class of defect they were guarding. The fix was to
+  extract the rule (`player/levelBanking.ts`) so it could be driven against a real
+  profile, not to write a better regex.
+- **`enemyBehaviour.ts` claimed its derived half "cannot drift."** The derivation is a
+  regex over two AS3 idioms and a third exists (`instance.enemy == "X"`), so a type
+  whose only behaviour lived in the spawn dispatch would have been reported as fully
+  implemented. The guarantee was asserted in a docstring, not mechanised.
+
+The tell is a doc sentence in the present indicative — "cannot drift", "is the sole",
+"means nothing outside a test", "records no progress" — with no test, type or tool
+named beside it. Ask two questions:
+
+1. **What enforces this?** If the answer is "the author was careful", it is not a
+   guarantee, it is a hope. Write it as a hope, or build the mechanism.
+2. **Does the mechanism cover the whole claim?** All three above *had* a mechanism.
+   Each covered less than its sentence promised, and the gap was invisible because
+   the mechanism was green.
+
+Prefer a mechanism that fails loudly over a sentence that asserts. A required
+parameter beats a documented convention; a test that drives real storage beats one
+that greps for a guard; a derived value beats a hand-maintained list. Where the
+mechanism genuinely cannot cover the claim, **narrow the claim to what it does cover
+and say by what method** — see the vocabulary rule below.
+
+### Say "not found", and say by what method
+
+No artifact in this repo should assert that something does not exist in the AS3.
+Every sweep we have is name- or pattern-based, the source both aliases names and
+inlines helper bodies, so **every count is a floor**. `grep checkWithinScreen` finds
+4 sites; the rule is computed at 10.
+
+So: **"no branch found for X by <method>"**, never "no branch exists for X". The
+generated `docs/ENEMIES.md` published the strong form and was wrong about `Exploding`,
+which has two branches. The distinction costs a few words and is the thing that would
+have caught it.
 
 ### Claiming something is unused
 

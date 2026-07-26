@@ -17,7 +17,7 @@
  *   mechanics      enemyBehaviour.ts   (pinned to AS3 branches by its tests)
  *   plain terms    bestiaryData.ts     (the game's own in-fiction text)
  *
- * Nothing is retyped, so the document cannot drift from the code. When a new
+ * No figure is retyped, so the numbers cannot drift from the code. When a new
  * type reaches `implemented` it appears here on the next run with correct
  * numbers and no editing.
  *
@@ -223,10 +223,22 @@ function section(report: EnemyBehaviourReport): string {
   const { normal, boss } = variants;
   const mechanic = SPECIAL_MECHANICS[report.type];
 
+  // "none declared", not "none exists". SPECIAL_MECHANICS is a hand-maintained
+  // list of *unported* mechanics, so its absence means either "no mechanic" or
+  // "the mechanic is ported" — this line used to conflate the two and published
+  // "PartGameArea.as has no branch for this type" for Exploding, which has two.
+  //
+  // It also cannot be a claim about the source. The branch survey behind it
+  // matches two idioms and a third exists (`instance.enemy == "X"`), and the
+  // AS3 inlines helper bodies, so any name- or pattern-based sweep returns a
+  // floor rather than a count. Say what was searched and what was found.
   const mechanicLine = mechanic
     ? `**Special mechanic:** ${mechanic} — **not ported yet**, so it currently behaves without it.`
-    : '**Special mechanic:** none. `PartGameArea.as` has no branch for this type, ' +
-      'so its stat row and firing pattern are its entire character.';
+    : '**Special mechanic:** none recorded as outstanding. Either this type has no ' +
+      'special behaviour, or it has some and that behaviour is already ported — ' +
+      '`Exploding` is the second case. No unported mechanic was *found* for it by ' +
+      "`enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms " +
+      'and is a floor, not a census.';
 
   return [
     `### ${report.type}`,

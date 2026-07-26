@@ -93,6 +93,72 @@ describe('every declared mechanic exists in the AS3', () => {
     expect(branched.has('Teleporting')).toBe(true);
   });
 
+  /**
+   * The third idiom, and the reason this survey is a floor rather than a census.
+   *
+   * `branched` above matches `enemyType == "X"` and `[object EnemyX]`. A third
+   * exists — `instance.enemy == "X"`, the spawn dispatch at `:2934-3246` — and
+   * it is present for **all 20 types**, so matching it would add no signal to
+   * the guard above. But it is not empty of behaviour: some cases carry
+   * per-type initialisation after the constructor, and `Temperamental` (`:3049`)
+   * sets `angry`/`angryTimerMax` there, while `Accelerating` (`:3076`) sets
+   * `speedTimerMax`.
+   *
+   * So a type whose *only* distinguishing behaviour lived in its spawn case
+   * would be reported as having no branch, and therefore as fully implemented.
+   * This check closes that hole mechanically instead of asserting it is closed:
+   * for every type the board calls `implemented`, the spawn case must contain
+   * nothing but the constructor, the stat row and boss bookkeeping.
+   */
+  const spawnCases = (): Map<string, string[]> => {
+    const lines = source.split(/\r?\n/);
+    const starts: { line: number; type: string }[] = [];
+    lines.forEach((l, i) => {
+      const m = l.match(/instance\.enemy == "(\w+)"/);
+      // The constructor switch only; the speedMultiplier switch is at :3475.
+      if (m && i + 1 >= 2934 && i + 1 <= 3246) starts.push({ line: i, type: m[1]! });
+    });
+    const out = new Map<string, string[]>();
+    starts.forEach((s, k) => {
+      const end = k + 1 < starts.length ? starts[k + 1]!.line : 3250;
+      out.set(
+        s.type,
+        lines
+          .slice(s.line, end)
+          .map((x) => x.trim())
+          .filter(
+            (x) =>
+              x &&
+              x !== '{' &&
+              x !== '}' &&
+              !/^(if|else)\b/.test(x) &&
+              !/^enemy = new /.test(x) &&
+              !/^enemyStatsArray = /.test(x) &&
+              !/^\+\+ScreenGame\./.test(x),
+          ),
+      );
+    });
+    return out;
+  };
+
+  it('finds a spawn case for every type', () => {
+    const cases = spawnCases();
+    expect(cases.size).toBe(Object.keys(ENEMY_STATS).length);
+    // Sanity: a type known to carry initialisation must show it, or the filter
+    // is stripping everything and the check below passes vacuously.
+    expect(cases.get('Temperamental')!.join(' ')).toContain('angryTimerMax');
+  });
+
+  it('no "implemented" type hides behaviour in its spawn case', () => {
+    const cases = spawnCases();
+    for (const r of describeAllEnemies().filter((x) => x.status === 'implemented')) {
+      expect(
+        cases.get(r.type) ?? [],
+        `${r.type} is reported implemented, but its spawn case carries extra setup`,
+      ).toEqual([]);
+    }
+  });
+
   it.each(Object.entries(SPECIAL_MECHANICS))(
     '%s has a real branch, so "%s" is a finding and not a guess',
     (type) => {

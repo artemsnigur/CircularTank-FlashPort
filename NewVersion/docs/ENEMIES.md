@@ -35,7 +35,7 @@ is not a world-1 Basic.
 
 _The most boring enemy in the game._
 
-**Special mechanic:** none. `PartGameArea.as` has no branch for this type, so its stat row and firing pattern are its entire character.
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
 
 **Ranged:** none — contact damage only.
 
@@ -71,7 +71,7 @@ No resistances or weaknesses — every primary does full damage.
 
 _Shoots bursts of bullets in all directions._
 
-**Special mechanic:** none. `PartGameArea.as` has no branch for this type, so its stat row and firing pattern are its entire character.
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
 
 **Ranged:** 6 bullets in a full ring from a random start angle, once every 180 frames (6s). Bullet class `Basic`.
 
@@ -111,7 +111,7 @@ _Shoots bursts of bullets in all directions._
 
 _Explodes when it dies._
 
-**Special mechanic:** none. `PartGameArea.as` has no branch for this type, so its stat row and firing pattern are its entire character.
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
 
 **Ranged:** none — contact damage only.
 
@@ -147,7 +147,7 @@ _Explodes when it dies._
 
 _Faster than most enemies._
 
-**Special mechanic:** none. `PartGameArea.as` has no branch for this type, so its stat row and firing pattern are its entire character.
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
 
 **Ranged:** none — contact damage only.
 
@@ -183,7 +183,7 @@ No resistances or weaknesses — every primary does full damage.
 
 _Moves fast and shoots rapidly._
 
-**Special mechanic:** none. `PartGameArea.as` has no branch for this type, so its stat row and firing pattern are its entire character.
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
 
 **Ranged:** a single bullet along its facing, once every 60 frames (2s). Bullet class `Basic`.
 
@@ -223,7 +223,7 @@ _Moves fast and shoots rapidly._
 
 _Shoots in random directions._
 
-**Special mechanic:** none. `PartGameArea.as` has no branch for this type, so its stat row and firing pattern are its entire character.
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
 
 **Ranged:** 1 bullets in a full ring from a random start angle, once every 60 frames (2s). Bullet class `Basic`.
 
@@ -263,7 +263,7 @@ _Shoots in random directions._
 
 _The first shooting enemy in the game._
 
-**Special mechanic:** none. `PartGameArea.as` has no branch for this type, so its stat row and firing pattern are its entire character.
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
 
 **Ranged:** a single bullet along its facing, once every 150 frames (5s). Bullet class `Basic`.
 
@@ -303,7 +303,7 @@ No resistances or weaknesses — every primary does full damage.
 
 _Strong against explosions and bullets._
 
-**Special mechanic:** none. `PartGameArea.as` has no branch for this type, so its stat row and firing pattern are its entire character.
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
 
 **Ranged:** none — contact damage only.
 
@@ -339,7 +339,7 @@ _Strong against explosions and bullets._
 
 _A very small enemy._
 
-**Special mechanic:** none. `PartGameArea.as` has no branch for this type, so its stat row and firing pattern are its entire character.
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
 
 **Ranged:** none — contact damage only.
 
