@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bossCountFor,
   canSpawn,
   computeSpawnInterval,
   createWaveState,
@@ -18,6 +19,65 @@ const FRAME = 1000 / 30;
 
 const world1Level1 = () => createWaveState(getLevel(1, 1)!);
 const world1Level2 = () => createWaveState(getLevel(1, 2)!);
+
+/**
+ * The wiring seam, not the module.
+ *
+ * Every other Boss test in this file and in flag.test.ts passes `bossAmount`
+ * explicitly, which is precisely why the suite stayed green while all 45 Boss
+ * levels auto-won: the module was right and the *call* was wrong. These tests
+ * therefore call `createWaveState(spec)` with **one argument**, exactly as
+ * `GameplayScene.ts:606` does, on a real level from `getLevel`. Do not add a
+ * second argument to anything in this block — that is the bug.
+ */
+describe('a Boss level built the way the scene builds it', () => {
+  const bossLevel = () => getLevel(1, 9)!;
+
+  it('is a Boss level with a boss in its composition', () => {
+    // Guards the fixture: if 1-9 ever stops being a Boss level the tests below
+    // would pass vacuously against the arena rule instead.
+    const spec = bossLevel();
+    expect(spec.mode).toBe('Boss');
+    expect(spec.enemies.filter((e) => e.level === 'B')).toHaveLength(1);
+  });
+
+  it('derives the boss count from the composition', () => {
+    expect(bossCountFor(bossLevel())).toBe(1);
+  });
+
+  it('carries a non-zero bossAmount without being told one', () => {
+    expect(createWaveState(bossLevel()).bossAmount).toBe(1);
+  });
+
+  it('is not already complete on the first frame', () => {
+    // Was true before the fix: bossAmountKilled >= bossAmount is 0 >= 0.
+    expect(isWaveComplete(createWaveState(bossLevel()), 0)).toBe(false);
+  });
+
+  it('can still spawn on the first frame', () => {
+    // Was false before the fix: canSpawn's Boss gate is
+    // bossAmount <= bossAmountKilled, i.e. 0 <= 0, so nothing ever spawned.
+    expect(canSpawn(createWaveState(bossLevel()))).toBe(true);
+  });
+
+  it('completes only once the boss is actually killed', () => {
+    const wave = createWaveState(bossLevel());
+    wave.currentEnemies = 4;
+    expect(isWaveComplete(wave, 4)).toBe(false);
+
+    wave.bossAmountKilled = wave.bossAmount;
+    expect(isWaveComplete(wave, 4)).toBe(true);
+  });
+
+  it('leaves non-Boss levels at zero, which canSpawn relies on', () => {
+    // The mode guard is the AS3's (ScreenGame.as:371-377). A Normal level whose
+    // composition happened to contain a 'B' entry must still report 0.
+    const normal = getLevel(1, 1)!;
+    expect(normal.mode).not.toBe('Boss');
+    expect(createWaveState(normal).bossAmount).toBe(0);
+    expect(bossCountFor({ ...normal, enemies: [{ type: 'Basic', level: 'B', count: 3 }] })).toBe(0);
+  });
+});
 
 describe('createWaveState', () => {
   it('seeds the pool from the level composition', () => {

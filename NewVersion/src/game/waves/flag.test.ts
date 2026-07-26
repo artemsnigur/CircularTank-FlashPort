@@ -141,11 +141,14 @@ describe('the completion rule', () => {
       .map((i) => getLevel(1, i + 1))
       .find((s) => s?.mode === 'Boss')!;
 
-    const wave = createWaveState(bossLevel, 2);
+    // Built the way the scene builds it — one argument. Passing `bossAmount` by
+    // hand here is what kept the suite green while every Boss level auto-won.
+    const wave = createWaveState(bossLevel);
+    expect(wave.bossAmount).toBeGreaterThan(0);
     wave.currentEnemies = 4;
     expect(isWaveComplete(wave)).toBe(false);
 
-    wave.bossAmountKilled = 2;
+    wave.bossAmountKilled = wave.bossAmount;
     // Regression: this used to require `enemiesLeft <= 0`, which a Boss level
     // never reaches because it spawns indefinitely.
     expect(isWaveComplete(wave)).toBe(true);
@@ -182,8 +185,8 @@ describe('the live-enemy guard must not veto Flag or Boss', () => {
     const bossLevel = [...Array(60).keys()]
       .map((i) => getLevel(1, i + 1))
       .find((s) => s?.mode === 'Boss')!;
-    const wave = createWaveState(bossLevel, 2);
-    wave.bossAmountKilled = 2;
+    const wave = createWaveState(bossLevel);
+    wave.bossAmountKilled = wave.bossAmount;
     expect(isWaveComplete(wave, 12)).toBe(true);
   });
 

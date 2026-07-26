@@ -62,7 +62,40 @@ export interface WaveState {
   countDownDone: boolean;
 }
 
-export function createWaveState(spec: LevelSpec, bossAmount = 0): WaveState {
+/**
+ * `ScreenGame.getBossCount()` — `ScreenGame.as:703-716`.
+ *
+ * Sums the `count` of every composition entry whose enemy level is `B`. The AS3
+ * reads the combined name out of the model row and tests its last character
+ * (`searchPlace.slice(len - 1, len) == "B"`); the extraction splits that suffix
+ * off into `LevelEnemy.level` (`gen-levels.mjs:109-110`), so testing the suffix
+ * is the same check.
+ *
+ * The mode guard is the AS3's too — `ScreenGame.as:371-377` only calls this on a
+ * Boss level and pins `bossAmount = 0` everywhere else. That zero is load-bearing
+ * for `canSpawn`, which uses `bossAmount <= bossAmountKilled` as a Boss-only gate.
+ */
+export function bossCountFor(spec: LevelSpec): number {
+  if (spec.mode !== 'Boss') return 0;
+  return spec.enemies.reduce((sum, entry) => (entry.level === 'B' ? sum + entry.count : sum), 0);
+}
+
+/**
+ * `bossAmount` **defaults to the level's own composition**, and that default is
+ * the fix for a real bug rather than a convenience.
+ *
+ * It used to default to `0`, and `GameplayScene` called `createWaveState(spec)`
+ * without the second argument. On a Boss level that made `isWaveComplete` return
+ * true on the first frame (`bossAmountKilled >= bossAmount` is `0 >= 0`) while
+ * `canSpawn` returned false forever — so all 45 Boss levels auto-won with an
+ * empty arena, starting at 1-9. Every Boss test supplied the argument by hand,
+ * so the suite never saw it.
+ *
+ * Deriving it from `spec` is what stops that recurring: the caller can no longer
+ * forget a value it does not have to pass. The parameter stays so a test can
+ * still force a count that the composition does not describe.
+ */
+export function createWaveState(spec: LevelSpec, bossAmount = bossCountFor(spec)): WaveState {
   return {
     mode: spec.mode,
     pool: spec.enemies.map((entry) => ({
