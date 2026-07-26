@@ -172,9 +172,11 @@ describe('Hud', () => {
     act(() => {
       GameEvents.emit('level:ended', {
         result: 'won',
+        world: 1,
         level: 3,
         kills: 12,
         currency: 240,
+        hasNextLevel: true,
       });
     });
     rerender(<Hud />);
@@ -185,6 +187,46 @@ describe('Hud', () => {
     expect(screen.getByText('240')).toBeInTheDocument();
   });
 
+  it('offers the next level after a win', () => {
+    enterGameplay();
+    const { rerender } = render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('level:ended', {
+        result: 'won',
+        world: 1,
+        level: 3,
+        kills: 5,
+        currency: 100,
+        hasNextLevel: true,
+      });
+    });
+    rerender(<Hud />);
+
+    expect(screen.getByRole('button', { name: /next level/i })).toBeInTheDocument();
+  });
+
+  it('offers no next level when there is none', () => {
+    // A loss unlocks nothing, and the last level of a world has no successor.
+    enterGameplay();
+    const { rerender } = render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('level:ended', {
+        result: 'lost',
+        world: 1,
+        level: 3,
+        kills: 5,
+        currency: 100,
+        hasNextLevel: false,
+      });
+    });
+    rerender(<Hud />);
+
+    expect(screen.queryByRole('button', { name: /next level/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
   it('labels a defeat differently', () => {
     enterGameplay();
     const { rerender } = render(<Hud />);
@@ -192,9 +234,11 @@ describe('Hud', () => {
     act(() => {
       GameEvents.emit('level:ended', {
         result: 'lost',
+        world: 1,
         level: 1,
         kills: 2,
         currency: 10,
+        hasNextLevel: false,
       });
     });
     rerender(<Hud />);

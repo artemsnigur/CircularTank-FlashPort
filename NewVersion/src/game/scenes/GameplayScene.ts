@@ -1309,9 +1309,15 @@ export class GameplayScene extends Phaser.Scene {
     if (this.outcome.finished) {
       GameEvents.emit('level:ended', {
         result: this.outcome.result!,
+        world: this.world,
         level: this.level,
         kills: this.kills,
         currency: this.currency,
+        // A win has just recorded a value, which is what unlocks the next
+        // level; a loss records nothing, so there is nothing to move on to.
+        hasNextLevel:
+          this.outcome.result === 'won' &&
+          getLevel(this.world, this.level + 1) !== undefined,
       });
       // Stop simulating; the result overlay owns the screen from here.
       this.scene.pause();
@@ -1367,6 +1373,11 @@ export class GameplayScene extends Phaser.Scene {
     }
     if (!next || !stats) return;
 
+    // Nothing to switch to. With one owned weapon the ring wraps back to the
+    // weapon already held, and treating that as a switch was half the
+    // rapid-fire exploit: every Q press ran the whole switch path.
+    if (next === this.weapon) return;
+
     // Write the choice into the loadout rather than holding it beside one.
     // The AS3 toggles between two equipped slots (`ScreenGame.chooseWeapon`);
     // there is no equip screen yet, so this cycles slot 1 through everything
@@ -1383,8 +1394,15 @@ export class GameplayScene extends Phaser.Scene {
 
     this.weapon = next;
     this.weaponStats = stats;
-    // Reset the timer so switching cannot be used to bypass a long reload.
-    this.firing = createFiringState();
+
+    // The reload countdown deliberately carries over. `ScreenGame.chooseWeapon`
+    // assigns `reloadTimeMax` — the interval for the new weapon — and never
+    // touches `reloadTime`, the running countdown.
+    //
+    // This used to call `createFiringState()`, which returns `reloadTime: 0`,
+    // i.e. ready to fire *now*. The comment claimed it stopped a switch
+    // bypassing a long reload; it granted one instead, and mashing Q while
+    // holding fire produced an unbounded rate.
 
     getSoundManager(this)?.queue('WeaponChange');
     // Capacity must stay above zero or the readout unmounts — see

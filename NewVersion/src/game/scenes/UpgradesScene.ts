@@ -57,6 +57,9 @@ export class UpgradesScene extends Phaser.Scene {
     this.publishCatalogue();
 
     const offBuy = GameEvents.subscribe('ui:buy-upgrade', ({ id }) => this.buy(id));
+    const offGrant = GameEvents.subscribe('ui:dev-grant-money', ({ amount }) =>
+      this.grantMoney(amount),
+    );
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.Upgrades) this.scene.start(key);
     });
@@ -69,6 +72,7 @@ export class UpgradesScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offBuy();
+      offGrant();
       offGoto();
       GameEvents.off('viewport:changed', onResize);
       GameEvents.emit('scene:shutdown', { key: SceneKeys.Upgrades });
@@ -99,6 +103,26 @@ export class UpgradesScene extends Phaser.Scene {
         };
       }),
     });
+  }
+
+  /**
+   * Dev-only: adds money and persists it straight away.
+   *
+   * Deliberately bypasses the "takings bank only when a level finishes" rule.
+   * That rule exists so quitting mid-level forfeits its earnings; a dev grant
+   * has no level to finish, so routing it through the same path would mean
+   * playing one to keep it. Gated on `import.meta.env.DEV`, and the button
+   * that emits this is too.
+   */
+  private grantMoney(amount: number): void {
+    if (!import.meta.env.DEV) return;
+
+    const profile = getPlayerProfile(this);
+    profile.setUpgrades({ ...profile.upgrades, money: profile.upgrades.money + amount });
+    profile.save();
+
+    console.info(`[UpgradesScene] Dev: +${amount} coins, saved.`);
+    this.publishCatalogue();
   }
 
   /**

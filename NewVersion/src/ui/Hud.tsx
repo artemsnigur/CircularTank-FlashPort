@@ -131,6 +131,17 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
     GameEvents.emit('ui:goto', { key: 'Gameplay' });
   };
 
+  // Straight into the next level, skipping the trip through level select.
+  // `hasNextLevel` is decided by the scene, which owns the unlock rule — this
+  // button appearing already means the level exists and is reachable.
+  const playNext = (): void => {
+    clearLevelOutcome();
+    GameEvents.emit('ui:start-game', {
+      world: outcome.world,
+      level: outcome.level + 1,
+    });
+  };
+
   const toMenu = (): void => {
     clearLevelOutcome();
     GameEvents.emit('ui:goto', { key: 'MainMenu' });
@@ -157,8 +168,13 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
           </div>
         </dl>
         <div className="level-outcome__actions">
+          {outcome.hasNextLevel && (
+            <button type="button" className="hud__button hud__button--primary" onClick={playNext}>
+              Next level ›
+            </button>
+          )}
           <button type="button" className="hud__button" onClick={retry}>
-            {outcome.result === 'won' ? 'Play again' : 'Retry'}
+            {outcome.result === 'won' ? 'Replay' : 'Retry'}
           </button>
           <button type="button" className="hud__button" onClick={toMenu}>
             Menu

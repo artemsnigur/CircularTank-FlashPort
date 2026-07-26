@@ -40,9 +40,11 @@ export interface AchievementToast {
 /** What the results overlay renders. */
 export interface LevelOutcomeSummary {
   result: LevelResult;
+  world: number;
   level: number;
   kills: number;
   currency: number;
+  hasNextLevel: boolean;
 }
 
 /** One world's levels with their unlock state. */

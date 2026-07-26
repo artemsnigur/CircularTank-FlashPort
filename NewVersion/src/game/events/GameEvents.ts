@@ -115,9 +115,18 @@ export interface GameEventMap {
    */
   'level:ended': {
     result: LevelResult;
+    world: number;
     level: number;
     kills: number;
     currency: number;
+    /**
+     * Whether a next level exists in this world *and* is now reachable.
+     *
+     * Computed by the scene, which owns the level tables and the unlock rule.
+     * False after a loss: losing records no value, so the next level stays
+     * locked and offering to start it would bypass the rule.
+     */
+    hasNextLevel: boolean;
   };
 
   /* ── Diagnostics ─────────────────────────────────────────────────────── */
@@ -153,6 +162,8 @@ export interface GameEventMap {
   'ui:pause': { paused: boolean };
   /** A purchase request from the shop; the scene owns the transaction. */
   'ui:buy-upgrade': { id: string };
+  /** Dev-only: top up the balance and persist it immediately. */
+  'ui:dev-grant-money': { amount: number };
   /**
    * The shop catalogue, published by UpgradesScene after reading the profile.
    *

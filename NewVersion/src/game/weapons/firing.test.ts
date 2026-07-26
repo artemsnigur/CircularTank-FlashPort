@@ -123,6 +123,59 @@ describe('fire', () => {
   });
 });
 
+describe('switching weapons must not refill the reload', () => {
+  // Regression: cycleWeapon called `createFiringState()`, which returns
+  // `reloadTime: 0` — ready to fire *now*. Its comment claimed it stopped a
+  // switch bypassing a long reload; it granted one. Mashing Q while holding
+  // fire produced an unbounded rate, worst with one owned weapon where the
+  // ring wrapped back to the weapon already held.
+  //
+  // `ScreenGame.chooseWeapon` assigns `reloadTimeMax` and never touches
+  // `reloadTime`, so the countdown carries over.
+  const stats = { reloadTimeMax: 13, damage: 7, explosionRadius: 0 };
+
+  it('a fresh firing state is ready immediately — which is why resetting was wrong', () => {
+    expect(createFiringState().reloadTime).toBe(0);
+  });
+
+  it('carrying the countdown over holds the cadence', () => {
+    const state = createFiringState();
+    expect(fire(state, CANNON, stats, context)).toHaveLength(1);
+    expect(state.reloadTime).toBe(13);
+
+    // A switch that preserves `state` cannot produce a shot.
+    expect(fire(state, CANNON, stats, context)).toHaveLength(0);
+  });
+
+  it('resetting on every switch would have granted unlimited shots', () => {
+    // Models the old behaviour: reset the state on each of 20 switches.
+    let shots = 0;
+    for (let i = 0; i < 20; i += 1) {
+      const reset = createFiringState();
+      shots += fire(reset, CANNON, stats, context).length;
+    }
+    expect(shots).toBe(20);
+
+    // Against the fixed behaviour: one shared state, no ticking.
+    const kept = createFiringState();
+    let keptShots = 0;
+    for (let i = 0; i < 20; i += 1) keptShots += fire(kept, CANNON, stats, context).length;
+    expect(keptShots).toBe(1);
+  });
+
+  it('the cadence still depends only on elapsed time', () => {
+    const state = createFiringState();
+    let shots = 0;
+    for (let i = 0; i < 130; i += 1) {
+      tickFiring(state, FRAME);
+      shots += fire(state, CANNON, stats, context).length;
+    }
+    // 130 frames at one shot per 13.
+    expect(shots).toBeGreaterThanOrEqual(9);
+    expect(shots).toBeLessThanOrEqual(11);
+  });
+});
+
 describe('bullet flight', () => {
   const bullet = (overrides: Partial<BulletState> = {}): BulletState => ({
     x: 320,

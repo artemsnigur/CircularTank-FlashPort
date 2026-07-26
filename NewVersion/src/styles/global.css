@@ -761,3 +761,14 @@ code {
   font-variant-numeric: tabular-nums;
   font-size: 0.85rem;
 }
+
+/* Dev-only grant button; never rendered in a production build. */
+.shop__dev-grant {
+  margin: 0.5rem 0;
+  opacity: 0.7;
+  font-size: 0.75rem;
+}
+
+.level-outcome__actions .hud__button--primary {
+  border-color: rgb(140 230 140 / 60%);
+}
