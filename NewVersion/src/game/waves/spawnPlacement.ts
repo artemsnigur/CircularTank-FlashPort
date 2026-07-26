@@ -20,9 +20,24 @@
 import type { LevelMode } from '../levels/levelData';
 import type { SpawnWall } from '../enemies/enemySpawn';
 
-/** PartGameArea.as camera dimensions — the original Flash viewport. */
-export const CAMERA_WIDTH = 640;
-export const CAMERA_HEIGHT = 400;
+/**
+ * The original Flash stage. **Reference only — never a default.**
+ *
+ * These used to be the fallback for `cameraWidth`/`cameraHeight`, and that was
+ * the defect behind enemies materialising on screen. The AS3's camera really was
+ * a fixed 640x400, so comparing against a constant was faithful *there*. This
+ * port's camera is 640 x `logicalHeight`, where `logicalHeight` is
+ * `renderHeight / zoom` clamped to [400, 1440] (`config/viewport.ts`) — 400 is
+ * the floor, reached only on a very wide window. Feeding the predicate 400 while
+ * rendering 900 made it protect a rectangle less than half the height of the
+ * real view, so points it judged off-camera were plainly visible.
+ *
+ * The predicate was a faithful port. The operand was not. Keeping these as
+ * defaults would let the same mistake back in silently, so `PlacementContext`
+ * requires the live values and this pair is documentation.
+ */
+export const AS3_CAMERA_WIDTH = 640;
+export const AS3_CAMERA_HEIGHT = 400;
 
 /** Attempts before falling back to edge placement. AS3 uses 25. */
 export const OFF_CAMERA_ATTEMPTS = 25;
@@ -31,8 +46,16 @@ export interface PlacementContext {
   mode: LevelMode;
   roomWidth: number;
   roomHeight: number;
-  cameraWidth?: number;
-  cameraHeight?: number;
+  /**
+   * The **live** viewport in design units, not the AS3's 640x400 stage.
+   *
+   * Required, deliberately: an optional value defaulting to the Flash constants
+   * is exactly how this shipped placing enemies inside the view. A caller that
+   * does not know the current viewport cannot place a spawn correctly, so it
+   * should fail to compile rather than silently get 400.
+   */
+  cameraWidth: number;
+  cameraHeight: number;
   /** Bosses always use edge placement. */
   isBoss?: boolean;
   /** During the countdown, enemies come from the edges. */
@@ -59,15 +82,25 @@ function canSearchOffCamera(context: PlacementContext): boolean {
     mode,
     roomWidth,
     roomHeight,
-    cameraWidth = CAMERA_WIDTH,
-    cameraHeight = CAMERA_HEIGHT,
+    cameraWidth,
+    cameraHeight,
     isBoss = false,
     countDownDone = false,
   } = context;
 
   if (countDownDone) return false;
   if (mode === 'Defense') return false;
-  if (roomWidth === cameraWidth || roomHeight === cameraHeight) return false;
+  // AS3 `roomWidth == cameraWidth || roomHeight == cameraHeight` (:7245).
+  // Widened to `<=` for one reason: the AS3's camera was a fixed 640x400 and
+  // its rooms came from a five-value table, so equality caught every case where
+  // a dimension had no off-camera space. This port's camera height is dynamic
+  // and routinely *exceeds* the room, where equality is false but there is
+  // still nowhere off screen to hide. Without this the search runs, finds
+  // nothing across all 25 attempts (every margin is negative, so every
+  // candidate reads as visible) and falls through to the edge anyway — the
+  // same outcome, reached wastefully. Same behaviour on every room size the
+  // AS3 could actually produce.
+  if (roomWidth <= cameraWidth || roomHeight <= cameraHeight) return false;
   if (mode === 'Boss' && isBoss) return false;
   return true;
 }
@@ -85,8 +118,8 @@ export function isPotentiallyVisible(
   const {
     roomWidth,
     roomHeight,
-    cameraWidth = CAMERA_WIDTH,
-    cameraHeight = CAMERA_HEIGHT,
+    cameraWidth,
+    cameraHeight,
   } = context;
 
   const marginX = (roomWidth - cameraWidth) / 2;

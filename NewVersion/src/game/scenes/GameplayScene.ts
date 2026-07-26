@@ -704,10 +704,16 @@ export class GameplayScene extends Phaser.Scene {
     if (canSpawn(wave)) {
       const drawn = drawEnemy(wave, { countsByType: this.livePopulation() }, random);
       if (drawn) {
+        // The *live* viewport, not the AS3's 640x400 stage. This port's camera
+        // height is `renderHeight / zoom` and varies with the window, so a
+        // constant here protects the wrong rectangle and spawns land on screen.
+        const view = getViewportController(this)?.current;
         const placement = placeWarning({
           mode: spec.mode,
           roomWidth: this.roomWidth,
           roomHeight: this.roomHeight,
+          cameraWidth: view?.logicalWidth ?? this.cameras.main.width / this.cameras.main.zoom,
+          cameraHeight: view?.logicalHeight ?? this.cameras.main.height / this.cameras.main.zoom,
           isBoss: drawn.level === 'B',
           countDownDone: wave.countDownDone,
           random,

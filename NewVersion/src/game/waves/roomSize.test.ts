@@ -22,10 +22,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { getLevel } from '../levels/levelData';
-import { CAMERA_HEIGHT, CAMERA_WIDTH, placeWarning } from './spawnPlacement';
-
-/** What the scene used to pass for every level, regardless of the spec. */
-const OLD_HARDCODED = { width: 640, height: 960 };
 
 describe('the level table describes five room sizes, not one', () => {
   it('level 1-1 is 640x400, not the hardcoded 640x960', () => {
@@ -62,44 +58,18 @@ describe('the level table describes five room sizes, not one', () => {
   });
 });
 
-describe('the off-camera spawn search, fed the way the scene feeds it', () => {
-  // 1-2 is the first world-1 level that qualifies: 900x720 Normal, so neither
-  // dimension matches the camera and the mode is not Defense.
-  const qualifying = () => getLevel(1, 2)!;
-
-  // A constant `random` makes all 25 attempts pick the same point, so it has to
-  // be one that is genuinely off-camera. At 900x720 the visible band is
-  // x in (130, 770) and y in (160, 560); 0.05 gives (45, 36), outside both.
-  const place = (roomWidth: number, roomHeight: number, mode = qualifying().mode) =>
-    placeWarning({ mode, roomWidth, roomHeight, random: () => 0.05 });
-
-  it('can place off-camera when given the level\'s real room', () => {
-    const spec = qualifying();
-    expect(place(spec.roomWidth, spec.roomHeight).offCamera).toBe(true);
-  });
-
-  it('never places off-camera at the old hardcoded size', () => {
-    // 640 === CAMERA_WIDTH, so canSearchOffCamera short-circuits. This is the
-    // defect, pinned: with the old constants the search was unreachable on
-    // every one of the 405 levels.
-    expect(OLD_HARDCODED.width).toBe(CAMERA_WIDTH);
-    expect(place(OLD_HARDCODED.width, OLD_HARDCODED.height).offCamera).toBe(false);
-  });
-
-  it('still declines when a real room does match the camera — the AS3 rule', () => {
-    // 1-1 is 640x400, which is exactly the camera. Nothing is off-camera there,
-    // and PartGameArea.as:7245 disqualifies it. Faithful, not a regression.
-    const spec = getLevel(1, 1)!;
-    expect(spec.roomWidth).toBe(CAMERA_WIDTH);
-    expect(spec.roomHeight).toBe(CAMERA_HEIGHT);
-    expect(place(spec.roomWidth, spec.roomHeight).offCamera).toBe(false);
-  });
-
-  it('declines in Defense mode whatever the room', () => {
-    const spec = qualifying();
-    expect(place(spec.roomWidth, spec.roomHeight, 'Defense').offCamera).toBe(false);
-  });
-});
+/**
+ * The off-camera search used to be asserted here, as `.offCamera === true`.
+ *
+ * That was measuring the wrong quantity. `offCamera` reports that the search
+ * *found* a point, not that the point is out of view — so it stayed green while
+ * the search placed enemies inside the visible area, which is how the defect
+ * reached the screen. It is deleted rather than weakened.
+ *
+ * The property itself — a returned point is outside the visible core for the
+ * viewport actually being rendered — is asserted in `offCameraSpawn.test.ts`,
+ * across several room and camera sizes.
+ */
 
 /**
  * The seam. Source-shape rather than behaviour: `GameplayScene` needs a live

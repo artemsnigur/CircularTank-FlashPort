@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CAMERA_HEIGHT,
-  CAMERA_WIDTH,
+  AS3_CAMERA_HEIGHT,
+  AS3_CAMERA_WIDTH,
   isPotentiallyVisible,
   placeOnEdge,
   placeWarning,
@@ -15,7 +15,16 @@ import {
 } from './warnings';
 
 /** A room bigger than the camera in both axes, so off-camera search applies. */
-const BIG_ROOM: PlacementContext = { mode: 'Normal', roomWidth: 900, roomHeight: 720 };
+// The camera is now required rather than defaulted — see PlacementContext.
+// These fixtures use the AS3 stage so the existing expectations still describe
+// the original's geometry; the *game* passes its live viewport.
+const BIG_ROOM: PlacementContext = {
+  mode: 'Normal',
+  roomWidth: 900,
+  roomHeight: 720,
+  cameraWidth: AS3_CAMERA_WIDTH,
+  cameraHeight: AS3_CAMERA_HEIGHT,
+};
 
 /** Cycling pseudo-random, so a sequence is reproducible without Math.random. */
 function sequence(values: number[]): () => number {
@@ -34,8 +43,8 @@ describe('isPotentiallyVisible', () => {
   });
 
   it('uses the camera-sized centre band', () => {
-    const marginX = (900 - CAMERA_WIDTH) / 2; // 130
-    const marginY = (720 - CAMERA_HEIGHT) / 2; // 160
+    const marginX = (900 - AS3_CAMERA_WIDTH) / 2; // 130
+    const marginY = (720 - AS3_CAMERA_HEIGHT) / 2; // 160
     expect(isPotentiallyVisible(marginX + 1, marginY + 1, BIG_ROOM)).toBe(true);
     expect(isPotentiallyVisible(marginX - 1, marginY + 1, BIG_ROOM)).toBe(false);
   });
@@ -112,8 +121,10 @@ describe('placeWarning', () => {
   it('skips the search when the room matches the camera', () => {
     const placement = placeWarning({
       mode: 'Normal',
-      roomWidth: CAMERA_WIDTH,
+      roomWidth: AS3_CAMERA_WIDTH,
       roomHeight: 960,
+      cameraWidth: AS3_CAMERA_WIDTH,
+      cameraHeight: AS3_CAMERA_HEIGHT,
       random: () => 0.01,
     });
     expect(placement.offCamera).toBe(false);
