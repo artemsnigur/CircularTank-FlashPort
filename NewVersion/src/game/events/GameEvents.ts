@@ -149,6 +149,14 @@ export interface GameEventMap {
    * React never reads the profile directly — it lives in the Phaser registry,
    * and a scene owns it. This is the sanctioned channel.
    */
+  /**
+   * Where "Play" should resume from, published by MainMenuScene.
+   *
+   * Resolved from `getCurrentWorldAndLevel` — the same progress table and the
+   * same rule LevelSelect locks levels with. React echoes these values back in
+   * `ui:start-game`; it does not compute them.
+   */
+  'menu:resume-point': { world: number; level: number };
   'levels:listed': {
     world: number;
     worldName: string;

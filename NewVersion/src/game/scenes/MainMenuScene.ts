@@ -8,10 +8,15 @@
  */
 import Phaser from 'phaser';
 import { SceneKeys } from '../config/constants';
+import { getPlayerProfile } from '../player/playerProfile';
+import { getCurrentWorldAndLevel } from '../levels/levelProgress';
 import { GameEvents } from '../events/GameEvents';
 import { runAudioSelfTest } from '../audio/audioSelfTest';
 import { getSoundManager } from '../audio/soundService';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
+
+/** Matches LevelSelect's pinned world until the world picker is ported. */
+const SELECTABLE_WORLDS = 1;
 
 export class MainMenuScene extends Phaser.Scene {
   private backdrop!: Phaser.GameObjects.TileSprite;
@@ -68,6 +73,8 @@ export class MainMenuScene extends Phaser.Scene {
       getSoundManager(this)?.setMusic('Menu');
     });
 
+    this.publishResumePoint();
+
     const offStart = GameEvents.subscribe('ui:start-game', ({ world, level }) => {
       this.scene.start(SceneKeys.Gameplay, { world, level });
     });
@@ -102,6 +109,37 @@ export class MainMenuScene extends Phaser.Scene {
       console.error('[MainMenuScene] Audio self-test threw:', error);
       this.selfTestRan = false;
     }
+  }
+
+  /**
+   * Publishes the level "Play" should start.
+   *
+   * `getCurrentWorldAndLevel` is `ScreenLevelSelect.getCurrentWorldAndLevel()`
+   * — the first level with nothing earned on any difficulty, i.e. the furthest
+   * the player has reached. It reads the same progress table LevelSelect locks
+   * levels from, so Play and the grid can never disagree.
+   *
+   * The scan is limited to one world to match LevelSelect, which pins world 1
+   * until the world picker is ported. Without that, Play could launch a level
+   * the grid cannot show.
+   *
+   * `[0, 0]` means every scanned level has been played, which the AS3 returns
+   * from its zero-initialised locals. Falls back to the last level played, and
+   * then to 1-1.
+   */
+  private publishResumePoint(): void {
+    const profile = getPlayerProfile(this);
+    const [world, level] = getCurrentWorldAndLevel(profile.progress, SELECTABLE_WORLDS);
+
+    const resume =
+      world > 0 && level > 0
+        ? { world, level }
+        : {
+            world: profile.slot.levelSelect.previousWorld || 1,
+            level: profile.slot.levelSelect.previousLevel || 1,
+          };
+
+    GameEvents.emit('menu:resume-point', resume);
   }
 
   private layout(): void {

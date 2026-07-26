@@ -109,6 +109,9 @@ export interface GameState {
   /** The shop catalogue, published by UpgradesScene. */
   shop: ShopCatalogue | null;
 
+  /** Where the Play button resumes from, published by MainMenuScene. */
+  resumePoint: { world: number; level: number } | null;
+
   /* Diagnostics */
   viewport: ViewportSnapshot | null;
   safeArea: SafeAreaInsets;
@@ -137,6 +140,7 @@ export interface GameState {
   clearLevelOutcome: () => void;
   setLevelList: (listing: LevelListing) => void;
   setShop: (shop: ShopCatalogue) => void;
+  setResumePoint: (point: { world: number; level: number }) => void;
   pushAchievement: (toast: AchievementToast) => void;
   dismissAchievement: (id: string) => void;
   setViewport: (viewport: ViewportSnapshot) => void;
@@ -163,6 +167,7 @@ const initialRunState = {
   levelOutcome: null as LevelOutcomeSummary | null,
   levelList: null as LevelListing | null,
   shop: null as ShopCatalogue | null,
+  resumePoint: null as { world: number; level: number } | null,
 };
 
 export const useGameStore = create<GameState>()((set) => ({
@@ -202,6 +207,7 @@ export const useGameStore = create<GameState>()((set) => ({
   clearLevelOutcome: () => set({ levelOutcome: null }),
   setLevelList: (levelList) => set({ levelList }),
   setShop: (shop) => set({ shop }),
+  setResumePoint: (resumePoint) => set({ resumePoint }),
 
   pushAchievement: (toast) =>
     set((s) =>

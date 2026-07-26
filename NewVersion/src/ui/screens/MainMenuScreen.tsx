@@ -12,8 +12,13 @@ import { GameEvents } from '../../game/events/GameEvents';
 export function MainMenuScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
   const phase = useGameStore((s) => s.phase);
+  const resumePoint = useGameStore((s) => s.resumePoint);
 
   if (activeScene !== 'MainMenu' || phase !== 'ready') return null;
+
+  // 1-1 until the scene has published a resume point — a fresh save resolves
+  // there anyway, so the fallback and the real answer agree for a new player.
+  const resume = resumePoint ?? { world: 1, level: 1 };
 
   return (
     <div className="screen screen--menu">
@@ -23,9 +28,16 @@ export function MainMenuScreen(): React.ReactElement | null {
         <button
           type="button"
           className="menu__button menu__button--primary"
-          onClick={() => GameEvents.emit('ui:start-game', { world: 1, level: 1 })}
+          onClick={() =>
+            GameEvents.emit('ui:start-game', {
+              world: resume.world,
+              level: resume.level,
+            })
+          }
         >
-          Play
+          {/* Resolved by MainMenuScene from the same progress table LevelSelect
+              locks levels with — never computed here. */}
+          {resume.level > 1 ? `Continue — Level ${resume.level}` : 'Play'}
         </button>
         <button
           type="button"

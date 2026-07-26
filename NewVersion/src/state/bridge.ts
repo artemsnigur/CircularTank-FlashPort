@@ -78,6 +78,10 @@ export function attachStoreBridge(): () => void {
     store.getState().setAmmo(current, capacity, weapon);
   });
 
+  on('menu:resume-point', (point) => {
+    store.getState().setResumePoint(point);
+  });
+
   on('upgrades:listed', (catalogue) => {
     store.getState().setShop(catalogue);
   });
