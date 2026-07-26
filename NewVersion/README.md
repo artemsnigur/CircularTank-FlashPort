@@ -4,9 +4,19 @@ Skeleton for porting a wave-defense Flash game to the web and (later) to
 iOS/Android. The original assets and decompiled ActionScript live in
 `../SWFimported/`, extracted from the SWF with JPEXS.
 
-**Status: skeleton complete, no gameplay classes ported yet.** The pipeline
-(assets → Phaser → React HUD) is proven end to end; see `PROGRESS.md` for the
-643-class porting checklist.
+**Status: the core gameplay loop runs.** A level plays end to end — paced wave
+spawning from the real level tables, a tank that drives and fires all 12
+primary weapons, enemies that steer, shoot, take typed damage and pay out, a
+completion rule for every level mode, and a working shop, save and progression
+layer.
+
+Coverage behind that is uneven, and deliberately tracked rather than estimated:
+**9 of the 20 enemy types** have their characteristic behaviour built, and
+**1 of the 12 secondaries** (Mine). `src/game/enemies/enemyBehaviour.ts` is the
+honest board for the enemy half — it derives what it can from the code and pins
+the rest to branches in `PartGameArea.as`, so it cannot quietly drift
+optimistic. `docs/ENEMIES.md` is generated from it. See `PROGRESS.md` for the
+643-class checklist.
 
 ## Stack
 

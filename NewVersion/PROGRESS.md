@@ -859,18 +859,24 @@ below — everything else hangs off those.
       draw-without-replacement pool, including the Flag/Boss balancing
     - `waves/spawnPlacement.ts` — off-camera search plus edge fallback
     - `waves/warnings.ts` — `handleWarnings`' countdown
-    - `weapons/firing.ts` — `tankAttack`'s framework plus 4 of the 12
-      primaries: **Cannon**, **MiniGun**, **Big Cannon** and
-      **Gummy Bear Cannon**, covering three damage channels
-      (Explosions, Bullets, Food) and both damage paths.
-      The remaining 8 each carry their own mechanic and need dedicated
-      sessions: Shotgun (deterministic fan), Flamethrower (lifetime +
-      inherited velocity + loop sound), Laser Cannon (beam, own spread,
-      owns the Laser channel), Magic Cannon (homing with a target
-      budget), Timed Bomb Cannon (attaches and detonates on a timer),
-      Poison Cannon (status effect), Cake Cannon (spawns secondary
-      projectiles), Penetration Cannon (passes through, tracks hits).
-      No secondaries are ported.
+    - `weapons/firing.ts` — `tankAttack`'s framework and **all 12
+      primaries**: Cannon, MiniGun, Big Cannon, Gummy Bear Cannon,
+      Shotgun, Penetration Cannon, Timed Bomb Cannon, Poison Cannon,
+      Flamethrower, Cake Cannon, Laser Cannon and Magic Cannon —
+      covering all eight damage channels and both damage paths. The
+      mechanics once listed here as blockers are built and each has
+      its own tests: the deterministic fan (`shotgun.test.ts`), beam
+      (`laser.test.ts`), homing with a target budget
+      (`magic.test.ts`), attach-and-detonate (`timedBomb.test.ts`),
+      secondary projectiles (`cake.ts`), lifetime plus inherited
+      velocity (`flames.ts`) and pass-through (`penetration.test.ts`).
+    - `weapons/secondaries.ts` — the secondary firing block and
+      `handleMines`, covering **1 of the 12 secondaries**: Mine, the
+      free starter, and the only one that needs nothing unported.
+      The other 11 are listed with their individual blockers in that
+      file's header — thrown arcs with Ice/Poison explosion variants,
+      homing rockets, persistent ground hazards, and the Shield,
+      which is a timed tank state rather than a projectile.
     - `weapons/bullets.ts` — straight-line flight and the hit test
     - `enemies/damageTypes.ts` — the strength/weakness system: 8 damage
       channels, per-type resistance tables, and the projectile -> channel
@@ -887,14 +893,37 @@ below — everything else hangs off those.
   **The enemy behaviour loop is 2,545 lines (PartGameArea.as:4499-7044)**
   and interleaves steering with damage, freezing, poison, burning,
   teleporting, healing, bullet collision, death, money drops and the
-  strength/weakness system — it is not separable as a unit and none of it
-  is ported. Damage types and explosions now *are* applied, so the
-  remaining 8 primaries are no longer blocked on data — each still needs
-  its own branch of `tankAttack` porting. Outstanding: homing, bullet
-  reflection, penetration, the shield, status effects (fire, poison,
-  freeze) and the Ice/Poison explosion variants that carry them,
-  `DamageAddict` (healed by damage), boss knockback fed back into the
-  tank's velocity, and defeat/victory handling.
+  strength/weakness system. It is not portable as a single unit, but it
+  has been taken in slices, and these are in:
+    - `enemies/enemySteering.ts` — turn-toward-target, accelerate,
+      clamp, integrate
+    - `enemies/enemyFiring.ts` — the fire gate (`:6889`), the shot
+      (`:6914`), bullet flight (`:1491`) and the hit on the tank
+      (`:1574`). Two bullet classes (`Basic`, `BasicBoss`) across two
+      patterns (`Front`, `Circle`)
+    - `enemies/statusEffects.ts` — the three per-enemy timers that
+      survive across frames: attached bomb (`:6312`), freeze (`:6326`)
+      and poison damage-over-time (`:6366`), applied at `:5831`,
+      `:5849` and `:5902`. **This is the shared timer the Timed Bomb
+      and Poison Cannons were blocked on; it is built and wired** —
+      `entities/Enemy.ts` carries a `StatusState` and ticks it
+    - `enemies/enemyDeath.ts` — deaths that leave something behind
+      (`:6825-6837`), currently the `Exploding` family
+    - `enemies/damageTypes.ts` — the strength/weakness system
+  Not ported: the **ten special mechanics**, each of which does have a
+  real branch in the source — `Accelerating` (`:6697-6715`, read at
+  `:5092`), `Temperamental` (`:6640-6667`, `:4610`, `:5094`),
+  `Shrinking` (`:6772`), `GrapplingHook` (`:6789`), `DamageAddict`
+  (`:4269` and `:4893-4917`), plus `Ghost`, `ScaredGhost`, `Medic`,
+  `Teleporting` and `Trap`. Also outstanding: the other enemy bullet
+  classes (`Following`, `Hook`, `Trap`) and three firing patterns,
+  bullet reflection, the shield, the Ice/Poison explosion variants,
+  and boss knockback fed back into the tank's velocity
+  (`GameplayScene.ts:1224`).
+  `enemies/enemyBehaviour.ts` is the live board for this — **9 of 20
+  types implemented, 0 partial, 11 data-only** — and its figures are
+  pinned by a test rather than restated here, so this paragraph cannot
+  be the thing that drifts.
 
 - [ ] Convert the two TTFs to WOFF2 (821 KB + 201 KB as-is)
 - [ ] Touch controls (virtual stick + fire button)
