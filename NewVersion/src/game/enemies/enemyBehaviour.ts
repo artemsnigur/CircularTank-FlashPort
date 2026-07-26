@@ -31,7 +31,6 @@ const SPECIAL_MECHANICS: Record<string, string> = {
   Accelerating: 'speeds up the longer it chases',
   Crazy: 'erratic steering',
   DamageAddict: 'healed by damage instead of hurt',
-  Exploding: 'detonates on death',
   Ghost: 'passes through obstacles, periodically invisible',
   GrapplingHook: 'tethers the tank and reels it in',
   Medic: 'heals nearby enemies',

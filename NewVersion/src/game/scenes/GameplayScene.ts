@@ -79,6 +79,7 @@ import type { PlayerProfile } from '../player/playerProfile';
 import { chooseWeapon, equipPrimary } from '../loadout/loadout';
 import { isWaveComplete, registerEnemyKilled, registerFlagCaptured } from '../waves/waveState';
 import { canCaptureFlag, placeFlag, tickFlag } from '../waves/flag';
+import { deathExplosion } from '../enemies/enemyDeath';
 import {
   advanceEnemyBullet,
   applyBulletToTank,
@@ -189,6 +190,16 @@ export class GameplayScene extends Phaser.Scene {
 
   /** Guards against banking the same level's takings on every frame. */
   private banked = false;
+
+  /**
+   * Blasts left by dying enemies, flushed once per frame.
+   *
+   * Never spawned from `removeEnemy` itself: a death blast can kill another
+   * Exploding enemy, so doing it inline would recurse through the removal
+   * path and re-enter its once-per-enemy guard. Same deferral the attached
+   * bomb blasts use.
+   */
+  private pendingDeathBlasts: ExplosionSpec[] = [];
 
   /**
    * Last wave figures published, so the per-frame refresh only emits on change.
@@ -315,6 +326,7 @@ export class GameplayScene extends Phaser.Scene {
     this.flag = null;
     this.flagMarker = null;
     this.enemyBullets = [];
+    this.pendingDeathBlasts = [];
     this.hp = TANK_MAX_HP;
     this.pushedFrames = 0;
   }
@@ -459,6 +471,7 @@ export class GameplayScene extends Phaser.Scene {
     }
 
     this.updateEnemyFire(delta);
+    this.flushDeathBlasts();
     this.updateFlag(delta);
     this.updateOutcome(delta);
     this.emitWaveState();
@@ -1215,6 +1228,23 @@ export class GameplayScene extends Phaser.Scene {
   }
 
   /**
+   * Spawns the blasts left by enemies that died this frame.
+   *
+   * Drains rather than iterates: a blast can kill another Exploding enemy,
+   * which enqueues its own, so the loop keeps going until the chain settles.
+   * The bound is the enemy count — each enemy can only die once, and
+   * `removeEnemy` refuses a second removal — so this terminates.
+   */
+  private flushDeathBlasts(): void {
+    let guard = 0;
+    while (this.pendingDeathBlasts.length > 0 && guard < 64) {
+      guard += 1;
+      const blast = this.pendingDeathBlasts.shift()!;
+      this.spawnExplosion(blast);
+    }
+  }
+
+  /**
    * Enemies shooting, and their bullets reaching the tank.
    *
    * Scope is `shootType: Basic` with `shootAngle: Front` — see
@@ -1677,6 +1707,12 @@ export class GameplayScene extends Phaser.Scene {
         total: this.currency,
       });
     }
+
+    // Queued, not spawned — see pendingDeathBlasts. Fires on any death,
+    // including a contact suicide, which is what `:5301` does by setting
+    // `dead = true` on that path too.
+    const blast = deathExplosion(enemy);
+    if (blast) this.pendingDeathBlasts.push(blast);
 
     if (this.wave) registerEnemyKilled(this.wave, enemy.enemyLevel === 'B');
 

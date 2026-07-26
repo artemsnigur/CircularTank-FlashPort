@@ -5,10 +5,10 @@
 
 Tracking the rewrite of 643 decompiled ActionScript 3 classes (`SWFimported/scripts`) into TypeScript/Phaser.
 
-**27 / 557** game classes started · **13** verified · 5 marked not applicable · 81 third-party classes excluded.
+**29 / 557** game classes started · **13** verified · 5 marked not applicable · 81 third-party classes excluded.
 
 ```
-█░░░░░░░░░░░░░░░░░░░░░░░  4.8%
+█░░░░░░░░░░░░░░░░░░░░░░░  5.2%
 ```
 
 ## How to use this file
@@ -41,7 +41,7 @@ below — everything else hangs off those.
 - [Core systems](#core-systems) — 5/6
 - [Screens and screen parts](#screens-and-screen-parts) — 5/49
 - [Player tank](#player-tank) — 1/6
-- [Enemies](#enemies) — 6/52
+- [Enemies](#enemies) — 8/52
 - [Projectiles, weapons and objects](#projectiles-weapons-and-objects) — 10/33
 - [Achievements](#achievements) — 0/38
 - [Tutorial](#tutorial) — 0/25
@@ -228,7 +228,7 @@ below — everything else hangs off those.
 
 > Each type has a matching `*Boss` variant; port the base first.
 
-`███░░░░░░░░░░░░░░░░░░░░░` 6/52
+`████░░░░░░░░░░░░░░░░░░░░` 8/52
 
 - [ ] `Crown` — not started
 - [ ] `EnemyAccelerating` — not started
@@ -245,8 +245,8 @@ below — everything else hangs off those.
 - [ ] `EnemyCrazyBoss` — not started
 - [ ] `EnemyDamageAddict` — not started
 - [ ] `EnemyDamageAddictBoss` — not started
-- [ ] `EnemyExploding` — not started
-- [ ] `EnemyExplodingBoss` — not started
+- [ ] `EnemyExploding` — ported · wired
+- [ ] `EnemyExplodingBoss` — ported · wired
 - [ ] `EnemyFast` — not started
 - [ ] `EnemyFastBoss` — not started
 - [ ] `EnemyGhost` — not started
