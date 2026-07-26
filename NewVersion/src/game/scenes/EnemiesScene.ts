@@ -34,6 +34,13 @@ export class EnemiesScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setAlpha(0.2);
 
+    // The per-type Test buttons launch a dev level from this screen, so this
+    // scene has to handle `ui:start-game` itself: while it is active every
+    // other scene is torn down, and the event would reach nobody. Same class
+    // as the Next-level freeze — see uiEventListeners.test.ts.
+    const offStart = GameEvents.subscribe('ui:start-game', ({ world, level }) => {
+      this.scene.start(SceneKeys.Gameplay, { world, level });
+    });
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.Enemies) this.scene.start(key);
     });
@@ -45,6 +52,7 @@ export class EnemiesScene extends Phaser.Scene {
     GameEvents.on('viewport:changed', onResize);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      offStart();
       offGoto();
       GameEvents.off('viewport:changed', onResize);
       GameEvents.emit('scene:shutdown', { key: SceneKeys.Enemies });
