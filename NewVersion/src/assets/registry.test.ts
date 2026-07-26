@@ -4,7 +4,7 @@
  * here instead of 404-ing silently on a device.
  */
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import {
   assetCounts,
   audioUrl,
@@ -73,8 +73,12 @@ describe('asset registry', () => {
  *
  * These widen it to the full extraction by walking the `import.meta.glob` maps
  * rather than a hand-listed manifest, so a newly synced file is covered the
- * moment it appears. (That also gives `imageUrls`/`audioUrls`/`shapeUrls` a real
- * consumer — knip reported all three as unused exports.)
+ * moment it appears.
+ *
+ * They do **not** retire knip's findings for `imageUrls`/`audioUrls`/
+ * `shapeUrls`. knip is configured so test files are not consumers — that is the
+ * whole point of the configuration — so importing them here changes nothing,
+ * and all three remain correctly flagged as having no production consumer.
  */
 describe('every extracted file keeps its SWF library ID', () => {
   const ID = /^(\d+)(?:[_.]|$)/;
@@ -151,5 +155,60 @@ describe('every extracted file keeps its SWF library ID', () => {
 
     expect(checked, 'no named files found — the extraction looks wrong').toBeGreaterThan(100);
     expect(problems, problems.join('\n')).toEqual([]);
+  });
+});
+
+/**
+ * The other 42 files — and why the previous check was not "100%".
+ *
+ * The `symbols.csv` cross-check covers the 118 *named* files. Reporting that as
+ * full coverage would redefine the denominator from "every extracted file" to
+ * "every named file" — the same move as counting 29/557 against a total that
+ * quietly excludes what is inconvenient. The unnamed files (`351.png`,
+ * `169.mp3`) carry the same SWF library ID and the registry resolves them by it;
+ * there is simply no symbol table to check them against.
+ *
+ * So the table for those is the extraction itself. `SWFimported/` is read-only
+ * and is the source `assets:sync` copies from, which makes "the synced filename
+ * equals the extracted filename" checkable for **every** file, named or not.
+ * This is the mechanism that lets `CLAUDE.md`'s sentence stay absolute.
+ *
+ * Note this is strictly stronger than the id-prefix check above: renaming
+ * `351.png` to `352.png` keeps a valid-looking prefix and passes that, while
+ * pointing at a different character.
+ */
+describe('every synced file still matches the extraction it came from', () => {
+  // `sounds` becomes `audio` on the way in — see scripts/sync-assets.mjs.
+  const PAIRS: [synced: string, source: string][] = [
+    ['images', 'images'],
+    ['audio', 'sounds'],
+    ['shapes', 'shapes'],
+    ['fonts', 'fonts'],
+  ];
+
+  it.each(PAIRS)('src/assets/%s files all exist in SWFimported/%s', (synced, source) => {
+    const syncedDir = `src/assets/${synced}`;
+    const sourceDir = `../SWFimported/${source}`;
+    if (!existsSync(syncedDir)) {
+      throw new Error(`${syncedDir} is missing — run npm run assets:sync`);
+    }
+
+    const inSource = new Set(readdirSync(sourceDir));
+    const names = readdirSync(syncedDir);
+    expect(names.length, `${syncedDir} is empty — run npm run assets:sync`).toBeGreaterThan(0);
+
+    const strays = names.filter((n) => !inSource.has(n));
+    expect(
+      strays,
+      `renamed or unknown in ${syncedDir}: ${strays.join(', ')}. The leading number ` +
+        `is the SWF library ID; it must match SWFimported/${source} exactly.`,
+    ).toEqual([]);
+  });
+
+  it('covers every extracted file, named or not', () => {
+    // Guards the denominator. Shapes are curated (5 of 1015 by default), so the
+    // floor is the other three folders plus whatever shapes are present.
+    const total = PAIRS.reduce((sum, [synced]) => sum + readdirSync(`src/assets/${synced}`).length, 0);
+    expect(total).toBeGreaterThanOrEqual(158);
   });
 });

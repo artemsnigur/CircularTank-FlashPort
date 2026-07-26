@@ -11,6 +11,22 @@
 
 set -e
 
+# ── 0. This hook must match the committed source ─────────────────────────
+# Same drift check as pre-commit, and arguably more important here: this is the
+# gate carrying lint, the full suite and data:check, so a stale copy of *this*
+# file is the more expensive silence. Compared against the working tree, not
+# HEAD — see the note in pre-commit for why.
+hook_self="$(git rev-parse --git-path hooks/pre-push)"
+hook_source="NewVersion/.husky/pre-push"
+if [ -f "$hook_source" ]; then
+  if [ "$(git hash-object "$hook_self")" != "$(git hash-object "$hook_source")" ]; then
+    echo "pre-push: the installed hook does not match $hook_source."
+    echo "          Refusing to run a stale gate — reinstall with:"
+    echo "            cd NewVersion && npm run prepare"
+    exit 1
+  fi
+fi
+
 cd NewVersion
 npm run lint
 npm test

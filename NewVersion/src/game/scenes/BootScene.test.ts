@@ -18,13 +18,15 @@
  * ── What this does NOT cover, stated rather than implied ─────────────────
  *  - That Phaser calls `create()` at all, or that `scene.start(Preload)`
  *    actually transitions in a live game. Both are Phaser's contract.
- *  - The `void this.boot()` fire-and-forget shape. A future edit adding
- *    `await` before it would still pass here, because these tests await the
- *    microtask queue themselves. That is the one part of the invariant still
- *    held by the comment, and it is why the comment stays.
  *  - `getViewportController` returning a real controller; it is null here.
+ *
+ * The `void this.boot()` shape **is** covered, by two independent means: the
+ * behavioural `create()` returns undefined check below, and the source checks
+ * at the foot of this file. An earlier draft of this header claimed it was not,
+ * which was wrong — turning `create()` into `async` fails three of these.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import Phaser from 'phaser';
 import { BootScene } from './BootScene';
 import { GameEvents } from '../events/GameEvents';
@@ -157,6 +159,55 @@ describe('the stages the loading screen reads', () => {
     // The error screen and the diagnostics panel both key off this; swallowing
     // it on failure would leave the loading screen mid-sentence.
     expect(fontsReady).toBe(1);
+  });
+});
+
+/**
+ * The one claim that really is about source shape.
+ *
+ * "Do not add a bare `await` to this method" cannot be observed behaviourally:
+ * the tests above drive the microtask queue themselves, so an `await` before
+ * `this.boot()` would still let them pass while making `create()` return a
+ * promise Phaser does not await — the exact stranding this scene guards against.
+ *
+ * A source check is the correct instrument here rather than a weak substitute
+ * for one. Elsewhere in this repo source-shape tests stand in for behaviour they
+ * cannot see, and `docs/AUDIT-2026-07.md` records that as a known limit. This is
+ * the inverse: the claim is *about* the source, so matching on the source is
+ * exactly as strong as the claim.
+ */
+describe('create() must not await boot()', () => {
+  const source = readFileSync('src/game/scenes/BootScene.ts', 'utf8');
+
+  function createBody(): string {
+    const start = source.indexOf('  create(): void {');
+    expect(start, 'create() not found — has it been renamed?').toBeGreaterThan(-1);
+    const end = source.indexOf('\n  private ', start);
+    expect(end).toBeGreaterThan(start);
+    return source.slice(start, end);
+  }
+
+  it('calls boot() with an explicit void, not await', () => {
+    const body = createBody();
+    expect(body).toContain('void this.boot()');
+    expect(body).not.toMatch(/await\s+this\.boot\(\)/);
+  });
+
+  it('declares create() as returning void, so a promise cannot leak', () => {
+    // `create(): void` makes `await this.boot()` a compile error too, which is
+    // the stronger half of this guard — the test is the readable half.
+    expect(source).toContain('create(): void {');
+    expect(source).not.toMatch(/async\s+create\s*\(/);
+  });
+
+  it('keeps the handoff inside a finally', () => {
+    // The behavioural tests above cover what this produces; this names the
+    // construct so a refactor that scatters the handoff into both branches is
+    // visible in review rather than only when a font subsystem misbehaves.
+    const boot = source.slice(source.indexOf('  private async boot('));
+    expect(boot).toContain('} finally {');
+    const finallyAt = boot.indexOf('} finally {');
+    expect(boot.indexOf('this.scene.start(SceneKeys.Preload)')).toBeGreaterThan(finallyAt);
   });
 });
 
