@@ -12,7 +12,7 @@ import { getPlayerProfile } from '../player/playerProfile';
 import { getCurrentWorldAndLevel } from '../levels/levelProgress';
 import { GameEvents } from '../events/GameEvents';
 import { runAudioSelfTest } from '../audio/audioSelfTest';
-import { getSoundManager } from '../audio/soundService';
+import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 
 /** Matches LevelSelect's pinned world until the world picker is ported. */
@@ -81,6 +81,13 @@ export class MainMenuScene extends Phaser.Scene {
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.MainMenu) this.scene.start(key);
     });
+    // Every scene that can show the toggles must own this subscription: while
+    // one scene is active the others are torn down, so a single listener on
+    // MainMenu would leave the in-game toggle dead. Same class as the
+    // Next-level freeze — see uiEventListeners.test.ts.
+    const offAudio = GameEvents.subscribe('ui:set-audio', (change) => {
+      setAudioOption(this, change);
+    });
     const offSelfTest = GameEvents.subscribe('ui:run-audio-selftest', () => {
       this.selfTestRan = false;
       void this.runSelfTestOnce();
@@ -91,11 +98,13 @@ export class MainMenuScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offStart();
       offGoto();
+      offAudio();
       offSelfTest();
       GameEvents.off('viewport:changed', onResize);
       GameEvents.emit('scene:shutdown', { key: SceneKeys.MainMenu });
     });
 
+    publishAudioOptions(this);
     GameEvents.emit('scene:ready', { key: SceneKeys.MainMenu });
   }
 

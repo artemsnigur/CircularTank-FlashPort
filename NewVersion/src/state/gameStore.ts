@@ -115,6 +115,8 @@ export interface GameState {
   /* Diagnostics */
   viewport: ViewportSnapshot | null;
   safeArea: SafeAreaInsets;
+  /** Sound/music preferences, mirrored from SoundManager for the HUD toggles. */
+  audioOptions: { soundOn: boolean; musicOn: boolean };
   fonts: FontReport[];
   audioReport: AudioSelfTestReport | null;
   fps: number;
@@ -145,6 +147,7 @@ export interface GameState {
   dismissAchievement: (id: string) => void;
   setViewport: (viewport: ViewportSnapshot) => void;
   setSafeArea: (insets: SafeAreaInsets) => void;
+  setAudioOptions: (options: { soundOn: boolean; musicOn: boolean }) => void;
   setFonts: (fonts: FontReport[]) => void;
   setAudioReport: (report: AudioSelfTestReport | null) => void;
   setFps: (fps: number) => void;
@@ -181,6 +184,7 @@ export const useGameStore = create<GameState>()((set) => ({
 
   viewport: null,
   safeArea: NO_INSETS,
+  audioOptions: { soundOn: true, musicOn: true },
   fonts: [],
   audioReport: null,
   fps: 0,
@@ -223,6 +227,7 @@ export const useGameStore = create<GameState>()((set) => ({
 
   setViewport: (viewport) => set({ viewport }),
   setSafeArea: (safeArea) => set({ safeArea }),
+  setAudioOptions: (audioOptions) => set({ audioOptions }),
   setFonts: (fonts) => set({ fonts }),
   setAudioReport: (audioReport) => set({ audioReport }),
   setFps: (fps) => set({ fps }),

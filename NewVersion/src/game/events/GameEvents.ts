@@ -212,6 +212,13 @@ export interface GameEventMap {
     }>;
   };
   'ui:goto': { key: SceneKey };
+  /**
+   * Flip sound or music on/off. Persisted to CircularTankOptions, the AS3's
+   * own options SharedObject — see audio/audioOptions.ts.
+   */
+  'ui:set-audio': { soundOn?: boolean; musicOn?: boolean };
+  /** The current preferences, so React can render the toggles. */
+  'audio:options': { soundOn: boolean; musicOn: boolean };
   'ui:run-audio-selftest': Record<string, never>;
   'ui:safe-area-changed': { top: number; right: number; bottom: number; left: number };
 }

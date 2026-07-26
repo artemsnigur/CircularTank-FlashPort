@@ -7,6 +7,7 @@
  * that inside a canvas is work with no payoff. See docs/TEXT_RENDERING.md.
  */
 import { useGameStore } from '../../state/gameStore';
+import { AudioToggles } from '../AudioToggles';
 import { GameEvents } from '../../game/events/GameEvents';
 import { DEV_COMBINED_LEVEL, DEV_WORLD } from '../../game/levels/devLevels';
 
@@ -78,6 +79,7 @@ export function MainMenuScreen(): React.ReactElement | null {
             Dev: all-enemy test level
           </button>
         )}
+        <AudioToggles />
         <button
           type="button"
           className="menu__button"

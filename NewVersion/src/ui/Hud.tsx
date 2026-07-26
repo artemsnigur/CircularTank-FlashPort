@@ -11,6 +11,7 @@
  */
 import { useEffect } from 'react';
 import { useGameStore } from '../state/gameStore';
+import { AudioToggles } from './AudioToggles';
 import { GameEvents } from '../game/events/GameEvents';
 import { formatNumber } from '../game/core/Functions';
 
@@ -228,6 +229,10 @@ export function Hud(): React.ReactElement | null {
       <div className="hud__row hud__row--bottom">
         <HealthBar />
         <AmmoReadout />
+        {/* PartInterface.as carries bToggleSound in the in-game HUD, not only
+            on an options screen — music you cannot silence mid-level is the
+            case a toggle exists for. */}
+        <AudioToggles />
         <button
           type="button"
           className="hud__button"

@@ -21,7 +21,7 @@ import { PlayerTank } from '../entities/PlayerTank';
 import type { PlayerInput } from '../entities/PlayerTank';
 import { Pickup } from '../entities/Pickup';
 import { Enemy } from '../entities/Enemy';
-import { getSoundManager } from '../audio/soundService';
+import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { getLevel } from '../levels/levelData';
 import type { LevelSpec } from '../levels/levelData';
 import {
@@ -411,6 +411,13 @@ export class GameplayScene extends Phaser.Scene {
 
     this.startWave();
 
+    // `ScreenGame.as:378` — `SoundManager.changeMusic = ScreenLevelSelect.levelMode`.
+    // A direct assignment with no lookup table, because the five level-mode
+    // track names *are* the five LevelMode values. Five of the eight tracks
+    // (Normal, Flag, Tower, Defense, Boss) had no call site at all before this,
+    // so only Menu, Win and Lose were ever requested.
+    if (this.levelSpec) getSoundManager(this)?.setMusic(this.levelSpec.mode);
+
     this.setupCamera();
     this.setupInput();
     this.setupHud();
@@ -454,6 +461,9 @@ export class GameplayScene extends Phaser.Scene {
         // reach level N+1 either.
         this.scene.restart({ world, level, sandbox: sandbox ?? this.sandbox, equipped: equipped ?? this.equipped });
       }),
+      GameEvents.subscribe('ui:set-audio', (change) => {
+        setAudioOption(this, change);
+      }),
       GameEvents.subscribe('ui:pause', ({ paused }) => {
         if (paused) this.scene.pause();
         else this.scene.resume();
@@ -471,6 +481,7 @@ export class GameplayScene extends Phaser.Scene {
       GameEvents.emit('scene:shutdown', { key: SceneKeys.Gameplay });
     });
 
+    publishAudioOptions(this);
     GameEvents.emit('scene:ready', { key: SceneKeys.Gameplay });
     // The player's actual balance, not zero. Emitting a hardcoded 0 here made
     // the HUD show 0 on every level start until the first coin corrected it,

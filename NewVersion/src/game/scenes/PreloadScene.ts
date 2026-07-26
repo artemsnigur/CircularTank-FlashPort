@@ -78,8 +78,20 @@ export class PreloadScene extends Phaser.Scene {
       this.load.svg(asset.key, asset.url, { width: asset.width, height: asset.height });
     }
 
+    // Loaded under BOTH the sample key and the canonical `snd:` key.
+    //
+    // The sample key is what the audio self-test reports against. The canonical
+    // key is what SoundManager asks the cache for. They used to be the only key
+    // each, which meant `112_MusicMenu.mp3` sat decoded in the cache under
+    // `music-menu` while the manager looked for `snd:112_MusicMenu.mp3` and
+    // found nothing — two naming schemes for one file in one cache.
+    //
+    // Phaser dedupes by key, so the two SFX here (already in the SFX preload
+    // below) cost one extra cache entry and no extra fetch. Menu music is the
+    // one track worth having eagerly: it is wanted within a second of boot.
     for (const asset of SAMPLE_AUDIO) {
       this.load.audio(asset.key, asset.url);
+      this.load.audio(audioKeyFor(asset.file), asset.url);
     }
 
     // Every SFX up front: 105 one-shots plus the 2 continuous loops total

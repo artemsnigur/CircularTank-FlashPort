@@ -214,11 +214,20 @@ export class SoundManager {
 
   /* ── Per-frame driver ──────────────────────────────────────────────────── */
 
-  /** SoundManager.update() — same four steps, same order. */
+  /**
+   * SoundManager.update() — the same four steps, in the same order.
+   *
+   * `applyVolumes` was missing for the whole of the port's life while this
+   * docstring claimed four steps and the body made three calls. Nothing outside
+   * a test ever called it, so `musicVol`, `musicOn` and the crossfade's own
+   * tween var were computed every frame and never reached a sound. Any mute
+   * control built before this would have flipped a flag and changed nothing.
+   */
   update(deltaMs: number): void {
     this.playSounds();
     this.handleMusicChange(deltaMs);
     this.handleLoops(deltaMs);
+    this.applyVolumes();
   }
 
   /** SoundManager.playSounds() */
