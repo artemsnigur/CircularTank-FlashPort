@@ -24,7 +24,9 @@ import { readFileSync } from 'node:fs';
 import { LEVELS, WORLD_COUNT, getLevel, levelsInWorld } from './levelData';
 import {
   LEVEL_SIZE_OVERRIDES,
+  MODE_SIZE_OVERRIDES,
   OVERRIDDEN_MODES,
+  findModeOverride,
   findSizeOverride,
 } from './levelSizeOverrides';
 
@@ -163,7 +165,7 @@ describe('deliberate room-size divergences', () => {
           wrong.push(`${world}-${level}: getLevel returned nothing`);
           return;
         }
-        const override = findSizeOverride(world, level);
+        const override = findSizeOverride(world, level) ?? findModeOverride(played.mode);
 
         if (!override) {
           if (played.roomWidth !== row.width || played.roomHeight !== row.height) {
@@ -288,15 +290,74 @@ describe('deliberate room-size divergences', () => {
     expect(standard.length + alreadyCorrect.length).toBe(18);
   });
 
-  it('leaves Tower, Boss and Defense at their extracted sizes', () => {
+  it('leaves Boss and Defense at their extracted sizes', () => {
+    // Tower was in this list until it got a mode rule of its own. Boss and
+    // Defense still are: Defense's 640x960 lane is load-bearing for a mode
+    // that is not ported yet, so sizing it now would be guessing.
     LEVELS[0].forEach((spec, index) => {
       if (OVERRIDDEN_MODES.includes(spec.mode)) return;
+      if (findModeOverride(spec.mode)) return;
       const played = getLevel(1, index + 1)!;
       expect(
         [played.roomWidth, played.roomHeight],
         `1-${index + 1} (${spec.mode}) must not be standardised`,
       ).toEqual([spec.roomWidth, spec.roomHeight]);
     });
+  });
+
+  it('Defense is deliberately not widened', () => {
+    // It has the same margin problem, and is deliberately out of scope: only
+    // spawn-wall pinning and a spawn-interval variant are ported, so the
+    // defended line and the shields that the 640x960 lane exists for do not
+    // exist yet.
+    expect(findModeOverride('Defense')).toBeUndefined();
+    const defense = LEVELS[0].findIndex((l) => l.mode === 'Defense');
+    expect(getLevel(1, defense + 1)).toMatchObject({ roomWidth: 640, roomHeight: 960 });
+  });
+
+  it('applies the Tower rule to all 90 Tower levels', () => {
+    const rule = findModeOverride('Tower')!;
+    expect(rule.to).toEqual([800, 800]);
+
+    let towers = 0;
+    for (const world of WORLDS) {
+      const rows = parseWorld(world);
+      LEVELS[world - 1].forEach((spec, index) => {
+        if (spec.mode !== 'Tower') return;
+        towers += 1;
+
+        // The premise the rule rests on, checked against the AS3 itself: every
+        // Tower level really is the size the rule claims to replace. Ninety
+        // explicit rows would state this ninety times; this states it once and
+        // proves it holds for all of them.
+        const row = rows[index];
+        expect([row.width, row.height], `${world}-${index + 1} source`).toEqual([...rule.from]);
+
+        const played = getLevel(world, index + 1)!;
+        expect([played.roomWidth, played.roomHeight], `${world}-${index + 1} played`).toEqual([
+          800, 800,
+        ]);
+      });
+    }
+    expect(towers).toBe(90);
+  });
+
+  it('keeps Tower square, which is what the size was chosen for', () => {
+    // 800x600 would have filled the screen equally well and made the orbit
+    // elliptical: side walls 400 units out against 300 for top and bottom.
+    // If this ever stops being square, that asymmetry is back.
+    const rule = findModeOverride('Tower')!;
+    expect(rule.to[0]).toBe(rule.to[1]);
+    expect(rule.from[0]).toBe(rule.from[1]);
+  });
+
+  it('has one mode rule, and it does not overlap the per-level scope', () => {
+    // Tower is not in OVERRIDDEN_MODES, so the two mechanisms cannot both
+    // claim a level and disagree about it.
+    expect(MODE_SIZE_OVERRIDES.map((o) => o.mode)).toEqual(['Tower']);
+    for (const o of MODE_SIZE_OVERRIDES) {
+      expect(OVERRIDDEN_MODES).not.toContain(o.mode);
+    }
   });
 
   it('changes exactly twelve levels', () => {

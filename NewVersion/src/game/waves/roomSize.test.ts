@@ -51,10 +51,12 @@ describe('the level table describes five room sizes, not one', () => {
     // 1-1 plays at 640x400 or 1-2 at 900x720 — neither does, by decision.
     expect(getLevel(1, 1)).toMatchObject({ roomWidth: 800, roomHeight: 600 });
     expect(getLevel(1, 2)).toMatchObject({ roomWidth: 800, roomHeight: 600 });
-    // A Tower level in the same world is untouched.
-    expect(getLevel(1, 7)).toMatchObject({
-      roomWidth: LEVELS[0][6].roomWidth,
-      roomHeight: LEVELS[0][6].roomHeight,
+    // A Boss level in the same world is untouched. Tower is no longer an
+    // example of that: it has its own mode-wide widening to 800x800.
+    const boss = LEVELS[0].findIndex((l) => l.mode === 'Boss');
+    expect(getLevel(1, boss + 1)).toMatchObject({
+      roomWidth: LEVELS[0][boss].roomWidth,
+      roomHeight: LEVELS[0][boss].roomHeight,
     });
   });
 

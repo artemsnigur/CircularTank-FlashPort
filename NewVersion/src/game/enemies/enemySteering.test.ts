@@ -238,8 +238,11 @@ describe('clampToRoom', () => {
  * reproducing itself proves nothing.
  */
 describe('tower steering', () => {
-  const ROOM = 640;
-  const centre = { x: 320, y: 320 };
+  // The real Tower arena: 640x640 in the source, widened to 800x800 by the
+  // mode rule in levelSizeOverrides. Kept square so every wall is the same
+  // distance from the tank and the orbit stays circular.
+  const ROOM = 800;
+  const centre = { x: 400, y: 400 };
   const at = (x: number, y: number): SteeringState => ({ x, y, rotation: 0, xVel: 0, yVel: 0 });
 
   /** How far the Tower heading sits from pointing straight at the target. */
@@ -248,26 +251,36 @@ describe('tower steering', () => {
     return Math.abs(shortestRotation(angleToTarget(state, centre), tower));
   }
 
-  it('aims 79 degrees off the target at spawn distance — it circles', () => {
-    // At a wall of a 640 room, 300 units out, with moveSpeedMax 1.5.
-    // The offset is `85 - lead - moveSpeedMax` where lead is 4.38 here, so the
-    // enemy travels almost perpendicular to the tank rather than at it.
-    expect(offsetFromDirect(at(320, 20), 1.5)).toBeCloseTo(79.12, 2);
+  it('aims 79.5 degrees off the target at spawn distance — it circles', () => {
+    // At the middle of a wall, 400 units out, with moveSpeedMax 1.5. The
+    // offset is `85 - lead - moveSpeedMax`, so the enemy travels almost
+    // perpendicular to the tank rather than at it.
+    expect(offsetFromDirect(at(400, 0), 1.5)).toBeCloseTo(79.55, 2);
+  });
+
+  it('every wall is the same distance out, so the orbit is circular', () => {
+    // The reason the arena is square. At 800x600 the side walls would be 400
+    // units out and the top and bottom 300, and the four entry points would
+    // spiral differently — a 1.61 degree spread instead of none.
+    const speed = 1.5;
+    const walls = [at(400, 0), at(0, 400), at(400, 800), at(800, 400)];
+    const offsets = walls.map((w) => offsetFromDirect(w, speed));
+    for (const o of offsets) expect(o).toBeCloseTo(offsets[0], 10);
   });
 
   it('turns inward as it closes, but gradually', () => {
-    // 79.1 at 300 units, 71.0 at 40. The bend is real but modest until very
+    // 79.6 at 400 units, 70.3 at 40. The bend is real but modest until very
     // close — worth pinning as figures, because "turns inward" alone would be
     // satisfied by a tenth of a degree and the mode would look wrong.
     const speed = 1.5;
-    expect(offsetFromDirect(at(320, 20), speed)).toBeCloseTo(79.12, 2);
-    expect(offsetFromDirect(at(320, 280), speed)).toBeCloseTo(70.97, 2);
+    expect(offsetFromDirect(at(400, 0), speed)).toBeCloseTo(79.55, 2);
+    expect(offsetFromDirect(at(400, 360), speed)).toBeCloseTo(70.28, 2);
   });
 
   it('bends inward monotonically', () => {
     const speed = 1.5;
-    const offsets = [300, 240, 180, 120, 60, 20, 5].map((d) =>
-      offsetFromDirect(at(320, 320 - d), speed),
+    const offsets = [400, 300, 240, 180, 120, 60, 20, 5].map((d) =>
+      offsetFromDirect(at(400, 400 - d), speed),
     );
     for (let i = 1; i < offsets.length; i += 1) {
       expect(offsets[i], `step ${i}`).toBeLessThan(offsets[i - 1]);
@@ -277,11 +290,9 @@ describe('tower steering', () => {
   it('never aims straight at the target, even touching it', () => {
     // The property that makes Tower read as rings: there is no distance at
     // which an enemy simply charges. At zero distance the lead term is at its
-    // maximum, and the eighth root keeps it well short of a head-on charge:
-    // 60.4 degrees at one unit away.
-    expect(offsetFromDirect(at(320, 319), 1.5)).toBeCloseTo(60.45, 2);
-    for (const d of [1, 20, 60, 120, 240, 300]) {
-      const offset = offsetFromDirect(at(320, 320 - d), 1.5);
+    // maximum, and the eighth root keeps it well short of a head-on charge.
+    for (const d of [1, 20, 60, 120, 240, 400]) {
+      const offset = offsetFromDirect(at(400, 400 - d), 1.5);
       expect(offset, `distance ${d}`).toBeGreaterThan(55);
     }
   });
@@ -289,9 +300,9 @@ describe('tower steering', () => {
   it('matches the spawn-frame heading, which is computed separately', () => {
     // resolveSpawn computes the same angle for the spawn frame. If these ever
     // disagree an enemy would visibly jerk on its first update.
-    const state = at(160, 0);
+    const state = at(200, 0);
     const spawned = resolveSpawn(
-      { roomWidth: ROOM, roomHeight: ROOM, x: 160, y: 0, wall: 1, width: 0, height: 0 },
+      { roomWidth: ROOM, roomHeight: ROOM, x: 200, y: 0, wall: 1, width: 0, height: 0 },
       { mode: 'Tower', target: centre, moveSpeedMax: 1.5, enemyType: 'Basic' },
     );
     expect(towerAngleToTarget(state, centre, 1.5, ROOM)).toBeCloseTo(spawned.rotation, 6);

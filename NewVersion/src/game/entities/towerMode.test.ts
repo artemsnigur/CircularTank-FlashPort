@@ -148,9 +148,12 @@ describe('the tower ramp resets on reuse, not just on construction', () => {
  * from that resolve the way the mechanic needs.
  */
 describe('level 1-7 actually reaches the Tower paths', () => {
-  it('resolves as a Tower level at 640x640', () => {
+  it('resolves as a Tower level at the widened 800x800', () => {
+    // 640x640 in the source; widened by the mode rule in levelSizeOverrides so
+    // the arena fills the viewport, and kept square so the orbit stays
+    // circular.
     const spec = getLevel(1, 7);
-    expect(spec).toMatchObject({ mode: 'Tower', roomWidth: 640, roomHeight: 640 });
+    expect(spec).toMatchObject({ mode: 'Tower', roomWidth: 800, roomHeight: 800 });
   });
 
   it('the drive predicate immobilises it', () => {

@@ -26,7 +26,7 @@
  * way out, which means what the game plays is what the test checks.
  */
 
-import type { LevelSpec } from './levelData';
+import type { LevelMode, LevelSpec } from './levelData';
 
 /**
  * Why a level diverges.
@@ -106,7 +106,64 @@ export const LEVEL_SIZE_OVERRIDES: readonly LevelSizeOverride[] = [
   { world: 1, level: 43, from: [900, 720], to: WORLD_1_STANDARD_ROOM, reason: 'standard' },
 ];
 
-/** The modes this divergence is scoped to. Asserted by the tests. */
+/** The size every Tower arena plays at. Square, deliberately — see below. */
+export const TOWER_ROOM: readonly [number, number] = [800, 800];
+
+export interface ModeSizeOverride {
+  mode: LevelMode;
+  /** The size the AS3 specifies for **every** level of this mode. Asserted. */
+  from: readonly [number, number];
+  to: readonly [number, number];
+  reason: OverrideReason;
+  note?: string;
+}
+
+/**
+ * Divergences that apply to a whole mode rather than named levels.
+ *
+ * Tower is 90 levels and the AS3 gives every one of them the same 640x640
+ * room, so ninety near-identical rows would state one fact ninety times. The
+ * guarantee is kept instead by asserting the *premise*: a test checks all 90
+ * Tower rows in `ScreenGame.as` really are 640x640, so a rule that stopped
+ * being uniformly true would fail rather than silently apply to a level it was
+ * never meant for.
+ *
+ * ── Why 800x800 and not 800x600 ──────────────────────────────────────────
+ * A 640-wide room is narrower than the view on every aspect except 16:10 —
+ * 711 design units on 16:9, 956 on 21:9 — so it cannot fill the screen and
+ * left visible margin either side. Matching the world-1 standard of 800x600
+ * would have fixed that, but Tower's room is the only *square* one in the game
+ * and squareness is load-bearing: the spawn bands are quarters of each wall, so
+ * in a square room every wall sits the same distance from the tank and the
+ * orbit is circular. At 800x600 the side walls would be 400 units out and the
+ * top and bottom 300 — a 33% difference — and the orbit would read as an
+ * ellipse, with side entrants taking visibly longer to arrive.
+ *
+ * 800x800 fills exactly as well as 800x600 (both exceed the 711-unit view on
+ * 16:9 and both leave 78 units per side on 21:9) and keeps every wall
+ * equidistant. The width was the problem; the height never was.
+ *
+ * The spiral does shift, because `towerAngleToTarget` divides by
+ * `roomWidth + 100`: enemies now approach ~0.6 degrees flatter. That is
+ * accepted, and it is uniform across all four walls rather than different per
+ * wall, which is what the square keeps.
+ */
+export const MODE_SIZE_OVERRIDES: readonly ModeSizeOverride[] = [
+  {
+    mode: 'Tower',
+    from: [640, 640],
+    to: TOWER_ROOM,
+    reason: 'standard',
+    note: 'square arena widened so it fills the viewport without margin',
+  },
+];
+
+/** The mode-wide override for a mode, or undefined. */
+export function findModeOverride(mode: LevelMode): ModeSizeOverride | undefined {
+  return MODE_SIZE_OVERRIDES.find((o) => o.mode === mode);
+}
+
+/** The modes the per-level divergence is scoped to. Asserted by the tests. */
 export const OVERRIDDEN_MODES: readonly string[] = ['Normal', 'Flag'];
 
 /** The override for a level, or undefined when it plays as extracted. */
@@ -129,7 +186,9 @@ export function applySizeOverride(
   world: number,
   level: number,
 ): LevelSpec {
-  const override = findSizeOverride(world, level);
+  // A per-level entry wins over a mode-wide one, so a single level can always
+  // be excepted from its mode's rule without unpicking the rule.
+  const override = findSizeOverride(world, level) ?? findModeOverride(spec.mode);
   if (!override) return spec;
   return { ...spec, roomWidth: override.to[0], roomHeight: override.to[1] };
 }
