@@ -107,6 +107,17 @@ export interface Rect {
   height: number;
 }
 
+/** Which side of the arena a margin strip sits on. */
+export type MarginEdge = 'left' | 'right' | 'top' | 'bottom';
+
+export interface MarginRect extends Rect {
+  edge: MarginEdge;
+}
+
+export interface GradientBand extends Rect {
+  alpha: number;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
@@ -280,12 +291,6 @@ export function centredCameraBounds(
   };
 }
 
-export interface Rect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
 
 /**
  * The parts of the camera's bounds that lie outside the playable room.
@@ -306,22 +311,83 @@ export function outOfBoundsRects(
   bounds: CameraBounds,
   roomWidth: number,
   roomHeight: number,
-): Rect[] {
+): MarginRect[] {
   const right = bounds.x + bounds.width;
   const bottom = bounds.y + bounds.height;
-  const rects: Rect[] = [];
+  const rects: MarginRect[] = [];
 
   // Full-height side strips, then top and bottom limited to the room's width so
   // the corners are covered exactly once. Overlapping them would double the
   // dimming at the corners and show as four darker squares.
-  if (bounds.x < 0) rects.push({ x: bounds.x, y: bounds.y, width: -bounds.x, height: bounds.height });
-  if (right > roomWidth) {
-    rects.push({ x: roomWidth, y: bounds.y, width: right - roomWidth, height: bounds.height });
+  if (bounds.x < 0) {
+    rects.push({ x: bounds.x, y: bounds.y, width: -bounds.x, height: bounds.height, edge: 'left' });
   }
-  if (bounds.y < 0) rects.push({ x: 0, y: bounds.y, width: roomWidth, height: -bounds.y });
+  if (right > roomWidth) {
+    rects.push({
+      x: roomWidth,
+      y: bounds.y,
+      width: right - roomWidth,
+      height: bounds.height,
+      edge: 'right',
+    });
+  }
+  if (bounds.y < 0) {
+    rects.push({ x: 0, y: bounds.y, width: roomWidth, height: -bounds.y, edge: 'top' });
+  }
   if (bottom > roomHeight) {
-    rects.push({ x: 0, y: roomHeight, width: roomWidth, height: bottom - roomHeight });
+    rects.push({
+      x: 0,
+      y: roomHeight,
+      width: roomWidth,
+      height: bottom - roomHeight,
+      edge: 'bottom',
+    });
   }
 
   return rects;
+}
+
+/**
+ * A margin strip as a stack of bands whose opacity grows away from the arena.
+ *
+ * The first version of the margin was one flat 45% rectangle, and it looked
+ * like a bar with a hard line down it — the line reads as a wall the player
+ * cannot see past, which is the wrong impression when the ground continues.
+ * Fading from nothing at the arena edge to `maxAlpha` at the screen edge reads
+ * as distance instead.
+ *
+ * Phaser's Graphics has no gradient fill, so this is `steps` slices with
+ * increasing alpha. Alpha is sampled at each band's **centre**, so the fade is
+ * symmetric and no band is fully transparent or fully opaque — a first band at
+ * alpha 0 would waste a draw call and a last band at `maxAlpha` would put a
+ * hard edge back at the screen boundary.
+ */
+export function marginGradientBands(
+  rect: MarginRect,
+  steps: number,
+  maxAlpha: number,
+): GradientBand[] {
+  if (steps < 1) return [];
+
+  const horizontal = rect.edge === 'left' || rect.edge === 'right';
+  const span = horizontal ? rect.width : rect.height;
+  const slice = span / steps;
+
+  return Array.from({ length: steps }, (_, i) => {
+    // Fraction of the way from the arena edge to the screen edge, at the
+    // band's centre.
+    const fromArena = (i + 0.5) / steps;
+    // `left` and `top` strips run *toward* the arena, so their first slice is
+    // the far one.
+    const reversed = rect.edge === 'left' || rect.edge === 'top';
+    const t = reversed ? 1 - fromArena : fromArena;
+
+    return {
+      x: horizontal ? rect.x + i * slice : rect.x,
+      y: horizontal ? rect.y : rect.y + i * slice,
+      width: horizontal ? slice : rect.width,
+      height: horizontal ? rect.height : slice,
+      alpha: maxAlpha * t,
+    };
+  });
 }

@@ -9,6 +9,7 @@ import {
   roomFillZoom,
   centredCameraBounds,
   outOfBoundsRects,
+  marginGradientBands,
 } from './viewport';
 
 /** A few real devices, in CSS pixels. */
@@ -281,8 +282,8 @@ describe('outOfBoundsRects', () => {
     const rects = outOfBoundsRects(b, 640, 640);
 
     expect(rects).toHaveLength(2);
-    expect(rects[0]).toEqual({ x: -35.5, y: 0, width: 35.5, height: 640 });
-    expect(rects[1]).toEqual({ x: 640, y: 0, width: 35.5, height: 640 });
+    expect(rects[0]).toEqual({ x: -35.5, y: 0, width: 35.5, height: 640, edge: 'left' });
+    expect(rects[1]).toEqual({ x: 640, y: 0, width: 35.5, height: 640, edge: 'right' });
   });
 
   it('covers the whole margin and nothing inside the arena', () => {
@@ -325,7 +326,69 @@ describe('outOfBoundsRects', () => {
     const rects = outOfBoundsRects(b, 640, 300);
 
     expect(rects).toHaveLength(2);
-    expect(rects[0]).toEqual({ x: 0, y: -50, width: 640, height: 50 });
-    expect(rects[1]).toEqual({ x: 0, y: 300, width: 640, height: 50 });
+    expect(rects[0]).toEqual({ x: 0, y: -50, width: 640, height: 50, edge: 'top' });
+    expect(rects[1]).toEqual({ x: 0, y: 300, width: 640, height: 50, edge: 'bottom' });
+  });
+});
+
+describe('marginGradientBands', () => {
+  const strip = (edge: 'left' | 'right' | 'top' | 'bottom') =>
+    edge === 'left'
+      ? { x: -40, y: 0, width: 40, height: 640, edge }
+      : edge === 'right'
+        ? { x: 640, y: 0, width: 40, height: 640, edge }
+        : edge === 'top'
+          ? { x: 0, y: -40, width: 640, height: 40, edge }
+          : { x: 0, y: 640, width: 640, height: 40, edge };
+
+  it('covers the strip exactly, with no gaps or overlap', () => {
+    const bands = marginGradientBands(strip('right'), 24, 0.55);
+    expect(bands).toHaveLength(24);
+    expect(bands[0].x).toBe(640);
+    const last = bands[23];
+    expect(last.x + last.width).toBeCloseTo(680, 6);
+    expect(bands.reduce((sum, b) => sum + b.width, 0)).toBeCloseTo(40, 6);
+  });
+
+  it('is transparent against the arena and darkest at the screen edge', () => {
+    // The whole point of the change: a flat fill put a hard line at the arena
+    // boundary, which read as a wall. Nearest the arena must be lightest.
+    for (const edge of ['left', 'right', 'top', 'bottom'] as const) {
+      const bands = marginGradientBands(strip(edge), 8, 0.55);
+      const nearArena = edge === 'left' || edge === 'top' ? bands[7] : bands[0];
+      const nearScreen = edge === 'left' || edge === 'top' ? bands[0] : bands[7];
+
+      expect(nearArena.alpha, `${edge} near arena`).toBeLessThan(nearScreen.alpha);
+      expect(nearArena.alpha, `${edge} near arena`).toBeLessThan(0.1);
+    }
+  });
+
+  it('never reaches 0 or the peak, so neither edge is hard', () => {
+    // Sampled at band centres. A band at exactly 0 would be a wasted draw and
+    // one at the peak would put a hard edge back at the screen boundary.
+    const bands = marginGradientBands(strip('right'), 24, 0.55);
+    for (const b of bands) {
+      expect(b.alpha).toBeGreaterThan(0);
+      expect(b.alpha).toBeLessThan(0.55);
+    }
+  });
+
+  it('increases monotonically away from the arena', () => {
+    const bands = marginGradientBands(strip('right'), 24, 0.55);
+    for (let i = 1; i < bands.length; i += 1) {
+      expect(bands[i].alpha).toBeGreaterThan(bands[i - 1].alpha);
+    }
+  });
+
+  it('slices the correct axis', () => {
+    const horizontal = marginGradientBands(strip('right'), 4, 0.55);
+    expect(horizontal.every((b) => b.height === 640)).toBe(true);
+
+    const vertical = marginGradientBands(strip('bottom'), 4, 0.55);
+    expect(vertical.every((b) => b.width === 640)).toBe(true);
+  });
+
+  it('returns nothing for a nonsensical step count', () => {
+    expect(marginGradientBands(strip('left'), 0, 0.55)).toEqual([]);
   });
 });

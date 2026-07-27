@@ -111,7 +111,12 @@ import {
 } from '../player/tankDamage';
 import { bankLevelOutcome } from '../player/levelBanking';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
-import { centredCameraBounds, outOfBoundsRects, roomFillZoom } from '../config/viewport';
+import {
+  centredCameraBounds,
+  marginGradientBands,
+  outOfBoundsRects,
+  roomFillZoom,
+} from '../config/viewport';
 
 /**
  * Used **only** when no level spec resolves.
@@ -126,12 +131,27 @@ import { centredCameraBounds, outOfBoundsRects, roomFillZoom } from '../config/v
 const FALLBACK_ROOM = { width: 640, height: 960 } as const;
 
 /**
- * How hard the unreachable margin is dimmed.
+ * Peak opacity of the margin fade, reached at the screen edge.
  *
- * Enough to read as "outside the arena" at a glance without hiding what is
- * there — the ground stays visible, it is simply in shadow.
+ * The first attempt was a flat 45% rectangle and it read as a bar with a hard
+ * line down it. A gradient to a slightly higher peak reads as distance rather
+ * than as a wall, because nothing is uniform and nothing has an edge.
  */
-const OUT_OF_BOUNDS_ALPHA = 0.45;
+const OUT_OF_BOUNDS_ALPHA = 0.55;
+
+/**
+ * Slices per margin strip.
+ *
+ * Phaser's Graphics has no gradient fill, so the fade is drawn as bands. 24 is
+ * past the point where banding is visible at these widths (35 design units on
+ * 16:9 is under 1.5 units per band) and is still only 24 fillRect calls on a
+ * layer that is redrawn on resize, not per frame.
+ */
+const OUT_OF_BOUNDS_BANDS = 24;
+
+/** Margin treatments, for judging them against each other in DEV. */
+const MARGIN_STYLES = ['gradient', 'none', 'flat'] as const;
+type MarginStyle = (typeof MARGIN_STYLES)[number];
 
 /**
  * Levels the room-fill zoom prototype is enabled on, as `world-level`.
@@ -200,6 +220,8 @@ export class GameplayScene extends Phaser.Scene {
   private groundOffset = { x: 0, y: 0 };
   /** Dimming over the padded margin — see `outOfBoundsRects`. */
   private outOfBounds!: Phaser.GameObjects.Graphics;
+  /** Which treatment the margin is drawn with. Cycled by G in DEV. */
+  private marginStyle: MarginStyle = 'gradient';
   private pickups!: Phaser.Physics.Arcade.Group;
   private hudText!: Phaser.GameObjects.Text;
   private crosshair!: Phaser.GameObjects.Image;
@@ -665,10 +687,27 @@ export class GameplayScene extends Phaser.Scene {
     this.groundOffset = { x: bounds.x, y: bounds.y };
     this.ground.setPosition(bounds.x, bounds.y).setSize(bounds.width, bounds.height);
 
+    this.drawMargin(bounds);
+  }
+
+  /** Redraws the margin treatment. Cheap, and only on resize or a style change. */
+  private drawMargin(bounds: { x: number; y: number; width: number; height: number }): void {
     this.outOfBounds.clear();
-    this.outOfBounds.fillStyle(0x000000, OUT_OF_BOUNDS_ALPHA);
-    for (const r of outOfBoundsRects(bounds, this.roomWidth, this.roomHeight)) {
-      this.outOfBounds.fillRect(r.x, r.y, r.width, r.height);
+    if (this.marginStyle === 'none') return;
+
+    const rects = outOfBoundsRects(bounds, this.roomWidth, this.roomHeight);
+
+    if (this.marginStyle === 'flat') {
+      this.outOfBounds.fillStyle(0x000000, OUT_OF_BOUNDS_ALPHA);
+      for (const r of rects) this.outOfBounds.fillRect(r.x, r.y, r.width, r.height);
+      return;
+    }
+
+    for (const rect of rects) {
+      for (const band of marginGradientBands(rect, OUT_OF_BOUNDS_BANDS, OUT_OF_BOUNDS_ALPHA)) {
+        this.outOfBounds.fillStyle(0x000000, band.alpha);
+        this.outOfBounds.fillRect(band.x, band.y, band.width, band.height);
+      }
     }
   }
 
@@ -719,6 +758,18 @@ export class GameplayScene extends Phaser.Scene {
     // slots on Shift/Q (ScreenGame.chooseWeapon); the equip screen that fills
     // those slots is not ported, so this cycles what exists instead.
     keyboard.on('keydown-Q', () => this.cycleWeapon());
+
+    if (import.meta.env.DEV) {
+      // Cycles the margin treatment in place, so the three can be judged
+      // against each other on one screen rather than by rebuilding between
+      // them. Remove with the other dev aids before release.
+      keyboard.on('keydown-G', () => {
+        const next = (MARGIN_STYLES.indexOf(this.marginStyle) + 1) % MARGIN_STYLES.length;
+        this.marginStyle = MARGIN_STYLES[next];
+        this.applyCameraBounds();
+        console.info(`[GameplayScene] margin style: ${this.marginStyle}`);
+      });
+    }
 
     if (import.meta.env.DEV) {
       // Dev-only: destroy the tank, so the defeat path is reachable at all.
