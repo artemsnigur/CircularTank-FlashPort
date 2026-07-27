@@ -1563,6 +1563,9 @@ export class GameplayScene extends Phaser.Scene {
         enemyRadius: enemy.radius,
         isBoss: enemy.enemyLevel === 'B',
       };
+      // `:5172` — a mid-teleport enemy is intangible, so it neither collides
+      // with the tank nor is pushed by anything.
+      if (!enemy.simulated) continue;
       if (!isTouchingTank(participants)) continue;
 
       const result = resolveContact(

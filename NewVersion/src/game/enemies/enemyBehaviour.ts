@@ -84,7 +84,6 @@ export const SPECIAL_MECHANICS: Record<string, string> = {
   // when the blink is near enough to see. That rect is the AS3's fixed 640x400
   // stage at the live scroll; see docs/AUDIT-2026-07.md on camera constants
   // before reusing the port's live viewport for it.
-  Teleporting: 'blinks across the arena',
   Trap: 'lays stationary hazards',
 };
 

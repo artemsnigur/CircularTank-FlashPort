@@ -5,7 +5,7 @@
      Source of every figure: src/game/enemies/ and src/game/weapons/firing.ts.
      See scripts/gen-enemy-reference.ts for why this is generated. -->
 
-Covers the **16 of 20** enemy types whose behaviour is built.
+Covers the **17 of 20** enemy types whose behaviour is built.
 Types still marked `data-only` are omitted deliberately: they spawn and steer,
 but nothing that distinguishes them is implemented, so an entry would describe
 intent rather than the game.
@@ -33,6 +33,7 @@ is not a world-1 Basic.
 - [Shooting](#shooting)
 - [Shrinking](#shrinking)
 - [Strong](#strong)
+- [Teleporting](#teleporting)
 - [Temperamental](#temperamental)
 - [Tiny](#tiny)
 
@@ -555,6 +556,42 @@ _Strong against explosions and bullets._
 | Max speed | 2 | 2 |
 | Acceleration | 0.3 | 0.1 |
 | Turn rate (deg/frame) | 1.5 | 1.5 |
+
+---
+
+### Teleporting
+
+_Loves to teleport <3._
+
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
+
+**Ranged:** none — contact damage only.
+
+**Counters**
+
+**Avoid** Laser Cannon. Also weak to Ice, which no primary deals — that is a secondary.
+
+| Channel | Effect | Primary weapons |
+| --- | --- | --- |
+| Ice | 1.5x **weak** | _no primary — secondaries only_ |
+| Bullets | 1x neutral | MiniGun, Shotgun |
+| Explosions | 1x neutral | Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon |
+| FireLava | 1x neutral | Flamethrower |
+| Food | 1x neutral | Gummy Bear Cannon, Cake Cannon |
+| Magic | 1x neutral | Magic Cannon |
+| Poison | 1x neutral | Poison Cannon |
+| Laser | 0.75x resists | Laser Cannon |
+
+**Stats**
+
+| Stat | Normal | Boss |
+| --- | --- | --- |
+| Health | 20 | 1200 |
+| Contact damage | 5 | 15 |
+| Money dropped | 150 | 2300 |
+| Max speed | 2.5 | 2.5 |
+| Acceleration | 0.3 | 0.3 |
+| Turn rate (deg/frame) | 3 | 3 |
 
 ---
 

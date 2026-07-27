@@ -189,6 +189,30 @@ describe('every declared mechanic exists in the AS3', () => {
       'this.medicIndicatorLayer.addChild(indicator);',
       'this.medicIndicatorArray.push(indicator);',
     ],
+    // enemyTeleport.createTeleportState — the 120..150 / 150..225 seed and the
+    // 30-frame phase length.
+    Teleporting: [
+      // Visible sprite frame; the port drives opacity through applyAlpha.
+      'enemy.gotoAndStop(1);',
+      'enemy.teleStartTimerMax = 150;',
+      'enemy.teleStartTimerMin = 120;',
+      'enemy.teleStartTimerMax = 225;',
+      'enemy.teleStartTimerMin = 150;',
+      'enemy.teleporting = false;',
+      'enemy.teleportingAway = false;',
+      'enemy.teleStartTimer = enemy.teleStartTimerMin + Math.random() * (enemy.teleStartTimerMax - enemy.teleStartTimerMin);',
+      'enemy.teleTimerMax = 30;',
+      'enemy.teleTimer = 30;',
+      // Scratch fields the AS3 stashes on the enemy between the two phases.
+      // The port passes them as locals through teleportDestination instead, so
+      // there is nothing to initialise.
+      'enemy.distEnemyTank = 0;',
+      'enemy.angleToTank = 0;',
+      'enemy.newDistance = 0;',
+      'enemy.randomAngle = 0;',
+      'enemy.velocityAngle = 0;',
+      'enemy.velocitySpeed = 0;',
+    ],
     // Enemy.radiusStart, captured in the constructor from the same diameter.
     Shrinking: ['enemy.radiusStart = enemy.width / 2;'],
     // enemyStatMods.createRageState. `gotoAndStop(1)` is the calm sprite frame,
@@ -289,7 +313,7 @@ describe('the current picture', () => {
     expect(r.missingMechanic).toBeNull();
   });
 
-  it('stands at 16 implemented, 0 partial, 4 data-only of 20', () => {
+  it('stands at 17 implemented, 0 partial, 3 data-only of 20', () => {
     // The exact figure, not a comparative: it is knowable, and a board that
     // moves without anyone noticing is the failure this module exists to stop.
     //
@@ -299,9 +323,9 @@ describe('the current picture', () => {
     // Ninja and Random — whose mechanics turned out not to exist. Every
     // remaining mechanic belongs to a type whose shooting is also unported.
     expect(behaviourTotals(describeAllEnemies())).toEqual({
-      implemented: 16,
+      implemented: 17,
       partial: 0,
-      dataOnly: 4,
+      dataOnly: 3,
       total: 20,
     });
   });

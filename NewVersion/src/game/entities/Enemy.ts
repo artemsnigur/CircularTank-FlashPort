@@ -46,6 +46,16 @@ import {
 } from '../enemies/enemyHealing';
 import type { HealState } from '../enemies/enemyHealing';
 import {
+  canTeleport,
+  createTeleportState,
+  isTeleporting,
+  teleportAlpha,
+  teleportDestination,
+  teleportsPeriodically,
+  tickTeleport,
+} from '../enemies/enemyTeleport';
+import type { TeleportState } from '../enemies/enemyTeleport';
+import {
   acceleratesWhileUndamaged,
   acceleratingFactor,
   acceleratingSpeeds,
@@ -213,6 +223,8 @@ export class Enemy extends Phaser.GameObjects.Container {
   private visibility: VisibilityState | null = null;
   /** Medic's aura clock. Null for every other type. */
   private healing: HealState | null = null;
+  /** Teleport clock. Null for every other type. */
+  private teleport: TeleportState | null = null;
   /** Aura radius, valid only when `healing` is set. */
   readonly healDistance: number = 0;
 
@@ -307,6 +319,9 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.rage = ragesWhenDamaged(config.type) ? createRageState() : null;
     this.visibility =
       blinksOnTimer(config.type) || hidesWhenHurt(config.type) ? createVisibilityState() : null;
+    this.teleport = teleportsPeriodically(config.type)
+      ? createTeleportState(config.level === 'B', Math.random)
+      : null;
     if (healsOthers(config.type)) {
       this.healing = createHealState();
       this.healDistance = healDistanceFor(config.level === 'B');
@@ -523,7 +538,6 @@ export class Enemy extends Phaser.GameObjects.Container {
       ? tickGhostBlink(this.visibility, frames, this.status.frozen)
       : tickScaredGhost(this.visibility, frames, this.healthDropped, this.status.frozen);
 
-    this.setAlpha(this.visibility.invisible ? INVISIBLE_ALPHA : 1);
   }
 
   /**
@@ -539,6 +553,61 @@ export class Enemy extends Phaser.GameObjects.Container {
     return result.pulses;
   }
 
+  /**
+   * Advances the teleport clock and moves the enemy when it lands.
+   *
+   * `canTeleport` is a *block*, not a cancel: a Tower enemy too near the tank
+   * simply stays ready and re-tests next frame, exactly as the AS3 does by
+   * leaving `teleStartTimer` at zero.
+   */
+  private tickTeleportCycle(frames: number, target: { x: number; y: number }): void {
+    if (!this.teleport) return;
+
+    const context = {
+      mode: this.mode,
+      x: this.steering.x,
+      y: this.steering.y,
+      tankX: target.x,
+      tankY: target.y,
+      roomHeight: this.roomHeight,
+    };
+
+    const result = tickTeleport(this.teleport, frames, canTeleport(context), Math.random);
+    this.teleport = result.state;
+    this.teleporting = isTeleporting(this.teleport);
+
+    if (!result.arrives) return;
+
+    const destination = teleportDestination({
+      ...context,
+      roomWidth: this.roomWidth,
+      radius: this.radius,
+    });
+    // Null means the reroll cap was hit. Skipping the hop leaves the enemy
+    // where it is rather than dropping it somewhere arbitrary — possibly on
+    // the tank.
+    if (!destination) return;
+
+    this.steering = { ...this.steering, x: destination.x, y: destination.y };
+    this.setPosition(destination.x, destination.y);
+  }
+
+  /**
+   * The single writer for opacity.
+   *
+   * Two systems want it — the teleport fade and Ghost/ScaredGhost's dimming —
+   * and no type is both today, so an accidental overwrite order would work by
+   * luck. Resolved explicitly instead: a teleport in progress owns the fade,
+   * invisibility applies otherwise.
+   */
+  private applyAlpha(): void {
+    if (this.teleport && isTeleporting(this.teleport)) {
+      this.setAlpha(teleportAlpha(this.teleport));
+      return;
+    }
+    this.setAlpha(this.invisible ? INVISIBLE_ALPHA : 1);
+  }
+
   private applyBodyScale(): void {
     if (!shrinksWithHealth(this.enemyType)) return;
 
@@ -550,6 +619,20 @@ export class Enemy extends Phaser.GameObjects.Container {
   /** Hidden, so bullets, blasts, mines and homing rounds pass it by. */
   get invisible(): boolean {
     return this.visibility?.invisible ?? false;
+  }
+
+  /**
+   * Whether this enemy is simulated at all this frame.
+   *
+   * A mid-teleport enemy is not: `PartGameArea.as` suppresses steering
+   * (`:4528`), position integration (`:5368`), enemy-enemy collision and push
+   * (`:5172`, `:5179`), enemy-avoidance (`:5120`) and off-screen tracking
+   * (`:4759`) while `teleporting` is set. That is a separate concern from
+   * `targetable`, which is about what can *reach* it — the two coincide today
+   * only because teleporting sets both.
+   */
+  get simulated(): boolean {
+    return !this.teleporting;
   }
 
   /**
@@ -573,6 +656,15 @@ export class Enemy extends Phaser.GameObjects.Container {
     // `PartGameArea.as:5027` gates the whole acceleration block on `!frozen`,
     // so a frozen enemy holds position rather than coasting.
     if (this.status.frozen) return;
+
+    this.tickTeleportCycle((deltaMs / 1000) * AS3_FPS, target);
+    // Suppressed entirely while mid-teleport — see `simulated`.
+    if (!this.simulated) {
+      this.applyAlpha();
+      this.healthChanged = false;
+      this.healthDropped = false;
+      return;
+    }
 
     const tower = this.mode === 'Tower';
     const defense = this.mode === 'Defense';
@@ -638,6 +730,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.applyBodyScale();
     this.tickVisibility(frames);
     this.pulsedHeal = this.tickHealAura(frames);
+    this.applyAlpha();
 
     // Consumed, so damage arriving before the next update is what the next
     // update sees.
