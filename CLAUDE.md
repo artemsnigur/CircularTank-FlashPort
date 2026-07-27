@@ -188,6 +188,22 @@ They are excluded from every total, so the percentages keep meaning something �
 Start from **Core systems** — everything else hangs off those. Do **not** port the ~81
 third-party classes (`com/google/analytics`, `FGL`, `fl`, `mx`); replace or drop them.
 
+**Finish the PC port first; touch and phone work is deliberately deprioritised** (decided
+27 July 2026). The game is playable with a keyboard and mouse and is not playable on a
+phone: `cycleWeapon` has one caller, `keydown-Q`, and on a touch-only device
+`this.input.keyboard` is null so the early return in `GameplayScene.create` skips *every*
+key binding — there is no touch path to weapon switching or movement. Aiming and firing do
+work on touch. So a phone session is currently aim-and-shoot from a standstill.
+
+Two consequences worth knowing before planning work:
+
+- **Do not plan a phone test around anything keyboard-triggered.** It cannot be observed
+  there, and an "unverified on device" result would say nothing about the code.
+- Virtual controls, the safe-area HUD work and the phone-specific gaps are **not** dead —
+  they are queued behind finishing the desktop port. Do not treat the touch gap as a defect
+  to fix opportunistically when passing through `GameplayScene`; it is a scoped-out area,
+  and half-adding it is worse than leaving it.
+
 **`PM_PRNG` is reproducibility-critical, and is not yet wired.** In the AS3 it is seeded
 per level from `levelDataModel[...][9]` and drives deterministic background-prop placement.
 In the port it has **no production importer**: `LevelSpec.seed` is extracted for all 405

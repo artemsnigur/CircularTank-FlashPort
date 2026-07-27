@@ -6,6 +6,7 @@ import { LevelSelectScene } from '../scenes/LevelSelectScene';
 import { GameplayScene } from '../scenes/GameplayScene';
 import { UpgradesScene } from '../scenes/UpgradesScene';
 import { EnemiesScene } from '../scenes/EnemiesScene';
+import { BestiaryScene } from '../scenes/BestiaryScene';
 import { INITIAL_HEIGHT, INITIAL_WIDTH } from './viewport';
 
 /**
@@ -118,6 +119,7 @@ export function createGameConfig({
       LevelSelectScene,
       UpgradesScene,
       EnemiesScene,
+      BestiaryScene,
       GameplayScene,
     ],
   };

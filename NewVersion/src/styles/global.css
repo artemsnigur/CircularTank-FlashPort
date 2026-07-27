@@ -966,3 +966,41 @@ code {
   opacity: 0.45;
   border-style: dashed;
 }
+
+/* ── Bestiary — the player-facing enemy list ──────────────────────────────
+   Locked rows stay in place rather than being hidden: the gaps are the point,
+   and a list that grows in the middle reads as progress. Only the name and
+   description are withheld, and they are withheld at the *scene*, not here. */
+.screen--bestiary { overflow-y: auto; }
+.screen--bestiary .screen__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.5rem 0;
+  background: var(--surface, #1b1710);
+}
+.bestiary__count { margin-left: auto; font-size: 0.75rem; color: var(--text-dim); }
+.bestiary__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.bestiary-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 4%);
+  border-left: 3px solid rgb(140 230 140 / 70%);
+}
+.bestiary-row__name { min-width: 8rem; font-size: 0.85rem; }
+.bestiary-row__text { font-size: 0.72rem; color: var(--text-dim); }
+
+.bestiary-row--locked {
+  border-left-color: rgb(255 255 255 / 12%);
+  background: rgb(255 255 255 / 2%);
+}
+/* The silhouette: dim the whole row and blank the name to "???". Deliberately
+   not `filter: blur()` on real text — the string is simply never sent. */
+.bestiary-row--locked .bestiary-row__name {
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+}
+.bestiary-row--locked .bestiary-row__text { font-style: italic; opacity: 0.75; }

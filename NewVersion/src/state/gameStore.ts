@@ -49,6 +49,18 @@ export interface LevelOutcomeSummary {
   nextLevel: LevelRef | null;
 }
 
+/** The bestiary as the screen renders it. */
+export interface BestiaryListing {
+  entries: Array<{
+    id: string;
+    displayName: string;
+    description?: string;
+    known: boolean;
+  }>;
+  knownCount: number;
+  total: number;
+}
+
 /** One world's levels with their unlock state. */
 export interface LevelListing {
   world: number;
@@ -116,6 +128,7 @@ export interface GameState {
 
   /** The shop catalogue, published by UpgradesScene. */
   shop: ShopCatalogue | null;
+  bestiary: BestiaryListing | null;
 
   /** Where the Play button resumes from, published by MainMenuScene. */
   resumePoint: { world: number; level: number } | null;
@@ -150,6 +163,7 @@ export interface GameState {
   clearLevelOutcome: () => void;
   setLevelList: (listing: LevelListing) => void;
   setShop: (shop: ShopCatalogue) => void;
+  setBestiary: (bestiary: BestiaryListing) => void;
   setResumePoint: (point: { world: number; level: number }) => void;
   pushAchievement: (toast: AchievementToast) => void;
   dismissAchievement: (id: string) => void;
@@ -178,6 +192,7 @@ const initialRunState = {
   levelOutcome: null as LevelOutcomeSummary | null,
   levelList: null as LevelListing | null,
   shop: null as ShopCatalogue | null,
+  bestiary: null as BestiaryListing | null,
   resumePoint: null as { world: number; level: number } | null,
 };
 
@@ -219,6 +234,7 @@ export const useGameStore = create<GameState>()((set) => ({
   clearLevelOutcome: () => set({ levelOutcome: null }),
   setLevelList: (levelList) => set({ levelList }),
   setShop: (shop) => set({ shop }),
+  setBestiary: (bestiary) => set({ bestiary }),
   setResumePoint: (resumePoint) => set({ resumePoint }),
 
   pushAchievement: (toast) =>

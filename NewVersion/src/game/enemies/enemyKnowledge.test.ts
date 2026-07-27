@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BESTIARY, INITIAL_KNOWN_ENEMIES } from './bestiaryData';
 import {
+  buildBestiaryListing,
   createInitialKnownEnemies,
   discoverEnemies,
   isEnemyKnown,
@@ -216,5 +217,53 @@ describe('save round trip', () => {
     expect(decodeEnemyKnowledgeFields([{ key: KNOWN_ENEMIES_KEY, value: 'Wyvern' }])).toEqual([
       'Basic',
     ]);
+  });
+});
+
+
+describe('buildBestiaryListing', () => {
+  it('includes every entry, met or not', () => {
+    const listing = buildBestiaryListing(['Basic']);
+    expect(listing.entries).toHaveLength(BESTIARY.length);
+    expect(listing.total).toBe(BESTIARY.length);
+  });
+
+  it('withholds the description of an unmet enemy entirely', () => {
+    // Not blanked in the view — absent from the payload, so the string never
+    // reaches the browser and no CSS mistake can reveal it.
+    const listing = buildBestiaryListing(['Basic']);
+    const unmet = listing.entries.filter((e) => !e.known);
+
+    expect(unmet.length).toBeGreaterThan(0);
+    for (const entry of unmet) {
+      expect(entry.description, entry.id).toBeUndefined();
+    }
+  });
+
+  it('carries the description of a met enemy', () => {
+    const listing = buildBestiaryListing(['Basic']);
+    const basic = listing.entries.find((e) => e.id === 'Basic');
+    expect(basic?.known).toBe(true);
+    expect(basic?.description).toBe(BESTIARY.find((e) => e.id === 'Basic')?.description);
+  });
+
+  it('counts met entries, not the raw saved list', () => {
+    // A save written by an older build can hold a name that is no longer a
+    // bestiary entry. Counting the list length would push the numerator past
+    // the denominator and render "21 / 20".
+    const listing = buildBestiaryListing(['Basic', 'Not An Enemy']);
+    expect(listing.knownCount).toBe(1);
+    expect(listing.knownCount).toBeLessThanOrEqual(listing.total);
+  });
+
+  it('accepts the stored display-name form for the renamed three', () => {
+    // knownEnemiesArray stores "Scared Ghost", not "ScaredGhost".
+    const listing = buildBestiaryListing(['Basic', 'Scared Ghost']);
+    expect(listing.entries.find((e) => e.id === 'ScaredGhost')?.known).toBe(true);
+    expect(listing.knownCount).toBe(2);
+  });
+
+  it('reports a fresh profile as knowing exactly one', () => {
+    expect(buildBestiaryListing(createInitialKnownEnemies()).knownCount).toBe(1);
   });
 });

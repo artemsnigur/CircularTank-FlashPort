@@ -5,6 +5,7 @@ import { MainMenuScreen } from './ui/screens/MainMenuScreen';
 import { LevelSelectScreen } from './ui/screens/LevelSelectScreen';
 import { UpgradesScreen } from './ui/screens/UpgradesScreen';
 import { EnemiesScreen } from './ui/screens/EnemiesScreen';
+import { BestiaryScreen } from './ui/screens/BestiaryScreen';
 import { DiagnosticsPanel } from './ui/DiagnosticsPanel';
 
 /**
@@ -28,6 +29,7 @@ export function App(): React.ReactElement {
         <LevelSelectScreen />
         <UpgradesScreen />
         <EnemiesScreen />
+        <BestiaryScreen />
         <Hud />
         <DiagnosticsPanel />
       </div>

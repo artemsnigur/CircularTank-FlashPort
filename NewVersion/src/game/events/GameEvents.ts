@@ -204,6 +204,29 @@ export interface GameEventMap {
    * Everything the rows need is precomputed here so React does no game-rule
    * arithmetic — affordability and cost come from `upgradeState`, not the UI.
    */
+  /**
+   * The player-facing bestiary — `ScreenEnemies`.
+   *
+   * Published by `BestiaryScene` from the profile, with locked entries
+   * included rather than filtered out: the screen shows what is still unmet as
+   * silhouettes, and a count of 20 that never moves would be worse than no
+   * count at all. `knownBestiary` alone cannot express that, which is why this
+   * carries every entry with a `known` flag rather than just the known ones.
+   */
+  'bestiary:listed': {
+    entries: Array<{
+      /** Stat-table id — the stable key. */
+      id: string;
+      /** Stored/display form. Three ids differ from it; see enemyKnowledge.ts. */
+      displayName: string;
+      /** Absent until met, so an unmet entry leaks nothing about itself. */
+      description?: string;
+      known: boolean;
+    }>;
+    knownCount: number;
+    total: number;
+  };
+
   'upgrades:listed': {
     /** How many upgrades exist but are unported, so the shop can say so. */
     withheld?: number;

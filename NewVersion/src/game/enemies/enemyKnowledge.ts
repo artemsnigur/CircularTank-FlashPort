@@ -95,3 +95,49 @@ export function knownBestiary(known: readonly string[]): typeof BESTIARY {
 export function knownCount(known: readonly string[]): number {
   return knownBestiary(known).length;
 }
+
+/** One row of the bestiary as the screen renders it. */
+export interface BestiaryRow {
+  id: string;
+  displayName: string;
+  /** Absent until met — an unmet entry must not describe itself. */
+  description?: string;
+  known: boolean;
+}
+
+export interface BestiaryListing {
+  entries: BestiaryRow[];
+  knownCount: number;
+  total: number;
+}
+
+/**
+ * The full bestiary with each entry marked met or not.
+ *
+ * `knownBestiary` returns only what is known, which is the wrong shape for a
+ * screen that shows unmet entries as silhouettes: filtering them out would make
+ * the list grow silently and lose the sense of an incomplete collection.
+ *
+ * **The withholding happens here, not in the view.** An unmet row carries no
+ * description at all, so the string never reaches the browser and no styling
+ * mistake can reveal it. `BestiaryScreen` has a test asserting it cannot import
+ * the bestiary data itself, which is what makes that guarantee hold.
+ */
+export function buildBestiaryListing(known: readonly string[]): BestiaryListing {
+  return {
+    entries: BESTIARY.map((entry) => {
+      const met = isEnemyKnown(known, entry.id);
+      return {
+        id: entry.id,
+        displayName: entry.displayName,
+        ...(met ? { description: entry.description } : {}),
+        known: met,
+      };
+    }),
+    // Counted through `knownCount` rather than `known.length`: the saved list is
+    // free-form text from an older build and may hold a name that is not a
+    // bestiary entry, which would push the count past the denominator.
+    knownCount: knownCount(known),
+    total: BESTIARY.length,
+  };
+}

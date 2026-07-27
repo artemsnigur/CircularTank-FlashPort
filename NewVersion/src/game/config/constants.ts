@@ -11,6 +11,7 @@ export const SceneKeys = {
   LevelSelect: 'LevelSelect',
   Upgrades: 'Upgrades',
   Enemies: 'Enemies',
+  Bestiary: 'Bestiary',
   Gameplay: 'Gameplay',
 } as const;
 

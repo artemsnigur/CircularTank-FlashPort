@@ -58,10 +58,24 @@ export function MainMenuScreen(): React.ReactElement | null {
         <button
           type="button"
           className="menu__button"
-          onClick={() => GameEvents.emit('ui:goto', { key: 'Enemies' })}
+          onClick={() => GameEvents.emit('ui:goto', { key: 'Bestiary' })}
         >
-          Enemy behaviour
+          Bestiary
         </button>
+        {import.meta.env.DEV && (
+          <button
+            type="button"
+            className="menu__button menu__button--ghost"
+            // The development board — what has been *built* per type, as
+            // against the Bestiary's what the player has *met*. It documents
+            // itself as a dev view and was reachable in production anyway;
+            // now that a player-facing enemy screen exists, shipping both
+            // would put two near-identical entries on the menu.
+            onClick={() => GameEvents.emit('ui:goto', { key: 'Enemies' })}
+          >
+            Dev: enemy behaviour
+          </button>
+        )}
         {import.meta.env.DEV && (
           <button
             type="button"

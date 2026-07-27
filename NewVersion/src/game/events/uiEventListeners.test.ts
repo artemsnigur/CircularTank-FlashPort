@@ -58,6 +58,7 @@ const PAIRS: { screen: string; scene: string }[] = [
   { screen: `${SCREEN_DIR}/LevelSelectScreen.tsx`, scene: `${SCENE_DIR}/LevelSelectScene.ts` },
   { screen: `${SCREEN_DIR}/UpgradesScreen.tsx`, scene: `${SCENE_DIR}/UpgradesScene.ts` },
   { screen: `${SCREEN_DIR}/EnemiesScreen.tsx`, scene: `${SCENE_DIR}/EnemiesScene.ts` },
+  { screen: `${SCREEN_DIR}/BestiaryScreen.tsx`, scene: `${SCENE_DIR}/BestiaryScene.ts` },
   // Shown during Boot and Preload, which run before any screen can be used.
   // Listed so the completeness check below stays honest; it emits nothing.
   { screen: `${SCREEN_DIR}/LoadingScreen.tsx`, scene: `${SCENE_DIR}/PreloadScene.ts` },
