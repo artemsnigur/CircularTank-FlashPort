@@ -72,6 +72,12 @@ export interface ShopCatalogue {
     affordable: boolean;
     owned: boolean;
   }>;
+  /**
+   * Upgrades that exist in the original but are not sold, because their effects
+   * are unported. Surfaced so the shop can say what is missing rather than
+   * present a filtered list as the whole catalogue.
+   */
+  withheld?: number;
 }
 
 export interface GameState {

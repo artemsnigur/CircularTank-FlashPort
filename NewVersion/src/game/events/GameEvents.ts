@@ -198,6 +198,8 @@ export interface GameEventMap {
    * arithmetic — affordability and cost come from `upgradeState`, not the UI.
    */
   'upgrades:listed': {
+    /** How many upgrades exist but are unported, so the shop can say so. */
+    withheld?: number;
     money: number;
     upgrades: Array<{
       id: string;

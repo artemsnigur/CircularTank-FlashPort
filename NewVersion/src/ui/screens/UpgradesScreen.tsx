@@ -116,6 +116,16 @@ export function UpgradesScreen(): React.ReactElement | null {
         })
       )}
 
+      {/* Say what is missing rather than silently omitting it. Thirteen of the
+          28 upgrades are withheld because their effects are unported; a shop
+          that just showed fifteen would read as the whole catalogue. */}
+      {(shop?.withheld ?? 0) > 0 && (
+        <p className="screen__hint">
+          {shop!.withheld} more upgrades exist in the original but are not sold yet — their
+          effects are unported, so buying one would take your coins and change nothing.
+        </p>
+      )}
+
       {import.meta.env.DEV && (
         <button
           type="button"

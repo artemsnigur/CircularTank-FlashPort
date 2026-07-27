@@ -27,7 +27,8 @@ import { SceneKeys } from '../config/constants';
 import { GameEvents } from '../events/GameEvents';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import { getPlayerProfile } from '../player/playerProfile';
-import { ALL_UPGRADES, MAX_UPGRADE_LEVEL } from '../upgrades/upgradeData';
+import { MAX_UPGRADE_LEVEL } from '../upgrades/upgradeData';
+import { isPurchasable, purchasableUpgrades, withheldUpgrades } from '../upgrades/purchasable';
 import {
   findUpgradeById,
   getLevel,
@@ -88,7 +89,9 @@ export class UpgradesScene extends Phaser.Scene {
 
     GameEvents.emit('upgrades:listed', {
       money: state.money,
-      upgrades: ALL_UPGRADES.map((spec) => {
+      // Only what actually does something. ALL_UPGRADES included two misc
+      // upgrades with no reader and eleven unported secondaries, all buyable.
+      upgrades: purchasableUpgrades().map((spec) => {
         const level = getLevel(state, spec);
         const cost = nextLevelCost(state, spec);
         return {
@@ -102,6 +105,7 @@ export class UpgradesScene extends Phaser.Scene {
           owned: level > 0,
         };
       }),
+      withheld: withheldUpgrades().length,
     });
   }
 
@@ -135,6 +139,17 @@ export class UpgradesScene extends Phaser.Scene {
     const spec = findUpgradeById(id);
     if (!spec) {
       console.warn(`[UpgradesScene] Unknown upgrade "${id}".`);
+      return;
+    }
+
+    // Guarded here as well as in the catalogue, because these are two different
+    // rules: the catalogue decides what is *shown*, this decides what may be
+    // *bought*. `ui:buy-upgrade` carries an id from anywhere — a stale screen, a
+    // replayed event, a console — and hiding a button is not a refusal. Taking
+    // money for an upgrade with no reader is the defect; not rendering it is
+    // only the visible half.
+    if (!isPurchasable(spec)) {
+      console.warn(`[UpgradesScene] "${id}" is not purchasable: it has no runtime effect.`);
       return;
     }
 
