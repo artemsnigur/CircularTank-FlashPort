@@ -2,7 +2,15 @@
  * Enemy shooting — the Basic/Front slice.
  */
 import { describe, expect, it } from 'vitest';
+import type { EnemyBulletState } from './enemyFiring';
 import {
+  FOLLOWING_BOSS_BULLET,
+  FOLLOWING_BOSS_TURN_RATE,
+  FOLLOWING_BULLET,
+  FOLLOWING_TURN_RATE,
+  bulletClassFor,
+  homeTowardTank,
+  turnRateFor,
   advanceEnemyBullet,
   applyBulletToTank,
   BASIC_BULLET_DAMAGE,
@@ -202,9 +210,10 @@ describe('createVolley dispatch', () => {
   });
 
   it('produces nothing for an unported combination', () => {
-    // Soldier is Following (homing); Trap is a speed-0 hazard. Both must stay
-    // harmless rather than throw or fire a wrong-looking shot.
-    for (const type of ['Soldier', 'Trap']) {
+    // Trap is a speed-0 hazard and GrapplingHook fires a tether; both bullet
+    // classes are still unported and must stay harmless rather than throw or
+    // fire a wrong-looking shot. Soldier was here until Following landed.
+    for (const type of ['Trap', 'GrapplingHook']) {
       const stats = resolveEnemyStats(type, '1', 'Easy')!;
       expect(
         createVolley(origin, stats.shootType, stats.shootAngle, stats.bulletAmount ?? 1, () => 0.5),
@@ -288,5 +297,152 @@ describe('defeat is now reachable', () => {
     const framesToKill = shotsToKill * stats.reloadTimeMax!;
     expect(framesToKill).toBeGreaterThan(0);
     expect(Number.isFinite(framesToKill)).toBe(true);
+  });
+});
+
+/* ── Following (Soldier) ─────────────────────────────────────────────────── */
+
+const TANK = { x: 0, y: 0 };
+
+function shotAt(bearingDegrees: number, distance = 300): EnemyBulletState {
+  const radians = (bearingDegrees * Math.PI) / 180;
+  return {
+    x: Math.cos(radians) * distance,
+    y: Math.sin(radians) * distance,
+    // Fired *toward* the tank, which is what Soldier does: `Front` sends the
+    // round along the enemy's facing, and the enemy steers at the tank.
+    rotation: bearingDegrees + 180,
+    xVel: Math.cos(radians) * 4,
+    yVel: Math.sin(radians) * 4,
+    radius: 4,
+    damage: 1,
+    lifeTime: 90,
+    lifeTimeMax: 90,
+  };
+}
+
+const home = (b: EnemyBulletState, frames: number, rate = FOLLOWING_TURN_RATE) => {
+  let state = b;
+  for (let i = 0; i < frames; i += 1) {
+    state = homeTowardTank(state, TANK, rate, 1);
+    state = { ...state, x: state.x + state.xVel, y: state.y + state.yVel };
+  }
+  return state;
+};
+
+describe('the Following bullet', () => {
+  it('carries the stats from the fire site', () => {
+    expect(FOLLOWING_BULLET).toEqual({ radius: 4, damage: 1, lifeTime: 90 });
+    expect(FOLLOWING_BOSS_BULLET).toEqual({ radius: 6, damage: 2, lifeTime: 90 });
+    // 90 frames at speed 4 is 360 units of travel — short enough to outrun.
+    expect(FOLLOWING_BULLET.lifeTime).toBe(90);
+  });
+
+  it('is buildable, which is what flips Soldier to implemented', () => {
+    expect(bulletClassFor('Following')).toBe(FOLLOWING_BULLET);
+    expect(bulletClassFor('FollowingBoss')).toBe(FOLLOWING_BOSS_BULLET);
+    expect(turnRateFor('Following')).toBe(1.2);
+    expect(turnRateFor('FollowingBoss')).toBe(1.5);
+    expect(turnRateFor('Basic')).toBeNull();
+  });
+});
+
+describe('homing converges on the tank', () => {
+  it('closes in from every bearing', () => {
+    for (const bearing of [0, 45, 90, 135, 180, -45, -90, -135]) {
+      const start = shotAt(bearing);
+      const after = home(start, 89);
+      const startDistance = Math.hypot(start.x, start.y);
+      const endDistance = Math.hypot(after.x, after.y);
+
+      expect(endDistance, `bearing ${bearing}`).toBeLessThan(startDistance);
+    }
+  });
+
+  it('turns at most 1.2 degrees a frame, and 1.5 for a boss', () => {
+    const start: EnemyBulletState = { ...shotAt(0), rotation: 90 };
+    const one = homeTowardTank(start, TANK, FOLLOWING_TURN_RATE, 1);
+    expect(Math.abs(one.rotation - start.rotation)).toBeCloseTo(1.2, 10);
+
+    const boss = homeTowardTank(start, TANK, FOLLOWING_BOSS_TURN_RATE, 1);
+    expect(Math.abs(boss.rotation - start.rotation)).toBeCloseTo(1.5, 10);
+  });
+
+  it('preserves speed exactly — it steers, it does not accelerate', () => {
+    let state = shotAt(30);
+    const speed = Math.hypot(state.xVel, state.yVel);
+    for (let i = 0; i < 50; i += 1) {
+      state = homeTowardTank(state, TANK, FOLLOWING_TURN_RATE, 1);
+      expect(Math.hypot(state.xVel, state.yVel)).toBeCloseTo(speed, 10);
+    }
+  });
+
+  it('flies straight when there is no tank', () => {
+    // `tank != null && stage.contains(tank)` — a destroyed tank stops the
+    // homing rather than freezing the round.
+    const start = shotAt(0);
+    expect(homeTowardTank(start, null, FOLLOWING_TURN_RATE, 1)).toBe(start);
+  });
+});
+
+/**
+ * The linked bugs.
+ *
+ * The AS3 reverses the bearing arguments *and* turns backwards, which compose
+ * into correct homing. A third bug compares degrees against radians in the
+ * snap-to-exact branch, which is what stops that branch assigning the reversed
+ * bearing and sending the round away on final approach.
+ *
+ * These assert the composed behaviour, so correcting any one in isolation
+ * fails here rather than in play.
+ */
+describe('the reversed bearing and the backwards turn cancel', () => {
+  it('turning "away" from the away-bearing is turning toward the tank', () => {
+    // Bullet due east of the tank, travelling north-east. The away-bearing is
+    // 0; a naive "turn toward the bearing" would rotate it to 0 and send it
+    // further out. It goes the other way.
+    const state: EnemyBulletState = { ...shotAt(0), rotation: -45 };
+    const after = homeTowardTank(state, TANK, FOLLOWING_TURN_RATE, 1);
+
+    expect(after.rotation).toBeCloseTo(-46.2, 10);
+    // Away from 0, so toward 180 — which points at the tank.
+    expect(Math.abs(after.rotation)).toBeGreaterThan(Math.abs(state.rotation));
+  });
+
+  it('the snap branch is unreachable in practice', () => {
+    // Threshold is 1.2 degrees converted to radians = 0.0209, compared against
+    // a difference in degrees. Fixing the units alone would let it fire — and
+    // it assigns the *away* bearing.
+    const threshold = (FOLLOWING_TURN_RATE / 180) * Math.PI;
+    expect(threshold).toBeCloseTo(0.0209, 4);
+    expect(threshold).toBeLessThan(FOLLOWING_TURN_RATE / 50);
+
+    // A round one degree off still takes the ordinary turn, not the snap.
+    const nearlyAligned: EnemyBulletState = { ...shotAt(0), rotation: 1 };
+    const after = homeTowardTank(nearlyAligned, TANK, FOLLOWING_TURN_RATE, 1);
+    expect(after.rotation).not.toBe(0);
+    expect(after.rotation).toBeCloseTo(2.2, 10);
+  });
+
+  it('latches outward when fired exactly away — the one case the snap reaches', () => {
+    // Difference exactly zero is below even the radians threshold, so the snap
+    // fires and assigns the away-bearing: the round flies off and never turns
+    // back. Unreachable from Soldier, which fires along its facing toward the
+    // tank, but it is what the three bugs produce together and correcting any
+    // one of them changes it.
+    const outward: EnemyBulletState = { ...shotAt(0), rotation: 0 };
+    const after = home(outward, 60);
+
+    expect(after.rotation).toBe(0);
+    expect(Math.hypot(after.x, after.y)).toBeGreaterThan(300);
+  });
+
+  it('a round already pointing at the tank keeps pointing at it', () => {
+    // The end state the composition has to produce: heading 180 against an
+    // away-bearing of 0 is the maximum difference, and it must stay there
+    // rather than oscillate outward.
+    const aimed: EnemyBulletState = { ...shotAt(0), rotation: 180 };
+    const after = home(aimed, 20);
+    expect(Math.hypot(after.x, after.y)).toBeLessThan(300);
   });
 });

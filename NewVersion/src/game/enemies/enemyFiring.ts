@@ -11,7 +11,6 @@
  *
  *   Hook, Trap                   other bullet classes; Trap is a speed-0
  *                                stationary hazard on its own display layer
- *   Following, FollowingBoss     homing; would reuse weapons/magic.ts
  *   FrontAmount, FrontSides,     three other firing patterns
  *   BackTrap
  *   reflected                    the BulletReflect upgrade bouncing shots back
@@ -152,14 +151,51 @@ export const BASIC_BOSS_BULLET: BulletClassSpec = {
   lifeTime: BOSS_BULLET_LIFETIME,
 };
 
+/**
+ * `EnemyBulletFollowing` — homes the tank for its whole life.
+ *
+ * Identical to `Basic` apart from the lifetime and the steering: 90 frames at
+ * speed 4 is 360 units of travel, so it is a threat to outrun or absorb rather
+ * than one to dodge indefinitely.
+ */
+export const FOLLOWING_BULLET: BulletClassSpec = {
+  radius: 4,
+  damage: 1,
+  lifeTime: 90,
+};
+
+export const FOLLOWING_BOSS_BULLET: BulletClassSpec = {
+  radius: 6,
+  damage: 2,
+  lifeTime: 90,
+};
+
+/** Degrees per frame the round may turn — `PartGameArea.as:1531` and `:1536`. */
+export const FOLLOWING_TURN_RATE = 1.2;
+export const FOLLOWING_BOSS_TURN_RATE = 1.5;
+
 /** Bullet classes this slice can build; anything else is not ported. */
-export const SUPPORTED_SHOOT_TYPES = ['Basic', 'BasicBoss'] as const;
+export const SUPPORTED_SHOOT_TYPES = [
+  'Basic',
+  'BasicBoss',
+  'Following',
+  'FollowingBoss',
+] as const;
 /** Firing patterns this slice can lay out. */
 export const SUPPORTED_SHOOT_ANGLES = ['Front', 'Circle'] as const;
 
 export function bulletClassFor(shootType: string | undefined): BulletClassSpec | null {
   if (shootType === 'Basic') return BASIC_BULLET;
   if (shootType === 'BasicBoss') return BASIC_BOSS_BULLET;
+  if (shootType === 'Following') return FOLLOWING_BULLET;
+  if (shootType === 'FollowingBoss') return FOLLOWING_BOSS_BULLET;
+  return null;
+}
+
+/** Turn rate for a homing class, or null when the class does not home. */
+export function turnRateFor(shootType: string | undefined): number | null {
+  if (shootType === 'Following') return FOLLOWING_TURN_RATE;
+  if (shootType === 'FollowingBoss') return FOLLOWING_BOSS_TURN_RATE;
   return null;
 }
 
@@ -307,4 +343,81 @@ export function hitsTank(bullet: EnemyBulletState, tank: HitTarget): boolean {
  */
 export function applyBulletToTank(hp: number, damage: number): number {
   return hp - damage > 0 ? hp - damage : 0;
+}
+
+/**
+ * Turns a homing round toward the tank — `PartGameArea.as:1522-1552`.
+ *
+ * Rotates the velocity vector at a fixed rate and preserves its magnitude, so
+ * the round never speeds up or slows; only its heading changes.
+ *
+ * ══ Two bugs that cancel. Do not fix either alone. ═════════════════════════
+ *
+ * **1. The bearing is reversed.** `angleBetween(x1,y1,x2,y2)` returns the angle
+ * *from* point 1 *to* point 2, and the AS3 calls it as
+ * `angleBetween(tank.x, tank.y, bullet.x, bullet.y)` — the direction from the
+ * tank out to the bullet, i.e. away. The local is nonetheless named
+ * `angleToTank`.
+ *
+ * **2. The turn runs backwards.** It decrements when the difference is
+ * positive, which is the inverse of turning toward a bearing.
+ *
+ * Composed, the round homes correctly. Correct either one in isolation and it
+ * flees instead.
+ *
+ * ── And a third, which the first is hiding ────────────────────────────────
+ * The snap-to-exact branch compares a **degrees** difference against a
+ * **radians** threshold:
+ *
+ *     if (Math.abs(angleDifference) < rotSpeed / 180 * Math.PI)
+ *         rotation = angleToTank * 180 / Math.PI;
+ *
+ * So it fires within 0.0209 degrees rather than 1.2, which is essentially
+ * never — fortunate, because the value it assigns is the *away* bearing from
+ * bug 1. Fixing the units alone would make the round turn tail on final
+ * approach. All three are reproduced as written, and `enemyFiring.test.ts`
+ * asserts the composed behaviour so a partial correction fails.
+ */
+export function homeTowardTank(
+  bullet: EnemyBulletState,
+  tank: { x: number; y: number } | null,
+  turnRate: number,
+  frames: number,
+): EnemyBulletState {
+  // `tank != null && stage.contains(tank)` — a destroyed tank stops the homing
+  // and the round carries on straight.
+  if (!tank) return bullet;
+
+  const speed = Math.hypot(bullet.xVel, bullet.yVel);
+  // Bug 1: arguments reversed, so this points away from the tank.
+  const awayBearing = (Math.atan2(bullet.y - tank.y, bullet.x - tank.x) * 180) / Math.PI;
+  const difference = shortestAngle(bullet.rotation, awayBearing);
+  const step = turnRate * frames;
+
+  let rotation: number;
+  // Bug 3: degrees compared against radians, so this almost never fires.
+  if (Math.abs(difference) < (turnRate / 180) * Math.PI) {
+    rotation = awayBearing;
+  } else if (difference > 0) {
+    // Bug 2: away from the away-bearing, which is toward the tank.
+    rotation = bullet.rotation - step;
+  } else {
+    rotation = bullet.rotation + step;
+  }
+
+  const radians = (rotation * Math.PI) / 180;
+  return {
+    ...bullet,
+    rotation,
+    xVel: Math.cos(radians) * speed,
+    yVel: Math.sin(radians) * speed,
+  };
+}
+
+/** `differenceBetweenAngles` — `second - first`, normalised to (-180, 180]. */
+function shortestAngle(first: number, second: number): number {
+  let difference = second - first;
+  while (difference < -180) difference += 360;
+  while (difference > 180) difference -= 360;
+  return difference;
 }

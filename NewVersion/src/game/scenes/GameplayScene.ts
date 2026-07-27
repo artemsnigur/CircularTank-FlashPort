@@ -87,6 +87,8 @@ import { devLevelSpec } from '../levels/devLevels';
 import {
   advanceEnemyBullet,
   applyBulletToTank,
+  homeTowardTank,
+  turnRateFor,
   bulletAlpha,
   canShoot,
   createVolley,
@@ -318,7 +320,12 @@ export class GameplayScene extends Phaser.Scene {
    * with enemies, and nothing the player fires interacts with them yet
    * (`reflected` is not ported).
    */
-  private enemyBullets: Array<{ state: EnemyBulletState; sprite: Phaser.GameObjects.Image }> =
+  private enemyBullets: Array<{
+    state: EnemyBulletState;
+    sprite: Phaser.GameObjects.Image;
+    /** Degrees per frame it may turn, or null when it flies straight. */
+    turnRate: number | null;
+  }> =
     [];
 
   /**
@@ -1657,7 +1664,13 @@ export class GameplayScene extends Phaser.Scene {
           .setDisplaySize(state.radius * 2.5, state.radius * 2.5)
           .setTint(state.damage > 1 ? 0xff3b6b : 0xff6b6b)
           .setDepth(11);
-        this.enemyBullets.push({ state, sprite });
+        // Carried per bullet so the homing step needs no lookup back to an
+        // enemy that may already be dead.
+        this.enemyBullets.push({
+          state,
+          sprite,
+          turnRate: turnRateFor(enemy.stats.shootType),
+        });
       }
     }
 
@@ -1671,6 +1684,17 @@ export class GameplayScene extends Phaser.Scene {
     const tank = { x: this.player.x, y: this.player.y, radius: this.player.radius };
 
     for (const entry of this.enemyBullets) {
+      // Homing runs before the move, as it does in the AS3 — the round turns,
+      // then travels along the new heading in the same frame.
+      if (entry.turnRate !== null) {
+        entry.state = homeTowardTank(
+          entry.state,
+          this.player.active ? { x: this.player.x, y: this.player.y } : null,
+          entry.turnRate,
+          (deltaMs / 1000) * 30,
+        );
+      }
+
       const next = advanceEnemyBullet(
         entry.state,
         { roomWidth: this.roomWidth, roomHeight: this.roomHeight },

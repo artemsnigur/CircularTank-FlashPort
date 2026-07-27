@@ -5,7 +5,7 @@
      Source of every figure: src/game/enemies/ and src/game/weapons/firing.ts.
      See scripts/gen-enemy-reference.ts for why this is generated. -->
 
-Covers the **17 of 20** enemy types whose behaviour is built.
+Covers the **18 of 20** enemy types whose behaviour is built.
 Types still marked `data-only` are omitted deliberately: they spawn and steer,
 but nothing that distinguishes them is implemented, so an entry would describe
 intent rather than the game.
@@ -32,6 +32,7 @@ is not a world-1 Basic.
 - [ScaredGhost](#scaredghost)
 - [Shooting](#shooting)
 - [Shrinking](#shrinking)
+- [Soldier](#soldier)
 - [Strong](#strong)
 - [Teleporting](#teleporting)
 - [Temperamental](#temperamental)
@@ -520,6 +521,46 @@ _Shrinks when damaged._
 | Max speed | 2 | 2 |
 | Acceleration | 0.1 | 0.1 |
 | Turn rate (deg/frame) | 2.5 | 2.5 |
+
+---
+
+### Soldier
+
+_Shoots bullets which follow you._
+
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
+
+**Ranged:** a single bullet along its facing, once every 150 frames (5s). Bullet class `Following`.
+
+**Counters**
+
+**Counter with** Gummy Bear Cannon, Cake Cannon. **Avoid** Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon, Flamethrower.
+
+| Channel | Effect | Primary weapons |
+| --- | --- | --- |
+| Food | 1.5x **weak** | Gummy Bear Cannon, Cake Cannon |
+| Bullets | 1x neutral | MiniGun, Shotgun |
+| Ice | 1x neutral | _no primary — secondaries only_ |
+| Laser | 1x neutral | Laser Cannon |
+| Magic | 1x neutral | Magic Cannon |
+| Poison | 1x neutral | Poison Cannon |
+| FireLava | 0.75x resists | Flamethrower |
+| Explosions | 0.25x resists | Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon |
+
+**Stats**
+
+| Stat | Normal | Boss |
+| --- | --- | --- |
+| Health | 20 | 1200 |
+| Contact damage | 5 | 15 |
+| Money dropped | 150 | 2400 |
+| Max speed | 2.5 | 2.5 |
+| Acceleration | 0.2 | 0.2 |
+| Turn rate (deg/frame) | 2 | 2 |
+| Reload | 150 frames (5s) | 150 frames (5s) |
+| Bullets per volley | 1 | 3 |
+| Bullet class | Following | FollowingBoss |
+| Firing pattern | Front | FrontSides |
 
 ---
 

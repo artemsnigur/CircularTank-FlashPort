@@ -37,8 +37,9 @@ describe('ranged support is derived, not declared', () => {
     expect(isRangedImplemented(resolveEnemyStats('Shooting', '1', 'Easy'))).toBe(true);
     // Crazy: Basic + Circle — both supported after this pass.
     expect(isRangedImplemented(resolveEnemyStats('Crazy', '1', 'Easy'))).toBe(true);
-    // Soldier: Following — bullet class not ported.
-    expect(isRangedImplemented(resolveEnemyStats('Soldier', '1', 'Easy'))).toBe(false);
+    // GrapplingHook: Hook — bullet class not ported. (Soldier used to be the
+    // example here; Following landed, which is the derived board working.)
+    expect(isRangedImplemented(resolveEnemyStats('GrapplingHook', '1', 'Easy'))).toBe(false);
     // Trap: BackTrap — pattern not ported.
     expect(isRangedImplemented(resolveEnemyStats('Trap', '1', 'Easy'))).toBe(false);
   });
@@ -305,15 +306,22 @@ describe('the current picture', () => {
     expect(r.missingMechanic).toBeNull();
   });
 
-  it('Soldier is data-only — homing is not ported', () => {
-    // Reported by the derived ranged check (shootType "Following"), not by a
-    // hand-written entry, so it clears itself when that bullet class lands.
+  it('Soldier became implemented the moment Following landed', () => {
+    // It was data-only purely because the derived ranged check could not build
+    // its bullet class — no hand-written entry was ever involved, so adding
+    // Following to SUPPORTED_SHOOT_TYPES flipped it with no edit to the board.
     const r = describeEnemy('Soldier');
-    expect(r).toMatchObject({ status: 'data-only', rangedImplemented: false });
+    expect(r).toMatchObject({ status: 'implemented', rangedImplemented: true });
     expect(r.missingMechanic).toBeNull();
   });
 
-  it('stands at 17 implemented, 0 partial, 3 data-only of 20', () => {
+  it('GrapplingHook and Trap are still data-only for the same reason', () => {
+    // The remaining two, each waiting on its own bullet class.
+    expect(describeEnemy('GrapplingHook').rangedImplemented).toBe(false);
+    expect(describeEnemy('Trap').rangedImplemented).toBe(false);
+  });
+
+  it('stands at 18 implemented, 0 partial, 2 data-only of 20', () => {
     // The exact figure, not a comparative: it is knowable, and a board that
     // moves without anyone noticing is the failure this module exists to stop.
     //
@@ -323,9 +331,9 @@ describe('the current picture', () => {
     // Ninja and Random — whose mechanics turned out not to exist. Every
     // remaining mechanic belongs to a type whose shooting is also unported.
     expect(behaviourTotals(describeAllEnemies())).toEqual({
-      implemented: 17,
+      implemented: 18,
       partial: 0,
-      dataOnly: 3,
+      dataOnly: 2,
       total: 20,
     });
   });
