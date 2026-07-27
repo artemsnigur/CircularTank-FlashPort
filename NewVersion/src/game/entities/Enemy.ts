@@ -270,6 +270,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     if (this.status.frozen) return;
 
     const tower = this.mode === 'Tower';
+    const defense = this.mode === 'Defense';
     if (tower) {
       // Grows for the level, capped at 10. Advanced before the step so the
       // frame that spawned the enemy does not get a free tick.
@@ -290,9 +291,21 @@ export class Enemy extends Phaser.GameObjects.Container {
       },
       target,
       deltaMs,
-      tower
-        ? towerAngleToTarget(this.steering, target, this.stats.moveSpeedMax, this.roomWidth)
-        : undefined,
+      // Defense enemies never re-steer. `PartGameArea.as:4528` gates the whole
+      // steering block — goal selection, the tank-lead prediction, the capped
+      // turn, lines 4528-4758 — on `levelMode != "Defense"`, while the
+      // acceleration and integration at :5027 stay outside it. So they keep the
+      // heading `resolveSpawn` gave them and fly straight.
+      //
+      // Expressed as "turn toward the heading you already have", which makes
+      // the turn exactly zero and leaves the rest of `steerToward` running
+      // unchanged. That is the same arithmetic as skipping the block, through
+      // one code path rather than two.
+      defense
+        ? this.steering.rotation
+        : tower
+          ? towerAngleToTarget(this.steering, target, this.stats.moveSpeedMax, this.roomWidth)
+          : undefined,
     );
 
     this.steering = clampToRoom(stepped, this.roomWidth, this.roomHeight, this.radius);
