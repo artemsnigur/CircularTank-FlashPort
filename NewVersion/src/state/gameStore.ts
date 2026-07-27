@@ -17,6 +17,7 @@ import type { SceneKey } from '../game/config/constants';
 import type { AudioSelfTestReport, BootStage, FontReport } from '../game/events/GameEvents';
 import type { SafeAreaInsets } from '../game/config/viewport';
 import type { LevelResult } from '../game/waves/levelOutcome';
+import type { LevelRef } from '../game/levels/levelProgress';
 import { NO_INSETS } from '../game/config/viewport';
 
 export type LoadPhase = 'idle' | 'booting' | 'loading' | 'ready' | 'error';
@@ -44,7 +45,8 @@ export interface LevelOutcomeSummary {
   level: number;
   kills: number;
   currency: number;
-  hasNextLevel: boolean;
+  /** Coordinates of the level to offer next, or null when there is none. */
+  nextLevel: LevelRef | null;
 }
 
 /** One world's levels with their unlock state. */

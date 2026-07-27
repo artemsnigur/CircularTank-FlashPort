@@ -23,7 +23,7 @@
  * exactly that cascade.
  */
 
-import { getLevel, LEVELS } from './levelData';
+import { getLevel, LEVELS, levelsInWorld, WORLD_COUNT } from './levelData';
 import type { LevelMode } from './levelData';
 import type { Difficulty } from '../config/constants';
 
@@ -123,6 +123,46 @@ export function getCurrentWorldAndLevel(
 export const FREE_WORLD_COUNT = 6;
 /** Worlds available with premium — Main.as:315. */
 export const PREMIUM_WORLD_COUNT = 9;
+
+/** A world/level pair. */
+export interface LevelRef {
+  world: number;
+  level: number;
+}
+
+/**
+ * The level that follows this one, or null at the end of the game.
+ *
+ * `ScreenStatus.as:411-423` — the same three branches drive both the "next
+ * level" offer and bestiary discovery, which is why this is one function:
+ *
+ *     level < levelsInWorld(world)  ->  (world, level + 1)
+ *     world < WORLD_COUNT           ->  (world + 1, 1)      // roll over
+ *     otherwise                     ->  null                // game complete
+ *
+ * ── The rollover branch was missing ───────────────────────────────────────
+ * `GameplayScene` used to compute this inline as `getLevel(world, level + 1)
+ * !== undefined`, which has no rollover: finishing 1-45 offered nothing and
+ * the run dead-ended at every world boundary. With 9 worlds that is 8 places,
+ * and it is invisible in normal play because reaching a boundary takes 45
+ * levels.
+ *
+ * ── Why an unknown world returns null rather than rolling to world 1 ──────
+ * Dev levels live in sentinel world 0 (`devLevels.ts`). `levelsInWorld(0)` is
+ * 0, so the first branch fails; without this guard the second would then
+ * offer **level 1-1** after a dev level, dragging a sandbox run into the real
+ * campaign. The old inline check got this right by accident — `getLevel(0, n)`
+ * is undefined — so the guard has to be explicit here to preserve it.
+ */
+export function nextLevelAfter(world: number, level: number): LevelRef | null {
+  const inThisWorld = levelsInWorld(world);
+  // Not a real world (dev sentinel, or out of range): nothing follows it.
+  if (inThisWorld === 0) return null;
+
+  if (level < inThisWorld) return { world, level: level + 1 };
+  if (world < WORLD_COUNT) return { world: world + 1, level: 1 };
+  return null;
+}
 
 /**
  * `SaveManager.setWorldAndLevel()` — the human-readable progress label stored

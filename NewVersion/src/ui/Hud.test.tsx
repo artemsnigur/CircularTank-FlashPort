@@ -3,7 +3,7 @@
  * claim: a Phaser scene emits `currency:earned`, and the React counter shows
  * the new value — no polling, no shared mutable object.
  */
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Hud } from './Hud';
 import { GameEvents } from '../game/events/GameEvents';
@@ -176,7 +176,7 @@ describe('Hud', () => {
         level: 3,
         kills: 12,
         currency: 240,
-        hasNextLevel: true,
+        nextLevel: { world: 1, level: 4 },
       });
     });
     rerender(<Hud />);
@@ -198,7 +198,7 @@ describe('Hud', () => {
         level: 3,
         kills: 5,
         currency: 100,
-        hasNextLevel: true,
+        nextLevel: { world: 1, level: 4 },
       });
     });
     rerender(<Hud />);
@@ -207,7 +207,10 @@ describe('Hud', () => {
   });
 
   it('offers no next level when there is none', () => {
-    // A loss unlocks nothing, and the last level of a world has no successor.
+    // A loss unlocks nothing, so there is nothing to move on to. Note this is
+    // *not* the world-boundary case: 1-45 does have a successor, 2-1. An
+    // earlier version of this comment said it did not, which described the
+    // `level + 1` bug rather than a rule.
     enterGameplay();
     const { rerender } = render(<Hud />);
 
@@ -218,13 +221,39 @@ describe('Hud', () => {
         level: 3,
         kills: 5,
         currency: 100,
-        hasNextLevel: false,
+        nextLevel: null,
       });
     });
     rerender(<Hud />);
 
     expect(screen.queryByRole('button', { name: /next level/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('starts the level the scene named, rolling over into the next world', () => {
+    // The overlay used to emit `level + 1`, so finishing 1-45 would have asked
+    // for the non-existent 1-46. The scene resolves the target now, and this
+    // asserts the button sends it verbatim rather than deriving anything.
+    enterGameplay();
+    const started: Array<{ world: number; level: number }> = [];
+    const off = GameEvents.subscribe('ui:start-game', (p) => void started.push(p));
+    const { rerender } = render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('level:ended', {
+        result: 'won',
+        world: 1,
+        level: 45,
+        kills: 9,
+        currency: 300,
+        nextLevel: { world: 2, level: 1 },
+      });
+    });
+    rerender(<Hud />);
+    fireEvent.click(screen.getByRole('button', { name: /next level/i }));
+    off();
+
+    expect(started).toEqual([{ world: 2, level: 1 }]);
   });
 
   it('labels a defeat differently', () => {
@@ -238,7 +267,7 @@ describe('Hud', () => {
         level: 1,
         kills: 2,
         currency: 10,
-        hasNextLevel: false,
+        nextLevel: null,
       });
     });
     rerender(<Hud />);

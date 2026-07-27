@@ -23,6 +23,7 @@ import { Pickup } from '../entities/Pickup';
 import { Enemy } from '../entities/Enemy';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { getLevel } from '../levels/levelData';
+import { nextLevelAfter } from '../levels/levelProgress';
 import type { LevelSpec } from '../levels/levelData';
 import {
   canSpawn,
@@ -1574,9 +1575,10 @@ export class GameplayScene extends Phaser.Scene {
         currency: this.currency,
         // A win has just recorded a value, which is what unlocks the next
         // level; a loss records nothing, so there is nothing to move on to.
-        hasNextLevel:
-          this.outcome.result === 'won' &&
-          getLevel(this.world, this.level + 1) !== undefined,
+        // `nextLevelAfter` rolls over into the next world, which the inline
+        // check this replaced did not — see levelProgress.ts.
+        nextLevel:
+          this.outcome.result === 'won' ? nextLevelAfter(this.world, this.level) : null,
       });
       // Stop simulating; the result overlay owns the screen from here.
       this.scene.pause();

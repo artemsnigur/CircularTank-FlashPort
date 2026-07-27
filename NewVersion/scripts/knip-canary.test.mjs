@@ -32,12 +32,22 @@ import { execFileSync } from 'node:child_process';
 /**
  * Exported, test-only, no production consumer. Verified by hand at the time of
  * writing; `docs/AUDIT-2026-07.md` records why each is dead.
+ *
+ * **These rotate, and a green-to-red here is not automatically a fault.** A
+ * canary stops being flagged for two opposite reasons — knip went blind, or the
+ * export got wired — and this file cannot tell them apart, which is why the
+ * failure message names both. Confirm which happened before editing the list.
+ *
+ * `discoverEnemies` was replaced by `isEnemyKnown` when bestiary discovery was
+ * wired into `PlayerProfile.recordLevel`: the canary fired on the commit that
+ * wired it, which is the mechanism behaving correctly. `isEnemyKnown` and its
+ * neighbours go the same way when the bestiary screen lands.
  */
 const CANARIES = [
   'countMaxedPrimary',
   'bombFuseRemaining',
   'applyFreeze',
-  'discoverEnemies',
+  'isEnemyKnown',
   'getAchievementTiers',
   'getTotalValues',
 ];

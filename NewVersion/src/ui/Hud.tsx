@@ -133,14 +133,13 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
   };
 
   // Straight into the next level, skipping the trip through level select.
-  // `hasNextLevel` is decided by the scene, which owns the unlock rule — this
-  // button appearing already means the level exists and is reachable.
+  // The scene owns the level tables and the unlock rule and hands over the
+  // coordinates, so this does no arithmetic: it used to send `level + 1`,
+  // which is wrong at a world boundary, where the next level is (world + 1, 1).
   const playNext = (): void => {
+    if (!outcome.nextLevel) return;
     clearLevelOutcome();
-    GameEvents.emit('ui:start-game', {
-      world: outcome.world,
-      level: outcome.level + 1,
-    });
+    GameEvents.emit('ui:start-game', outcome.nextLevel);
   };
 
   const toMenu = (): void => {
@@ -169,7 +168,7 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
           </div>
         </dl>
         <div className="level-outcome__actions">
-          {outcome.hasNextLevel && (
+          {outcome.nextLevel !== null && (
             <button type="button" className="hud__button hud__button--primary" onClick={playNext}>
               Next level ›
             </button>

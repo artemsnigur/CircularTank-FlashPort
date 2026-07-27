@@ -15,6 +15,8 @@ import {
   saveSlotStoreName,
 } from '../save/SaveStore';
 import { createInitialSaveSlot } from '../save/saveSlot';
+import { getLevel } from '../levels/levelData';
+import { toDisplayName } from '../enemies/enemyKnowledge';
 import {
   chooseWeapon,
   createInitialLoadout,
@@ -268,5 +270,80 @@ describe('what gameplay reads', () => {
     profile.save(new Date('2026-01-01T00:00:00Z'));
 
     expect(new PlayerProfile(store).upgrades.money).toBe(250);
+  });
+});
+
+
+/**
+ * `ScreenStatus.as:411-423`. The three things that make this easy to get wrong
+ * are all asserted here: wins only, the *next* level, and the level table
+ * rather than what was fought.
+ */
+describe('bestiary discovery on a level win', () => {
+  it('starts knowing only Basic', () => {
+    expect(new PlayerProfile(freshStore()).slot.knownEnemies).toEqual(['Basic']);
+  });
+
+  it('discovers the enemies of the NEXT level, not the one just played', () => {
+    const profile = new PlayerProfile(freshStore());
+    // 1-1 is Basic only; the reward for clearing it is a look at 1-2.
+    const upcoming = getLevel(1, 2)!.enemies.map((e) => toDisplayName(e.type));
+
+    const discovered = profile.recordLevel(1, 1, 'Easy', 1, true);
+
+    for (const name of upcoming) {
+      expect(profile.slot.knownEnemies, name).toContain(name);
+    }
+    // Everything reported new must actually be new, and must be in the list.
+    for (const name of discovered) expect(upcoming).toContain(name);
+  });
+
+  it('discovers nothing on a loss, even having fought them', () => {
+    const profile = new PlayerProfile(freshStore());
+    const before = [...profile.slot.knownEnemies];
+
+    expect(profile.recordLevel(1, 1, 'Easy', 0, false)).toEqual([]);
+    expect(profile.slot.knownEnemies).toEqual(before);
+  });
+
+  it('rolls over a world boundary, discovering the first level of the next', () => {
+    const profile = new PlayerProfile(freshStore());
+    const upcoming = getLevel(2, 1)!.enemies.map((e) => toDisplayName(e.type));
+
+    profile.recordLevel(1, 45, 'Easy', 1, true);
+
+    for (const name of upcoming) expect(profile.slot.knownEnemies, name).toContain(name);
+  });
+
+  it('reports each enemy new only once', () => {
+    const profile = new PlayerProfile(freshStore());
+    profile.recordLevel(1, 1, 'Easy', 1, true);
+    expect(profile.recordLevel(1, 1, 'Easy', 1, true)).toEqual([]);
+  });
+
+  it('never records a duplicate', () => {
+    const profile = new PlayerProfile(freshStore());
+    for (let level = 1; level <= 10; level += 1) profile.recordLevel(1, level, 'Easy', 1, true);
+    const known = profile.slot.knownEnemies;
+    expect(new Set(known).size).toBe(known.length);
+  });
+
+  it('a dev level teaches it nothing', () => {
+    // Sentinel world 0 has no successor, so a sandbox run cannot leak into the
+    // bestiary any more than it can into progress.
+    const profile = new PlayerProfile(freshStore());
+    expect(profile.recordLevel(0, 1, 'Easy', 1, true)).toEqual([]);
+    expect(profile.slot.knownEnemies).toEqual(['Basic']);
+  });
+
+  it('survives a save/load round trip', () => {
+    const store = freshStore();
+    const profile = new PlayerProfile(store);
+    profile.recordLevel(1, 1, 'Easy', 1, true);
+    const expected = [...profile.slot.knownEnemies];
+    expect(expected.length).toBeGreaterThan(1);
+    profile.save();
+
+    expect(new PlayerProfile(store).slot.knownEnemies).toEqual(expected);
   });
 });

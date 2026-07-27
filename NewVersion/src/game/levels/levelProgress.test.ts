@@ -9,6 +9,7 @@ import {
   getLevelValues,
   getTotalValues,
   isLevelCleared,
+  nextLevelAfter,
   recordLevelResult,
   TOTALS_TYPE_TO_MODE,
 } from './levelProgress';
@@ -312,5 +313,49 @@ describe('isLevelCleared', () => {
 
   it('is false for an out-of-range level', () => {
     expect(isLevelCleared(createEmptyProgress(), 99, 99)).toBe(false);
+  });
+});
+
+
+describe('nextLevelAfter', () => {
+  it('advances within a world', () => {
+    expect(nextLevelAfter(1, 1)).toEqual({ world: 1, level: 2 });
+    expect(nextLevelAfter(3, 20)).toEqual({ world: 3, level: 21 });
+  });
+
+  it('rolls over into the next world at the last level', () => {
+    // The bug this function replaced: the old inline check was
+    // `getLevel(world, level + 1) !== undefined`, so 1-45 reported no
+    // successor and the run dead-ended at all 8 world boundaries.
+    expect(levelsInWorld(1)).toBe(45);
+    expect(nextLevelAfter(1, 45)).toEqual({ world: 2, level: 1 });
+    expect(nextLevelAfter(8, 45)).toEqual({ world: 9, level: 1 });
+  });
+
+  it('returns null after the very last level of the last world', () => {
+    expect(nextLevelAfter(WORLD_COUNT, levelsInWorld(WORLD_COUNT))).toBeNull();
+  });
+
+  it('returns null for the dev sentinel world, not level 1-1', () => {
+    // devLevels.ts uses world 0, and its isolation depends on no onward level
+    // being offered. `levelsInWorld(0)` is 0, so without the explicit guard the
+    // rollover branch would hand back the first real level and drag a sandbox
+    // run into the campaign.
+    expect(nextLevelAfter(0, 1)).toBeNull();
+    expect(nextLevelAfter(0, 7)).toBeNull();
+  });
+
+  it('returns null for a world beyond the table', () => {
+    expect(nextLevelAfter(WORLD_COUNT + 1, 1)).toBeNull();
+  });
+
+  it('never names a level that does not exist', () => {
+    // The property that matters: whatever it returns must be loadable.
+    for (let w = 1; w <= WORLD_COUNT; w += 1) {
+      for (let l = 1; l <= levelsInWorld(w); l += 1) {
+        const next = nextLevelAfter(w, l);
+        if (next) expect(getLevel(next.world, next.level), `${w}-${l}`).toBeDefined();
+      }
+    }
   });
 });

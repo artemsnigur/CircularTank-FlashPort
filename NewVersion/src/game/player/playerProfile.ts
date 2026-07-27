@@ -31,7 +31,8 @@ import { EMPTY_SAVE_STRING } from '../save/saveString';
 import type { SaveSlotData } from '../save/saveSlot';
 import type { UpgradeState } from '../upgrades/upgradeState';
 import type { LoadoutState } from '../loadout/loadout';
-import { recordLevelResult } from '../levels/levelProgress';
+import { nextLevelAfter, recordLevelResult } from '../levels/levelProgress';
+import { discoverEnemies } from '../enemies/enemyKnowledge';
 import type { ProgressTable } from '../levels/levelProgress';
 import type { Difficulty } from '../config/constants';
 
@@ -101,6 +102,23 @@ export class PlayerProfile {
    *
    * `recordLevelResult` only ever raises a slot, so replaying a level on an
    * easier difficulty cannot erase a better score.
+   *
+   * ── Bestiary discovery rides along here ───────────────────────────────
+   * `ScreenStatus.as:411-423` calls `ScreenEnemies.updateEnemies` from the
+   * post-level screen, and three details of that are easy to get wrong:
+   *
+   *   - it is gated on `ScreenGame.hp > 0`, so **only a win discovers**;
+   *   - it reads the level *table*, not the enemies that were spawned;
+   *   - it looks at the **next** level, not the one just played.
+   *
+   * So this is a preview of what is coming, granted as a reward for winning —
+   * not a record of what was fought. Wiring it to enemy spawns would produce a
+   * working call with the wrong meaning, which is the failure mode this
+   * codebase keeps hitting.
+   *
+   * Returns the display names newly discovered, for a caller that wants to
+   * announce them. Nothing shows them yet: the AS3 renders them as reveal
+   * pages interleaved with achievements, which needs `ScreenStatus`.
    */
   recordLevel(
     world: number,
@@ -108,9 +126,18 @@ export class PlayerProfile {
     difficulty: Difficulty,
     value: number,
     won: boolean,
-  ): void {
+  ): string[] {
+    // Dev levels sit in sentinel world 0, where `nextLevelAfter` is null — so
+    // a sandbox run cannot teach the bestiary anything, same as it cannot
+    // record progress.
+    const upcoming = won ? nextLevelAfter(world, level) : null;
+    const discovery = upcoming
+      ? discoverEnemies(this.data.knownEnemies, upcoming.world, upcoming.level)
+      : null;
+
     this.data = {
       ...this.data,
+      knownEnemies: discovery ? discovery.known : this.data.knownEnemies,
       levelSelect: {
         ...this.data.levelSelect,
         progress: recordLevelResult(
@@ -125,6 +152,8 @@ export class PlayerProfile {
         previousLevelWon: won,
       },
     };
+
+    return discovery ? discovery.newlyDiscovered : [];
   }
 
   /**

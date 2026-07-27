@@ -72,6 +72,13 @@ export function bankLevelOutcome(profile: BankingTarget, input: LevelBankingInpu
   // (`ScreenLevelSelect.as:842` locks a level whose predecessor scored zero). A
   // loss still updates "where the player was" but scores nothing, so it cannot
   // unlock anything.
+  //
+  // `recordLevel` also performs bestiary discovery on a win and returns the
+  // newly-met enemy names. That return is deliberately dropped here: nothing
+  // displays it yet, and the AS3 shows it as reveal pages on `ScreenStatus`,
+  // which is unported. The discovery itself is still recorded in the profile —
+  // only the announcement is missing. Thread the value through when that screen
+  // lands rather than inventing a place to put it now.
   profile.recordLevel(input.world, input.level, input.difficulty, input.won ? 1 : 0, input.won);
   profile.save();
   return true;

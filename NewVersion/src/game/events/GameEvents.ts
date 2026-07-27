@@ -16,6 +16,7 @@
 import Phaser from 'phaser';
 import type { SceneKey } from '../config/constants';
 import type { LevelResult } from '../waves/levelOutcome';
+import type { LevelRef } from '../levels/levelProgress';
 
 export interface AudioTrackReport {
   key: string;
@@ -120,13 +121,19 @@ export interface GameEventMap {
     kills: number;
     currency: number;
     /**
-     * Whether a next level exists in this world *and* is now reachable.
+     * The level to offer next, or null when there is none.
      *
-     * Computed by the scene, which owns the level tables and the unlock rule.
-     * False after a loss: losing records no value, so the next level stays
+     * Carries the coordinates rather than a boolean so the overlay does no
+     * arithmetic of its own. It previously received `hasNextLevel` and derived
+     * the target as `level + 1`, which duplicated the progression rule in the
+     * view and got it wrong at a world boundary — the flag and the button
+     * could disagree. The scene owns the level tables and the unlock rule, so
+     * it hands over the answer.
+     *
+     * Null after a loss: losing records no value, so the next level stays
      * locked and offering to start it would bypass the rule.
      */
-    hasNextLevel: boolean;
+    nextLevel: LevelRef | null;
   };
 
   /* ── Diagnostics ─────────────────────────────────────────────────────── */
