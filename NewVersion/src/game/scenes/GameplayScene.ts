@@ -110,6 +110,7 @@ import {
 } from '../player/tankDamage';
 import { bankLevelOutcome } from '../player/levelBanking';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
+import { roomFillZoom } from '../config/viewport';
 
 /**
  * Used **only** when no level spec resolves.
@@ -122,6 +123,23 @@ import { applyViewportToScene, getViewportController } from '../systems/Viewport
  * `resolveLevelSpec` and `docs/AUDIT-2026-07.md`).
  */
 const FALLBACK_ROOM = { width: 640, height: 960 } as const;
+
+/**
+ * Levels the room-fill zoom prototype is enabled on, as `world-level`.
+ *
+ * 1-1 is the deliberate choice: at 640x400 it is both the narrowest and the
+ * shortest room in the game, so it shows the largest change and is the worst
+ * case for anything that breaks. It is also `Normal` mode with ten Basic
+ * enemies, so a failure is legible rather than tangled in Flag or Boss rules.
+ *
+ * DEV-only and explicitly listed rather than applied by a rule, so the other
+ * 404 levels are untouched while this is being judged.
+ */
+const ROOM_FILL_PROTOTYPE_LEVELS: ReadonlySet<string> = new Set(['1-1']);
+
+function roomFillEnabled(world: number, level: number): boolean {
+  return import.meta.env.DEV && ROOM_FILL_PROTOTYPE_LEVELS.has(`${world}-${level}`);
+}
 
 const PICKUP_COUNT = 8;
 const PICKUP_VALUE = 5;
@@ -389,6 +407,12 @@ export class GameplayScene extends Phaser.Scene {
     // Before anything below reads roomWidth/roomHeight.
     this.resolveLevelSpec();
 
+    // After resolveLevelSpec, and only after: the fill zoom is derived from
+    // `roomWidth`, which is the fallback until the spec lands. On 1-1 the
+    // fallback is also 640, so calling it earlier produced the right number by
+    // coincidence and would have been wrong on every other narrow level.
+    this.applyRoomFillZoom();
+
     this.physics.world.setBounds(0, 0, this.roomWidth, this.roomHeight);
 
     // Real extracted bitmap, tiled across the room. `ground-desert` is
@@ -558,6 +582,23 @@ export class GameplayScene extends Phaser.Scene {
   }
 
   /* ── setup ─────────────────────────────────────────────────────────────── */
+
+  /**
+   * Cosmetic zoom so a narrow room fills the window — prototype, see
+   * `ROOM_FILL_PROTOTYPE_LEVELS`.
+   *
+   * Deliberately touches `camera.setZoom` and nothing else. The one place
+   * gameplay reads the view (`cameraWidth`/`cameraHeight` fed to
+   * `spawnPlacement`) takes `ViewportController`'s nominal viewport, which this
+   * does not modify — so the off-camera spawn disqualifier still compares the
+   * room against 640 and behaves identically zoomed or not.
+   */
+  private applyRoomFillZoom(): void {
+    if (!roomFillEnabled(this.world, this.level)) return;
+    const view = getViewportController(this)?.current;
+    if (!view) return;
+    this.cameras.main.setZoom(roomFillZoom(view, this.roomWidth));
+  }
 
   private setupCamera(): void {
     const camera = this.cameras.main;
@@ -1952,7 +1993,10 @@ export class GameplayScene extends Phaser.Scene {
 
   private layout(): void {
     const controller = getViewportController(this);
-    if (controller) applyViewportToScene(this, controller.current);
+    if (controller) {
+      applyViewportToScene(this, controller.current);
+      this.applyRoomFillZoom();
+    }
 
     // Anchor in-canvas HUD text to the safe rect, not to the camera edge — on
     // a notched phone the camera edge is under the status bar.

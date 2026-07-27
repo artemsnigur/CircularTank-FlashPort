@@ -6,6 +6,7 @@ import {
   MAX_LOGICAL_HEIGHT,
   MAX_PIXEL_RATIO,
   MIN_LOGICAL_HEIGHT,
+  roomFillZoom,
 } from './viewport';
 
 /** A few real devices, in CSS pixels. */
@@ -117,5 +118,59 @@ describe('computeSafeRect', () => {
     const rect = computeSafeRect(vp, { top: -20, right: -20, bottom: -20, left: -20 });
     expect(rect.x).toBe(0);
     expect(rect.y).toBe(0);
+  });
+});
+
+
+describe('roomFillZoom', () => {
+  /** A 16:9 desktop window at dpr 1 — the common case. */
+  const desktop = computeViewport({ cssWidth: 1920, cssHeight: 1080, pixelRatio: 1 });
+
+  it('the landscape branch really does show more than 640 units', () => {
+    // The premise of the whole feature, asserted rather than assumed. The zoom
+    // is driven by MIN_LOGICAL_HEIGHT here, not by DESIGN_WIDTH, so the player
+    // sees a wider strip than the design width.
+    expect(desktop.logicalHeight).toBe(400);
+    expect(Math.round(desktop.logicalWidth)).toBe(711);
+    expect(desktop.logicalWidth).toBeGreaterThan(640);
+  });
+
+  it('fills the width for a 640-wide room', () => {
+    const zoom = roomFillZoom(desktop, 640);
+    // 640 design units must span the whole render width.
+    expect(640 * zoom).toBeCloseTo(desktop.renderWidth, 6);
+    expect(zoom).toBeGreaterThan(desktop.zoom);
+  });
+
+  it('leaves a room that already fills or overflows alone', () => {
+    // 800 and 900 exceed the 711-unit view, so they scroll and need nothing.
+    expect(roomFillZoom(desktop, 800)).toBe(desktop.zoom);
+    expect(roomFillZoom(desktop, 900)).toBe(desktop.zoom);
+  });
+
+  it('is a no-op exactly at the boundary', () => {
+    expect(roomFillZoom(desktop, desktop.logicalWidth)).toBe(desktop.zoom);
+  });
+
+  it('closes a 316-unit gap on 21:9, which is a third of the window', () => {
+    const ultrawide = computeViewport({ cssWidth: 3440, cssHeight: 1440, pixelRatio: 1 });
+    expect(Math.round(ultrawide.logicalWidth - 640)).toBe(316);
+    expect(640 * roomFillZoom(ultrawide, 640)).toBeCloseTo(ultrawide.renderWidth, 6);
+  });
+
+  it('trades vertical extent for the fill, and says so in numbers', () => {
+    // Zooming in shows less height: 1080 / zoom. The 640x400 room is still
+    // taller than that, so it scrolls slightly rather than showing past its
+    // own edge — which is the property that makes this safe.
+    const zoom = roomFillZoom(desktop, 640);
+    const visibleHeight = desktop.renderHeight / zoom;
+    expect(Math.round(visibleHeight)).toBe(360);
+    expect(visibleHeight).toBeLessThan(400);
+  });
+
+  it('refuses nonsense room widths rather than returning Infinity', () => {
+    expect(roomFillZoom(desktop, 0)).toBe(desktop.zoom);
+    expect(roomFillZoom(desktop, -1)).toBe(desktop.zoom);
+    expect(roomFillZoom(desktop, Number.NaN)).toBe(desktop.zoom);
   });
 });

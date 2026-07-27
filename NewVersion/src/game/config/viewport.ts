@@ -190,3 +190,34 @@ export function describeViewport(viewport: Viewport): string {
     `world ${Math.round(viewport.logicalWidth)}x${Math.round(viewport.logicalHeight)} units`
   );
 }
+
+/**
+ * Zoom that makes a room span the full render width, or the unchanged zoom when
+ * the room is already at least as wide as the view.
+ *
+ * ── The problem this solves ───────────────────────────────────────────────
+ * `computeViewport`'s landscape branch is driven by `MIN_LOGICAL_HEIGHT`, not
+ * by the design width: on any window shorter than 640x400 the zoom is
+ * `renderHeight / 400`, and the player therefore sees **more** than 640 design
+ * units across. On 16:9 that is 711 units; on 21:9 it is 956.
+ *
+ * 210 of the 405 levels are 640 wide. In those the room is *narrower than the
+ * view*, so it cannot fill the screen — 71 units of empty space on 16:9 and 316
+ * on 21:9, which is a third of the window. That is the "narrow rooms stay
+ * pinned to the original small size" effect, and it is a width problem, not the
+ * height problem it looks like.
+ *
+ * ── Cosmetic only ─────────────────────────────────────────────────────────
+ * This is applied to `camera.setZoom` and nowhere else. Gameplay rules read
+ * `Viewport.logicalWidth`/`logicalHeight`, which this does not touch, so laser
+ * reach, magic retargeting and the off-camera spawn search all keep judging
+ * against the nominal view. Zooming in shows less vertically, so a room that
+ * fills the width will usually scroll a little vertically — that is the trade,
+ * and it is the same behaviour wide rooms already have.
+ */
+export function roomFillZoom(viewport: Viewport, roomWidth: number): number {
+  if (!Number.isFinite(roomWidth) || roomWidth <= 0) return viewport.zoom;
+  // Already as wide as the view, or wider: leave it alone and let it scroll.
+  if (roomWidth >= viewport.logicalWidth) return viewport.zoom;
+  return viewport.renderWidth / roomWidth;
+}
