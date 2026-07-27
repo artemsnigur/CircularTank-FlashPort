@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   assertSlotComplete,
   createInitialSaveSlot,
@@ -69,9 +70,12 @@ describe('encodeSaveSlot', () => {
 
   it('leaves no field empty that should carry a value', () => {
     const fields = encodeSaveSlot(playedSlot(), { now: FIXED_DATE });
-    // `tad`/`taq`/`tau` legitimately encode to "" when their list is empty;
-    // everything else must produce something.
-    const allowedEmpty = new Set(['tau', 'taq', 'tad', 'ew']);
+    // A list legitimately encodes to "" when empty, so the allowance is read
+    // off the schema's own codec rather than hand-listed — a new list field is
+    // then covered without anyone having to remember it.
+    const allowedEmpty = new Set(
+      SAVE_SLOT_FIELDS.filter((spec) => spec.codec === 'csv').map((spec) => spec.key),
+    );
     for (const field of fields) {
       if (allowedEmpty.has(field.key)) continue;
       expect(field.value.length, field.key).toBeGreaterThan(0);
@@ -81,7 +85,41 @@ describe('encodeSaveSlot', () => {
   it('throws a directed error when a field is missing', () => {
     const fields = encodeSaveSlot(createInitialSaveSlot(), { now: FIXED_DATE });
     const truncated = fields.filter((f) => f.key !== 'm' && f.key !== 'la');
-    expect(() => assertSlotComplete(truncated)).toThrow(/missing 2 field\(s\): m, la/);
+    expect(() => assertSlotComplete(truncated)).toThrow(/missing 2: m, la/);
+  });
+
+  /**
+   * The case the guard was written for and could not see.
+   *
+   * It used to compare key presence against the schema, and `encodeSaveSlot`
+   * builds its result by mapping over that same schema — so every key is
+   * present by construction and the check was vacuous. Installing it as
+   * written would have been a no-op that looked like a fix. The real
+   * data-loss path is the `?? ''` fallback: a value no slice supplied, which
+   * decodes to a default and is gone.
+   */
+  it('throws when a non-list field is present but empty', () => {
+    const fields = encodeSaveSlot(createInitialSaveSlot(), { now: FIXED_DATE });
+    const blanked = fields.map((f) => (f.key === 'm' ? { ...f, value: '' } : f));
+    expect(() => assertSlotComplete(blanked)).toThrow(/empty 1: m/);
+  });
+
+  it('does not throw when a list field is empty, because that is honest', () => {
+    // `tad` is empty on a fresh profile: the done-tutorials list has no members.
+    const fields = encodeSaveSlot(createInitialSaveSlot(), { now: FIXED_DATE });
+    expect(fields.find((f) => f.key === 'tad')?.value).toBe('');
+    expect(() => assertSlotComplete(fields)).not.toThrow();
+  });
+
+  it('encodeSaveSlot runs the guard itself, so a caller cannot skip it', () => {
+    // The whole defect was that this guard existed and nothing called it on the
+    // path its own docstring describes.
+    const source = readFileSync('src/game/save/saveSlot.ts', 'utf8');
+    const body = source.slice(
+      source.indexOf('export function encodeSaveSlot('),
+      source.indexOf('export function decodeSaveSlot('),
+    );
+    expect(body).toContain('assertSlotComplete(encoded)');
   });
 });
 

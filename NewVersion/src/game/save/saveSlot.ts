@@ -135,10 +135,17 @@ export function encodeSaveSlot(
   );
 
   // Emit in schema order so the result matches the AS3 byte for byte.
-  return SAVE_SLOT_FIELDS.map((spec) => ({
+  const encoded = SAVE_SLOT_FIELDS.map((spec) => ({
     key: spec.key,
     value: produced.get(spec.key) ?? '',
   }));
+
+  // The `?? ''` above is the data-loss path: a slice that produced nothing
+  // yields an empty value, which decodes to a default and is gone. The guard
+  // was written for exactly this and was never installed here, so the hazard
+  // its docstring describes was the live behaviour.
+  assertSlotComplete(encoded);
+  return encoded;
 }
 
 /** Reads a slot back. Every slice falls back to its own defaults. */
@@ -180,15 +187,52 @@ export function readSaveSlot(saveString: string, slot: number): SaveSlotData {
 }
 
 /**
- * Throws when the encoder did not produce every field the schema declares.
+ * Throws when the encoder did not really produce every field.
  *
- * Exists because a missing field is silent otherwise: it would encode as an
- * empty value and decode to a default, losing the player's data with no error.
+ * A missing field is silent otherwise: it encodes as an empty value and decodes
+ * to a default, losing the player's data with no error.
+ *
+ * ── This checked the wrong thing, and could never fire ────────────────────
+ * It used to compare *key presence* against the schema. `encodeSaveSlot` builds
+ * its result by mapping over `SAVE_SLOT_FIELDS`, so every key is present by
+ * construction and the check was vacuous — installing it as written would have
+ * been a no-op that looked like a fix. The failure it describes is the
+ * `?? ''` fallback in that map firing, i.e. a **value** the slices never
+ * supplied.
+ *
+ * ── Which empties are legitimate is derived, not listed ───────────────────
+ * The five `csv` fields hold lists, and an empty list encodes to `''` honestly
+ * — `tad` does so on a fresh profile today. Reading that from the schema's own
+ * `codec` means a new list field is covered automatically, where a hand-kept
+ * allow-list would need remembering. Everything else empty is a bug.
+ *
+ * Throwing is the safe failure. `PlayerProfile.save` catches and keeps the
+ * previous save string, so a bad encode costs the player their most recent
+ * progress rather than a field they will never get back.
  */
 export function assertSlotComplete(fields: readonly SaveField[]): void {
-  const produced = new Set(fields.map((f) => f.key));
-  const missing = SAVE_SLOT_FIELDS.filter((spec) => !produced.has(spec.key)).map((s) => s.key);
-  if (missing.length > 0) {
-    throw new Error(`Save slot is missing ${missing.length} field(s): ${missing.join(', ')}`);
+  const produced = new Map(fields.map((f) => [f.key, f.value]));
+
+  const missing: string[] = [];
+  const blank: string[] = [];
+  for (const spec of SAVE_SLOT_FIELDS) {
+    if (!produced.has(spec.key)) {
+      missing.push(spec.key);
+      continue;
+    }
+    // A list may be empty; anything else empty means a slice produced nothing.
+    if (spec.codec !== 'csv' && produced.get(spec.key) === '') blank.push(spec.key);
+  }
+
+  const problems = [
+    missing.length > 0 ? `missing ${missing.length}: ${missing.join(', ')}` : '',
+    blank.length > 0 ? `empty ${blank.length}: ${blank.join(', ')}` : '',
+  ].filter(Boolean);
+
+  if (problems.length > 0) {
+    throw new Error(
+      `Save slot would lose data — ${problems.join('; ')}. ` +
+        'Refusing to write; the previous save is kept.',
+    );
   }
 }
