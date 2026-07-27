@@ -25,7 +25,7 @@ const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
  * `audio` is renamed from `sounds` to match the folder layout in the brief.
  */
 const FOLDER_MAP = [
-  { from: 'images', to: 'images', exts: ['.png', '.jpg', '.jpeg', '.gif'] },
+  { from: 'images', to: 'images', exts: ['.png', '.jpg', '.jpeg', '.gif', '.webp'] },
   { from: 'fonts', to: 'fonts', exts: ['.ttf', '.otf', '.woff', '.woff2'] },
   { from: 'sounds', to: 'audio', exts: ['.mp3', '.ogg', '.wav'] },
   { from: 'shapes', to: 'shapes', exts: ['.svg'], curated: true },

@@ -134,7 +134,7 @@ describe('every extracted file keeps its SWF library ID', () => {
    * convention to anything with an underscore, so it is declared here instead
    * and checked separately below.
    */
-  const DERIVED_ASSETS: ReadonlySet<string> = new Set(['351_upscale.png']);
+  const DERIVED_ASSETS: ReadonlySet<string> = new Set(['351_upscale.webp']);
 
   it('every derived asset is real and derives from a file that exists', () => {
     const images = new Set(Object.keys(imageUrls));

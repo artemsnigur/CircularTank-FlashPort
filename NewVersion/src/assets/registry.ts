@@ -26,7 +26,7 @@ function byFilename(modules: Record<string, unknown>): UrlMap {
 
 /** filename (e.g. "351.png") -> hashed URL */
 export const imageUrls: UrlMap = byFilename(
-  import.meta.glob('./images/*.{png,jpg,jpeg,gif}', {
+  import.meta.glob('./images/*.{png,jpg,jpeg,gif,webp}', {
     eager: true,
     query: '?url',
     import: 'default',

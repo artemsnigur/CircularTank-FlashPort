@@ -3,81 +3,70 @@ import { readFileSync } from 'node:fs';
 import {
   BASE_TEXTURE_SIZE,
   DEFAULT_GROUND,
+  EXTRACTED_GROUND,
   UPSCALE_TEXTURE_SIZE,
-  comparisonLevels,
   groundFor,
 } from './groundTexture';
-import { getLevel } from './levelData';
 import { SAMPLE_IMAGES } from '../../assets/manifest';
 
-describe('the comparison levels', () => {
-  it('1-1 keeps the original tiling at 4x density', () => {
-    const g = groundFor(1, 1);
-    expect(g.key).toBe('ground-desert-hi');
-    // One repeat must still cover 256 design units, or the layout has changed
-    // and this stops being a like-for-like sharpness comparison.
-    expect(UPSCALE_TEXTURE_SIZE * g.tileScale).toBe(BASE_TEXTURE_SIZE);
+describe('the ground every level draws', () => {
+  it('is the upscaled tile, at the extractions own repeat size', () => {
+    // The property that made this safe to apply to all 405 levels rather than
+    // a chosen few: one repeat still covers 256 design units, so the layout is
+    // unchanged and only pixel density differs.
+    expect(DEFAULT_GROUND.key).toBe('ground-desert-hi');
+    expect(UPSCALE_TEXTURE_SIZE * DEFAULT_GROUND.tileScale).toBe(BASE_TEXTURE_SIZE);
   });
 
-  it('1-6 draws one texel per design unit', () => {
-    const g = groundFor(1, 6);
-    expect(g.key).toBe('ground-desert-hi');
-    expect(g.tileScale).toBe(1);
-  });
-
-  it("1-6's room actually fits inside a single tile", () => {
-    // The whole claim for option 2 is "no repetition". That holds only while
-    // the room is no larger than the texture — a bigger room would repeat and
-    // the comparison would quietly become meaningless. 1-6 is 800x600 since
-    // the world-1 standardisation, so this also pins that dependency.
-    const spec = getLevel(1, 6)!;
-    expect(spec.roomWidth).toBeLessThanOrEqual(UPSCALE_TEXTURE_SIZE);
-    expect(spec.roomHeight).toBeLessThanOrEqual(UPSCALE_TEXTURE_SIZE);
-    expect([spec.roomWidth, spec.roomHeight]).toEqual([800, 600]);
-  });
-
-  it('changes nothing else', () => {
-    expect(comparisonLevels().sort()).toEqual(['1-1', '1-6']);
-
-    const untouched: string[] = [];
+  it('is the same on every level', () => {
+    // The 1-1 / 1-6 comparison is over. If a per-level rule ever comes back
+    // (themes, most likely), this is the test that will need rewriting, which
+    // is the point — the uniformity should not lapse silently.
     for (let world = 1; world <= 9; world += 1) {
       for (let level = 1; level <= 45; level += 1) {
-        if (world === 1 && (level === 1 || level === 6)) continue;
-        if (groundFor(world, level) !== DEFAULT_GROUND) untouched.push(`${world}-${level}`);
+        expect(groundFor(world, level), `${world}-${level}`).toBe(DEFAULT_GROUND);
       }
     }
-    expect(untouched).toEqual([]);
   });
 
-  it('the default is still the extracted tile', () => {
-    expect(DEFAULT_GROUND).toEqual({ key: 'ground-desert', tileScale: 1 });
+  it('keeps the extracted tile available as the fallback', () => {
+    expect(EXTRACTED_GROUND).toEqual({ key: 'ground-desert', tileScale: 1 });
+  });
+
+  it('both keys are in the manifest, so something preloads them', () => {
+    const keys = new Set(SAMPLE_IMAGES.map((a) => a.key));
+    expect(keys.has(DEFAULT_GROUND.key)).toBe(true);
+    expect(keys.has(EXTRACTED_GROUND.key)).toBe(true);
   });
 });
 
-describe('the keys resolve', () => {
-  it('every key used here is in the manifest', () => {
-    const keys = new Set(SAMPLE_IMAGES.map((a) => a.key));
-    expect(keys.has(DEFAULT_GROUND.key)).toBe(true);
-    for (const id of comparisonLevels()) {
-      const [w, l] = id.split('-').map(Number);
-      const key = groundFor(w, l).key;
-      expect(keys.has(key), `${key} is not in SAMPLE_IMAGES, so nothing preloads it`).toBe(true);
-    }
+describe('the asset behind it', () => {
+  const file = readFileSync('src/assets/images/351_upscale.webp');
+
+  it('is a WebP, not the PNG it started as', () => {
+    // RIFF....WEBP
+    expect(file.subarray(0, 4).toString('ascii')).toBe('RIFF');
+    expect(file.subarray(8, 12).toString('ascii')).toBe('WEBP');
   });
 
-  it('the upscale really is 1024x1024, read from the file', () => {
-    // UPSCALE_TEXTURE_SIZE is arithmetic everything above depends on. If the
-    // asset is ever replaced at a different size, both options silently draw
-    // at the wrong scale — 1-1 would stop matching the original tiling and
-    // 1-6 would start repeating. Read the PNG header rather than trust it.
-    const file = readFileSync('src/assets/images/351_upscale.png');
-    expect(file.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-    const width = file.readUInt32BE(16);
-    const height = file.readUInt32BE(20);
+  it('is still 1024x1024, read from the file', () => {
+    // UPSCALE_TEXTURE_SIZE is the arithmetic the tile scale depends on. If the
+    // asset is replaced at another size the ground silently draws at the wrong
+    // repeat, so this is read rather than trusted.
+    //
+    // Lossy VP8 stores 14-bit width/height at byte 26 of the VP8 chunk.
+    expect(file.subarray(12, 16).toString('ascii')).toBe('VP8 ');
+    const width = file.readUInt16LE(26) & 0x3fff;
+    const height = file.readUInt16LE(28) & 0x3fff;
     expect([width, height]).toEqual([UPSCALE_TEXTURE_SIZE, UPSCALE_TEXTURE_SIZE]);
+  });
 
-    // Colour type 2 = RGB. It arrived as 6 (RGBA) with every pixel opaque,
-    // which cost 28% of the file for nothing.
-    expect(file.readUInt8(25), 'expected RGB; the alpha strip has been undone').toBe(2);
+  it('is smaller than the 256x256 tile it replaces', () => {
+    // The point of the encoding change: 4x the resolution for less than half
+    // the bytes, so the size objection to shipping it everywhere is gone. It
+    // was 571 KB as a PNG, which was larger than the entire app bundle.
+    const original = readFileSync('src/assets/images/351.png');
+    expect(file.byteLength).toBeLessThan(original.byteLength);
+    expect(file.byteLength).toBeLessThan(60_000);
   });
 });
