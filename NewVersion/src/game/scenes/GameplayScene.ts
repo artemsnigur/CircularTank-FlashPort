@@ -109,6 +109,7 @@ import {
   resolveContact,
   TANK_MAX_HP,
 } from '../player/tankDamage';
+import { tankStartPosition } from '../player/tankMovement';
 import { bankLevelOutcome } from '../player/levelBanking';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import {
@@ -469,10 +470,15 @@ export class GameplayScene extends Phaser.Scene {
     // marking where the arena ends.
     this.outOfBounds = this.add.graphics().setDepth(0.5);
 
+    const start = tankStartPosition(
+      this.levelSpec?.mode ?? 'Normal',
+      this.roomWidth,
+      this.roomHeight,
+    );
     this.player = new PlayerTank(
       this,
-      this.roomWidth / 2,
-      this.roomHeight / 2,
+      start.x,
+      start.y,
       this.roomWidth,
       this.roomHeight,
       this.upgrades,
@@ -616,6 +622,7 @@ export class GameplayScene extends Phaser.Scene {
     for (const enemy of this.enemies) {
       enemy.update({ x: this.player.x, y: this.player.y }, delta);
     }
+    this.resolveDefenseBreaches();
 
     this.updateEnemyFire(delta);
     this.flushDeathBlasts();
@@ -1433,6 +1440,35 @@ export class GameplayScene extends Phaser.Scene {
    * Non-bosses die on contact and pay nothing — a suicide attack, so the only
    * way to earn from an enemy is to kill it first.
    */
+  /**
+   * Enemies that reached the bottom of a Defense lane.
+   *
+   * `PartGameArea.as:5468-5484`: instead of the wall bounce every other mode
+   * gets, the enemy damages the player by its contact damage, dies, and pays no
+   * money. That last part matters — letting one through is a loss on both
+   * counts, health and income.
+   *
+   * Iterated over a copy because `removeEnemy` mutates `this.enemies`.
+   */
+  private resolveDefenseBreaches(): void {
+    for (const enemy of [...this.enemies]) {
+      if (!enemy.breachedLine) continue;
+      enemy.breachedLine = false;
+
+      const damage = enemy.stats.damage;
+      this.hp = Math.max(0, this.hp - damage);
+      getSoundManager(this)?.queue('TankEnemyCollision');
+      this.cameras.main.shake(90, 0.0012);
+      GameEvents.emit('player:damaged', {
+        amount: damage,
+        health: this.hp,
+        maxHealth: TANK_MAX_HP,
+      });
+
+      this.removeEnemy(enemy, false);
+    }
+  }
+
   private updateContactDamage(deltaMs: number): void {
     const frames = (deltaMs / 1000) * 30;
     if (this.pushedFrames > 0) this.pushedFrames = Math.max(0, this.pushedFrames - frames);

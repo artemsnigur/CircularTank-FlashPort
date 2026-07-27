@@ -248,3 +248,37 @@ export function rotateTank(state: TankState, frames: number): TankState {
 export function createTankState(x: number, y: number): TankState {
   return { x, y, xVel: 0, yVel: 0, rotation: -90, speed: 0 };
 }
+
+/**
+ * Half the original Flash stage height — `PartGameArea.as:346`.
+ *
+ * The AS3 places the Defense tank at `cameraWidth / 2, cameraHeight / 2` where
+ * the camera was a fixed 640x400 stage, so 200 units from the top of a 960-tall
+ * lane. This port's camera height is *also* 400 on every landscape window,
+ * because `MIN_LOGICAL_HEIGHT` clamps it there — but that is a coincidence of
+ * the current viewport rule, not a constant, and deriving from it would make
+ * the tank's starting position depend on window shape. Pinned instead.
+ */
+export const DEFENSE_START_Y = 200;
+
+/**
+ * Where the tank starts a level.
+ *
+ * Every mode centres in the room except Defense, which starts near the *top* of
+ * its lane so enemies descending from above pass it on the way to the line
+ * behind. The AS3 expresses that as `cameraWidth / 2, cameraHeight / 2` — but
+ * only the vertical half is a real divergence from centring: with the original
+ * room and camera both 640 wide, `cameraWidth / 2` *was* the room centre. So
+ * horizontally this keeps centring the tank, which preserves the intent in a
+ * lane that is no longer 640 wide, and vertically it takes the fixed 200.
+ */
+export function tankStartPosition(
+  mode: string,
+  roomWidth: number,
+  roomHeight: number,
+): { x: number; y: number } {
+  return {
+    x: roomWidth / 2,
+    y: mode === 'Defense' ? DEFENSE_START_Y : roomHeight / 2,
+  };
+}

@@ -221,3 +221,24 @@ export function clampToRoom(
     yVel: y === state.y ? state.yVel : 0,
   };
 }
+
+/**
+ * Whether a Defense enemy has crossed the bottom of the lane — the defended
+ * line.
+ *
+ * `PartGameArea.as:5449`. Every other mode clamps an enemy at
+ * `roomHeight - radius` and bounces it; Defense takes the `else` instead, which
+ * damages the player by the enemy's contact damage, kills the enemy and pays no
+ * money. So the bottom edge *is* the objective, and it is ten lines inside the
+ * existing wall-collision code rather than a separate defended-line system.
+ *
+ * Tested against the position *before* clamping, because `clampToRoom` would
+ * otherwise pull the enemy back inside and the crossing would never be visible.
+ */
+export function crossesDefenseLine(
+  state: SteeringState,
+  roomHeight: number,
+  radius: number,
+): boolean {
+  return state.y >= roomHeight - radius;
+}

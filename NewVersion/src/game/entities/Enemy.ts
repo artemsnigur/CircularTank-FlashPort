@@ -19,6 +19,7 @@ import { resolveSpawn } from '../enemies/enemySpawn';
 import type { SpawnGeometry } from '../enemies/enemySpawn';
 import {
   clampToRoom,
+  crossesDefenseLine,
   steerToward,
   towerAccSpeed,
   towerAngleToTarget,
@@ -102,6 +103,12 @@ export class Enemy extends Phaser.GameObjects.Container {
    * does not fire in unison — see `initialReloadTime`.
    */
   shooter: ShooterState | null = null;
+
+  /**
+   * Set on the frame this enemy crosses the Defense line, for the scene to act
+   * on. A flag rather than a return value, matching `PlayerTank.hitBottom`.
+   */
+  breachedLine = false;
 
   private steering: SteeringState;
   private readonly roomWidth: number;
@@ -307,6 +314,11 @@ export class Enemy extends Phaser.GameObjects.Container {
           ? towerAngleToTarget(this.steering, target, this.stats.moveSpeedMax, this.roomWidth)
           : undefined,
     );
+
+    // Checked before clamping: `clampToRoom` pulls the enemy back inside, so
+    // afterwards the crossing is no longer visible.
+    this.breachedLine =
+      defense && crossesDefenseLine(stepped, this.roomHeight, this.radius);
 
     this.steering = clampToRoom(stepped, this.roomWidth, this.roomHeight, this.radius);
     this.setPosition(this.steering.x, this.steering.y);
