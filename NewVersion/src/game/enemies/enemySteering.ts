@@ -242,3 +242,73 @@ export function crossesDefenseLine(
 ): boolean {
   return state.y >= roomHeight - radius;
 }
+
+/**
+ * Reflects a Defense enemy off the left and right walls.
+ *
+ * ── Why this exists separately from `clampToRoom` ─────────────────────────
+ * `clampToRoom` pins the position and **zeroes** the perpendicular velocity. In
+ * every mode that steers, that is invisible: the enemy is re-aimed the next
+ * frame and turns away from the wall by itself. Defense enemies never re-steer
+ * (`PartGameArea.as:4528`), so a zeroed component leaves the rotation still
+ * pointing into the wall, the enemy accelerates into it again, and only the
+ * downward component survives — it glides along the wall instead of bouncing.
+ *
+ * The AS3 does a real reflection at `:5379-5398` (right) and `:5414-5434`
+ * (left): reverse the perpendicular velocity, and mirror the rotation across
+ * the wall — but only when it actually points into it, so an enemy already
+ * heading away is left alone.
+ *
+ * ── Deliberately Defense-only ─────────────────────────────────────────────
+ * The AS3 reflects for every non-boss enemy in every mode. This is scoped to
+ * Defense on purpose: it is the smallest change that fixes the observed defect
+ * and it cannot affect modes that currently work. The cost is a knowing
+ * divergence, and a latent gap for whatever mode next stops re-steering — the
+ * same gap that produced this bug. Accepted, and written down here so the next
+ * person meets it as a decision rather than a surprise.
+ *
+ * Bosses are not exempted here as the AS3 exempts them: `enemyLevel == "B"`
+ * sets `rotateTowardsTank` instead, a 1-degree-per-frame turn implemented
+ * inside the steering block that Defense skips entirely, so porting it needs
+ * that block's context. Bosses keep `clampToRoom`'s behaviour for now.
+ *
+ * The **bottom** wall is not handled here. Defense enemies die at the bottom
+ * rather than bouncing (`crossesDefenseLine`, checked before this runs), and
+ * the AS3 exempts it at `:5449` for the same reason.
+ */
+export function bounceOffSideWalls(
+  state: SteeringState,
+  roomWidth: number,
+  radius: number,
+): SteeringState {
+  const left = radius;
+  const right = roomWidth - radius;
+
+  if (state.x > left && state.x < right) return state;
+
+  const intoRight = state.x >= right;
+  // Only reflect a heading that points *into* the wall. `PartGameArea.as:5387`
+  // guards on -90 < rotation < 90 for the right wall and the complement for the
+  // left, so an enemy already travelling away is untouched.
+  const pointsIn = intoRight
+    ? state.rotation > -90 && state.rotation < 90
+    : state.rotation > 90 || state.rotation < -90;
+
+  return {
+    ...state,
+    x: intoRight ? right : left,
+    // Mirror across a vertical wall: 180 - theta, in two forms so the result
+    // stays inside (-180, 180] rather than wrapping past it.
+    rotation: pointsIn ? mirrorAcrossVertical(state.rotation) : state.rotation,
+    // "Ensure it is now travelling away from this wall". The AS3 reverses only
+    // when the component points into the wall (`if (xVel > 0)`), and forcing
+    // the sign is the same thing: a component already pointing away is
+    // unchanged by it.
+    xVel: intoRight ? -Math.abs(state.xVel) : Math.abs(state.xVel),
+  };
+}
+
+/** `180 - theta`, normalised — `PartGameArea.as:5389-5396`. */
+function mirrorAcrossVertical(rotation: number): number {
+  return rotation < 0 ? -180 - rotation : 180 - rotation;
+}

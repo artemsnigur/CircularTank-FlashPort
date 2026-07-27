@@ -11,7 +11,10 @@
  * awkward to get wrong quietly: any re-steering at all shows up immediately.
  */
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
+  bounceOffSideWalls,
+  clampToRoom,
   crossesDefenseLine,
   steerToward,
   angleToTarget,
@@ -190,5 +193,109 @@ describe('where the tank starts', () => {
     // off-centre; the intent was centring, and that is what is kept.
     expect(tankStartPosition('Defense', 712, 960).x).toBe(356);
     expect(tankStartPosition('Defense', 640, 960).x).toBe(320);
+  });
+});
+
+describe('Defense enemies ricochet off the side walls', () => {
+  const RADIUS = 12;
+  const RIGHT = ROOM.width - RADIUS;
+
+  it('reverses the horizontal component and mirrors the heading', () => {
+    // Heading 42 degrees: down and to the right, into the right wall.
+    const hit: SteeringState = { x: RIGHT + 3, y: 400, rotation: 42, xVel: 1.1, yVel: 1.0 };
+    const bounced = bounceOffSideWalls(hit, ROOM.width, RADIUS);
+
+    expect(bounced.x).toBe(RIGHT);
+    expect(bounced.xVel).toBeCloseTo(-1.1, 10);
+    // 180 - 42, so it now heads down and to the *left* at the same steepness.
+    expect(bounced.rotation).toBe(138);
+    // The descent is untouched — that is what makes it a bounce and not a stop.
+    expect(bounced.yVel).toBe(1.0);
+  });
+
+  it('mirrors correctly off the left wall too', () => {
+    const hit: SteeringState = { x: 2, y: 400, rotation: 138, xVel: -1.1, yVel: 1.0 };
+    const bounced = bounceOffSideWalls(hit, ROOM.width, RADIUS);
+
+    expect(bounced.x).toBe(RADIUS);
+    expect(bounced.xVel).toBeCloseTo(1.1, 10);
+    expect(bounced.rotation).toBe(42);
+    expect(bounced.yVel).toBe(1.0);
+  });
+
+  it('keeps negative headings inside (-180, 180]', () => {
+    // The AS3 has two forms of the mirror for exactly this: 180 - (-30) would
+    // be 210, which is the same angle but outside the range everything else
+    // assumes.
+    const hit: SteeringState = { x: RIGHT + 1, y: 100, rotation: -30, xVel: 1, yVel: -0.5 };
+    expect(bounceOffSideWalls(hit, ROOM.width, RADIUS).rotation).toBe(-150);
+  });
+
+  it('leaves an enemy already heading away from the wall alone', () => {
+    // Guarded in the AS3 (`rotation < 90 && rotation > -90` for the right
+    // wall). Without it, an enemy grazing the wall while leaving would be
+    // flipped back into it.
+    const leaving: SteeringState = { x: RIGHT + 1, y: 400, rotation: 138, xVel: -1.1, yVel: 1.0 };
+    expect(bounceOffSideWalls(leaving, ROOM.width, RADIUS).rotation).toBe(138);
+  });
+
+  it('does nothing away from the walls', () => {
+    const mid: SteeringState = { x: 356, y: 400, rotation: 42, xVel: 1.1, yVel: 1.0 };
+    expect(bounceOffSideWalls(mid, ROOM.width, RADIUS)).toBe(mid);
+  });
+
+  it('descends by bouncing rather than sliding down the wall', () => {
+    // The reported defect, end to end. A shallow entry crosses the lane, hits a
+    // wall, and must come back across it — not hug the edge for the rest of the
+    // descent.
+    let state = spawnedAtTop(600, 0.95);
+    const xs: number[] = [];
+    let bounces = 0;
+
+    for (let frame = 0; frame < 1200 && state.y < ROOM.height; frame += 1) {
+      const before = state.rotation;
+      state = stepDefense(state);
+      state = bounceOffSideWalls(state, ROOM.width, RADIUS);
+      if (state.rotation !== before) bounces += 1;
+      xs.push(state.x);
+    }
+
+    expect(bounces).toBeGreaterThan(0);
+    // It visits both halves of the lane, which sliding down one wall cannot do.
+    expect(Math.min(...xs)).toBeLessThan(ROOM.width * 0.4);
+    expect(Math.max(...xs)).toBeGreaterThan(ROOM.width * 0.6);
+  });
+});
+
+describe('the other modes keep clamp-and-zero', () => {
+  it('clampToRoom still zeroes rather than reflecting', () => {
+    // Unchanged on purpose: this is the shared path Normal, Tower, Flag and
+    // Boss all use, and the reflection is deliberately scoped to Defense.
+    const past: SteeringState = { x: 900, y: 400, rotation: 42, xVel: 1.1, yVel: 1.0 };
+    const clamped = clampToRoom(past, ROOM.width, ROOM.height, 12);
+
+    expect(clamped.x).toBe(ROOM.width - 12);
+    expect(clamped.xVel).toBe(0);
+    expect(clamped.rotation).toBe(42);
+  });
+
+  it('the bounce runs for Defense alone', () => {
+    // Reads the call site, because the gate is what scopes the divergence.
+    const source = readFileSync('src/game/entities/Enemy.ts', 'utf8');
+    expect(source).toContain('bounceOffSideWalls(stepped, this.roomWidth, this.radius)');
+    // Gated on the mode, not applied unconditionally.
+    expect(source).toMatch(/defense[\s\S]{0,40}bounceOffSideWalls/);
+  });
+
+  it('bouncing then clamping keeps the reflected velocity', () => {
+    // The composition that makes this safe: the bounce puts x exactly on the
+    // boundary, so clampToRoom has nothing to move and does not zero anything.
+    const edge = ROOM.width - 12;
+    const hit: SteeringState = { x: edge + 3, y: 400, rotation: 42, xVel: 1.1, yVel: 1.0 };
+    const bounced = bounceOffSideWalls(hit, ROOM.width, 12);
+    const clamped = clampToRoom(bounced, ROOM.width, ROOM.height, 12);
+
+    expect(clamped.xVel).toBeCloseTo(-1.1, 10);
+    expect(clamped.rotation).toBe(138);
   });
 });

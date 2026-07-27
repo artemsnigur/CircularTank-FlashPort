@@ -18,6 +18,7 @@ import type { ResolvedEnemyStats } from '../enemies/enemyStats';
 import { resolveSpawn } from '../enemies/enemySpawn';
 import type { SpawnGeometry } from '../enemies/enemySpawn';
 import {
+  bounceOffSideWalls,
   clampToRoom,
   crossesDefenseLine,
   steerToward,
@@ -320,7 +321,15 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.breachedLine =
       defense && crossesDefenseLine(stepped, this.roomHeight, this.radius);
 
-    this.steering = clampToRoom(stepped, this.roomWidth, this.roomHeight, this.radius);
+    // Defense enemies ricochet off the side walls rather than sliding down
+    // them. Applied before `clampToRoom`, which then finds x already exactly on
+    // the boundary and leaves the reflected velocity alone — it only zeroes a
+    // component when it actually has to move the coordinate.
+    const walled = defense
+      ? bounceOffSideWalls(stepped, this.roomWidth, this.radius)
+      : stepped;
+
+    this.steering = clampToRoom(walled, this.roomWidth, this.roomHeight, this.radius);
     this.setPosition(this.steering.x, this.steering.y);
     this.setRotation(Phaser.Math.DegToRad(this.steering.rotation));
   }
