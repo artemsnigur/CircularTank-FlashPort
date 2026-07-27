@@ -619,8 +619,14 @@ export class GameplayScene extends Phaser.Scene {
 
     this.updateStatusEffects(delta);
 
-    for (const enemy of this.enemies) {
+    for (const enemy of [...this.enemies]) {
       enemy.update({ x: this.player.x, y: this.player.y }, delta);
+
+      // `DamageAddict` bleeds itself to death inside `update`. Routed through
+      // the same `removeEnemy(enemy, true)` the status-effect tick uses, so the
+      // death is indistinguishable downstream — kill count, money drop, wave
+      // accounting and the level-complete check all key off that one call.
+      if (enemy.health <= 0) this.removeEnemy(enemy, true);
     }
     this.resolveDefenseBreaches();
 

@@ -6,7 +6,14 @@ import {
   acceleratesWhileUndamaged,
   acceleratingFactor,
   acceleratingSpeeds,
+  BOSS_DECAY,
+  DECAY_BASE,
+  DECAY_SPEED_FLOOR,
   RAGE_TIMER_MAX,
+  decayPerFrame,
+  decayedSpeeds,
+  decaysOverTime,
+  isImmuneToDamage,
   createAcceleratingState,
   createRageState,
   rageSpeeds,
@@ -16,6 +23,7 @@ import {
 } from './enemyStatMods';
 import { ENEMY_STATS } from './enemyStatsData';
 import { resolveEnemyStats } from './enemyStats';
+import { ENEMY_TIER_MULTIPLIERS, getDifficultyProfile } from '../config/difficultyMultipliers';
 
 const wind = (frames: number, isBoss = false) => {
   let state = createAcceleratingState(isBoss);
@@ -303,5 +311,129 @@ describe('which types rage', () => {
     for (const other of ['Accelerating', 'Basic', 'Shrinking', 'Strong']) {
       expect(ragesWhenDamaged(other), other).toBe(false);
     }
+  });
+});
+
+/* ── DamageAddict ────────────────────────────────────────────────────────── */
+
+describe('the decay rate', () => {
+  it('is 0.045 a frame at Easy tier 1, and flat 0.1 for a boss', () => {
+    expect(decayPerFrame(1, 1, false)).toBe(DECAY_BASE);
+    expect(DECAY_BASE).toBe(0.045);
+    // The boss rate ignores both multipliers entirely.
+    expect(decayPerFrame(1.4, 1.4, true)).toBe(BOSS_DECAY);
+    expect(BOSS_DECAY).toBe(0.1);
+  });
+
+  it('dampens the multipliers rather than reusing them', () => {
+    // 90% of the difficulty excess, 50% of the tier excess.
+    expect(decayPerFrame(1.225, 1, false)).toBeCloseTo(0.045 * 1.2025, 10);
+    expect(decayPerFrame(1, 1.225, false)).toBeCloseTo(0.045 * 1.1125, 10);
+    expect(decayPerFrame(1.4, 1.4, false)).toBeCloseTo(0.045 * 1.36 * 1.2, 10);
+  });
+
+  it('holds lifetime near-constant across every difficulty and tier', () => {
+    // The reason the dampening exists. Health scales, so the bleed scales with
+    // it and the enemy always lives around twenty seconds — the rate is a
+    // lifetime constant in disguise.
+    const base = ENEMY_STATS.DamageAddict.normal.health;
+    const lifetimes: number[] = [];
+
+    for (const difficulty of ['Easy', 'Medium', 'Hard'] as const) {
+      for (const tier of ['1', '2', '3'] as const) {
+        const health = resolveEnemyStats('DamageAddict', tier, difficulty)!.health;
+        const rate = decayPerFrame(
+          getDifficultyProfile(difficulty).enemyHealth,
+          ENEMY_TIER_MULTIPLIERS[tier],
+          false,
+        );
+        lifetimes.push(health / rate / 30);
+      }
+    }
+
+    expect(base).toBe(25);
+    for (const seconds of lifetimes) {
+      expect(seconds).toBeGreaterThan(18);
+      expect(seconds).toBeLessThan(23);
+    }
+    // And the spread is small — the dampening buys a little at the top end.
+    expect(Math.max(...lifetimes) - Math.min(...lifetimes)).toBeLessThan(4);
+  });
+});
+
+describe('the slow as it dies', () => {
+  const base = ENEMY_STATS.DamageAddict.normal;
+
+  it('is unchanged above three health', () => {
+    expect(decayedSpeeds(3, false, false).moveSpeedMax).toBe(base.moveSpeedMax);
+    expect(decayedSpeeds(25, false, false).moveSpeedMax).toBe(base.moveSpeedMax);
+  });
+
+  it('lerps to a floor of 0.2, not to zero', () => {
+    // A nearly-dead one crawls rather than stopping dead.
+    expect(decayedSpeeds(0, false, false).moveSpeedMax).toBe(DECAY_SPEED_FLOOR);
+    expect(decayedSpeeds(1.5, false, false).moveSpeedMax).toBeCloseTo(0.85, 10);
+  });
+
+  it('barely touches acceleration, because base and floor are close', () => {
+    // 0.25 -> 0.2, so the visible effect is almost entirely top speed.
+    expect(base.accSpeed).toBe(0.25);
+    expect(decayedSpeeds(0, false, false).accSpeed).toBe(0.2);
+  });
+
+  it('uses a threshold of 30 for a boss', () => {
+    expect(decayedSpeeds(30, true, false).moveSpeedMax).toBe(
+      ENEMY_STATS.DamageAddict.boss.moveSpeedMax,
+    );
+    expect(decayedSpeeds(0, true, false).moveSpeedMax).toBe(DECAY_SPEED_FLOOR);
+  });
+
+  it('the boss branch ignores Tower, where the non-boss branch respects it', () => {
+    // Same reproduced asymmetry as Temperamental's boss branch.
+    expect(decayedSpeeds(1, false, true).accSpeed).toBeUndefined();
+    expect(decayedSpeeds(1, true, true).accSpeed).toBeDefined();
+  });
+
+  it('discards the difficulty multiplier from spawn, the strongest form', () => {
+    // Temperamental loses it after a first rage; Accelerating merely tops out
+    // lower. This one writes the raw base every frame from the start.
+    const hard = resolveEnemyStats('DamageAddict', '1', 'Hard')!;
+    expect(hard.moveSpeedMax).toBeCloseTo(1.8, 10);
+    expect(decayedSpeeds(25, false, false).moveSpeedMax).toBe(1.5);
+  });
+});
+
+describe('immunity', () => {
+  it('is DamageAddict alone, and it also decays', () => {
+    expect(isImmuneToDamage('DamageAddict')).toBe(true);
+    expect(decaysOverTime('DamageAddict')).toBe(true);
+    for (const other of ['Basic', 'Strong', 'Temperamental', 'Accelerating']) {
+      expect(isImmuneToDamage(other), other).toBe(false);
+      expect(decaysOverTime(other), other).toBe(false);
+    }
+  });
+
+  it('guards setHealth, so every damage source inherits it', () => {
+    const source = readFileSync('src/game/entities/Enemy.ts', 'utf8');
+    expect(source).toContain('if (next < this.health && isImmuneToDamage(this.enemyType)) return;');
+  });
+
+  it('the private bleed is the only bypass, and there is exactly one caller', () => {
+    // The point of making it private and named rather than a `force` flag on
+    // setHealth: immunity cannot be opted out of by a future damage source.
+    const source = readFileSync('src/game/entities/Enemy.ts', 'utf8');
+    expect(source).toContain('private bleed(amount: number): void');
+    expect(source.match(/this\.bleed\(/g) ?? []).toHaveLength(1);
+
+    // And nothing outside the entity writes health directly.
+    const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
+    expect(scene).not.toMatch(/enemy\.health\s*=[^=]/);
+  });
+
+  it('death by decay goes through the shared removal path', () => {
+    // So kill count, money drop and wave accounting cannot tell it apart from
+    // any other death — they all key off removeEnemy(enemy, true).
+    const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
+    expect(scene).toMatch(/enemy\.update\([\s\S]{0,400}?removeEnemy\(enemy, true\)/);
   });
 });

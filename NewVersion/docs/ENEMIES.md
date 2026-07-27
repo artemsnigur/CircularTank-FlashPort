@@ -5,7 +5,7 @@
      Source of every figure: src/game/enemies/ and src/game/weapons/firing.ts.
      See scripts/gen-enemy-reference.ts for why this is generated. -->
 
-Covers the **12 of 20** enemy types whose behaviour is built.
+Covers the **13 of 20** enemy types whose behaviour is built.
 Types still marked `data-only` are omitted deliberately: they spawn and steer,
 but nothing that distinguishes them is implemented, so an entry would describe
 intent rather than the game.
@@ -22,6 +22,7 @@ is not a world-1 Basic.
 - [Accelerating](#accelerating)
 - [Basic](#basic)
 - [Crazy](#crazy)
+- [DamageAddict](#damageaddict)
 - [Exploding](#exploding)
 - [Fast](#fast)
 - [Ninja](#ninja)
@@ -143,6 +144,42 @@ _Shoots bursts of bullets in all directions._
 | Bullets per volley | 6 | 12 |
 | Bullet class | Basic | BasicBoss |
 | Firing pattern | Circle | Circle |
+
+---
+
+### DamageAddict
+
+_Dies automatically. Damage heals it._
+
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
+
+**Ranged:** none — contact damage only.
+
+**Counters**
+
+No resistances or weaknesses — every primary does full damage.
+
+| Channel | Effect | Primary weapons |
+| --- | --- | --- |
+| Bullets | 1x neutral | MiniGun, Shotgun |
+| Explosions | 1x neutral | Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon |
+| FireLava | 1x neutral | Flamethrower |
+| Food | 1x neutral | Gummy Bear Cannon, Cake Cannon |
+| Ice | 1x neutral | _no primary — secondaries only_ |
+| Laser | 1x neutral | Laser Cannon |
+| Magic | 1x neutral | Magic Cannon |
+| Poison | 1x neutral | Poison Cannon |
+
+**Stats**
+
+| Stat | Normal | Boss |
+| --- | --- | --- |
+| Health | 25 | 500 |
+| Contact damage | 5 | 15 |
+| Money dropped | 150 | 1900 |
+| Max speed | 1.5 | 1.5 |
+| Acceleration | 0.25 | 0.25 |
+| Turn rate (deg/frame) | 2.5 | 2.5 |
 
 ---
 

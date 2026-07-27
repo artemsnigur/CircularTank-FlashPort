@@ -76,7 +76,6 @@ import { bulletClassFor, SUPPORTED_SHOOT_ANGLES } from './enemyFiring';
  * PartGameArea.as, so an invented mechanic fails the suite.
  */
 export const SPECIAL_MECHANICS: Record<string, string> = {
-  DamageAddict: 'healed by damage instead of hurt',
   Ghost: 'passes through obstacles, periodically invisible',
   GrapplingHook: 'tethers the tank and reels it in',
   Medic: 'heals nearby enemies',

@@ -260,7 +260,7 @@ describe('the current picture', () => {
     expect(r.missingMechanic).toBeNull();
   });
 
-  it('stands at 12 implemented, 0 partial, 8 data-only of 20', () => {
+  it('stands at 13 implemented, 0 partial, 7 data-only of 20', () => {
     // The exact figure, not a comparative: it is knowable, and a board that
     // moves without anyone noticing is the failure this module exists to stop.
     //
@@ -270,9 +270,9 @@ describe('the current picture', () => {
     // Ninja and Random — whose mechanics turned out not to exist. Every
     // remaining mechanic belongs to a type whose shooting is also unported.
     expect(behaviourTotals(describeAllEnemies())).toEqual({
-      implemented: 12,
+      implemented: 13,
       partial: 0,
-      dataOnly: 8,
+      dataOnly: 7,
       total: 20,
     });
   });

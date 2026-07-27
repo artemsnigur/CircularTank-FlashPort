@@ -36,10 +36,15 @@ import {
   createAcceleratingState,
   createRageState,
   rageSpeeds,
+  decayPerFrame,
+  decayedSpeeds,
+  decaysOverTime,
+  isImmuneToDamage,
   ragesWhenDamaged,
   tickAccelerating,
   tickRage,
 } from '../enemies/enemyStatMods';
+import { ENEMY_TIER_MULTIPLIERS, getDifficultyProfile } from '../config/difficultyMultipliers';
 import type { AcceleratingState, RageState, RampedSpeeds } from '../enemies/enemyStatMods';
 import type { DamageMultipliers, ImpactFeedback } from '../enemies/damageTypes';
 import { createStatusState, tickStatuses } from '../enemies/statusEffects';
@@ -175,6 +180,8 @@ export class Enemy extends Phaser.GameObjects.Container {
   private accelerating: AcceleratingState | null = null;
   /** `Temperamental`'s rage. Null for every other type. */
   private rage: RageState | null = null;
+  /** `DamageAddict`'s health loss per frame. Null for every other type. */
+  private decayRate: number | null = null;
   /** Named `shell`, not `body`: Container.body is the physics body. */
   private readonly shell: Phaser.GameObjects.Sprite;
 
@@ -255,6 +262,13 @@ export class Enemy extends Phaser.GameObjects.Container {
       ? createAcceleratingState(config.level === 'B')
       : null;
     this.rage = ragesWhenDamaged(config.type) ? createRageState() : null;
+    this.decayRate = decaysOverTime(config.type)
+      ? decayPerFrame(
+          getDifficultyProfile(config.difficulty).enemyHealth,
+          ENEMY_TIER_MULTIPLIERS[config.level],
+          config.level === 'B',
+        )
+      : null;
 
     this.steering = {
       x: spawn.x,
@@ -347,6 +361,12 @@ export class Enemy extends Phaser.GameObjects.Container {
    * loop and compares at the bottom of the same iteration.
    */
   setHealth(next: number): void {
+    // `DamageAddict` takes nothing from anything. The AS3 repeats this guard at
+    // every damage site; keeping it here means a source added later inherits it
+    // instead of having to remember. Its own decay uses `bleed`, which is
+    // private and deliberately bypasses this — immunity would otherwise stop it
+    // dying.
+    if (next < this.health && isImmuneToDamage(this.enemyType)) return;
     if (next === this.health) return;
     this.healthChanged = true;
     if (next < this.health) this.healthDropped = true;
@@ -366,6 +386,17 @@ export class Enemy extends Phaser.GameObjects.Container {
   /** Whether health changed at all — `Accelerating`'s trigger. Heals count. */
   get healthMoved(): boolean {
     return this.healthChanged;
+  }
+
+  /**
+   * The one sanctioned bypass of the immunity guard — `PartGameArea.as:4879`.
+   *
+   * Private and named rather than a `force` parameter on `setHealth`, so there
+   * is exactly one caller and no way for a future damage source to opt itself
+   * out. Writes health directly, exactly as the AS3 does.
+   */
+  private bleed(amount: number): void {
+    this.health = Math.max(0, this.health - amount);
   }
 
   /** Convenience for callers that have an amount rather than a total. */
@@ -416,6 +447,18 @@ export class Enemy extends Phaser.GameObjects.Container {
     return rageSpeeds(this.rage.angry, this.enemyLevel === 'B', isTower);
   }
 
+  /**
+   * Bleeds a `DamageAddict` and returns the speeds its remaining health implies.
+   *
+   * The AS3 gates the whole block on `!frozen` at the enclosing level, so a
+   * frozen one stops decaying rather than dying on ice.
+   */
+  private tickDecay(frames: number, isTower: boolean): RampedSpeeds | null {
+    if (this.decayRate === null) return null;
+    if (!this.status.frozen) this.bleed(this.decayRate * frames);
+    return decayedSpeeds(this.health, this.enemyLevel === 'B', isTower);
+  }
+
   private applyBodyScale(): void {
     if (!shrinksWithHealth(this.enemyType)) return;
 
@@ -438,7 +481,10 @@ export class Enemy extends Phaser.GameObjects.Container {
     const tower = this.mode === 'Tower';
     const defense = this.mode === 'Defense';
     const frames = (deltaMs / 1000) * AS3_FPS;
-    const speeds = this.tickAcceleratingRamp(frames, tower) ?? this.tickRageState(frames, tower);
+    const speeds =
+      this.tickAcceleratingRamp(frames, tower) ??
+      this.tickRageState(frames, tower) ??
+      this.tickDecay(frames, tower);
     if (tower) {
       // Grows for the level, capped at 10. Advanced before the step so the
       // frame that spawned the enemy does not get a free tick.

@@ -228,3 +228,103 @@ const RAGES = new Set(['Temperamental']);
 export function ragesWhenDamaged(enemyType: string): boolean {
   return RAGES.has(enemyType);
 }
+
+/* ── DamageAddict ────────────────────────────────────────────────────────── */
+
+/** Health lost per frame at Easy, tier 1 — `PartGameArea.as:4875`. */
+export const DECAY_BASE = 0.045;
+/** A boss decays at a flat rate, ignoring difficulty and tier — `:4877`. */
+export const BOSS_DECAY = 0.1;
+
+/** Health below which it starts slowing — `:4890` (boss: `:4908`). */
+export const DECAY_SLOW_THRESHOLD = 3;
+export const BOSS_DECAY_SLOW_THRESHOLD = 30;
+/** The speed it slows *to*, not zero — both branches lerp to this. */
+export const DECAY_SPEED_FLOOR = 0.2;
+
+/**
+ * Health lost per frame — `:4856-4878`.
+ *
+ * ── Why the multipliers are dampened ──────────────────────────────────────
+ * The AS3 does not reuse the health multipliers directly. It takes 90% of the
+ * difficulty excess and 50% of the tier excess:
+ *
+ *     hpDifficultyMultiplier = (multiplierHealth - 1) * 0.9 + 1
+ *     hpLevelMultiplier      = (multiplierLevel  - 1) * 0.5 + 1
+ *
+ * That looks arbitrary until the lifetimes are computed. Health scales with
+ * difficulty and tier, so scaling the bleed alongside keeps the enemy alive for
+ * roughly the same wall-clock time everywhere — 18.5s at Easy tier 1, 22.2s at
+ * Hard tier 3 — with the dampening buying a little extra at the top end. It is
+ * a lifetime constant expressed as a rate, not a rate that happens to vary.
+ */
+export function decayPerFrame(
+  healthMultiplier: number,
+  tierMultiplier: number,
+  isBoss: boolean,
+): number {
+  if (isBoss) return BOSS_DECAY;
+
+  const difficultyPart = (healthMultiplier - 1) * 0.9 + 1;
+  const tierPart = (tierMultiplier - 1) * 0.5 + 1;
+  return DECAY_BASE * difficultyPart * tierPart;
+}
+
+/**
+ * Speeds for a decaying enemy — `:4888-4918`.
+ *
+ * Above the threshold both are the base values; below it they lerp down to
+ * `DECAY_SPEED_FLOOR`, so a nearly-dead one crawls rather than stopping. With
+ * the real numbers move speed runs 1.5 -> 0.2 while acceleration only moves
+ * 0.25 -> 0.2, so the visible effect is almost entirely top speed.
+ *
+ * ── Raw table again, and this is the strongest form of that quirk ─────────
+ * These write `enemyDamageAddictStats[3..4]` **every frame from spawn**, so the
+ * difficulty speed multiplier is discarded immediately. `Temperamental` only
+ * loses it after its first rage and `Accelerating` merely tops out lower; this
+ * one never has it at all. Reproduced as-is, like the other two.
+ *
+ * ── The boss branch has no Tower guard ────────────────────────────────────
+ * `:4895` guards `accSpeed` with `levelMode != "Tower"`; the boss branch at
+ * `:4912` does not, and writes it in every mode. The same asymmetry as
+ * Temperamental's boss branch, and reproduced the same way.
+ */
+export function decayedSpeeds(health: number, isBoss: boolean, isTower: boolean): RampedSpeeds {
+  const base = isBoss ? ENEMY_STATS.DamageAddict.boss : ENEMY_STATS.DamageAddict.normal;
+  const threshold = isBoss ? BOSS_DECAY_SLOW_THRESHOLD : DECAY_SLOW_THRESHOLD;
+
+  const lerp = (from: number): number =>
+    health < threshold
+      ? (from - DECAY_SPEED_FLOOR) * (Math.max(health, 0) / threshold) + DECAY_SPEED_FLOOR
+      : from;
+
+  const moveSpeedMax = lerp(base.moveSpeedMax);
+
+  // No Tower guard on the boss branch, deliberately — see above.
+  if (isBoss) return { moveSpeedMax, accSpeed: lerp(base.accSpeed) };
+  if (isTower) return { moveSpeedMax };
+  return { moveSpeedMax, accSpeed: lerp(base.accSpeed) };
+}
+
+/** Enemy types that bleed to death on their own. */
+const DECAYS = new Set(['DamageAddict']);
+
+export function decaysOverTime(enemyType: string): boolean {
+  return DECAYS.has(enemyType);
+}
+
+/** Types that take no damage at all — `:5583` and every other damage site. */
+const IMMUNE = new Set(['DamageAddict']);
+
+/**
+ * Whether damage does nothing to this type.
+ *
+ * The AS3 guards each damage site individually with
+ * `enemyType != "DamageAddict"`. The port keeps the check in one place instead,
+ * in `Enemy.setHealth`, so a damage source added later inherits it rather than
+ * having to remember. The enemy's own decay bypasses that guard through a
+ * private path — otherwise immunity would stop it dying.
+ */
+export function isImmuneToDamage(enemyType: string): boolean {
+  return IMMUNE.has(enemyType);
+}
