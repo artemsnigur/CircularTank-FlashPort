@@ -56,18 +56,6 @@ export const Worlds = [
 ] as const;
 export type World = (typeof Worlds)[number];
 
-/**
- * Room sizes that actually appear in the level tables, in design units.
- * Useful as a sanity bound when porting PartGameArea's camera clamping.
- */
-export const ROOM_SIZES: ReadonlyArray<readonly [number, number]> = [
-  [640, 400],
-  [800, 600],
-  [900, 720],
-  [640, 640],
-  [640, 960],
-];
-
 /** Physics/gameplay tuning that the placeholder scene needs. */
 export const PLAYER_SPEED_UNITS_PER_SEC = 260;
 export const PLAYER_DRAG = 1400;
