@@ -22,6 +22,10 @@
     "@testing-library/dom",
     "@testing-library/jest-dom",
     "@testing-library/react",
-    "@vitejs/plugin-react"
+    "@vitejs/plugin-react",
+    "husky"
+  ],
+  "ignoreBinaries": [
+    "vite-node"
   ]
 }
