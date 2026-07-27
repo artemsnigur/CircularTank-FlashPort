@@ -279,3 +279,49 @@ export function centredCameraBounds(
     height,
   };
 }
+
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * The parts of the camera's bounds that lie outside the playable room.
+ *
+ * `centredCameraBounds` pads a room smaller than the view so it sits centred,
+ * which fixes the asymmetry but leaves margin the player can see and cannot
+ * drive into. Ground is drawn across the whole padded rect so the screen is
+ * full of world rather than background colour, and these rectangles are then
+ * dimmed on top of it — the dimming *is* the arena boundary, because the
+ * extraction has no border art. (`822.png` and its eight siblings were labelled
+ * "room border strip" in the manifest; rendered, they are ground detail
+ * patches, one per world palette.)
+ *
+ * Returns up to four rects, skipping any that are empty, so a room that fills
+ * the view produces none and nothing is drawn.
+ */
+export function outOfBoundsRects(
+  bounds: CameraBounds,
+  roomWidth: number,
+  roomHeight: number,
+): Rect[] {
+  const right = bounds.x + bounds.width;
+  const bottom = bounds.y + bounds.height;
+  const rects: Rect[] = [];
+
+  // Full-height side strips, then top and bottom limited to the room's width so
+  // the corners are covered exactly once. Overlapping them would double the
+  // dimming at the corners and show as four darker squares.
+  if (bounds.x < 0) rects.push({ x: bounds.x, y: bounds.y, width: -bounds.x, height: bounds.height });
+  if (right > roomWidth) {
+    rects.push({ x: roomWidth, y: bounds.y, width: right - roomWidth, height: bounds.height });
+  }
+  if (bounds.y < 0) rects.push({ x: 0, y: bounds.y, width: roomWidth, height: -bounds.y });
+  if (bottom > roomHeight) {
+    rects.push({ x: 0, y: roomHeight, width: roomWidth, height: bottom - roomHeight });
+  }
+
+  return rects;
+}

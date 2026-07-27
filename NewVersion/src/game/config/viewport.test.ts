@@ -8,6 +8,7 @@ import {
   MIN_LOGICAL_HEIGHT,
   roomFillZoom,
   centredCameraBounds,
+  outOfBoundsRects,
 } from './viewport';
 
 /** A few real devices, in CSS pixels. */
@@ -263,5 +264,68 @@ describe('centredCameraBounds', () => {
     const b = centredCameraBounds(640, 300, 640, 400);
     expect(b.y).toBeCloseTo(-50, 6);
     expect(b.height).toBe(400);
+  });
+});
+
+describe('outOfBoundsRects', () => {
+  const bounds = (roomW: number, roomH: number, viewW: number, viewH: number) =>
+    centredCameraBounds(roomW, roomH, viewW, viewH);
+
+  it('produces nothing when the room fills the view', () => {
+    // The 195 wide levels must draw no dimming at all.
+    expect(outOfBoundsRects(bounds(900, 720, 711, 400), 900, 720)).toEqual([]);
+  });
+
+  it('covers both side strips for a Tower room', () => {
+    const b = bounds(640, 640, 711, 400);
+    const rects = outOfBoundsRects(b, 640, 640);
+
+    expect(rects).toHaveLength(2);
+    expect(rects[0]).toEqual({ x: -35.5, y: 0, width: 35.5, height: 640 });
+    expect(rects[1]).toEqual({ x: 640, y: 0, width: 35.5, height: 640 });
+  });
+
+  it('covers the whole margin and nothing inside the arena', () => {
+    const roomW = 640;
+    const roomH = 640;
+    const b = bounds(roomW, roomH, 956, 400);
+    const rects = outOfBoundsRects(b, roomW, roomH);
+
+    const covered = rects.reduce((sum, r) => sum + r.width * r.height, 0);
+    const padded = b.width * b.height;
+    expect(covered).toBeCloseTo(padded - roomW * roomH, 6);
+
+    // Nothing overlaps the playable area.
+    for (const r of rects) {
+      const insideX = r.x < roomW && r.x + r.width > 0;
+      const insideY = r.y < roomH && r.y + r.height > 0;
+      expect(insideX && insideY, `${JSON.stringify(r)} overlaps the arena`).toBe(false);
+    }
+  });
+
+  it('does not overlap itself, so corners are not double-dimmed', () => {
+    // Two overlapping strips would render the corners visibly darker than the
+    // sides — the tell that the rects were built as four full-size bands.
+    const b = { x: -40, y: -30, width: 720, height: 700 };
+    const rects = outOfBoundsRects(b, 640, 640);
+
+    for (let i = 0; i < rects.length; i += 1) {
+      for (let j = i + 1; j < rects.length; j += 1) {
+        const a = rects[i];
+        const c = rects[j];
+        const overlaps =
+          a.x < c.x + c.width && a.x + a.width > c.x && a.y < c.y + c.height && a.y + a.height > c.y;
+        expect(overlaps, `rect ${i} overlaps ${j}`).toBe(false);
+      }
+    }
+  });
+
+  it('handles vertical padding too', () => {
+    const b = bounds(640, 300, 640, 400);
+    const rects = outOfBoundsRects(b, 640, 300);
+
+    expect(rects).toHaveLength(2);
+    expect(rects[0]).toEqual({ x: 0, y: -50, width: 640, height: 50 });
+    expect(rects[1]).toEqual({ x: 0, y: 300, width: 640, height: 50 });
   });
 });

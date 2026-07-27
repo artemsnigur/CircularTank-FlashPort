@@ -111,7 +111,7 @@ import {
 } from '../player/tankDamage';
 import { bankLevelOutcome } from '../player/levelBanking';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
-import { centredCameraBounds, roomFillZoom } from '../config/viewport';
+import { centredCameraBounds, outOfBoundsRects, roomFillZoom } from '../config/viewport';
 
 /**
  * Used **only** when no level spec resolves.
@@ -124,6 +124,14 @@ import { centredCameraBounds, roomFillZoom } from '../config/viewport';
  * `resolveLevelSpec` and `docs/AUDIT-2026-07.md`).
  */
 const FALLBACK_ROOM = { width: 640, height: 960 } as const;
+
+/**
+ * How hard the unreachable margin is dimmed.
+ *
+ * Enough to read as "outside the arena" at a glance without hiding what is
+ * there — the ground stays visible, it is simply in shadow.
+ */
+const OUT_OF_BOUNDS_ALPHA = 0.45;
 
 /**
  * Levels the room-fill zoom prototype is enabled on, as `world-level`.
@@ -188,6 +196,10 @@ interface GameplayData {
 export class GameplayScene extends Phaser.Scene {
   private player!: PlayerTank;
   private ground!: Phaser.GameObjects.TileSprite;
+  /** Texture phase correction so the padded ground still lines up with the room. */
+  private groundOffset = { x: 0, y: 0 };
+  /** Dimming over the padded margin — see `outOfBoundsRects`. */
+  private outOfBounds!: Phaser.GameObjects.Graphics;
   private pickups!: Phaser.Physics.Arcade.Group;
   private hudText!: Phaser.GameObjects.Text;
   private crosshair!: Phaser.GameObjects.Image;
@@ -429,6 +441,12 @@ export class GameplayScene extends Phaser.Scene {
     // changes how many design units one texture repeat covers.
     this.ground.setTileScale(ground.tileScale, ground.tileScale);
 
+    // Above the ground, below everything that moves. The margin is real world
+    // the player cannot enter, so it is dimmed rather than left bright: with no
+    // border art in the extraction, the change in brightness is the only thing
+    // marking where the arena ends.
+    this.outOfBounds = this.add.graphics().setDepth(0.5);
+
     this.player = new PlayerTank(
       this,
       this.roomWidth / 2,
@@ -565,8 +583,8 @@ export class GameplayScene extends Phaser.Scene {
     // Parallax: the ground scrolls slightly slower than the camera, which is
     // enough to read as depth without a second art layer.
     this.ground.setTilePosition(
-      this.cameras.main.scrollX * 0.06,
-      this.cameras.main.scrollY * 0.06,
+      this.groundOffset.x + this.cameras.main.scrollX * 0.06,
+      this.groundOffset.y + this.cameras.main.scrollY * 0.06,
     );
 
     this.updateWave(delta);
@@ -639,6 +657,19 @@ export class GameplayScene extends Phaser.Scene {
       camera.height / camera.zoom,
     );
     camera.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+
+    // Ground covers the whole padded rect, so the screen is full of world
+    // rather than background colour. `groundOffset` keeps the texture phase
+    // aligned to the room's origin, so the floor inside the arena is identical
+    // to what it was before the padding existed.
+    this.groundOffset = { x: bounds.x, y: bounds.y };
+    this.ground.setPosition(bounds.x, bounds.y).setSize(bounds.width, bounds.height);
+
+    this.outOfBounds.clear();
+    this.outOfBounds.fillStyle(0x000000, OUT_OF_BOUNDS_ALPHA);
+    for (const r of outOfBoundsRects(bounds, this.roomWidth, this.roomHeight)) {
+      this.outOfBounds.fillRect(r.x, r.y, r.width, r.height);
+    }
   }
 
   private setupInput(): void {

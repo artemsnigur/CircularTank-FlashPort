@@ -67,7 +67,12 @@ export const SAMPLE_IMAGES: readonly ImageAsset[] = [
   // 0.9/255), so the 1024 tile is *smaller* than the 83 KB 256 original.
   img('ground-desert-hi', '351_upscale.webp', 'Desert ground, 1024x1024 upscale of 351'),
   img('ground-grass', '353.png', 'Grass world ground tile'),
-  img('ground-edge', '822.png', 'Room border strip (bottom edge)'),
+  // Not a border, despite an earlier label here saying so — rendered and
+  // checked: 822/827/.../841 are nine 131x48 ground *detail* patches, one per
+  // world palette (sand, pale sand with pebbles, dark teal with grid lines).
+  // Nothing draws them yet. The arena boundary is drawn, not textured, because
+  // no border art exists in the extraction.
+  img('ground-detail-desert', '822.png', 'Desert ground detail patch, 131x48'),
   img('menu-backdrop', '970.png', 'Brushed-metal menu backdrop, 640x352'),
   img('cursor', '166_CustomCursor.png', 'CustomCursor — symbol 166 in symbols.csv'),
 ] as const;
