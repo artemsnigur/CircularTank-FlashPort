@@ -197,7 +197,16 @@ this is not yet a divergence — but the sites that would use it have already ch
 different generator. It is a Lehmer generator whose product reaches ~7.2e13 — exact in a
 double, but destroyed by `Math.imul`, `| 0` or `>>> 0`. `src/game/core/PM_PRNG.ts` says so
 at length; the differential test against BigInt is the guard. Do not "optimise" it, and do
-not delete it as unused — see `docs/AUDIT-2026-07.md`.
+not delete it as unused.
+
+**Whether to keep it at all is an open decision, not a hold** — `D1` in
+`NewVersion/docs/AUDIT-2026-07.md`. Two options: wire it to `LevelSpec.seed` and get the
+original's exact layouts back, or standardise on Phaser's generator and accept that they
+are gone for good. Both are a day's work; neither is blocked. Keeping both — the current
+state — is the one option with the costs of the first and the benefits of neither, and it
+has now been deferred twice by not being written down. If you are about to touch level
+layout, prop placement or `LevelSpec.seed`, read D1 first and make the call rather than
+routing around it again.
 
 When lifting constants out of AS3, keep the origin in a comment (`ScreenGame.as`
 `levelDataModelW1`, `PartGameArea.cameraWidth`, …). The level tables and enemy stat rows
