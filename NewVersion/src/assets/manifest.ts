@@ -60,6 +60,11 @@ const snd = (
 
 export const SAMPLE_IMAGES: readonly ImageAsset[] = [
   img('ground-desert', '351.png', 'Desert ground tile, 256x256, tiles seamlessly'),
+  // 4x upscale of 351, still seamless (edge error 2.0 against an interior
+  // baseline of 3.8) and alpha-stripped — it arrived RGBA with every pixel
+  // opaque, which cost 28% of the file for nothing. 571 KB is heavy: larger
+  // than the whole app bundle, so it is used on named levels, not by default.
+  img('ground-desert-hi', '351_upscale.png', 'Desert ground, 1024x1024 upscale of 351'),
   img('ground-grass', '353.png', 'Grass world ground tile'),
   img('ground-edge', '822.png', 'Room border strip (bottom edge)'),
   img('menu-backdrop', '970.png', 'Brushed-metal menu backdrop, 640x352'),

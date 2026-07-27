@@ -24,6 +24,7 @@ import { Enemy } from '../entities/Enemy';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { getLevel } from '../levels/levelData';
 import { nextLevelAfter } from '../levels/levelProgress';
+import { groundFor } from '../levels/groundTexture';
 import type { LevelSpec } from '../levels/levelData';
 import {
   canSpawn,
@@ -415,12 +416,18 @@ export class GameplayScene extends Phaser.Scene {
 
     this.physics.world.setBounds(0, 0, this.roomWidth, this.roomHeight);
 
-    // Real extracted bitmap, tiled across the room. `ground-desert` is
-    // 351.png, a 256x256 seamless tile from the Desert world.
+    // Real extracted bitmap, tiled across the room. The default is
+    // `ground-desert` (351.png, a 256x256 seamless tile); 1-1 and 1-6 draw the
+    // 1024 upscale at different scales so the two treatments can be compared
+    // in game — see levels/groundTexture.ts.
+    const ground = groundFor(this.world, this.level);
     this.ground = this.add
-      .tileSprite(0, 0, this.roomWidth, this.roomHeight, 'ground-desert')
+      .tileSprite(0, 0, this.roomWidth, this.roomHeight, ground.key)
       .setOrigin(0, 0)
       .setDepth(0);
+    // setTileScale, not setScale: the sprite still spans the room, and this
+    // changes how many design units one texture repeat covers.
+    this.ground.setTileScale(ground.tileScale, ground.tileScale);
 
     this.player = new PlayerTank(
       this,

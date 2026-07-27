@@ -12,6 +12,14 @@ Two directories, and they are not peers:
   the source of truth being ported *from*.
 - **`NewVersion/`** — the actual project (Vite + React + TypeScript + Phaser 3). **All npm
   commands run from here.**
+- **`NewVersion/assets-authored/`** — assets *we* made, not extracted. `assets:sync` copies
+  it into `src/assets/` alongside the extraction. It exists because the other two homes are
+  both wrong for an authored file: `SWFimported/` is read-only and a pre-commit hook
+  enforces it, and `src/assets/` is gitignored, so anything only stored there is untracked
+  and a fresh clone breaks. Keep the SWF library ID prefix when the asset derives from an
+  extracted file (`351_upscale.png` from `351.png`), and declare it in `DERIVED_ASSETS` in
+  `registry.test.ts` — the `<id>_<Name>` convention otherwise claims the suffix is a symbol
+  name from `symbols.csv`.
 
 ## Commands
 

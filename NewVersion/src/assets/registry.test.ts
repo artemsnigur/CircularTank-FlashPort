@@ -124,6 +124,34 @@ describe('every extracted file keeps its SWF library ID', () => {
    * the id. An id that survives a rename while pointing at a different symbol
    * is exactly as broken as a lost id, and only comparing names catches it.
    */
+  /**
+   * Files we produced, which are not SWF exports.
+   *
+   * The `<id>_<Name>` convention means the suffix is the symbol's name in
+   * `symbols.csv`, so a derived file lands in that shape without being a named
+   * character — `351_upscale.png` is a 4x upscale of the unnamed `351.png`, and
+   * there is no symbol 351 to match. Exempting it silently would open the
+   * convention to anything with an underscore, so it is declared here instead
+   * and checked separately below.
+   */
+  const DERIVED_ASSETS: ReadonlySet<string> = new Set(['351_upscale.png']);
+
+  it('every derived asset is real and derives from a file that exists', () => {
+    const images = new Set(Object.keys(imageUrls));
+    for (const file of DERIVED_ASSETS) {
+      // Not stale: a declaration for a file nobody ships is a lie about what
+      // the exemption covers.
+      expect(images.has(file), `${file} is declared derived but is not in the registry`).toBe(true);
+
+      // The id prefix must name a file that actually exists, so a derived asset
+      // cannot invent a library ID that links to nothing.
+      const id = /^(\d+)_/.exec(file)?.[1];
+      expect(id, `${file} has no library-ID prefix`).toBeTruthy();
+      const hasSource = [...images].some((f) => new RegExp(`^${id}\.[a-z0-9]+$`, 'i').test(f));
+      expect(hasSource, `${file} claims to derive from ${id}, which is not extracted`).toBe(true);
+    }
+  });
+
   it('every named file matches symbols.csv on both id and name', () => {
     const csv = readFileSync('../SWFimported/symbolClass/symbols.csv', 'utf8');
     const byId = new Map<string, string>();
@@ -142,6 +170,7 @@ describe('every extracted file keeps its SWF library ID', () => {
       ...Object.keys(audioUrls),
       ...Object.keys(shapeUrls),
     ]) {
+      if (DERIVED_ASSETS.has(file)) continue; // ours, not JPEXS's — see above
       const m = named.exec(file);
       if (!m) continue; // bare id — an unnamed character, nothing to link to
       checked += 1;
@@ -186,18 +215,25 @@ describe('every synced file still matches the extraction it came from', () => {
     ['fonts', 'fonts'],
   ];
 
-  it.each(PAIRS)('src/assets/%s files all exist in SWFimported/%s', (synced, source) => {
+  it.each(PAIRS)('src/assets/%s files all come from a tracked source', (synced, source) => {
     const syncedDir = `src/assets/${synced}`;
     const sourceDir = `../SWFimported/${source}`;
+    // `src/assets/` is gitignored, so every file in it must be reproducible
+    // from something that is tracked: the extraction, or the assets we
+    // authored. A file from neither is untracked and would vanish on a fresh
+    // clone — which is exactly what this check exists to prevent, so the
+    // authored root is added to the sources rather than exempted from them.
+    const authoredDir = `assets-authored/${synced}`;
     if (!existsSync(syncedDir)) {
       throw new Error(`${syncedDir} is missing — run npm run assets:sync`);
     }
 
     const inSource = new Set(readdirSync(sourceDir));
+    const inAuthored = existsSync(authoredDir) ? new Set(readdirSync(authoredDir)) : new Set();
     const names = readdirSync(syncedDir);
     expect(names.length, `${syncedDir} is empty — run npm run assets:sync`).toBeGreaterThan(0);
 
-    const strays = names.filter((n) => !inSource.has(n));
+    const strays = names.filter((n) => !inSource.has(n) && !inAuthored.has(n));
     expect(
       strays,
       `renamed or unknown in ${syncedDir}: ${strays.join(', ')}. The leading number ` +

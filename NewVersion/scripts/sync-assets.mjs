@@ -32,6 +32,22 @@ const FOLDER_MAP = [
 ];
 
 /**
+ * Assets we authored, as against the JPEXS extraction.
+ *
+ * `SWFimported/` is read-only by contract and the pre-commit hook enforces it,
+ * so a file we made cannot live there. `src/assets/` is gitignored because it
+ * is this script's output, so anything only stored there is untracked and a
+ * fresh clone would reference an asset that does not exist. This directory is
+ * the tracked middle: copied into the same `src/assets/` tree, so nothing
+ * downstream knows the difference.
+ *
+ * Copied second, and deliberately allowed to overwrite: an authored file with
+ * the same name as an extracted one is a considered replacement, not an
+ * accident. The run reports any such shadowing rather than doing it quietly.
+ */
+const AUTHORED_ROOT = join(projectRoot, 'assets-authored');
+
+/**
  * Shapes actually referenced by the skeleton. Extend as classes get ported.
  * Keys are SWF shape character IDs.
  */
@@ -119,6 +135,42 @@ for (const group of FOLDER_MAP) {
     `  ${group.from.padEnd(8)} -> src/assets/${group.to.padEnd(8)} ` +
       `${String(groupCopied).padStart(4)} copied, ${String(groupSkipped).padStart(4)} up to date${note}`,
   );
+}
+
+// ── Authored assets ──────────────────────────────────────────────────────
+// Copied after the extraction so a deliberate replacement wins, and reported
+// when it shadows an extracted file so the override is never silent.
+for (const group of FOLDER_MAP) {
+  const src = join(AUTHORED_ROOT, group.from);
+  if (!existsSync(src)) continue;
+
+  const dest = join(destRoot, group.to);
+  if (!args.dryRun) mkdirSync(dest, { recursive: true });
+
+  const files = readdirSync(src, { withFileTypes: true })
+    .filter((e) => e.isFile())
+    .map((e) => e.name)
+    .filter((n) => group.exts.some((ext) => n.toLowerCase().endsWith(ext)));
+
+  let authoredCopied = 0;
+  for (const name of files) {
+    const shadowed = existsSync(join(sourceRoot, group.from, name));
+    if (shadowed) {
+      console.log(`  note  authored ${group.from}/${name} replaces the extracted file`);
+    }
+    if (!args.dryRun) {
+      cpSync(join(src, name), join(dest, name), { preserveTimestamps: true });
+    }
+    authoredCopied += 1;
+  }
+
+  if (files.length > 0) {
+    copied += authoredCopied;
+    console.log(
+      `  authored ${group.from.padEnd(8)} -> src/assets/${group.to.padEnd(8)} ` +
+        `${String(authoredCopied).padStart(4)} copied`,
+    );
+  }
 }
 
 console.log(
