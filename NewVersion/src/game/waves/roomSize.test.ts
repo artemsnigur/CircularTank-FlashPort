@@ -21,22 +21,40 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { getLevel } from '../levels/levelData';
+import { getLevel, LEVELS } from '../levels/levelData';
 
 describe('the level table describes five room sizes, not one', () => {
-  it('level 1-1 is 640x400, not the hardcoded 640x960', () => {
-    const spec = getLevel(1, 1)!;
+  // These read `LEVELS` rather than `getLevel`, which is the distinction the
+  // describe already claims: this is about what the *table* holds. `getLevel`
+  // applies the deliberate world-1 divergences in `levelSizeOverrides.ts`, so
+  // asserting the table through it would conflate "the extraction is right"
+  // with "we chose to play something else". Fidelity is checked here; the
+  // played sizes are checked in levels/roomSizeSource.test.ts.
+  it('level 1-1 is 640x400 in the table, not the hardcoded 640x960', () => {
+    const spec = LEVELS[0][0];
     expect({ width: spec.roomWidth, height: spec.roomHeight }).toEqual({
       width: 640,
       height: 400,
     });
   });
 
-  it('level 1-2 is 900x720', () => {
-    const spec = getLevel(1, 2)!;
+  it('level 1-2 is 900x720 in the table', () => {
+    const spec = LEVELS[0][1];
     expect({ width: spec.roomWidth, height: spec.roomHeight }).toEqual({
       width: 900,
       height: 720,
+    });
+  });
+
+  it('world 1 Normal and Flag levels are standardised when played', () => {
+    // The other side of the same coin, so this file cannot be read as saying
+    // 1-1 plays at 640x400 — it does not, by decision.
+    expect(getLevel(1, 1)).toMatchObject({ roomWidth: 800, roomHeight: 600 });
+    expect(getLevel(1, 2)).toMatchObject({ roomWidth: 800, roomHeight: 600 });
+    // A Tower level in the same world is untouched.
+    expect(getLevel(1, 7)).toMatchObject({
+      roomWidth: LEVELS[0][6].roomWidth,
+      roomHeight: LEVELS[0][6].roomHeight,
     });
   });
 
@@ -44,7 +62,7 @@ describe('the level table describes five room sizes, not one', () => {
     const sizes = new Set<string>();
     for (let world = 1; world <= 9; world += 1) {
       for (let level = 1; level <= 45; level += 1) {
-        const spec = getLevel(world, level)!;
+        const spec = LEVELS[world - 1][level - 1];
         sizes.add(`${spec.roomWidth}x${spec.roomHeight}`);
       }
     }

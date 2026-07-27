@@ -30,8 +30,13 @@ describe('level data', () => {
 
   it('preserves known rows from ScreenGame.as, level data and enemy model', () => {
     expect(getLevel(1, 1)).toEqual({
-      roomWidth: 640,
-      roomHeight: 400,
+      // 800x600, not the extracted 640x400: world 1's Normal and Flag levels
+      // are deliberately standardised — see levelSizeOverrides.ts. The
+      // extracted value is still asserted against ScreenGame.as itself in
+      // levels/roomSizeSource.test.ts, so fidelity is not lost here, only
+      // relocated to where the divergence is described.
+      roomWidth: 800,
+      roomHeight: 600,
       mode: 'Normal',
       tier: 1,
       theme: 'Desert',

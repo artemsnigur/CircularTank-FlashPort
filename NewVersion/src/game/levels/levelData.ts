@@ -10,6 +10,8 @@
  * dropped here rather than preserved as unnamed noise.
  */
 
+import { applySizeOverride } from './levelSizeOverrides';
+
 /** Level archetype — column 6. */
 export type LevelMode = "Boss" | "Defense" | "Flag" | "Normal" | "Tower";
 
@@ -492,8 +494,16 @@ export const WORLD_COUNT = LEVELS.length;
 /** Levels in a world (1-based world number). */
 export const levelsInWorld = (world: number): number => LEVELS[world - 1]?.length ?? 0;
 
-/** Level spec by 1-based world and level, or undefined when out of range. */
+/**
+ * Level spec by 1-based world and level, or undefined when out of range.
+ *
+ * `LEVELS` above is a pure transcription of the AS3. Deliberate divergences
+ * live in `levelSizeOverrides.ts` and are applied here, on the way out, so
+ * this file stays a function of the source alone and what the game plays is
+ * still what `roomSizeSource.test.ts` checks.
+ */
 export function getLevel(world: number, level: number): LevelSpec | undefined {
-  return LEVELS[world - 1]?.[level - 1];
+  const spec = LEVELS[world - 1]?.[level - 1];
+  return spec === undefined ? undefined : applySizeOverride(spec, world, level);
 }
 

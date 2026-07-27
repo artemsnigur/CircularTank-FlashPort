@@ -199,6 +199,8 @@ out.push(' * Columns 2-5 of every source row are zero and carry no meaning, so t
 out.push(' * dropped here rather than preserved as unnamed noise.');
 out.push(' */');
 out.push('');
+out.push("import { applySizeOverride } from './levelSizeOverrides';");
+out.push('');
 out.push('/** Level archetype — column 6. */');
 out.push(
   `export type LevelMode = ${[...modes].sort().map(q).join(' | ')};`,
@@ -276,9 +278,17 @@ out.push('');
 out.push('/** Levels in a world (1-based world number). */');
 out.push('export const levelsInWorld = (world: number): number => LEVELS[world - 1]?.length ?? 0;');
 out.push('');
-out.push('/** Level spec by 1-based world and level, or undefined when out of range. */');
+out.push('/**');
+out.push(' * Level spec by 1-based world and level, or undefined when out of range.');
+out.push(' *');
+out.push(' * `LEVELS` above is a pure transcription of the AS3. Deliberate divergences');
+out.push(' * live in `levelSizeOverrides.ts` and are applied here, on the way out, so');
+out.push(' * this file stays a function of the source alone and what the game plays is');
+out.push(' * still what `roomSizeSource.test.ts` checks.');
+out.push(' */');
 out.push('export function getLevel(world: number, level: number): LevelSpec | undefined {');
-out.push('  return LEVELS[world - 1]?.[level - 1];');
+out.push('  const spec = LEVELS[world - 1]?.[level - 1];');
+out.push('  return spec === undefined ? undefined : applySizeOverride(spec, world, level);');
 out.push('}');
 out.push('');
 
