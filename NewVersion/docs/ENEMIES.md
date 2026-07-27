@@ -5,7 +5,7 @@
      Source of every figure: src/game/enemies/ and src/game/weapons/firing.ts.
      See scripts/gen-enemy-reference.ts for why this is generated. -->
 
-Covers the **13 of 20** enemy types whose behaviour is built.
+Covers the **15 of 20** enemy types whose behaviour is built.
 Types still marked `data-only` are omitted deliberately: they spawn and steer,
 but nothing that distinguishes them is implemented, so an entry would describe
 intent rather than the game.
@@ -25,8 +25,10 @@ is not a world-1 Basic.
 - [DamageAddict](#damageaddict)
 - [Exploding](#exploding)
 - [Fast](#fast)
+- [Ghost](#ghost)
 - [Ninja](#ninja)
 - [Random](#random)
+- [ScaredGhost](#scaredghost)
 - [Shooting](#shooting)
 - [Shrinking](#shrinking)
 - [Strong](#strong)
@@ -255,6 +257,42 @@ No resistances or weaknesses — every primary does full damage.
 
 ---
 
+### Ghost
+
+_Can't be damaged when invisible._
+
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
+
+**Ranged:** none — contact damage only.
+
+**Counters**
+
+**Counter with** Laser Cannon. **Avoid** Poison Cannon.
+
+| Channel | Effect | Primary weapons |
+| --- | --- | --- |
+| Laser | 1.5x **weak** | Laser Cannon |
+| Bullets | 1x neutral | MiniGun, Shotgun |
+| Explosions | 1x neutral | Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon |
+| FireLava | 1x neutral | Flamethrower |
+| Food | 1x neutral | Gummy Bear Cannon, Cake Cannon |
+| Ice | 1x neutral | _no primary — secondaries only_ |
+| Magic | 1x neutral | Magic Cannon |
+| Poison | 0.5x resists | Poison Cannon |
+
+**Stats**
+
+| Stat | Normal | Boss |
+| --- | --- | --- |
+| Health | 10 | 450 |
+| Contact damage | 5 | 15 |
+| Money dropped | 80 | 1000 |
+| Max speed | 2 | 2 |
+| Acceleration | 0.25 | 0.25 |
+| Turn rate (deg/frame) | 3 | 3 |
+
+---
+
 ### Ninja
 
 _Moves fast and shoots rapidly._
@@ -332,6 +370,42 @@ _Shoots in random directions._
 | Bullets per volley | 1 | 1 |
 | Bullet class | Basic | BasicBoss |
 | Firing pattern | Circle | Circle |
+
+---
+
+### ScaredGhost
+
+_Becomes invisible when damaged._
+
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
+
+**Ranged:** none — contact damage only.
+
+**Counters**
+
+**Counter with** Magic Cannon, Poison Cannon.
+
+| Channel | Effect | Primary weapons |
+| --- | --- | --- |
+| Poison | 1.75x **weak** | Poison Cannon |
+| Magic | 1.5x **weak** | Magic Cannon |
+| Bullets | 1x neutral | MiniGun, Shotgun |
+| Explosions | 1x neutral | Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon |
+| FireLava | 1x neutral | Flamethrower |
+| Food | 1x neutral | Gummy Bear Cannon, Cake Cannon |
+| Laser | 1x neutral | Laser Cannon |
+| Ice | 0.5x resists | _no primary — secondaries only_ |
+
+**Stats**
+
+| Stat | Normal | Boss |
+| --- | --- | --- |
+| Health | 10 | 400 |
+| Contact damage | 5 | 15 |
+| Money dropped | 150 | 1800 |
+| Max speed | 2 | 2 |
+| Acceleration | 0.5 | 0.5 |
+| Turn rate (deg/frame) | 3 | 3 |
 
 ---
 

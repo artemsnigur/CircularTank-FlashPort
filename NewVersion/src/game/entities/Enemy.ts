@@ -30,6 +30,15 @@ import type { SteeringState } from '../enemies/enemySteering';
 import { resolveDamageMultipliers } from '../enemies/damageTypes';
 import { shrinkScale, shrinksWithHealth } from '../enemies/enemyBodies';
 import {
+  blinksOnTimer,
+  createVisibilityState,
+  hidesWhenHurt,
+  isTargetable,
+  tickGhostBlink,
+  tickScaredGhost,
+} from '../enemies/enemyVisibility';
+import type { VisibilityState } from '../enemies/enemyVisibility';
+import {
   acceleratesWhileUndamaged,
   acceleratingFactor,
   acceleratingSpeeds,
@@ -56,6 +65,14 @@ import type { LevelMode } from '../levels/levelData';
 
 /** SWF frame rate; the Tower ramp is specified per frame at this rate. */
 const AS3_FPS = 30;
+
+/**
+ * How visible an "invisible" enemy still is.
+ *
+ * The AS3 swaps to a ghost frame rather than hiding the sprite, so the player
+ * can still track it. Zero would make it indistinguishable from a despawn.
+ */
+const INVISIBLE_ALPHA = 0.18;
 
 /** Body diameter in design units, by tier. The AS3 scales the boss art up. */
 const BASE_DIAMETER = 26;
@@ -182,6 +199,18 @@ export class Enemy extends Phaser.GameObjects.Container {
   private rage: RageState | null = null;
   /** `DamageAddict`'s health loss per frame. Null for every other type. */
   private decayRate: number | null = null;
+  /** Blink/flinch state. Present only on Ghost and ScaredGhost. */
+  private visibility: VisibilityState | null = null;
+
+  /**
+   * Mid-teleport, so untargetable — `Teleporting`, unported.
+   *
+   * Declared here rather than with Teleporting because every AS3 site that
+   * checks `invisible` checks this in the same condition. Wiring the guards
+   * against `isTargetable` now means Teleporting inherits all eight of them by
+   * setting this flag and nothing else.
+   */
+  teleporting = false;
   /** Named `shell`, not `body`: Container.body is the physics body. */
   private readonly shell: Phaser.GameObjects.Sprite;
 
@@ -262,6 +291,8 @@ export class Enemy extends Phaser.GameObjects.Container {
       ? createAcceleratingState(config.level === 'B')
       : null;
     this.rage = ragesWhenDamaged(config.type) ? createRageState() : null;
+    this.visibility =
+      blinksOnTimer(config.type) || hidesWhenHurt(config.type) ? createVisibilityState() : null;
     this.decayRate = decaysOverTime(config.type)
       ? decayPerFrame(
           getDifficultyProfile(config.difficulty).enemyHealth,
@@ -459,12 +490,46 @@ export class Enemy extends Phaser.GameObjects.Container {
     return decayedSpeeds(this.health, this.enemyLevel === 'B', isTower);
   }
 
+  /**
+   * Advances the blink or flinch and fades the sprite to match.
+   *
+   * The AS3 swaps to frame 2 for the invisible state; the port has no such
+   * frame, so it uses alpha. Deliberately not fully transparent: the original
+   * shows a faint ghost rather than nothing, and an enemy the player cannot see
+   * at all is indistinguishable from one that has despawned.
+   */
+  private tickVisibility(frames: number): void {
+    if (!this.visibility) return;
+
+    this.visibility = blinksOnTimer(this.enemyType)
+      ? tickGhostBlink(this.visibility, frames, this.status.frozen)
+      : tickScaredGhost(this.visibility, frames, this.healthDropped, this.status.frozen);
+
+    this.setAlpha(this.visibility.invisible ? INVISIBLE_ALPHA : 1);
+  }
+
   private applyBodyScale(): void {
     if (!shrinksWithHealth(this.enemyType)) return;
 
     const size = shrinkScale(this.health, this.maxHealth);
     this.radius = size * this.radiusStart;
     this.setScale(size);
+  }
+
+  /** Hidden, so bullets, blasts, mines and homing rounds pass it by. */
+  get invisible(): boolean {
+    return this.visibility?.invisible ?? false;
+  }
+
+  /**
+   * Whether anything may interact with this enemy.
+   *
+   * The single predicate every collision and targeting site should ask, rather
+   * than reading `invisible` directly — `teleporting` travels with it at all
+   * eight AS3 sites.
+   */
+  get targetable(): boolean {
+    return isTargetable(this);
   }
 
   /** True while frozen — the scene skips contact damage against it. */
@@ -540,6 +605,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.setPosition(this.steering.x, this.steering.y);
     this.setRotation(Phaser.Math.DegToRad(this.steering.rotation));
     this.applyBodyScale();
+    this.tickVisibility(frames);
 
     // Consumed, so damage arriving before the next update is what the next
     // update sees.

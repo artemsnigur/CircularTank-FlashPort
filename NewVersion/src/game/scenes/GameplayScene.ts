@@ -1073,7 +1073,8 @@ export class GameplayScene extends Phaser.Scene {
     const view = this.cameras.main.worldView;
     const onScreen = (_t: { x: number; y: number }, i: number): boolean => {
       const enemy = this.enemies[i];
-      return view.contains(enemy.x, enemy.y);
+      // `:6195` — ground hazards and the beam skip untargetable enemies too.
+      return enemy.targetable && view.contains(enemy.x, enemy.y);
     };
 
     // Snapshot first: removing an enemy mid-loop would shift the indices.
@@ -1133,10 +1134,28 @@ export class GameplayScene extends Phaser.Scene {
    */
   private steerMagic(bullet: Bullet): void {
     const view = this.cameras.main.worldView;
+    // `:4115` and `:1720` both filter candidates on screen presence *and*
+    // targetability. The second half used to be missing here, with a comment
+    // saying `invisible` and `teleporting` came from the unported loop and no
+    // enemy set them. Ghost and ScaredGhost set them now.
     const valid = (enemy: Enemy): boolean =>
-      enemy.active && this.enemies.includes(enemy) && view.contains(enemy.x, enemy.y);
+      enemy.active &&
+      this.enemies.includes(enemy) &&
+      enemy.targetable &&
+      view.contains(enemy.x, enemy.y);
 
     let target = bullet.magicTarget as Enemy | null;
+    // ── Deliberate divergence from the AS3 ────────────────────────────────
+    // `:1716` drops the current target when it is null, gone, invisible, or
+    // **not teleporting** — that last clause is missing its negation. Every
+    // other site writes `!(x.teleporting == null || !x.teleporting)` for "is
+    // teleporting"; there it is un-negated, so the clause is true for almost
+    // every enemy and the round re-picks a target every single frame.
+    //
+    // `:1743` and `:1766` get it right, so the original disagrees with itself.
+    // Fixed rather than reproduced: unlike Group A's stat quirks this changes
+    // how a shipped weapon behaves, and holding a target is plainly the intent
+    // of a homing round. `enemyVisibility.test.ts` asserts the target persists.
     if (!target || !valid(target)) {
       const targets = this.enemies.map((enemy) => ({
         x: enemy.x,
@@ -1222,18 +1241,24 @@ export class GameplayScene extends Phaser.Scene {
       //   - a bomb round passes straight over anything already carrying one,
       //     because `:5826` guards the whole attach block on `!gotBomb`
       let canHit: ((target: HitTarget, i: number) => boolean) | undefined;
-      if (bullet.isFlame) canHit = (_t, i) => !burnedThisFrame.has(this.enemies[i]);
+      // `:5552` gates the whole bullet loop on targetability, so this applies
+      // to every bullet kind before any per-weapon rule below.
+      const reachable = (i: number): boolean => this.enemies[i].targetable;
+
+      if (bullet.isFlame) canHit = (_t, i) => reachable(i) && !burnedThisFrame.has(this.enemies[i]);
       // `:5917` — a magic round damages anything before it has a target, and
       // only its target once it does. Never the same enemy twice.
       else if (bullet.isMagic) {
         canHit = (_t, i) => {
           const enemy = this.enemies[i];
-          if (bullet.hasHit(enemy)) return false;
+          if (!enemy.targetable || bullet.hasHit(enemy)) return false;
           return bullet.magicTarget === null || bullet.magicTarget === enemy;
         };
       }
-      else if (bullet.penetrates) canHit = (_t, i) => !bullet.hasHit(this.enemies[i]);
-      else if (bullet.attachesBomb) canHit = (_t, i) => !this.enemies[i].status.gotBomb;
+      else if (bullet.penetrates) canHit = (_t, i) => reachable(i) && !bullet.hasHit(this.enemies[i]);
+      else if (bullet.attachesBomb)
+        canHit = (_t, i) => reachable(i) && !this.enemies[i].status.gotBomb;
+      else canHit = (_t, i) => reachable(i);
 
       // A flame keeps burning for its whole life and hits everything it
       // overlaps, so it resolves against every target rather than the first.
@@ -1414,14 +1439,16 @@ export class GameplayScene extends Phaser.Scene {
 
     if (this.mines.length === 0) return;
 
-    // `invisible` and `teleporting` come from status effects in the unported
-    // enemy loop, so no enemy sets them yet; passing them through keeps the
-    // sweep correct once they exist.
-    const targets = this.enemies.map((enemy) => ({
-      x: enemy.x,
-      y: enemy.y,
-      radius: enemy.radius,
-    }));
+    // `:1058` — a mine does not detonate on an invisible or teleporting enemy.
+    // The comment here used to say no enemy set those flags; Ghost and
+    // ScaredGhost set them now, so the filter is real rather than anticipatory.
+    const targets = this.enemies
+      .filter((enemy) => enemy.targetable)
+      .map((enemy) => ({
+        x: enemy.x,
+        y: enemy.y,
+        radius: enemy.radius,
+      }));
 
     const { mines, detonations } = sweepMines(
       this.mines.map((mine) => mine.spec),
@@ -1908,7 +1935,10 @@ export class GameplayScene extends Phaser.Scene {
 
     // Snapshot the caught enemies first: removing one mid-loop would shift the
     // indices findEnemiesInBlast returned.
-    const caught = findEnemiesInBlast(explosion, targets).map((i) => this.enemies[i]);
+    // `:6437` — an invisible or teleporting enemy is untouched by blasts.
+    const caught = findEnemiesInBlast(explosion, targets)
+      .map((i) => this.enemies[i])
+      .filter((enemy) => enemy.targetable);
 
     for (const enemy of caught) {
       const damage = blastDamage(explosion, enemy.damageMultipliers);

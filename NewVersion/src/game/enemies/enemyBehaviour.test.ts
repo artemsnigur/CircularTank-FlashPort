@@ -160,6 +160,21 @@ describe('every declared mechanic exists in the AS3', () => {
    * an unported line still fails.
    */
   const ACCOUNTED_SPAWN_SETUP: Record<string, readonly string[]> = {
+    // enemyVisibility.createVisibilityState — both spawn visible with the
+    // timer at its maximum. `gotoAndStop(1)` is the visible sprite frame,
+    // which the port expresses as alpha rather than a frame index.
+    Ghost: [
+      'enemy.gotoAndStop(1);',
+      'enemy.invisible = false;',
+      'enemy.ghostTimerMax = 150;',
+      'enemy.ghostTimer = enemy.ghostTimerMax;',
+    ],
+    ScaredGhost: [
+      'enemy.gotoAndStop(1);',
+      'enemy.invisible = false;',
+      'enemy.ghostTimerMax = 150;',
+      'enemy.ghostTimer = enemy.ghostTimerMax;',
+    ],
     // Enemy.radiusStart, captured in the constructor from the same diameter.
     Shrinking: ['enemy.radiusStart = enemy.width / 2;'],
     // enemyStatMods.createRageState. `gotoAndStop(1)` is the calm sprite frame,
@@ -260,7 +275,7 @@ describe('the current picture', () => {
     expect(r.missingMechanic).toBeNull();
   });
 
-  it('stands at 13 implemented, 0 partial, 7 data-only of 20', () => {
+  it('stands at 15 implemented, 0 partial, 5 data-only of 20', () => {
     // The exact figure, not a comparative: it is knowable, and a board that
     // moves without anyone noticing is the failure this module exists to stop.
     //
@@ -270,9 +285,9 @@ describe('the current picture', () => {
     // Ninja and Random — whose mechanics turned out not to exist. Every
     // remaining mechanic belongs to a type whose shooting is also unported.
     expect(behaviourTotals(describeAllEnemies())).toEqual({
-      implemented: 13,
+      implemented: 15,
       partial: 0,
-      dataOnly: 7,
+      dataOnly: 5,
       total: 20,
     });
   });

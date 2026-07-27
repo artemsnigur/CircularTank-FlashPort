@@ -76,10 +76,8 @@ import { bulletClassFor, SUPPORTED_SHOOT_ANGLES } from './enemyFiring';
  * PartGameArea.as, so an invented mechanic fails the suite.
  */
 export const SPECIAL_MECHANICS: Record<string, string> = {
-  Ghost: 'passes through obstacles, periodically invisible',
   GrapplingHook: 'tethers the tank and reels it in',
   Medic: 'heals nearby enemies',
-  ScaredGhost: 'flees the tank',
   // Porting this? Two AS3 sites are easy to miss because they are sound cues,
   // not movement: `:4946` (TeleportOut, as the enemy leaves) and `:4973`
   // (TeleportIn, as it returns). Both are gated on `checkWithinScreen(x, y, w,
