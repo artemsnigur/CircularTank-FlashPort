@@ -109,6 +109,14 @@ export const LEVEL_SIZE_OVERRIDES: readonly LevelSizeOverride[] = [
 /** The size every Tower arena plays at. Square, deliberately — see below. */
 export const TOWER_ROOM: readonly [number, number] = [800, 800];
 
+/**
+ * The size every Defense lane plays at.
+ *
+ * 712 is the *minimum* width that fills a 16:9 viewport, not a round number
+ * chosen for tidiness, and the difference matters — see the rule below.
+ */
+export const DEFENSE_ROOM: readonly [number, number] = [712, 960];
+
 export interface ModeSizeOverride {
   mode: LevelMode;
   /** The size the AS3 specifies for **every** level of this mode. Asserted. */
@@ -147,6 +155,25 @@ export interface ModeSizeOverride {
  * `roomWidth + 100`: enemies now approach ~0.6 degrees flatter. That is
  * accepted, and it is uniform across all four walls rather than different per
  * wall, which is what the square keeps.
+ *
+ * ── Why Defense is 712 and not 800 ───────────────────────────────────────
+ * Height is untouched: the tall lane is the mode. Width is raised only to the
+ * point where the margin disappears on 16:9, and no further, because the extra
+ * width buys a side effect.
+ *
+ * `PartGameArea.setCamera` (:695-705) clamps the camera to the room. With
+ * `roomWidth == cameraWidth` the first branch's condition is `< 0 && > 0` —
+ * impossible — and both fallbacks assign `x = 0`, so **the original's Defense
+ * camera never scrolls horizontally**. The lane is exactly one screen wide, a
+ * fixed frame. Any width above the viewport reintroduces horizontal tracking:
+ * 800 would give 89 units of it on 16:9.
+ *
+ * 712 is the smallest width that fills a 711.1-unit view, so the frame stays
+ * effectively fixed — 0.9 design units of travel, about two device pixels.
+ * The cost is that it leaves 122 units per side on 21:9 where 800 would leave
+ * 78, and that windows *narrower* than 16:9 gain scroll they did not have: a
+ * 16:10 view is 640 units, so 712 scrolls 72 there. That is the trade, taken
+ * deliberately in favour of the mode's shape on the common aspect.
  */
 export const MODE_SIZE_OVERRIDES: readonly ModeSizeOverride[] = [
   {
@@ -155,6 +182,13 @@ export const MODE_SIZE_OVERRIDES: readonly ModeSizeOverride[] = [
     to: TOWER_ROOM,
     reason: 'standard',
     note: 'square arena widened so it fills the viewport without margin',
+  },
+  {
+    mode: 'Defense',
+    from: [640, 960],
+    to: DEFENSE_ROOM,
+    reason: 'standard',
+    note: 'widened to exactly fill 16:9, keeping the lane a fixed frame',
   },
 ];
 

@@ -305,41 +305,54 @@ describe('deliberate room-size divergences', () => {
     });
   });
 
-  it('Defense is deliberately not widened', () => {
-    // It has the same margin problem, and is deliberately out of scope: only
-    // spawn-wall pinning and a spawn-interval variant are ported, so the
-    // defended line and the shields that the 640x960 lane exists for do not
-    // exist yet.
-    expect(findModeOverride('Defense')).toBeUndefined();
+  it('Defense keeps its lane height exactly', () => {
+    // Widening was width-only on purpose. The unported parts of the mode — the
+    // defended line, the shields, the y-relative teleport rules — are all
+    // vertical, so height is the dimension that must not move ahead of them.
     const defense = LEVELS[0].findIndex((l) => l.mode === 'Defense');
-    expect(getLevel(1, defense + 1)).toMatchObject({ roomWidth: 640, roomHeight: 960 });
+    expect(LEVELS[0][defense].roomHeight).toBe(960);
+    expect(getLevel(1, defense + 1)).toMatchObject({ roomWidth: 712, roomHeight: 960 });
   });
 
-  it('applies the Tower rule to all 90 Tower levels', () => {
-    const rule = findModeOverride('Tower')!;
-    expect(rule.to).toEqual([800, 800]);
-
-    let towers = 0;
+  it.each(MODE_SIZE_OVERRIDES)('the $mode rule holds for every $mode level', (rule) => {
+    // The premise each mode rule rests on, checked against the AS3 itself:
+    // every level of the mode really is the size the rule claims to replace.
+    // Ninety explicit rows would state that ninety times; this states it once
+    // and proves it for all of them, so a rule that stopped being uniformly
+    // true fails rather than quietly applying to a level it never meant.
+    let seen = 0;
     for (const world of WORLDS) {
       const rows = parseWorld(world);
       LEVELS[world - 1].forEach((spec, index) => {
-        if (spec.mode !== 'Tower') return;
-        towers += 1;
+        if (spec.mode !== rule.mode) return;
+        seen += 1;
 
-        // The premise the rule rests on, checked against the AS3 itself: every
-        // Tower level really is the size the rule claims to replace. Ninety
-        // explicit rows would state this ninety times; this states it once and
-        // proves it holds for all of them.
         const row = rows[index];
         expect([row.width, row.height], `${world}-${index + 1} source`).toEqual([...rule.from]);
 
         const played = getLevel(world, index + 1)!;
         expect([played.roomWidth, played.roomHeight], `${world}-${index + 1} played`).toEqual([
-          800, 800,
+          ...rule.to,
         ]);
       });
     }
-    expect(towers).toBe(90);
+    expect(seen, `${rule.mode} level count`).toBe(90);
+  });
+
+  it('widens Tower to a square and Defense by width alone', () => {
+    // The two rules exist for the same reason and answer it differently, so
+    // the shapes are pinned rather than left to a passing glance at the table.
+    expect(findModeOverride('Tower')!.to).toEqual([800, 800]);
+
+    const defense = findModeOverride('Defense')!;
+    expect(defense.to).toEqual([712, 960]);
+    // Height untouched: the tall lane is the mode.
+    expect(defense.to[1]).toBe(defense.from[1]);
+    // And only just wide enough — 712 is the minimum that fills a 711.1-unit
+    // 16:9 view. Any more reintroduces horizontal camera scroll, which the
+    // original never had (setCamera pins x to 0 when roomWidth == cameraWidth).
+    expect(defense.to[0]).toBeGreaterThan(711.1);
+    expect(defense.to[0]).toBeLessThan(720);
   });
 
   it('keeps Tower square, which is what the size was chosen for', () => {
@@ -354,7 +367,7 @@ describe('deliberate room-size divergences', () => {
   it('has one mode rule, and it does not overlap the per-level scope', () => {
     // Tower is not in OVERRIDDEN_MODES, so the two mechanisms cannot both
     // claim a level and disagree about it.
-    expect(MODE_SIZE_OVERRIDES.map((o) => o.mode)).toEqual(['Tower']);
+    expect(MODE_SIZE_OVERRIDES.map((o) => o.mode)).toEqual(['Tower', 'Defense']);
     for (const o of MODE_SIZE_OVERRIDES) {
       expect(OVERRIDDEN_MODES).not.toContain(o.mode);
     }
