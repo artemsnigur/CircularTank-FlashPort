@@ -146,6 +146,12 @@ Read these before changing rendering, text, or audio behaviour:
 - **[docs/AUDIO_PIPELINE.md](docs/AUDIO_PIPELINE.md)** — what the JPEXS MP3
   exports actually contain, and the two-layer verification.
 
+## What is left
+
+- **[docs/BACKLOG.md](docs/BACKLOG.md)** — the remaining work after the 20
+  enemies, scoped by dependency and grouped F–L, with a suggested sequence.
+  Read this before picking up anything new.
+
 ## Porting workflow
 
 1. Pick a class from `PROGRESS.md`, starting with **Core systems**.
