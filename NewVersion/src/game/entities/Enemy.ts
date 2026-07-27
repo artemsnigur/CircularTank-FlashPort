@@ -34,9 +34,13 @@ import {
   acceleratingFactor,
   acceleratingSpeeds,
   createAcceleratingState,
+  createRageState,
+  rageSpeeds,
+  ragesWhenDamaged,
   tickAccelerating,
+  tickRage,
 } from '../enemies/enemyStatMods';
-import type { AcceleratingState, RampedSpeeds } from '../enemies/enemyStatMods';
+import type { AcceleratingState, RageState, RampedSpeeds } from '../enemies/enemyStatMods';
 import type { DamageMultipliers, ImpactFeedback } from '../enemies/damageTypes';
 import { createStatusState, tickStatuses } from '../enemies/statusEffects';
 import { createShooter } from '../enemies/enemyFiring';
@@ -169,6 +173,8 @@ export class Enemy extends Phaser.GameObjects.Container {
   private towerAcc = 0;
   /** `Accelerating`'s wind-up. Null for every other type. */
   private accelerating: AcceleratingState | null = null;
+  /** `Temperamental`'s rage. Null for every other type. */
+  private rage: RageState | null = null;
   /** Named `shell`, not `body`: Container.body is the physics body. */
   private readonly shell: Phaser.GameObjects.Sprite;
 
@@ -248,6 +254,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.accelerating = acceleratesWhileUndamaged(config.type)
       ? createAcceleratingState(config.level === 'B')
       : null;
+    this.rage = ragesWhenDamaged(config.type) ? createRageState() : null;
 
     this.steering = {
       x: spawn.x,
@@ -379,16 +386,34 @@ export class Enemy extends Phaser.GameObjects.Container {
    *
    * Null for every other type, so the caller falls back to the resolved stats.
    */
-  private tickAcceleratingRamp(deltaMs: number, isTower: boolean): RampedSpeeds | null {
+  private tickAcceleratingRamp(frames: number, isTower: boolean): RampedSpeeds | null {
     if (!this.accelerating) return null;
 
     this.accelerating = tickAccelerating(
       this.accelerating,
-      (deltaMs / 1000) * AS3_FPS,
+      frames,
       this.healthChanged,
       this.status.frozen,
     );
     return acceleratingSpeeds(acceleratingFactor(this.accelerating), isTower);
+  }
+
+  /**
+   * Advances `Temperamental`'s rage and returns the speeds it implies.
+   *
+   * Returns null until the enemy has ever raged, so it keeps the
+   * difficulty-resolved speeds it spawned with. The AS3's calm branch is
+   * guarded by `&& angry`, so nothing writes the raw table before the first
+   * hit — and every write afterwards comes from it, which is what makes losing
+   * the difficulty multiplier permanent.
+   */
+  private tickRageState(frames: number, isTower: boolean): RampedSpeeds | null {
+    if (!this.rage) return null;
+
+    this.rage = tickRage(this.rage, frames, this.healthDropped, this.status.frozen);
+    if (!this.rage.hasRaged) return null;
+
+    return rageSpeeds(this.rage.angry, this.enemyLevel === 'B', isTower);
   }
 
   private applyBodyScale(): void {
@@ -412,7 +437,8 @@ export class Enemy extends Phaser.GameObjects.Container {
 
     const tower = this.mode === 'Tower';
     const defense = this.mode === 'Defense';
-    const speeds = this.tickAcceleratingRamp(deltaMs, tower);
+    const frames = (deltaMs / 1000) * AS3_FPS;
+    const speeds = this.tickAcceleratingRamp(frames, tower) ?? this.tickRageState(frames, tower);
     if (tower) {
       // Grows for the level, capped at 10. Advanced before the step so the
       // frame that spawned the enemy does not get a free tick.

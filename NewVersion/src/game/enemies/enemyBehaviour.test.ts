@@ -162,6 +162,18 @@ describe('every declared mechanic exists in the AS3', () => {
   const ACCOUNTED_SPAWN_SETUP: Record<string, readonly string[]> = {
     // Enemy.radiusStart, captured in the constructor from the same diameter.
     Shrinking: ['enemy.radiusStart = enemy.width / 2;'],
+    // enemyStatMods.createRageState. `gotoAndStop(1)` is the calm sprite frame,
+    // which the port expresses through the same art the other types use rather
+    // than a frame index. `turnPeaceful` is deliberately not ported — nothing
+    // in the AS3 ever assigns it true, so the branch reading it is unreachable.
+    Temperamental: [
+      'enemy.gotoAndStop(1);',
+      'enemy.angry = false;',
+      'enemy.turnAngry = false;',
+      'enemy.turnPeaceful = false;',
+      'enemy.angryTimerMax = 225;',
+      'enemy.angryTimer = enemy.angryTimerMax;',
+    ],
     // enemyStatMods.createAcceleratingState — 225 normal, 450 boss, starting
     // at the maximum so the enemy enters at base speed.
     Accelerating: [
@@ -248,7 +260,7 @@ describe('the current picture', () => {
     expect(r.missingMechanic).toBeNull();
   });
 
-  it('stands at 11 implemented, 0 partial, 9 data-only of 20', () => {
+  it('stands at 12 implemented, 0 partial, 8 data-only of 20', () => {
     // The exact figure, not a comparative: it is knowable, and a board that
     // moves without anyone noticing is the failure this module exists to stop.
     //
@@ -258,9 +270,9 @@ describe('the current picture', () => {
     // Ninja and Random — whose mechanics turned out not to exist. Every
     // remaining mechanic belongs to a type whose shooting is also unported.
     expect(behaviourTotals(describeAllEnemies())).toEqual({
-      implemented: 11,
+      implemented: 12,
       partial: 0,
-      dataOnly: 9,
+      dataOnly: 8,
       total: 20,
     });
   });

@@ -6,8 +6,13 @@ import {
   acceleratesWhileUndamaged,
   acceleratingFactor,
   acceleratingSpeeds,
+  RAGE_TIMER_MAX,
   createAcceleratingState,
+  createRageState,
+  rageSpeeds,
+  ragesWhenDamaged,
   tickAccelerating,
+  tickRage,
 } from './enemyStatMods';
 import { ENEMY_STATS } from './enemyStatsData';
 import { resolveEnemyStats } from './enemyStats';
@@ -158,5 +163,145 @@ describe('the shared health observer', () => {
     expect(scene).not.toMatch(/enemy\.health\s*=[^=]/);
     expect(scene).not.toMatch(/enemy\.health\s*-=/);
     expect(scene.match(/\.setHealth\(|\.takeDamage\(/g) ?? []).toHaveLength(4);
+  });
+});
+
+/* ── Temperamental ───────────────────────────────────────────────────────── */
+
+const rageFor = (frames: number, state = createRageState()) => {
+  let s = state;
+  for (let i = 0; i < frames; i += 1) s = tickRage(s, 1, false, false);
+  return s;
+};
+
+describe('rage', () => {
+  it('starts calm and having never raged', () => {
+    expect(createRageState()).toMatchObject({ angry: false, hasRaged: false, angryTimer: 0 });
+  });
+
+  it('is triggered by damage and lasts 7.5 seconds', () => {
+    expect(RAGE_TIMER_MAX).toBe(225);
+    const hit = tickRage(createRageState(), 1, true, false);
+    expect(hit).toMatchObject({ angry: true, hasRaged: true, angryTimer: 225 });
+
+    expect(rageFor(224, hit).angry).toBe(true);
+    expect(rageFor(225, hit).angry).toBe(false);
+  });
+
+  it('renewed damage resets the clock rather than extending it', () => {
+    // `angryTimer = angryTimerMax` runs unconditionally on a hit, while the
+    // boosts sit behind `if (!angry)`. So a second hit refreshes and does not
+    // stack.
+    const angry = tickRage(createRageState(), 1, true, false);
+    const halfway = rageFor(150, angry);
+    expect(halfway.angryTimer).toBe(75);
+
+    const hitAgain = tickRage(halfway, 1, true, false);
+    expect(hitAgain.angryTimer).toBe(225);
+  });
+
+  it('does not re-apply anything when already angry', () => {
+    const first = tickRage(createRageState(), 1, true, false);
+    const second = tickRage(first, 1, true, false);
+    // Same state, not a stacked one — the only difference is the refreshed clock.
+    expect(rageSpeeds(first.angry, false, false)).toEqual(rageSpeeds(second.angry, false, false));
+  });
+});
+
+describe('rage speeds', () => {
+  const base = ENEMY_STATS.Temperamental.normal;
+
+  it('non-boss quadruples speed, doubles acceleration, triples turn rate', () => {
+    expect(rageSpeeds(true, false, false)).toEqual({
+      moveSpeedMax: base.moveSpeedMax * 4,
+      accSpeed: base.accSpeed * 2,
+      rotSpeedMax: base.rotSpeedMax * 3,
+    });
+    // Concretely: 1 -> 4, 0.2 -> 0.4, 2 -> 6.
+    expect(rageSpeeds(true, false, false)).toEqual({
+      moveSpeedMax: 4,
+      accSpeed: 0.4,
+      rotSpeedMax: 6,
+    });
+  });
+
+  it('a boss gains speed and acceleration but no turn rate at all', () => {
+    // x3/x2/x1 against the non-boss x4/x2/x3.
+    const boss = ENEMY_STATS.Temperamental.boss;
+    expect(rageSpeeds(true, true, false)).toEqual({
+      moveSpeedMax: boss.moveSpeedMax * 3,
+      accSpeed: boss.accSpeed * 2,
+      rotSpeedMax: boss.rotSpeedMax,
+    });
+    expect(rageSpeeds(true, true, false).rotSpeedMax).toBe(rageSpeeds(false, true, false).rotSpeedMax);
+  });
+
+  it('the boss branch ignores Tower, where the non-boss branch respects it', () => {
+    // Reproduced asymmetry: `:6660-6665` has no `levelMode != "Tower"` guard.
+    expect(rageSpeeds(true, false, true).accSpeed).toBeUndefined();
+    expect(rageSpeeds(true, false, true).rotSpeedMax).toBeUndefined();
+
+    expect(rageSpeeds(true, true, true).accSpeed).toBe(0.4);
+    expect(rageSpeeds(true, true, true).rotSpeedMax).toBe(2);
+  });
+
+  it('calming restores the raw table, not the resolved stats', () => {
+    // The reproduced quirk that matters most. On Medium the enemy spawns at
+    // 1.1; raging once and calming leaves it at 1.0 for the rest of the level,
+    // permanently slower than one that was never hit.
+    const medium = resolveEnemyStats('Temperamental', '1', 'Medium')!;
+    expect(medium.moveSpeedMax).toBeCloseTo(1.1, 10);
+
+    expect(rageSpeeds(false, false, false).moveSpeedMax).toBe(1);
+    expect(rageSpeeds(false, false, false).moveSpeedMax).toBeLessThan(medium.moveSpeedMax);
+  });
+});
+
+/**
+ * The one that most needs asserting side by side.
+ *
+ * Accelerating and Temperamental sit adjacent in the AS3, both use 225 frames,
+ * and freezing does the **opposite** thing to each. Conflating them later would
+ * be easy and would look like a plausible simplification.
+ */
+describe('freezing does opposite things to the two ramps', () => {
+  it('resets Accelerating outright', () => {
+    const wound = wind(200);
+    expect(acceleratingFactor(wound)).toBeGreaterThan(0.8);
+    expect(acceleratingFactor(tickAccelerating(wound, 1, false, true))).toBe(0);
+  });
+
+  it('pauses Temperamental instead, keeping the rage', () => {
+    const angry = tickRage(createRageState(), 1, true, false);
+    const halfway = rageFor(150, angry);
+    expect(halfway.angryTimer).toBe(75);
+
+    let frozen = halfway;
+    for (let i = 0; i < 100; i += 1) frozen = tickRage(frozen, 1, false, true);
+
+    expect(frozen.angry).toBe(true);
+    expect(frozen.angryTimer).toBe(75);
+  });
+
+  it('cannot be newly angered while frozen', () => {
+    const frozen = tickRage(createRageState(), 1, true, true);
+    expect(frozen.angry).toBe(false);
+    expect(frozen.hasRaged).toBe(false);
+  });
+
+  it('still calms while frozen if the clock already ran out', () => {
+    // The calm check sits outside the frozen guard in the original.
+    const angry = tickRage(createRageState(), 1, true, false);
+    const expired = rageFor(225, angry);
+    expect(expired.angry).toBe(false);
+  });
+});
+
+describe('which types rage', () => {
+  it('is Temperamental alone', () => {
+    expect(ragesWhenDamaged('Temperamental')).toBe(true);
+    for (const other of ['Accelerating', 'Basic', 'Shrinking', 'Strong']) {
+      expect(ragesWhenDamaged(other), other).toBe(false);
+    }
   });
 });

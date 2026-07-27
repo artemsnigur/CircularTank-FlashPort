@@ -89,7 +89,6 @@ export const SPECIAL_MECHANICS: Record<string, string> = {
   // stage at the live scroll; see docs/AUDIT-2026-07.md on camera constants
   // before reusing the port's live viewport for it.
   Teleporting: 'blinks across the arena',
-  Temperamental: 'enrages when provoked',
   Trap: 'lays stationary hazards',
 };
 

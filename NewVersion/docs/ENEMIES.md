@@ -5,7 +5,7 @@
      Source of every figure: src/game/enemies/ and src/game/weapons/firing.ts.
      See scripts/gen-enemy-reference.ts for why this is generated. -->
 
-Covers the **11 of 20** enemy types whose behaviour is built.
+Covers the **12 of 20** enemy types whose behaviour is built.
 Types still marked `data-only` are omitted deliberately: they spawn and steer,
 but nothing that distinguishes them is implemented, so an entry would describe
 intent rather than the game.
@@ -29,6 +29,7 @@ is not a world-1 Basic.
 - [Shooting](#shooting)
 - [Shrinking](#shrinking)
 - [Strong](#strong)
+- [Temperamental](#temperamental)
 - [Tiny](#tiny)
 
 ---
@@ -406,6 +407,42 @@ _Strong against explosions and bullets._
 | Max speed | 2 | 2 |
 | Acceleration | 0.3 | 0.1 |
 | Turn rate (deg/frame) | 1.5 | 1.5 |
+
+---
+
+### Temperamental
+
+_Becomes very angry when damaged._
+
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
+
+**Ranged:** none — contact damage only.
+
+**Counters**
+
+**Avoid** Flamethrower, Gummy Bear Cannon, Cake Cannon. Also weak to Ice, which no primary deals — that is a secondary.
+
+| Channel | Effect | Primary weapons |
+| --- | --- | --- |
+| Ice | 1.75x **weak** | _no primary — secondaries only_ |
+| Bullets | 1x neutral | MiniGun, Shotgun |
+| Explosions | 1x neutral | Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon |
+| Laser | 1x neutral | Laser Cannon |
+| Magic | 1x neutral | Magic Cannon |
+| Poison | 1x neutral | Poison Cannon |
+| Food | 0.5x resists | Gummy Bear Cannon, Cake Cannon |
+| FireLava | 0.25x resists | Flamethrower |
+
+**Stats**
+
+| Stat | Normal | Boss |
+| --- | --- | --- |
+| Health | 20 | 800 |
+| Contact damage | 6 | 15 |
+| Money dropped | 100 | 1200 |
+| Max speed | 1 | 1 |
+| Acceleration | 0.2 | 0.2 |
+| Turn rate (deg/frame) | 2 | 2 |
 
 ---
 

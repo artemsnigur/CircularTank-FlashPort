@@ -105,3 +105,126 @@ const ACCELERATES = new Set(['Accelerating']);
 export function acceleratesWhileUndamaged(enemyType: string): boolean {
   return ACCELERATES.has(enemyType);
 }
+
+/* ── Temperamental ───────────────────────────────────────────────────────── */
+
+/** Frames of calm after the last hit — `PartGameArea.as:3053`. */
+export const RAGE_TIMER_MAX = 225;
+
+export interface RageState {
+  angry: boolean;
+  /** Counts down to zero; reaching zero calms it. */
+  angryTimer: number;
+  angryTimerMax: number;
+  /**
+   * Whether this enemy has ever raged.
+   *
+   * Until it has, it keeps the difficulty-resolved speeds it spawned with: the
+   * AS3's calm branch is guarded by `&& Boolean(theEnemy.angry)` (`:6670`), so
+   * nothing overwrites them before the first hit. Afterwards every write comes
+   * from the raw table, which is what makes the multiplier loss permanent
+   * rather than momentary.
+   */
+  hasRaged: boolean;
+}
+
+export function createRageState(): RageState {
+  return { angry: false, angryTimer: 0, angryTimerMax: RAGE_TIMER_MAX, hasRaged: false };
+}
+
+/**
+ * Advances the rage timer — `PartGameArea.as:6636-6691`.
+ *
+ * ── Renewed damage resets, it does not extend ─────────────────────────────
+ * `angryTimer = angryTimerMax` runs unconditionally on a hit, while the stat
+ * boosts sit behind `if (!angry)` and so are applied once. Hitting an
+ * already-angry enemy refreshes its clock without stacking anything.
+ *
+ * ── Freezing pauses; it does not reset ────────────────────────────────────
+ * The AS3's `if (!frozen)` wraps both the decrement and the rage trigger, so a
+ * frozen enemy holds its rage and cannot be newly angered. **This is the
+ * opposite of `Accelerating`, whose ramp freezing resets outright** — the two
+ * are adjacent in the source, use the same 225, and are easy to conflate.
+ * `enemyStatMods.test.ts` asserts them side by side for that reason.
+ *
+ * The calm check sits *outside* that guard in the original, so an enemy whose
+ * timer already reached zero still calms while frozen.
+ *
+ * `turnPeaceful` is not ported. It is read at `:6670` and assigned `false` at
+ * `:6672`, and nothing anywhere assigns it `true` — only the timer can calm an
+ * enemy. Porting it would add a branch that can never be taken.
+ */
+export function tickRage(
+  state: RageState,
+  frames: number,
+  tookDamage: boolean,
+  frozen: boolean,
+): RageState {
+  let { angry, angryTimer, hasRaged } = state;
+
+  if (!frozen) {
+    if (angryTimer > 0) angryTimer = Math.max(0, angryTimer - frames);
+    if (tookDamage) {
+      angry = true;
+      hasRaged = true;
+      angryTimer = state.angryTimerMax;
+    }
+  }
+
+  // Outside the frozen guard, as in the original.
+  if (angry && angryTimer === 0) angry = false;
+
+  return { ...state, angry, angryTimer, hasRaged };
+}
+
+/**
+ * The speeds a Temperamental enemy has, angry or calm — `:6651-6688`.
+ *
+ * ── Read from the raw table, and that is load-bearing ─────────────────────
+ * Both the rage and the calm read `ScreenGame.enemyTemperamental[B]Stats`
+ * directly rather than the difficulty-resolved values, so **raging once
+ * permanently strips the difficulty multiplier**. On Medium an enemy spawns at
+ * 1.1, rages to 4.0, then calms to 1.0 — not back to 1.1 — and stays slower
+ * than one that was never hit, for the rest of the level.
+ *
+ * That is worse than `Accelerating`'s version of the same quirk, which only
+ * lowers a ceiling, and it looks exactly like an oversight. It is reproduced
+ * deliberately. Do not "fix" it without deciding to diverge on purpose.
+ *
+ * ── The boss branch has no Tower guard ────────────────────────────────────
+ * The non-boss branch guards `accSpeed` and `rotSpeedMax` with
+ * `levelMode != "Tower"`, because Tower owns those through its own ramp. The
+ * boss branch at `:6660-6665` does not, and writes them in every mode. That
+ * asymmetry is in the original and is reproduced as-is.
+ *
+ * Boss multipliers also differ from the non-boss ones: x3/x2/**x1**, so a boss
+ * gains no turn rate at all from raging.
+ */
+export function rageSpeeds(angry: boolean, isBoss: boolean, isTower: boolean): RampedSpeeds {
+  const base = isBoss ? ENEMY_STATS.Temperamental.boss : ENEMY_STATS.Temperamental.normal;
+
+  if (isBoss) {
+    // No Tower guard here, deliberately — see above.
+    return {
+      moveSpeedMax: angry ? base.moveSpeedMax * 3 : base.moveSpeedMax,
+      accSpeed: angry ? base.accSpeed * 2 : base.accSpeed,
+      rotSpeedMax: angry ? base.rotSpeedMax * 1 : base.rotSpeedMax,
+    };
+  }
+
+  const moveSpeedMax = angry ? base.moveSpeedMax * 4 : base.moveSpeedMax;
+  if (isTower) return { moveSpeedMax };
+
+  return {
+    moveSpeedMax,
+    accSpeed: angry ? base.accSpeed * 2 : base.accSpeed,
+    rotSpeedMax: angry ? base.rotSpeedMax * 3 : base.rotSpeedMax,
+  };
+}
+
+/** Enemy types that rage when damaged. */
+const RAGES = new Set(['Temperamental']);
+
+export function ragesWhenDamaged(enemyType: string): boolean {
+  return RAGES.has(enemyType);
+}
