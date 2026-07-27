@@ -1,4 +1,24 @@
 /**
+ * ── Per-level "temp" flags still to wire ─────────────────────────────────
+ * `PartGameArea` sets a family of one-shot booleans during a level that
+ * `ScreenAchievements` reads afterwards, resetting them on level start and on
+ * quit (`:256-278`). None are wired here yet, and each is invisible from the
+ * gameplay side — nothing else reads them, so they look like dead flags when
+ * met in isolation.
+ *
+ * The one met so far: **`tempTrapEnemyMineKill`** (`:6626`), set when an
+ * explosion whose parent is a Mine kills a `Trap` enemy, read only at
+ * `ScreenAchievements.as:417-422`. It is achievement bookkeeping and **not** a
+ * gameplay mechanic — mines do not destroy trap hazards and traps do not
+ * trigger mines. The Trap port deliberately builds nothing for it.
+ *
+ * Its siblings, for whoever wires this: `tempDoctorPoisoned`,
+ * `tempTemperamentalFrozen`, `tempDamageAddictEnemyCake`, `tempHitBottom`,
+ * `tempNoWeaponsUsed`, `tempTimedBombsFired`, `tempOtherThanTimedBombsFired`,
+ * `tempOnlySpecialWeapons`, `tempNothingPressed`, `tempThreeBosses`.
+ */
+
+/**
  * Port of the achievement evaluation logic in
  * `SWFimported/scripts/ScreenAchievements.as`.
  *

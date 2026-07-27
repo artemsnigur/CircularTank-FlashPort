@@ -40,8 +40,9 @@ describe('ranged support is derived, not declared', () => {
     // GrapplingHook: Hook — bullet class not ported. (Soldier used to be the
     // example here; Following landed, which is the derived board working.)
     expect(isRangedImplemented(resolveEnemyStats('GrapplingHook', '1', 'Easy'))).toBe(false);
-    // Trap: BackTrap — pattern not ported.
-    expect(isRangedImplemented(resolveEnemyStats('Trap', '1', 'Easy'))).toBe(false);
+    // GrapplingHook: Hook — the last unported bullet class. Trap was the
+    // example here until BackTrap landed.
+    expect(isRangedImplemented(resolveEnemyStats('GrapplingHook', '1', 'Easy'))).toBe(false);
   });
 
   it('is false for anything that does not shoot', () => {
@@ -315,13 +316,21 @@ describe('the current picture', () => {
     expect(r.missingMechanic).toBeNull();
   });
 
-  it('GrapplingHook and Trap are still data-only for the same reason', () => {
-    // The remaining two, each waiting on its own bullet class.
-    expect(describeEnemy('GrapplingHook').rangedImplemented).toBe(false);
-    expect(describeEnemy('Trap').rangedImplemented).toBe(false);
+  it('Trap followed Soldier once BackTrap landed', () => {
+    // Same derivation, second time: adding the bullet class and the pattern
+    // flipped it with no edit to the board.
+    expect(describeEnemy('Trap')).toMatchObject({
+      status: 'implemented',
+      rangedImplemented: true,
+    });
   });
 
-  it('stands at 18 implemented, 0 partial, 2 data-only of 20', () => {
+  it('GrapplingHook is the last one, waiting on the Hook bullet', () => {
+    expect(describeEnemy('GrapplingHook').rangedImplemented).toBe(false);
+    expect(describeEnemy('GrapplingHook').status).toBe('data-only');
+  });
+
+  it('stands at 19 implemented, 0 partial, 1 data-only of 20', () => {
     // The exact figure, not a comparative: it is knowable, and a board that
     // moves without anyone noticing is the failure this module exists to stop.
     //
@@ -331,9 +340,9 @@ describe('the current picture', () => {
     // Ninja and Random — whose mechanics turned out not to exist. Every
     // remaining mechanic belongs to a type whose shooting is also unported.
     expect(behaviourTotals(describeAllEnemies())).toEqual({
-      implemented: 18,
+      implemented: 19,
       partial: 0,
-      dataOnly: 2,
+      dataOnly: 1,
       total: 20,
     });
   });

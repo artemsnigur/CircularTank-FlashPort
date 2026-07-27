@@ -5,7 +5,7 @@
      Source of every figure: src/game/enemies/ and src/game/weapons/firing.ts.
      See scripts/gen-enemy-reference.ts for why this is generated. -->
 
-Covers the **18 of 20** enemy types whose behaviour is built.
+Covers the **19 of 20** enemy types whose behaviour is built.
 Types still marked `data-only` are omitted deliberately: they spawn and steer,
 but nothing that distinguishes them is implemented, so an entry would describe
 intent rather than the game.
@@ -37,6 +37,7 @@ is not a world-1 Basic.
 - [Teleporting](#teleporting)
 - [Temperamental](#temperamental)
 - [Tiny](#tiny)
+- [Trap](#trap)
 
 ---
 
@@ -705,3 +706,43 @@ _A very small enemy._
 | Max speed | 1.8 | 1.8 |
 | Acceleration | 0.4 | 0.4 |
 | Turn rate (deg/frame) | 2 | 2 |
+
+---
+
+### Trap
+
+_Lays traps once in a while._
+
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
+
+**Ranged:** BackTrap (pattern not ported), once every 100 frames (3.33s). Bullet class `Trap`.
+
+**Counters**
+
+**Counter with** Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon. **Avoid** Magic Cannon.
+
+| Channel | Effect | Primary weapons |
+| --- | --- | --- |
+| Explosions | 1.5x **weak** | Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon |
+| Bullets | 1x neutral | MiniGun, Shotgun |
+| FireLava | 1x neutral | Flamethrower |
+| Food | 1x neutral | Gummy Bear Cannon, Cake Cannon |
+| Laser | 1x neutral | Laser Cannon |
+| Poison | 1x neutral | Poison Cannon |
+| Ice | 0.75x resists | _no primary — secondaries only_ |
+| Magic | 0.25x resists | Magic Cannon |
+
+**Stats**
+
+| Stat | Normal | Boss |
+| --- | --- | --- |
+| Health | 15 | 750 |
+| Contact damage | 5 | 15 |
+| Money dropped | 80 | 1100 |
+| Max speed | 1.5 | 1.5 |
+| Acceleration | 0.2 | 0.2 |
+| Turn rate (deg/frame) | 1 | 1 |
+| Reload | 100 frames (3.33s) | 75 frames (2.5s) |
+| Bullets per volley | 1 | 3 |
+| Bullet class | Trap | Trap |
+| Firing pattern | BackTrap | BackTrap |

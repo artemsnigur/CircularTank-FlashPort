@@ -9,10 +9,8 @@
  *
  * Deliberately **not** covered, and each needs its own pass:
  *
- *   Hook, Trap                   other bullet classes; Trap is a speed-0
- *                                stationary hazard on its own display layer
- *   FrontAmount, FrontSides,     three other firing patterns
- *   BackTrap
+ *   Hook                         GrapplingHook's tether
+ *   FrontAmount, FrontSides      two other firing patterns
  *   reflected                    the BulletReflect upgrade bouncing shots back
  *   bulletsShooting              GrapplingHook's tether accounting
  *
@@ -170,6 +168,26 @@ export const FOLLOWING_BOSS_BULLET: BulletClassSpec = {
   lifeTime: 90,
 };
 
+/**
+ * `EnemyBulletTrap` — a stationary hazard, not a projectile.
+ *
+ * Speed 0, so it sits where it was dropped until something walks into it or its
+ * ten seconds run out. Bigger than a bullet (6 against 4) and hits harder (2
+ * against 1), and it damages **once**: `PartGameArea.as:1588` removes it in the
+ * same branch that applies the damage, so it is a one-shot mine rather than a
+ * damaging field.
+ *
+ * It also cannot be reflected. `:1557` forces `EnemyBulletTrap` onto the normal
+ * damage path and `:1592` excludes it from the reflect branch, so the
+ * `BulletReflect` upgrade — still unported — will have no effect on traps when
+ * it lands.
+ */
+export const TRAP_BULLET: BulletClassSpec = {
+  radius: 6,
+  damage: 2,
+  lifeTime: 300,
+};
+
 /** Degrees per frame the round may turn — `PartGameArea.as:1531` and `:1536`. */
 export const FOLLOWING_TURN_RATE = 1.2;
 export const FOLLOWING_BOSS_TURN_RATE = 1.5;
@@ -180,15 +198,17 @@ export const SUPPORTED_SHOOT_TYPES = [
   'BasicBoss',
   'Following',
   'FollowingBoss',
+  'Trap',
 ] as const;
 /** Firing patterns this slice can lay out. */
-export const SUPPORTED_SHOOT_ANGLES = ['Front', 'Circle'] as const;
+export const SUPPORTED_SHOOT_ANGLES = ['Front', 'Circle', 'BackTrap'] as const;
 
 export function bulletClassFor(shootType: string | undefined): BulletClassSpec | null {
   if (shootType === 'Basic') return BASIC_BULLET;
   if (shootType === 'BasicBoss') return BASIC_BOSS_BULLET;
   if (shootType === 'Following') return FOLLOWING_BULLET;
   if (shootType === 'FollowingBoss') return FOLLOWING_BOSS_BULLET;
+  if (shootType === 'Trap') return TRAP_BULLET;
   return null;
 }
 
@@ -261,6 +281,53 @@ export function createCircleShot(
   );
 }
 
+/** Degrees between traps in the rear fan — `PartGameArea.as:7004`. */
+export const BACKTRAP_SPACING = 20;
+
+/**
+ * `shootAngle: "BackTrap"` — traps dropped behind the enemy — `:7002-7008`.
+ *
+ *     rotation = enemy.rotation + 180 + (b * 20 - bulletAmount / 2 * 20 + 10)
+ *
+ * Centred on the rear, 20 degrees apart, so an advancing Trap enemy lays a
+ * trail in its wake rather than throwing anything forward. The boss drops three
+ * at a time every 75 frames against one every 100, so it leaves a wall.
+ *
+ * ── The offset is the enemy's radius alone ────────────────────────────────
+ * Every other pattern places a shot at `enemy.radius + bullet.radius` so it
+ * clears its owner. This one uses `theEnemy.radius` only, so a trap is dropped
+ * *overlapping* the enemy that laid it — which is what makes it look placed
+ * rather than fired. First pattern to differ, so it does not share the helper.
+ */
+export function createBackTrapShot(
+  origin: ShooterOrigin,
+  spec: BulletClassSpec,
+  bulletAmount: number,
+): EnemyBulletState[] {
+  const count = Math.max(1, Math.trunc(bulletAmount));
+
+  return Array.from({ length: count }, (_, b) => {
+    const degrees =
+      origin.rotation +
+      180 +
+      (b * BACKTRAP_SPACING - (count / 2) * BACKTRAP_SPACING + BACKTRAP_SPACING / 2);
+    const radians = (degrees * Math.PI) / 180;
+
+    return {
+      x: origin.x + Math.cos(radians) * origin.radius,
+      y: origin.y + Math.sin(radians) * origin.radius,
+      // Speed 0: it is placed, not launched.
+      xVel: 0,
+      yVel: 0,
+      rotation: degrees,
+      radius: spec.radius,
+      damage: spec.damage,
+      lifeTime: spec.lifeTime,
+      lifeTimeMax: spec.lifeTime,
+    };
+  });
+}
+
 /**
  * The volley an enemy fires, or an empty array when its combination is not
  * ported. Returning empty rather than throwing keeps an unported enemy
@@ -281,6 +348,7 @@ export function createVolley(
   if (shootAngle === 'Circle') {
     return createCircleShot(origin, spec, bulletAmount, random, bulletSpeedMultiplier);
   }
+  if (shootAngle === 'BackTrap') return createBackTrapShot(origin, spec, bulletAmount);
   return [];
 }
 

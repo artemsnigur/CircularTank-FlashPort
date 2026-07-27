@@ -2,13 +2,18 @@
  * Enemy shooting — the Basic/Front slice.
  */
 import { describe, expect, it } from 'vitest';
-import type { EnemyBulletState } from './enemyFiring';
+import type { EnemyBulletState, ShooterOrigin } from './enemyFiring';
 import {
   FOLLOWING_BOSS_BULLET,
   FOLLOWING_BOSS_TURN_RATE,
   FOLLOWING_BULLET,
   FOLLOWING_TURN_RATE,
+  BACKTRAP_SPACING,
+  SUPPORTED_SHOOT_ANGLES,
+  SUPPORTED_SHOOT_TYPES,
+  TRAP_BULLET,
   bulletClassFor,
+  createBackTrapShot,
   homeTowardTank,
   turnRateFor,
   advanceEnemyBullet,
@@ -210,10 +215,10 @@ describe('createVolley dispatch', () => {
   });
 
   it('produces nothing for an unported combination', () => {
-    // Trap is a speed-0 hazard and GrapplingHook fires a tether; both bullet
-    // classes are still unported and must stay harmless rather than throw or
-    // fire a wrong-looking shot. Soldier was here until Following landed.
-    for (const type of ['Trap', 'GrapplingHook']) {
+    // GrapplingHook fires a tether, still unported, and must stay harmless
+    // rather than throw or fire a wrong-looking shot. Soldier was here until
+    // Following landed, and Trap until BackTrap did — one name left.
+    for (const type of ['GrapplingHook']) {
       const stats = resolveEnemyStats(type, '1', 'Easy')!;
       expect(
         createVolley(origin, stats.shootType, stats.shootAngle, stats.bulletAmount ?? 1, () => 0.5),
@@ -444,5 +449,136 @@ describe('the reversed bearing and the backwards turn cancel', () => {
     const aimed: EnemyBulletState = { ...shotAt(0), rotation: 180 };
     const after = home(aimed, 20);
     expect(Math.hypot(after.x, after.y)).toBeLessThan(300);
+  });
+});
+
+/* ── Trap ────────────────────────────────────────────────────────────────── */
+
+const TRAP_ORIGIN: ShooterOrigin = { x: 400, y: 300, rotation: 0, radius: 12 };
+
+describe('the Trap hazard', () => {
+  it('is a stationary one-shot, not a projectile', () => {
+    expect(TRAP_BULLET).toEqual({ radius: 6, damage: 2, lifeTime: 300 });
+    expect(bulletClassFor('Trap')).toBe(TRAP_BULLET);
+    // Bigger and harder-hitting than a bullet.
+    expect(TRAP_BULLET.radius).toBeGreaterThan(BASIC_BULLET.radius);
+    expect(TRAP_BULLET.damage).toBeGreaterThan(BASIC_BULLET.damage);
+  });
+
+  it('never moves', () => {
+    for (const trap of createBackTrapShot(TRAP_ORIGIN, TRAP_BULLET, 3)) {
+      expect(trap.xVel).toBe(0);
+      expect(trap.yVel).toBe(0);
+    }
+  });
+});
+
+describe('the BackTrap fan', () => {
+  it('drops one behind the enemy', () => {
+    const [trap] = createBackTrapShot(TRAP_ORIGIN, TRAP_BULLET, 1);
+    // Facing 0 (east), so the single trap goes due west of the enemy.
+    expect(trap.rotation).toBe(180);
+    expect(trap.x).toBeCloseTo(400 - 12, 10);
+    expect(trap.y).toBeCloseTo(300, 10);
+  });
+
+  it('places at the enemy radius alone, so the trap overlaps its layer', () => {
+    // Every other pattern uses enemy.radius + bullet.radius to clear its owner.
+    // This one does not, which is what makes a trap look placed rather than
+    // fired.
+    const [trap] = createBackTrapShot(TRAP_ORIGIN, TRAP_BULLET, 1);
+    const distance = Math.hypot(trap.x - TRAP_ORIGIN.x, trap.y - TRAP_ORIGIN.y);
+    expect(distance).toBeCloseTo(TRAP_ORIGIN.radius, 10);
+    expect(distance).toBeLessThan(TRAP_ORIGIN.radius + TRAP_BULLET.radius);
+  });
+
+  it('spaces a boss volley 20 degrees apart, centred on the rear', () => {
+    const traps = createBackTrapShot(TRAP_ORIGIN, TRAP_BULLET, 3);
+    expect(traps).toHaveLength(3);
+    expect(BACKTRAP_SPACING).toBe(20);
+
+    expect(traps.map((t) => t.rotation)).toEqual([160, 180, 200]);
+    // Symmetric about the rear bearing.
+    expect(traps[1].rotation).toBe(180);
+  });
+
+  it('follows the enemy facing', () => {
+    const facingNorth = { ...TRAP_ORIGIN, rotation: -90 };
+    const [trap] = createBackTrapShot(facingNorth, TRAP_BULLET, 1);
+    // Facing up, so the trap lands below.
+    expect(trap.rotation).toBe(90);
+    expect(trap.y).toBeCloseTo(300 + 12, 10);
+  });
+
+  it('reaches Trap through createVolley', () => {
+    const volley = createVolley(TRAP_ORIGIN, 'Trap', 'BackTrap', 1, () => 0.5);
+    expect(volley).toHaveLength(1);
+    expect(volley[0].lifeTime).toBe(300);
+  });
+});
+
+/**
+ * The removal path, which is the one that could leak invisibly.
+ *
+ * A trap has speed 0, so the room-bounds cull in `advanceEnemyBullet` can never
+ * fire for it — a trap dropped inside the room stays inside the room forever.
+ * Lifetime is therefore the *only* thing that removes it, and if that were
+ * wrong the traps would simply accumulate with nothing on screen to say so.
+ */
+describe('a trap expires only by lifetime', () => {
+  const ROOM = { roomWidth: 800, roomHeight: 800 };
+
+  it('survives 299 frames and is gone on the 300th', () => {
+    // The full countdown, not a sampled one — the point is that nothing else
+    // removes it along the way.
+    let state: EnemyBulletState | null = createBackTrapShot(TRAP_ORIGIN, TRAP_BULLET, 1)[0];
+
+    for (let frame = 1; frame < 300; frame += 1) {
+      state = advanceEnemyBullet(state!, ROOM, 1000 / 30);
+      expect(state, `frame ${frame}`).not.toBeNull();
+    }
+
+    expect(advanceEnemyBullet(state!, ROOM, 1000 / 30)).toBeNull();
+  });
+
+  it('does not drift a single unit over its whole life', () => {
+    let state: EnemyBulletState | null = createBackTrapShot(TRAP_ORIGIN, TRAP_BULLET, 1)[0];
+    const origin = { x: state.x, y: state.y };
+
+    for (let frame = 0; frame < 299; frame += 1) {
+      state = advanceEnemyBullet(state!, ROOM, 1000 / 30);
+    }
+
+    expect(state!.x).toBe(origin.x);
+    expect(state!.y).toBe(origin.y);
+  });
+
+  it('cannot be culled by the room bounds, however small the room', () => {
+    // A room barely larger than the trap: it is still inside, so the bounds
+    // check never fires and lifetime remains the only exit.
+    const trap = createBackTrapShot({ ...TRAP_ORIGIN, x: 20, y: 20 }, TRAP_BULLET, 1)[0];
+    expect(advanceEnemyBullet(trap, { roomWidth: 40, roomHeight: 40 }, 1000 / 30)).not.toBeNull();
+  });
+});
+
+describe('Trap is now buildable, which flips the board', () => {
+  it('the shoot type and pattern are both supported', () => {
+    expect(SUPPORTED_SHOOT_TYPES).toContain('Trap');
+    expect(SUPPORTED_SHOOT_ANGLES).toContain('BackTrap');
+  });
+
+  it('a real Trap enemy resolves to a full volley', () => {
+    const stats = resolveEnemyStats('Trap', '1', 'Easy')!;
+    expect(stats.shootType).toBe('Trap');
+    expect(stats.shootAngle).toBe('BackTrap');
+
+    const volley = createVolley(
+      TRAP_ORIGIN,
+      stats.shootType,
+      stats.shootAngle,
+      stats.bulletAmount ?? 1,
+      () => 0.5,
+    );
+    expect(volley).toHaveLength(1);
   });
 });

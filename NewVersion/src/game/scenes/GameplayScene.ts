@@ -143,6 +143,11 @@ const FALLBACK_ROOM = { width: 640, height: 960 } as const;
  */
 const OUT_OF_BOUNDS_ALPHA = 0.55;
 
+/** Live enemy fire. */
+const ENEMY_BULLET_DEPTH = 11;
+/** Traps sit below it — `enemyTrapLayer` against `enemyBulletLayer`. */
+const ENEMY_TRAP_DEPTH = 10;
+
 /**
  * Slices per margin strip.
  *
@@ -1658,12 +1663,17 @@ export class GameplayScene extends Phaser.Scene {
       enemy.shooter = registerShot(enemy.shooter);
       getSoundManager(this)?.queue('EnemyShoot');
 
+      // `PartGameArea.as:6972-6980` puts traps on `enemyTrapLayer` and
+      // everything else on `enemyBulletLayer`, so a trap renders *under* live
+      // fire. Purely z-order; in the port that is a depth value.
+      const isTrap = enemy.stats.shootType === 'Trap';
+
       for (const state of volley) {
         const sprite = this.add
           .image(state.x, state.y, 'particle-dot')
           .setDisplaySize(state.radius * 2.5, state.radius * 2.5)
           .setTint(state.damage > 1 ? 0xff3b6b : 0xff6b6b)
-          .setDepth(11);
+          .setDepth(isTrap ? ENEMY_TRAP_DEPTH : ENEMY_BULLET_DEPTH);
         // Carried per bullet so the homing step needs no lookup back to an
         // enemy that may already be dead.
         this.enemyBullets.push({
