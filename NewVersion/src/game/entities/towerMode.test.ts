@@ -21,6 +21,8 @@ import { moveTank, tankStatsFor } from '../player/tankMovement';
 import type { TankState } from '../player/tankMovement';
 import { createInitialUpgradeState } from '../upgrades/upgradeState';
 import { towerAccSpeed, TOWER_ACC_SPEED_MAX } from '../enemies/enemySteering';
+import { getLevel } from '../levels/levelData';
+import { placeWarning } from '../waves/spawnPlacement';
 
 const BOUNDS = { roomWidth: 640, roomHeight: 640, radius: 14 };
 const HELD = { up: false, down: false, left: true, right: false };
@@ -134,5 +136,50 @@ describe('the tower ramp resets on reuse, not just on construction', () => {
     const text = readFileSync('src/game/entities/Enemy.ts', 'utf8');
     expect(text).toContain('this.resetTowerRamp();');
     expect(text).toMatch(/resetTowerRamp\(\): void \{\s*this\.towerAcc = this\.stats\.accSpeed;/);
+  });
+});
+
+/**
+ * The wiring, not the mechanic.
+ *
+ * Every previous "total no-show" in this project has been the scene feeding a
+ * correct module the wrong thing, or not calling it. These assert the runtime
+ * inputs: that 1-7 really resolves as Tower, and that the two decisions taken
+ * from that resolve the way the mechanic needs.
+ */
+describe('level 1-7 actually reaches the Tower paths', () => {
+  it('resolves as a Tower level at 640x640', () => {
+    const spec = getLevel(1, 7);
+    expect(spec).toMatchObject({ mode: 'Tower', roomWidth: 640, roomHeight: 640 });
+  });
+
+  it('the drive predicate immobilises it', () => {
+    // Exactly the expression at the call site.
+    expect(getLevel(1, 7)?.mode !== 'Tower').toBe(false);
+    expect(getLevel(1, 1)?.mode !== 'Tower').toBe(true);
+  });
+
+  it('placeWarning uses the Tower wall bands, not the off-camera search', () => {
+    // The defect this file was extended for. The AS3 camera was a fixed
+    // 640x400 stage, so `roomWidth == cameraWidth` held for every 640-wide
+    // Tower room and edge placement always ran. This port judges against the
+    // live viewport, which is 711 units wide on 16:9 — so the disqualifier
+    // stops firing, the off-camera search wins, and enemies appear at random
+    // interior points with wall 0 instead of entering from the staggered
+    // bands. The mode's entry pattern disappears.
+    const placements = Array.from({ length: 40 }, (_, i) =>
+      placeWarning({
+        mode: 'Tower',
+        roomWidth: 640,
+        roomHeight: 640,
+        cameraWidth: 711,
+        cameraHeight: 400,
+        random: () => (i % 20) / 20,
+      }),
+    );
+    for (const p of placements) {
+      expect(p.offCamera, 'Tower must not use the off-camera search').toBe(false);
+      expect(p.wall).toBeGreaterThan(0);
+    }
   });
 });

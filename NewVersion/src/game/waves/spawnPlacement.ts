@@ -111,6 +111,21 @@ function canSearchOffCamera(context: PlacementContext): boolean {
   // Consequence worth knowing: with a continuous cameraHeight, the height half
   // of this condition is now almost never true, so it is close to dead. Its
   // intent survives in the arithmetic above.
+  // Tower always places on an edge, and in the AS3 that was a consequence
+  // rather than a rule: its camera was a fixed 640x400 stage and all 90 Tower
+  // rooms are 640x640, so `roomWidth == cameraWidth` held for every one of
+  // them and the off-camera search never ran.
+  //
+  // This port judges against the *live* viewport, which is 711 design units
+  // wide on 16:9 and 956 on 21:9, so the coincidence stops holding and the
+  // search wins. That silently removes Tower's staggered wall entry — enemies
+  // appear at random interior points with `wall: 0` instead of streaming in
+  // from the quarter bands, which is most of what the mode looks like.
+  //
+  // Stated explicitly so it no longer depends on a viewport coincidence that
+  // is true on one aspect ratio and false on the rest.
+  if (mode === 'Tower') return false;
+
   if (roomWidth === cameraWidth || roomHeight === cameraHeight) return false;
   if (mode === 'Boss' && isBoss) return false;
   return true;
