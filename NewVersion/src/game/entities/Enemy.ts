@@ -28,6 +28,7 @@ import {
 } from '../enemies/enemySteering';
 import type { SteeringState } from '../enemies/enemySteering';
 import { resolveDamageMultipliers } from '../enemies/damageTypes';
+import { shrinkScale, shrinksWithHealth } from '../enemies/enemyBodies';
 import type { DamageMultipliers, ImpactFeedback } from '../enemies/damageTypes';
 import { createStatusState, tickStatuses } from '../enemies/statusEffects';
 import { createShooter } from '../enemies/enemyFiring';
@@ -87,7 +88,18 @@ export class Enemy extends Phaser.GameObjects.Container {
   readonly enemyType: string;
   readonly enemyLevel: EnemyLevel;
   readonly stats: ResolvedEnemyStats;
-  readonly radius: number;
+  /**
+   * Collision radius in design units.
+   *
+   * **Mutable**, because `Shrinking` rescales it as it takes damage
+   * (`PartGameArea.as:6772`). Everything that reads it — contact damage, blast
+   * radii, flag capture, the wall clamp, spawn insets — must read it fresh
+   * rather than caching a copy at spawn.
+   */
+  radius: number;
+
+  /** The radius this enemy spawned at. `Shrinking` scales relative to it. */
+  readonly radiusStart: number;
   /** Per-channel resistances from this type's strengths/weaknesses tables. */
   readonly damageMultipliers: DamageMultipliers;
 
@@ -200,6 +212,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     }
 
     this.radius = diameter / 2;
+    this.radiusStart = this.radius;
     this.roomWidth = config.roomWidth;
     this.roomHeight = config.roomHeight;
     this.mode = config.mode;
@@ -264,6 +277,37 @@ export class Enemy extends Phaser.GameObjects.Container {
   /** The Tower ramp, for tests and the debug readout. */
   get towerAccSpeedValue(): number {
     return this.towerAcc;
+  }
+
+  /**
+   * Health this enemy spawned with — the AS3's `getTotalHealth`.
+   *
+   * That function (`PartGameArea.as:2300-2341`) recomputes the figure from the
+   * stat row and the difficulty and tier multipliers every time it is called.
+   * `resolveEnemyStats` already produces exactly the same number, including the
+   * boss exemption from the difficulty multiplier and the division by
+   * `bossAmount`, so this is a named accessor rather than a reimplementation.
+   *
+   * Named so callers read intent: `health / maxHealth` is a fraction of full,
+   * where `health / stats.health` looks like it could be a mistake.
+   */
+  get maxHealth(): number {
+    return this.stats.health;
+  }
+
+  /**
+   * Rescales a `Shrinking` enemy to match its health.
+   *
+   * Radius and sprite move together, as they do in the AS3 — scaling only the
+   * sprite would make it *look* harder to hit while remaining exactly as easy,
+   * which is the worse of the two failure modes because it is invisible.
+   */
+  private applyBodyScale(): void {
+    if (!shrinksWithHealth(this.enemyType)) return;
+
+    const size = shrinkScale(this.health, this.maxHealth);
+    this.radius = size * this.radiusStart;
+    this.setScale(size);
   }
 
   /** True while frozen — the scene skips contact damage against it. */
@@ -332,6 +376,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.steering = clampToRoom(walled, this.roomWidth, this.roomHeight, this.radius);
     this.setPosition(this.steering.x, this.steering.y);
     this.setRotation(Phaser.Math.DegToRad(this.steering.rotation));
+    this.applyBodyScale();
   }
 
   /** Current speed in design units per frame, for the debug readout. */
