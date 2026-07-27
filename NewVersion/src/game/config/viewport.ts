@@ -221,3 +221,61 @@ export function roomFillZoom(viewport: Viewport, roomWidth: number): number {
   if (roomWidth >= viewport.logicalWidth) return viewport.zoom;
   return viewport.renderWidth / roomWidth;
 }
+
+export interface CameraBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Camera bounds that keep a room centred when it is smaller than the view.
+ *
+ * ── The bug this fixes ────────────────────────────────────────────────────
+ * Phaser does not centre a room narrower than the camera — it pins it. When
+ * `bounds.width < displayWidth`, `Camera.clampX` collapses to a single legal
+ * scroll value (`bx === bw`), and the algebra through `midX` lands
+ * `worldView.x` exactly on `bounds.x`. So the room sits flush against the
+ * viewport's left edge and **all** the slack appears on the right: 71 design
+ * units on 16:9, 316 on 21:9, 0 only at exactly 16:10.
+ *
+ * That reads as the map being cut off rather than as margin, and it affects
+ * every 640-wide room — 90 Tower, 90 Defense and the 640x400 Normal/Flag
+ * levels outside world 1. Tower makes it obvious rather than causing it: the
+ * tank never moves, so the camera never moves, so the dead strip is fixed on
+ * screen for the whole level.
+ *
+ * ── The fix ───────────────────────────────────────────────────────────────
+ * Give the camera bounds that are at least as large as the view, with the room
+ * centred inside them. Pinning then happens against a rectangle whose origin
+ * is already offset, so the slack splits evenly.
+ *
+ * These are **camera** bounds only. Physics bounds, spawn placement and every
+ * gameplay rule keep using the room's own size — nothing here changes where an
+ * entity may go, only what is looked at.
+ *
+ * Both axes, deliberately. The vertical case does not bite on desktop today
+ * (rooms are at least 400 tall and the view is 400), but it is the same bug
+ * and fixing one axis would leave the other waiting for a taller window.
+ */
+export function centredCameraBounds(
+  roomWidth: number,
+  roomHeight: number,
+  displayWidth: number,
+  displayHeight: number,
+): CameraBounds {
+  const width = Math.max(roomWidth, displayWidth);
+  const height = Math.max(roomHeight, displayHeight);
+
+  // `-(0) / 2` is negative zero, which compares unequal to 0 under Object.is
+  // and would make a room that needs no padding look like it was adjusted.
+  const offset = (span: number, room: number): number => (span === room ? 0 : -(span - room) / 2);
+
+  return {
+    x: offset(width, roomWidth),
+    y: offset(height, roomHeight),
+    width,
+    height,
+  };
+}

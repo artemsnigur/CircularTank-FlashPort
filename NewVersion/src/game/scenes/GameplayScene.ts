@@ -111,7 +111,7 @@ import {
 } from '../player/tankDamage';
 import { bankLevelOutcome } from '../player/levelBanking';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
-import { roomFillZoom } from '../config/viewport';
+import { centredCameraBounds, roomFillZoom } from '../config/viewport';
 
 /**
  * Used **only** when no level spec resolves.
@@ -611,11 +611,34 @@ export class GameplayScene extends Phaser.Scene {
 
   private setupCamera(): void {
     const camera = this.cameras.main;
-    camera.setBounds(0, 0, this.roomWidth, this.roomHeight);
+    this.applyCameraBounds();
     // lerp < 1 gives the soft trailing camera PartGameArea.as approximates
     // with its manual clamping, without the per-frame arithmetic.
     camera.startFollow(this.player, true, 0.12, 0.12);
     camera.setRoundPixels(false);
+  }
+
+  /**
+   * Camera bounds, widened so a room smaller than the view stays centred.
+   *
+   * Phaser pins such a room flush against the viewport's left edge rather than
+   * centring it, which reads as the map being cut off on the right — see
+   * `centredCameraBounds`. Recomputed on resize because the view size is
+   * window-dependent, so a bounds fixed at create time would be wrong the
+   * moment the window changed.
+   *
+   * Physics bounds are untouched: this changes what is looked at, not where
+   * anything may go.
+   */
+  private applyCameraBounds(): void {
+    const camera = this.cameras.main;
+    const bounds = centredCameraBounds(
+      this.roomWidth,
+      this.roomHeight,
+      camera.width / camera.zoom,
+      camera.height / camera.zoom,
+    );
+    camera.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
   }
 
   private setupInput(): void {
@@ -2005,6 +2028,7 @@ export class GameplayScene extends Phaser.Scene {
     if (controller) {
       applyViewportToScene(this, controller.current);
       this.applyRoomFillZoom();
+      this.applyCameraBounds();
     }
 
     // Anchor in-canvas HUD text to the safe rect, not to the camera edge — on

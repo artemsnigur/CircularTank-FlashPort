@@ -7,6 +7,7 @@ import {
   MAX_PIXEL_RATIO,
   MIN_LOGICAL_HEIGHT,
   roomFillZoom,
+  centredCameraBounds,
 } from './viewport';
 
 /** A few real devices, in CSS pixels. */
@@ -172,5 +173,95 @@ describe('roomFillZoom', () => {
     expect(roomFillZoom(desktop, 0)).toBe(desktop.zoom);
     expect(roomFillZoom(desktop, -1)).toBe(desktop.zoom);
     expect(roomFillZoom(desktop, Number.NaN)).toBe(desktop.zoom);
+  });
+});
+
+/**
+ * Camera bounds, asserted through Phaser's own clamp arithmetic.
+ *
+ * Testing `centredCameraBounds`' return value alone would only prove it does
+ * what it says. What matters is what ends up *visible*, which depends on
+ * `Camera.clampX` and the `midX`/`worldView` derivation — and that is exactly
+ * where the original reasoning went wrong. So this reimplements that chain and
+ * asserts the resulting gaps.
+ */
+describe('centredCameraBounds', () => {
+  /** Phaser's Camera.clampX + worldView derivation, from its source. */
+  function visibleRange(
+    bounds: { x: number; width: number },
+    cameraPixels: number,
+    zoom: number,
+    followWorldX: number,
+  ): { from: number; to: number } {
+    const displayWidth = Math.floor(cameraPixels / zoom + 0.5);
+    const bx = bounds.x + (displayWidth - cameraPixels) / 2;
+    const bw = Math.max(bx, bx + bounds.width - displayWidth);
+    const wanted = followWorldX - cameraPixels / 2;
+    const scrollX = Math.min(Math.max(wanted, bx), bw);
+    const midX = scrollX + cameraPixels / 2;
+    const from = midX - displayWidth / 2;
+    return { from, to: from + displayWidth };
+  }
+
+  // A 1920x1080 window: zoom 2.7, so 711 design units are visible.
+  const PIXELS = 1920;
+  const ZOOM = 1080 / 400;
+
+  it('reproduces the defect it exists to fix', () => {
+    // Plain room bounds pin the room flush left and put every unit of slack on
+    // the right. This is the reported "cut off on the right side".
+    const room = { x: 0, width: 640 };
+    const { from, to } = visibleRange(room, PIXELS, ZOOM, 320);
+
+    expect(from).toBeCloseTo(0, 6);
+    expect(to - 640).toBe(71);
+  });
+
+  it('splits the slack evenly for a Tower room', () => {
+    const b = centredCameraBounds(640, 640, PIXELS / ZOOM, 1080 / ZOOM);
+    const { from, to } = visibleRange(b, PIXELS, ZOOM, 320);
+
+    const left = 0 - from;
+    const right = to - 640;
+    expect(left).toBe(right);
+    expect(left).toBe(35.5);
+  });
+
+  it('splits evenly on an ultrawide window too', () => {
+    const zoom = 1440 / 400;
+    const pixels = 3440;
+    const b = centredCameraBounds(640, 640, pixels / zoom, 1440 / zoom);
+    const { from, to } = visibleRange(b, pixels, zoom, 320);
+
+    // Not exactly equal: Phaser floors displayWidth to whole pixels
+    // (955.56 -> 956), so up to half a design unit lands on one side. That is
+    // rounding, not the asymmetry this fixes — which was 316 units.
+    expect(Math.abs((0 - from) - (to - 640))).toBeLessThan(0.5);
+    expect(0 - from).toBeCloseTo(157.78, 2);
+  });
+
+  it('leaves a room at least as wide as the view completely alone', () => {
+    // The 195 levels that already fill must scroll exactly as before, so the
+    // fix cannot be observable outside the case it targets.
+    const b = centredCameraBounds(900, 720, 711, 400);
+    expect(b).toEqual({ x: 0, y: 0, width: 900, height: 720 });
+  });
+
+  it('centres on the short axis only', () => {
+    // A Tower room is 640 tall against a 400-unit view, so it scrolls
+    // vertically and must not be padded.
+    const b = centredCameraBounds(640, 640, 711, 400);
+    expect(b.y).toBe(0);
+    expect(b.height).toBe(640);
+    // 711 is passed here, so the pad is exactly (711 - 640) / 2.
+    expect(b.x).toBe(-35.5);
+  });
+
+  it('handles a room shorter than the view, which desktop does not hit yet', () => {
+    // Same bug, other axis. Fixed now rather than left waiting for a window
+    // shape that exposes it.
+    const b = centredCameraBounds(640, 300, 640, 400);
+    expect(b.y).toBeCloseTo(-50, 6);
+    expect(b.height).toBe(400);
   });
 });
