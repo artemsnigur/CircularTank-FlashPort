@@ -88,27 +88,9 @@ export const WORLD_1_STANDARD_ROOM: readonly [number, number] = [800, 600];
  * diverges, and the "every override is used" test rejects it.
  */
 export const LEVEL_SIZE_OVERRIDES: readonly LevelSizeOverride[] = [
-  // ── Experiment ────────────────────────────────────────────────────────
-  // 27 July 2026: is a much larger 1-1 what is actually wanted, before
-  // committing 2-3 sessions to the composite four-square room? One entry, and
-  // it reverts by deleting it. Note this is 4x the standard area with the same
-  // ten enemies — it will feel sparse, which is information about size rather
-  // than a balance proposal.
-  //
-  // While this is here, 1-1 is deliberately NOT at the world-1 standard, and
-  // the tests assert that as an exception rather than relaxing the rule.
-  {
-    world: 1,
-    level: 1,
-    from: [640, 400],
-    to: [1600, 1200],
-    reason: 'experiment',
-    note: 'sanity check for a bigger 1-1 before the composite-room work',
-  },
-
   // ── World 1 standardisation ───────────────────────────────────────────
-  // 640x400 -> 800x600. These two also gain off-camera spawning (1-1 would
-  // have been the third, and still does at its experimental size).
+  // 640x400 -> 800x600. These three also gain off-camera spawning.
+  { world: 1, level: 1, from: [640, 400], to: WORLD_1_STANDARD_ROOM, reason: 'standard' },
   { world: 1, level: 3, from: [640, 400], to: WORLD_1_STANDARD_ROOM, reason: 'standard' },
   { world: 1, level: 30, from: [640, 400], to: WORLD_1_STANDARD_ROOM, reason: 'standard' },
 

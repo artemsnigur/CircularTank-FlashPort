@@ -48,11 +48,9 @@ describe('the level table describes five room sizes, not one', () => {
 
   it('world 1 Normal and Flag levels are standardised when played', () => {
     // The other side of the same coin, so this file cannot be read as saying
-    // 1-2 plays at 900x720 — it does not, by decision. 1-1 is deliberately not
-    // checked here: it is running a size experiment, enumerated in
-    // levelSizeOverrides.ts and asserted in levels/roomSizeSource.test.ts.
+    // 1-1 plays at 640x400 or 1-2 at 900x720 — neither does, by decision.
+    expect(getLevel(1, 1)).toMatchObject({ roomWidth: 800, roomHeight: 600 });
     expect(getLevel(1, 2)).toMatchObject({ roomWidth: 800, roomHeight: 600 });
-    expect(getLevel(1, 5)).toMatchObject({ roomWidth: 800, roomHeight: 600 });
     // A Tower level in the same world is untouched.
     expect(getLevel(1, 7)).toMatchObject({
       roomWidth: LEVELS[0][6].roomWidth,

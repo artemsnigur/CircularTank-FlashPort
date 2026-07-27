@@ -199,8 +199,7 @@ describe('deliberate room-size divergences', () => {
     // source comparison above would start passing for the wrong reason.
     const raw = LEVELS[0][0];
     expect([raw.roomWidth, raw.roomHeight]).toEqual([640, 400]);
-    // 1-1 is currently the size experiment, not the world-1 standard.
-    expect(getLevel(1, 1)).toMatchObject({ roomWidth: 1600, roomHeight: 1200 });
+    expect(getLevel(1, 1)).toMatchObject({ roomWidth: 800, roomHeight: 600 });
   });
 
   it('has no override that changes nothing', () => {
@@ -256,20 +255,28 @@ describe('deliberate room-size divergences', () => {
     expect(missed).toEqual([]);
   });
 
-  it('keeps experiments enumerated and explained', () => {
-    // An experiment is temporary by definition, so it must say what it is for
-    // and be visible as a list rather than hiding among the settled entries.
+  it('has no experiments left running', () => {
+    // The 1600x1200 trial on 1-1 was reverted after testing. An experiment
+    // left in place is the failure this asserts against — it would look like a
+    // decision while actually being an unfinished trial. The machinery stays,
+    // because it is what let the standardisation rule remain exactly
+    // assertable while one was running.
     const experiments = LEVEL_SIZE_OVERRIDES.filter((o) => o.reason === 'experiment');
-    expect(experiments.map((o) => `${o.world}-${o.level}`)).toEqual(['1-1']);
-    for (const o of experiments) {
+    expect(experiments.map((o) => `${o.world}-${o.level}`)).toEqual([]);
+  });
+
+  it('requires any future experiment to explain itself', () => {
+    // Still bites when one is added, rather than going quiet with the list.
+    for (const o of LEVEL_SIZE_OVERRIDES) {
+      if (o.reason !== 'experiment') continue;
       expect(o.note, `experiment ${o.world}-${o.level} has no note`).toBeTruthy();
     }
   });
 
-  it('the standardisation still covers seventeen of the eighteen', () => {
+  it('covers all eighteen: twelve overridden, six already correct', () => {
     // The exact split, so neither category can grow quietly.
     const standard = LEVEL_SIZE_OVERRIDES.filter((o) => o.reason === 'standard');
-    expect(standard).toHaveLength(11);
+    expect(standard).toHaveLength(12);
     const alreadyCorrect = LEVELS[0].filter(
       (spec, i) =>
         OVERRIDDEN_MODES.includes(spec.mode) &&
@@ -277,7 +284,8 @@ describe('deliberate room-size divergences', () => {
         spec.roomWidth === 800 &&
         spec.roomHeight === 600,
     );
-    expect(standard.length + alreadyCorrect.length).toBe(17);
+    expect(alreadyCorrect).toHaveLength(6);
+    expect(standard.length + alreadyCorrect.length).toBe(18);
   });
 
   it('leaves Tower, Boss and Defense at their extracted sizes', () => {
