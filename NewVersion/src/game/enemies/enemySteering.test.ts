@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { angleToTarget, clampToRoom, shortestRotation, steerToward } from './enemySteering';
+import {
+  angleToTarget,
+  clampToRoom,
+  shortestRotation,
+  steerToward,
+  TOWER_ACC_SPEED_MAX,
+  towerAccSpeed,
+  towerAngleToTarget,
+  towerRotSpeedMax,
+} from './enemySteering';
+import { resolveSpawn } from './enemySpawn';
 import type { SteeringState, SteeringStats } from './enemySteering';
 import { resolveEnemyStats } from './enemyStats';
 
@@ -215,5 +225,108 @@ describe('clampToRoom', () => {
       expect(current.y).toBeGreaterThanOrEqual(13);
       expect(current.y).toBeLessThanOrEqual(947);
     }
+  });
+});
+
+
+/**
+ * Tower mode — `PartGameArea.as:4589`, `:4605`, `:5030`.
+ *
+ * The mechanic is entirely in the heading: every other mode turns toward the
+ * target, Tower turns roughly across it and bends inward as it closes. These
+ * assert the two distance regimes rather than the formula, because the formula
+ * reproducing itself proves nothing.
+ */
+describe('tower steering', () => {
+  const ROOM = 640;
+  const centre = { x: 320, y: 320 };
+  const at = (x: number, y: number): SteeringState => ({ x, y, rotation: 0, xVel: 0, yVel: 0 });
+
+  /** How far the Tower heading sits from pointing straight at the target. */
+  function offsetFromDirect(state: SteeringState, speed: number): number {
+    const tower = towerAngleToTarget(state, centre, speed, ROOM);
+    return Math.abs(shortestRotation(angleToTarget(state, centre), tower));
+  }
+
+  it('aims 79 degrees off the target at spawn distance — it circles', () => {
+    // At a wall of a 640 room, 300 units out, with moveSpeedMax 1.5.
+    // The offset is `85 - lead - moveSpeedMax` where lead is 4.38 here, so the
+    // enemy travels almost perpendicular to the tank rather than at it.
+    expect(offsetFromDirect(at(320, 20), 1.5)).toBeCloseTo(79.12, 2);
+  });
+
+  it('turns inward as it closes, but gradually', () => {
+    // 79.1 at 300 units, 71.0 at 40. The bend is real but modest until very
+    // close — worth pinning as figures, because "turns inward" alone would be
+    // satisfied by a tenth of a degree and the mode would look wrong.
+    const speed = 1.5;
+    expect(offsetFromDirect(at(320, 20), speed)).toBeCloseTo(79.12, 2);
+    expect(offsetFromDirect(at(320, 280), speed)).toBeCloseTo(70.97, 2);
+  });
+
+  it('bends inward monotonically', () => {
+    const speed = 1.5;
+    const offsets = [300, 240, 180, 120, 60, 20, 5].map((d) =>
+      offsetFromDirect(at(320, 320 - d), speed),
+    );
+    for (let i = 1; i < offsets.length; i += 1) {
+      expect(offsets[i], `step ${i}`).toBeLessThan(offsets[i - 1]);
+    }
+  });
+
+  it('never aims straight at the target, even touching it', () => {
+    // The property that makes Tower read as rings: there is no distance at
+    // which an enemy simply charges. At zero distance the lead term is at its
+    // maximum, and the eighth root keeps it well short of a head-on charge:
+    // 60.4 degrees at one unit away.
+    expect(offsetFromDirect(at(320, 319), 1.5)).toBeCloseTo(60.45, 2);
+    for (const d of [1, 20, 60, 120, 240, 300]) {
+      const offset = offsetFromDirect(at(320, 320 - d), 1.5);
+      expect(offset, `distance ${d}`).toBeGreaterThan(55);
+    }
+  });
+
+  it('matches the spawn-frame heading, which is computed separately', () => {
+    // resolveSpawn computes the same angle for the spawn frame. If these ever
+    // disagree an enemy would visibly jerk on its first update.
+    const state = at(160, 0);
+    const spawned = resolveSpawn(
+      { roomWidth: ROOM, roomHeight: ROOM, x: 160, y: 0, wall: 1, width: 0, height: 0 },
+      { mode: 'Tower', target: centre, moveSpeedMax: 1.5, enemyType: 'Basic' },
+    );
+    expect(towerAngleToTarget(state, centre, 1.5, ROOM)).toBeCloseTo(spawned.rotation, 6);
+  });
+});
+
+describe('the tower acceleration ramp', () => {
+  it('grows by moveSpeedMax/400 per frame', () => {
+    expect(towerAccSpeed(0.2, 1.5, 1)).toBeCloseTo(0.2 + 1.5 / 400, 10);
+    expect(towerAccSpeed(0.2, 1.5, 10)).toBeCloseTo(0.2 + (10 * 1.5) / 400, 10);
+  });
+
+  it('stops at 10 and stays there', () => {
+    expect(towerAccSpeed(9.999, 1.5, 100)).toBe(TOWER_ACC_SPEED_MAX);
+    expect(towerAccSpeed(TOWER_ACC_SPEED_MAX, 1.5, 1)).toBe(TOWER_ACC_SPEED_MAX);
+  });
+
+  it('takes a realistic level to reach the cap', () => {
+    // Sanity on the rate: from a 0.2 base at moveSpeedMax 1.5 this is ~2613
+    // frames, about 87 seconds at 30fps. If a refactor made it seconds rather
+    // than minutes, Tower would become unplayable and every other test here
+    // would still pass.
+    let acc = 0.2;
+    let frames = 0;
+    while (acc < TOWER_ACC_SPEED_MAX && frames < 100_000) {
+      acc = towerAccSpeed(acc, 1.5, 1);
+      frames += 1;
+    }
+    expect(frames).toBeGreaterThan(1_500);
+    expect(frames).toBeLessThan(4_000);
+  });
+
+  it('drives the turn rate, so the orbit tightens with speed', () => {
+    expect(towerRotSpeedMax(0.2)).toBeCloseTo(2.2, 10);
+    expect(towerRotSpeedMax(TOWER_ACC_SPEED_MAX)).toBe(61);
+    expect(towerRotSpeedMax(1)).toBeLessThan(towerRotSpeedMax(2));
   });
 });

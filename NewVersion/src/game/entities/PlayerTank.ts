@@ -75,17 +75,38 @@ export class PlayerTank extends Phaser.GameObjects.Container {
    * @param input digital 8-way input
    * @param aim   world point the turret should face, or null
    */
-  drive(input: PlayerInput, aim: Phaser.Math.Vector2 | null, deltaMs: number): void {
-    const result = moveTank(
-      this.motion,
-      input,
-      this.stats,
-      { roomWidth: this.roomWidth, roomHeight: this.roomHeight, radius: this.radius },
-      deltaMs,
-    );
+  /**
+   * Advances the tank: movement, then aim.
+   *
+   * ── Why these are separable ───────────────────────────────────────────
+   * `PartGameArea.as:2816` skips `moveTank()` in Tower mode and calls
+   * `tankAttack()` on the very next line, so the tank is immobile but still
+   * turns its turret and fires. Everything that moves it — input, integration,
+   * contact push, the GrapplingHook reel-in — lives inside `moveTank`, so
+   * skipping that one call is the whole mechanic.
+   *
+   * `movable: false` reproduces that. It is deliberately a parameter rather
+   * than a mode check inside this class: the entity should not have to know
+   * what a level mode is, and the scene already does.
+   */
+  drive(
+    input: PlayerInput,
+    aim: Phaser.Math.Vector2 | null,
+    deltaMs: number,
+    movable = true,
+  ): void {
+    if (movable) {
+      const result = moveTank(
+        this.motion,
+        input,
+        this.stats,
+        { roomWidth: this.roomWidth, roomHeight: this.roomHeight, radius: this.radius },
+        deltaMs,
+      );
 
-    this.motion = result;
-    this.hitBottom = result.hitBottom;
+      this.motion = result;
+      this.hitBottom = result.hitBottom;
+    }
 
     this.setPosition(this.motion.x, this.motion.y);
     // The AS3 art points up at rotation 0, so add a quarter turn.

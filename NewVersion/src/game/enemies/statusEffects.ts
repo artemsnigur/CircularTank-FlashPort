@@ -166,6 +166,21 @@ export function applyBomb(state: StatusState, source: BombSource): boolean {
  * (`:5852`). Unlike poison this always overwrites, so a refresh is a straight
  * reset rather than a comparison.
  */
+/**
+ * **Tower mode requires one extra step here when this is wired.**
+ *
+ * `PartGameArea.as:5862` sets `theEnemy.accSpeed = 0` on freeze in Tower —
+ * deliberately zero, not the stat value a spawn restores. Tower enemies build
+ * acceleration for the whole level (`enemySteering.towerAccSpeed`), and
+ * freezing undoes that build-up rather than pausing it, which is most of why
+ * ice is worth using there. Without it, ice would only stall an enemy and it
+ * would resume at full spiral speed.
+ *
+ * `Enemy.resetTowerRamp` restores the stat value and is the spawn path; the
+ * freeze path needs a zeroing equivalent. It is not implemented as a method
+ * today because nothing freezes — there is no Ice damage source yet — and an
+ * unreachable class method is invisible debt rather than visible debt.
+ */
 export function applyFreeze(
   state: StatusState,
   frozenTime: number,

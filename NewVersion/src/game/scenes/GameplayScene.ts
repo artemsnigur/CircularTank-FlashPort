@@ -550,7 +550,9 @@ export class GameplayScene extends Phaser.Scene {
     const destroyed = this.outcome.result === 'lost';
 
     if (!destroyed) {
-      this.player.drive(input, aim, delta);
+      // Tower fixes the tank in place — PartGameArea.as:2816 skips moveTank
+      // and calls tankAttack on the next line, so aiming and firing continue.
+      this.player.drive(input, aim, delta, this.levelSpec?.mode !== 'Tower');
       if (aim) this.crosshair.setPosition(aim.x, aim.y).setVisible(true);
 
       this.updateFiring(delta);

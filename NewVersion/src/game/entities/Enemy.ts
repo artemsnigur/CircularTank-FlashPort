@@ -17,7 +17,13 @@ import { resolveEnemyStats } from '../enemies/enemyStats';
 import type { ResolvedEnemyStats } from '../enemies/enemyStats';
 import { resolveSpawn } from '../enemies/enemySpawn';
 import type { SpawnGeometry } from '../enemies/enemySpawn';
-import { clampToRoom, steerToward } from '../enemies/enemySteering';
+import {
+  clampToRoom,
+  steerToward,
+  towerAccSpeed,
+  towerAngleToTarget,
+  towerRotSpeedMax,
+} from '../enemies/enemySteering';
 import type { SteeringState } from '../enemies/enemySteering';
 import { resolveDamageMultipliers } from '../enemies/damageTypes';
 import type { DamageMultipliers, ImpactFeedback } from '../enemies/damageTypes';
@@ -27,6 +33,9 @@ import type { ShooterState } from '../enemies/enemyFiring';
 import type { StatusState, StatusTickResult } from '../enemies/statusEffects';
 import type { Difficulty, EnemyLevel } from '../config/constants';
 import type { LevelMode } from '../levels/levelData';
+
+/** SWF frame rate; the Tower ramp is specified per frame at this rate. */
+const AS3_FPS = 30;
 
 /** Body diameter in design units, by tier. The AS3 scales the boss art up. */
 const BASE_DIAMETER = 26;
@@ -97,6 +106,21 @@ export class Enemy extends Phaser.GameObjects.Container {
   private steering: SteeringState;
   private readonly roomWidth: number;
   private readonly roomHeight: number;
+  private readonly mode: LevelMode;
+  /**
+   * Tower's acceleration ramp — per-enemy mutable state, not a stat.
+   *
+   * `PartGameArea.as:5030` grows this every frame for the whole level, and
+   * `towerRotSpeedMax` derives the turn rate from it, so it is what makes a
+   * Tower orbit tighten. It is deliberately *not* stored on `stats`, which is
+   * shared and immutable.
+   *
+   * Reset through `resetTowerRamp`, which the constructor calls. **If this
+   * entity is ever pooled, the reuse path must call it too** — a reused enemy
+   * would otherwise enter at the previous one's accumulated speed, and there
+   * is a test pinning that.
+   */
+  private towerAcc = 0;
   /** Named `shell`, not `body`: Container.body is the physics body. */
   private readonly shell: Phaser.GameObjects.Sprite;
 
@@ -170,6 +194,8 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.radius = diameter / 2;
     this.roomWidth = config.roomWidth;
     this.roomHeight = config.roomHeight;
+    this.mode = config.mode;
+    this.resetTowerRamp();
 
     this.steering = {
       x: spawn.x,
@@ -210,6 +236,28 @@ export class Enemy extends Phaser.GameObjects.Container {
     return tickStatuses(this.status, { x: this.x, y: this.y, radius: this.radius }, deltaMs);
   }
 
+  /**
+   * Returns the Tower acceleration ramp to its starting value.
+   *
+   * Called by the constructor. **A pooling reuse path must call it as well** —
+   * the ramp is the one piece of per-enemy state that survives a level and
+   * would otherwise carry into the next enemy, which is exactly the failure
+   * `resets the ramp on reuse, not just on construction` pins.
+   *
+   * Note freezing is specified to do something *different* — it zeroes the
+   * ramp outright (`PartGameArea.as:5862`) rather than restoring the stat.
+   * Nothing freezes yet, so that is recorded in `statusEffects.applyFreeze`
+   * rather than implemented here as a method no caller can reach.
+   */
+  resetTowerRamp(): void {
+    this.towerAcc = this.stats.accSpeed;
+  }
+
+  /** The Tower ramp, for tests and the debug readout. */
+  get towerAccSpeedValue(): number {
+    return this.towerAcc;
+  }
+
   /** True while frozen — the scene skips contact damage against it. */
   get frozen(): boolean {
     return this.status.frozen;
@@ -221,15 +269,30 @@ export class Enemy extends Phaser.GameObjects.Container {
     // so a frozen enemy holds position rather than coasting.
     if (this.status.frozen) return;
 
+    const tower = this.mode === 'Tower';
+    if (tower) {
+      // Grows for the level, capped at 10. Advanced before the step so the
+      // frame that spawned the enemy does not get a free tick.
+      this.towerAcc = towerAccSpeed(
+        this.towerAcc,
+        this.stats.moveSpeedMax,
+        (deltaMs / 1000) * AS3_FPS,
+      );
+    }
+
     const stepped = steerToward(
       this.steering,
       {
-        rotSpeedMax: this.stats.rotSpeedMax,
-        accSpeed: this.stats.accSpeed,
+        // Tower overrides both from the ramp; every other mode uses the stats.
+        rotSpeedMax: tower ? towerRotSpeedMax(this.towerAcc) : this.stats.rotSpeedMax,
+        accSpeed: tower ? this.towerAcc : this.stats.accSpeed,
         moveSpeedMax: this.stats.moveSpeedMax,
       },
       target,
       deltaMs,
+      tower
+        ? towerAngleToTarget(this.steering, target, this.stats.moveSpeedMax, this.roomWidth)
+        : undefined,
     );
 
     this.steering = clampToRoom(stepped, this.roomWidth, this.roomHeight, this.radius);
