@@ -5,7 +5,7 @@
      Source of every figure: src/game/enemies/ and src/game/weapons/firing.ts.
      See scripts/gen-enemy-reference.ts for why this is generated. -->
 
-Covers the **9 of 20** enemy types whose behaviour is built.
+Covers the **11 of 20** enemy types whose behaviour is built.
 Types still marked `data-only` are omitted deliberately: they spawn and steer,
 but nothing that distinguishes them is implemented, so an entry would describe
 intent rather than the game.
@@ -19,6 +19,7 @@ is not a world-1 Basic.
 
 ## Contents
 
+- [Accelerating](#accelerating)
 - [Basic](#basic)
 - [Crazy](#crazy)
 - [Exploding](#exploding)
@@ -26,8 +27,45 @@ is not a world-1 Basic.
 - [Ninja](#ninja)
 - [Random](#random)
 - [Shooting](#shooting)
+- [Shrinking](#shrinking)
 - [Strong](#strong)
 - [Tiny](#tiny)
+
+---
+
+### Accelerating
+
+_Becomes faster over time. Damage slows it down._
+
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
+
+**Ranged:** none — contact damage only.
+
+**Counters**
+
+**Counter with** Gummy Bear Cannon, Cake Cannon. **Avoid** Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon, Magic Cannon.
+
+| Channel | Effect | Primary weapons |
+| --- | --- | --- |
+| Food | 1.75x **weak** | Gummy Bear Cannon, Cake Cannon |
+| Bullets | 1x neutral | MiniGun, Shotgun |
+| FireLava | 1x neutral | Flamethrower |
+| Ice | 1x neutral | _no primary — secondaries only_ |
+| Laser | 1x neutral | Laser Cannon |
+| Poison | 1x neutral | Poison Cannon |
+| Explosions | 0.75x resists | Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon |
+| Magic | 0.5x resists | Magic Cannon |
+
+**Stats**
+
+| Stat | Normal | Boss |
+| --- | --- | --- |
+| Health | 20 | 900 |
+| Contact damage | 6 | 15 |
+| Money dropped | 120 | 1400 |
+| Max speed | 1 | 1 |
+| Acceleration | 0.2 | 0.2 |
+| Turn rate (deg/frame) | 2 | 2 |
 
 ---
 
@@ -296,6 +334,42 @@ No resistances or weaknesses — every primary does full damage.
 | Bullets per volley | 1 | 4 |
 | Bullet class | Basic | BasicBoss |
 | Firing pattern | Front | FrontAmount |
+
+---
+
+### Shrinking
+
+_Shrinks when damaged._
+
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
+
+**Ranged:** none — contact damage only.
+
+**Counters**
+
+**Counter with** Flamethrower. **Avoid** Laser Cannon.
+
+| Channel | Effect | Primary weapons |
+| --- | --- | --- |
+| FireLava | 1.75x **weak** | Flamethrower |
+| Bullets | 1x neutral | MiniGun, Shotgun |
+| Explosions | 1x neutral | Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon |
+| Food | 1x neutral | Gummy Bear Cannon, Cake Cannon |
+| Ice | 1x neutral | _no primary — secondaries only_ |
+| Magic | 1x neutral | Magic Cannon |
+| Poison | 1x neutral | Poison Cannon |
+| Laser | 0.5x resists | Laser Cannon |
+
+**Stats**
+
+| Stat | Normal | Boss |
+| --- | --- | --- |
+| Health | 10 | 750 |
+| Contact damage | 5 | 15 |
+| Money dropped | 70 | 900 |
+| Max speed | 2 | 2 |
+| Acceleration | 0.1 | 0.1 |
+| Turn rate (deg/frame) | 2.5 | 2.5 |
 
 ---
 

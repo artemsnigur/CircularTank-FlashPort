@@ -149,13 +149,52 @@ describe('every declared mechanic exists in the AS3', () => {
     expect(cases.get('Temperamental')!.join(' ')).toContain('angryTimerMax');
   });
 
+  /**
+   * Spawn setup that **is** reproduced, and where.
+   *
+   * The check below used to require an implemented type's spawn case to be
+   * empty. That held while every ported type happened to have no per-instance
+   * initialisation, and stopped holding the moment one did — `Accelerating`
+   * seeds a wind-up timer. Exempting it would have removed the guard; instead a
+   * line has to be *claimed*, and the claim names the port that covers it, so
+   * an unported line still fails.
+   */
+  const ACCOUNTED_SPAWN_SETUP: Record<string, readonly string[]> = {
+    // Enemy.radiusStart, captured in the constructor from the same diameter.
+    Shrinking: ['enemy.radiusStart = enemy.width / 2;'],
+    // enemyStatMods.createAcceleratingState — 225 normal, 450 boss, starting
+    // at the maximum so the enemy enters at base speed.
+    Accelerating: [
+      'enemy.speedTimerMax = 225;',
+      'enemy.speedTimerMax = 450;',
+      'enemy.speedTimer = enemy.speedTimerMax;',
+    ],
+  };
+
   it('no "implemented" type hides behaviour in its spawn case', () => {
     const cases = spawnCases();
     for (const r of describeAllEnemies().filter((x) => x.status === 'implemented')) {
+      const accounted = ACCOUNTED_SPAWN_SETUP[r.type] ?? [];
+      const unaccounted = (cases.get(r.type) ?? []).filter((line) => !accounted.includes(line));
+
       expect(
-        cases.get(r.type) ?? [],
-        `${r.type} is reported implemented, but its spawn case carries extra setup`,
+        unaccounted,
+        `${r.type} is reported implemented, but its spawn case carries setup that ` +
+          `nothing claims to reproduce. Either port it, or add it to ` +
+          `ACCOUNTED_SPAWN_SETUP naming what covers it.`,
       ).toEqual([]);
+    }
+  });
+
+  it('every accounted line is really in the source', () => {
+    // Stops the allowance rotting: a claim for a line the AS3 no longer has
+    // would sit there excusing nothing, and would quietly excuse a *different*
+    // line if one were added with the same text.
+    const cases = spawnCases();
+    for (const [type, lines] of Object.entries(ACCOUNTED_SPAWN_SETUP)) {
+      for (const line of lines) {
+        expect(cases.get(type) ?? [], `${type}: "${line}"`).toContain(line);
+      }
     }
   });
 
@@ -209,7 +248,7 @@ describe('the current picture', () => {
     expect(r.missingMechanic).toBeNull();
   });
 
-  it('stands at 9 implemented, 0 partial, 11 data-only of 20', () => {
+  it('stands at 11 implemented, 0 partial, 9 data-only of 20', () => {
     // The exact figure, not a comparative: it is knowable, and a board that
     // moves without anyone noticing is the failure this module exists to stop.
     //
@@ -219,9 +258,9 @@ describe('the current picture', () => {
     // Ninja and Random — whose mechanics turned out not to exist. Every
     // remaining mechanic belongs to a type whose shooting is also unported.
     expect(behaviourTotals(describeAllEnemies())).toEqual({
-      implemented: 9,
+      implemented: 11,
       partial: 0,
-      dataOnly: 11,
+      dataOnly: 9,
       total: 20,
     });
   });

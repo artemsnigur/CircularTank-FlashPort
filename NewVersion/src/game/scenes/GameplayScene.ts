@@ -1091,7 +1091,7 @@ export class GameplayScene extends Phaser.Scene {
         enemy.damageMultipliers,
         'Laser',
       );
-      enemy.health = result.health;
+      enemy.setHealth(result.health);
 
       if (result.killed) {
         this.removeEnemy(enemy, true);
@@ -1371,7 +1371,7 @@ export class GameplayScene extends Phaser.Scene {
       const result = enemy.tickStatus(deltaMs);
 
       if (result.damage > 0) {
-        enemy.health -= result.damage;
+        enemy.takeDamage(result.damage);
         if (enemy.health <= 0) this.removeEnemy(enemy, true);
       }
 
@@ -1906,7 +1906,7 @@ export class GameplayScene extends Phaser.Scene {
 
     for (const enemy of caught) {
       const damage = blastDamage(explosion, enemy.damageMultipliers);
-      enemy.health -= damage;
+      enemy.takeDamage(damage);
 
       if (enemy.health <= 0) {
         this.removeEnemy(enemy, true);
@@ -1954,7 +1954,7 @@ export class GameplayScene extends Phaser.Scene {
       enemy.damageMultipliers,
       bullet.damageType,
     );
-    enemy.health = result.health;
+    enemy.setHealth(result.health);
 
     if (!result.killed) {
       enemy.flashDamage(impactFeedback(enemy.damageMultipliers, bullet.damageType));

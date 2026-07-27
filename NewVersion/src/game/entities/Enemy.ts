@@ -29,6 +29,14 @@ import {
 import type { SteeringState } from '../enemies/enemySteering';
 import { resolveDamageMultipliers } from '../enemies/damageTypes';
 import { shrinkScale, shrinksWithHealth } from '../enemies/enemyBodies';
+import {
+  acceleratesWhileUndamaged,
+  acceleratingFactor,
+  acceleratingSpeeds,
+  createAcceleratingState,
+  tickAccelerating,
+} from '../enemies/enemyStatMods';
+import type { AcceleratingState, RampedSpeeds } from '../enemies/enemyStatMods';
 import type { DamageMultipliers, ImpactFeedback } from '../enemies/damageTypes';
 import { createStatusState, tickStatuses } from '../enemies/statusEffects';
 import { createShooter } from '../enemies/enemyFiring';
@@ -123,6 +131,24 @@ export class Enemy extends Phaser.GameObjects.Container {
    */
   breachedLine = false;
 
+  /**
+   * Health changed since this enemy was last updated — **any** change.
+   *
+   * `Accelerating` resets its speed ramp on this, because `PartGameArea.as:6695`
+   * compares `hp != beforeHP` rather than hooking the damage sites. That means
+   * healing resets it too, which is why this records a *change* and not a
+   * *drop*. Nothing heals yet; `Medic` will, through the same setter.
+   */
+  private healthChanged = false;
+
+  /**
+   * Health went **down** since the last update.
+   *
+   * `Temperamental` rages on this — the AS3 sets `turnAngry` at the four damage
+   * sites (`:5581`, `:5683`, `:6206`, `:6449`), so a heal must not trigger it.
+   */
+  private healthDropped = false;
+
   private steering: SteeringState;
   private readonly roomWidth: number;
   private readonly roomHeight: number;
@@ -141,6 +167,8 @@ export class Enemy extends Phaser.GameObjects.Container {
    * is a test pinning that.
    */
   private towerAcc = 0;
+  /** `Accelerating`'s wind-up. Null for every other type. */
+  private accelerating: AcceleratingState | null = null;
   /** Named `shell`, not `body`: Container.body is the physics body. */
   private readonly shell: Phaser.GameObjects.Sprite;
 
@@ -217,6 +245,9 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.roomHeight = config.roomHeight;
     this.mode = config.mode;
     this.resetTowerRamp();
+    this.accelerating = acceleratesWhileUndamaged(config.type)
+      ? createAcceleratingState(config.level === 'B')
+      : null;
 
     this.steering = {
       x: spawn.x,
@@ -296,12 +327,70 @@ export class Enemy extends Phaser.GameObjects.Container {
   }
 
   /**
+   * The single way health is written — every damage source goes through here.
+   *
+   * A funnel rather than four assignments, because three things need to happen
+   * at every one of them and a missed site is silent in all three cases: the
+   * change flags above, `DamageAddict`'s immunity when it lands, and whatever
+   * the next health-reactive enemy needs.
+   *
+   * Flags are cleared at the end of `update`, so damage landing between updates
+   * is consumed by the next one. That is a deterministic one-frame latency and
+   * it matches the original, which captures `beforeHP` at the top of its enemy
+   * loop and compares at the bottom of the same iteration.
+   */
+  setHealth(next: number): void {
+    if (next === this.health) return;
+    this.healthChanged = true;
+    if (next < this.health) this.healthDropped = true;
+    this.health = next;
+  }
+
+  /**
+   * Whether health dropped since the last update — `Temperamental`'s trigger.
+   *
+   * Exposed now rather than when Temperamental lands, so the observer has one
+   * shape from the start and the next enemy plugs in rather than reworking it.
+   */
+  get tookDamage(): boolean {
+    return this.healthDropped;
+  }
+
+  /** Whether health changed at all — `Accelerating`'s trigger. Heals count. */
+  get healthMoved(): boolean {
+    return this.healthChanged;
+  }
+
+  /** Convenience for callers that have an amount rather than a total. */
+  takeDamage(amount: number): void {
+    if (amount === 0) return;
+    this.setHealth(this.health - amount);
+  }
+
+  /**
    * Rescales a `Shrinking` enemy to match its health.
    *
    * Radius and sprite move together, as they do in the AS3 — scaling only the
    * sprite would make it *look* harder to hit while remaining exactly as easy,
    * which is the worse of the two failure modes because it is invisible.
    */
+  /**
+   * Advances `Accelerating`'s wind-up and returns the speeds it implies.
+   *
+   * Null for every other type, so the caller falls back to the resolved stats.
+   */
+  private tickAcceleratingRamp(deltaMs: number, isTower: boolean): RampedSpeeds | null {
+    if (!this.accelerating) return null;
+
+    this.accelerating = tickAccelerating(
+      this.accelerating,
+      (deltaMs / 1000) * AS3_FPS,
+      this.healthChanged,
+      this.status.frozen,
+    );
+    return acceleratingSpeeds(acceleratingFactor(this.accelerating), isTower);
+  }
+
   private applyBodyScale(): void {
     if (!shrinksWithHealth(this.enemyType)) return;
 
@@ -323,6 +412,7 @@ export class Enemy extends Phaser.GameObjects.Container {
 
     const tower = this.mode === 'Tower';
     const defense = this.mode === 'Defense';
+    const speeds = this.tickAcceleratingRamp(deltaMs, tower);
     if (tower) {
       // Grows for the level, capped at 10. Advanced before the step so the
       // frame that spawned the enemy does not get a free tick.
@@ -337,9 +427,10 @@ export class Enemy extends Phaser.GameObjects.Container {
       this.steering,
       {
         // Tower overrides both from the ramp; every other mode uses the stats.
-        rotSpeedMax: tower ? towerRotSpeedMax(this.towerAcc) : this.stats.rotSpeedMax,
-        accSpeed: tower ? this.towerAcc : this.stats.accSpeed,
-        moveSpeedMax: this.stats.moveSpeedMax,
+        rotSpeedMax:
+          tower ? towerRotSpeedMax(this.towerAcc) : speeds?.rotSpeedMax ?? this.stats.rotSpeedMax,
+        accSpeed: tower ? this.towerAcc : speeds?.accSpeed ?? this.stats.accSpeed,
+        moveSpeedMax: speeds?.moveSpeedMax ?? this.stats.moveSpeedMax,
       },
       target,
       deltaMs,
@@ -377,6 +468,11 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.setPosition(this.steering.x, this.steering.y);
     this.setRotation(Phaser.Math.DegToRad(this.steering.rotation));
     this.applyBodyScale();
+
+    // Consumed, so damage arriving before the next update is what the next
+    // update sees.
+    this.healthChanged = false;
+    this.healthDropped = false;
   }
 
   /** Current speed in design units per frame, for the debug readout. */
