@@ -31,3 +31,12 @@ cd NewVersion
 npm run lint
 npm test
 npm run data:check
+
+# Does the app actually load? Nothing above can answer that — a green
+# typecheck, 1413 tests and a clean production build were all true while the
+# browser refused to start the app, because "the modules compile" and "the page
+# runs" are different claims.
+#
+# It starts its own vite on a free port and tears it down, so it depends on no
+# running server and cannot inherit a stale one. ~2.5s.
+npm run smoke
