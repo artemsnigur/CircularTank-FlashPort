@@ -268,6 +268,45 @@ Before porting any expression involving a screen, camera, viewport or timing val
    `AS3_CAMERA_WIDTH`/`AS3_CAMERA_HEIGHT` exist to record what the original was, and
    nothing reads them at runtime.
 
+### Never probe a guard by mutating the live working tree
+
+Verifying that a check fails when it should is right, and this file asks for it
+repeatedly. **Do it in a copy, never in the tree a dev server is watching.**
+
+What went wrong: a pre-commit typecheck gate was tested by appending a broken
+line to `src/game/core/Functions.ts` and restoring it with `git checkout --`.
+That is a truncate-then-write. Vite's watcher fired on the truncated state and
+cached an **empty** module, then served it for the next forty minutes. The
+reviewer got `does not provide an export named 'formatNumber'` from a file that
+exports it, on a commit where typecheck, lint, 1413 tests and a production build
+were all genuinely green. Two hours of observations became suspect, which cost
+far more than the bug.
+
+The same method was used for the `BootScene`, `waveState`, `spawnPlacement` and
+`GameplayScene` probes — including `cp`-based restores, which truncate too. They
+got away with it. This one did not.
+
+So:
+
+1. **Probe in a temp copy or a throwaway worktree.** The scratchpad directory or
+   `git worktree add` both work. Nothing under a running dev server.
+2. **Where a probe must touch the real file** — a source-shape test has to read
+   the real path — stop the dev server first, and restart it afterwards.
+3. **Never leave a dev server running across a probe.** Three orphans were
+   created in one session; each held its port so the next `npm run dev` silently
+   moved to another, and the reviewer kept talking to a stale process.
+4. **`npm run smoke` after anything that touches the boot path**, and before
+   saying a change works. It loads the page in headless Chromium and fails on
+   uncaught errors, console errors, or the menu never rendering.
+
+### "Build clean" is not "the app loads"
+
+They are different claims and only the first was ever enforced. A green
+typecheck proves the modules compile from disk; it says nothing about what the
+running page is executing, which can be a stale transform, a poisoned cache, or
+a two-hour-old process. **Do not report a change as working on the strength of
+tests, typecheck and a build.** Say which of the two you checked.
+
 ### A guarantee is only worth what enforces it
 
 **This rule sits above the specific cases below, because all of them are instances of
