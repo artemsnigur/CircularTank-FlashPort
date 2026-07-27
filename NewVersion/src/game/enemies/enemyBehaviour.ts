@@ -70,13 +70,19 @@ import { bulletClassFor, SUPPORTED_SHOOT_ANGLES } from './enemyFiring';
  *                                      ranged check reports it. Duplicating a
  *                                      derived fact by hand can only drift.
  *
- * They were written from guesses at what the names suggested rather than from
- * the source, and they read as findings for months. `enemyBehaviour.test.ts`
+ * A sixth was not invented but *wrong*: `GrapplingHook` was described as
+ * "tethers the tank and reels it in", which is the **boss** half only. On
+ * impact the hook sets `isGrapping` on both ranks, but `tank.grappingEnemy`
+ * only when the enemy is a boss — so a non-boss reels *itself* at the tank and
+ * is a charger, while only `GrapplingHookB` drags the player and overwrites
+ * their handling. See `enemyGrapple.ts`.
+ *
+ * The rest were written from guesses at what the names suggested rather than
+ * from the source, and they read as findings for months. `enemyBehaviour.test.ts`
  * now checks every key here against the branches actually present in
  * PartGameArea.as, so an invented mechanic fails the suite.
  */
 export const SPECIAL_MECHANICS: Record<string, string> = {
-  GrapplingHook: 'tethers the tank and reels it in',
   // Porting this? Two AS3 sites are easy to miss because they are sound cues,
   // not movement: `:4946` (TeleportOut, as the enemy leaves) and `:4973`
   // (TeleportIn, as it returns). Both are gated on `checkWithinScreen(x, y, w,

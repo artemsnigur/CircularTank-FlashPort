@@ -56,6 +56,13 @@ import {
 } from '../enemies/enemyTeleport';
 import type { TeleportState } from '../enemies/enemyTeleport';
 import {
+  createGrappleState,
+  grapplesTank,
+  reelVelocity,
+  releaseHeading,
+} from '../enemies/enemyGrapple';
+import type { GrappleState } from '../enemies/enemyGrapple';
+import {
   acceleratesWhileUndamaged,
   acceleratingFactor,
   acceleratingSpeeds,
@@ -225,6 +232,8 @@ export class Enemy extends Phaser.GameObjects.Container {
   private healing: HealState | null = null;
   /** Teleport clock. Null for every other type. */
   private teleport: TeleportState | null = null;
+  /** Hook accounting and tether flag. Null for every other type. */
+  grapple: GrappleState | null = null;
   /** Aura radius, valid only when `healing` is set. */
   readonly healDistance: number = 0;
 
@@ -319,6 +328,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.rage = ragesWhenDamaged(config.type) ? createRageState() : null;
     this.visibility =
       blinksOnTimer(config.type) || hidesWhenHurt(config.type) ? createVisibilityState() : null;
+    this.grapple = grapplesTank(config.type) ? createGrappleState() : null;
     this.teleport = teleportsPeriodically(config.type)
       ? createTeleportState(config.level === 'B', Math.random)
       : null;
@@ -608,6 +618,41 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.setAlpha(this.invisible ? INVISIBLE_ALPHA : 1);
   }
 
+  /**
+   * One frame of reeling: velocity straight at the tank, speed +0.5, capped at
+   * the raised `REEL_MAX_SPEED`, then integrated.
+   */
+  private reelStep(target: { x: number; y: number }, frames: number): SteeringState {
+    const speed = Math.hypot(this.steering.xVel, this.steering.yVel);
+    const reel = reelVelocity(this.steering, target, speed);
+
+    let { xVel, yVel } = reel;
+    const next = Math.hypot(xVel, yVel);
+    if (next > reel.moveSpeedMax && next > 0) {
+      const scale = reel.moveSpeedMax / next;
+      xVel *= scale;
+      yVel *= scale;
+    }
+
+    return {
+      rotation: reel.rotation,
+      xVel,
+      yVel,
+      x: this.steering.x + xVel * frames,
+      y: this.steering.y + yVel * frames,
+    };
+  }
+
+  /** Releases a non-boss grapple — the shield push at `:5342`. */
+  releaseGrapple(random: () => number = Math.random): void {
+    if (!this.grapple?.isGrapping) return;
+    this.grapple = { ...this.grapple, isGrapping: false };
+    this.steering = {
+      ...this.steering,
+      rotation: releaseHeading(this.steering.rotation, this.stats.moveSpeedMax, random),
+    };
+  }
+
   private applyBodyScale(): void {
     if (!shrinksWithHealth(this.enemyType)) return;
 
@@ -683,7 +728,14 @@ export class Enemy extends Phaser.GameObjects.Container {
       );
     }
 
-    const stepped = steerToward(
+    // `:5041` is the `if` of an if/else whose else is the ordinary
+    // accelerate-along-facing block, so reeling *replaces* steering rather than
+    // layering on it. Velocity and rotation are written from the bearing to the
+    // tank every frame, which is also why the wall cannot produce Defense's
+    // slide: whatever the clamp did is rebuilt next frame.
+    const stepped = this.grapple?.isGrapping
+      ? this.reelStep(target, frames)
+      : steerToward(
       this.steering,
       {
         // Tower overrides both from the ramp; every other mode uses the stats.
@@ -709,7 +761,7 @@ export class Enemy extends Phaser.GameObjects.Container {
         : tower
           ? towerAngleToTarget(this.steering, target, this.stats.moveSpeedMax, this.roomWidth)
           : undefined,
-    );
+      );
 
     // Checked before clamping: `clampToRoom` pulls the enemy back inside, so
     // afterwards the crossing is no longer visible.

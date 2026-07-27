@@ -10,7 +10,14 @@
  * enemies — all driven by the enemy behaviour loop.
  */
 import Phaser from 'phaser';
-import { createTankState, moveTank, tankStatsFor } from '../player/tankMovement';
+import {
+  clampTankToRoom,
+  createTankState,
+  moveTank,
+  tankStatsFor,
+  tetherPull,
+  tetheredTankStats,
+} from '../player/tankMovement';
 import type { DirectionalInput, TankState, TankStats } from '../player/tankMovement';
 import type { UpgradeState } from '../upgrades/upgradeState';
 
@@ -67,6 +74,30 @@ export class PlayerTank extends Phaser.GameObjects.Container {
   }
 
   /** Re-reads speed stats, e.g. after the Speed upgrade is bought. */
+  /**
+   * The boss grappler currently reeling this tank in, or null.
+   *
+   * `tank.grappingEnemy` in the AS3, and boss-only: a non-boss GrapplingHook
+   * sets `isGrapping` on itself and charges without touching the tank.
+   */
+  tetheredTo: { x: number; y: number } | null = null;
+
+  /**
+   * Shoves the tank clear of a boss it is overlapping, kept inside the room.
+   *
+   * `PartGameArea.as:5319` writes the position with no clamp, which can put the
+   * player outside the room against a wall-pinned boss. See `clampTankToRoom`.
+   */
+  shoveTo(x: number, y: number): void {
+    const clamped = clampTankToRoom(x, y, {
+      roomWidth: this.roomWidth,
+      roomHeight: this.roomHeight,
+      radius: this.radius,
+    });
+    this.motion = { ...this.motion, x: clamped.x, y: clamped.y };
+    this.setPosition(clamped.x, clamped.y);
+  }
+
   refreshStats(upgrades: UpgradeState): void {
     this.stats = tankStatsFor(upgrades);
   }
@@ -96,10 +127,25 @@ export class PlayerTank extends Phaser.GameObjects.Container {
     movable = true,
   ): void {
     if (movable) {
+      // A boss grappler overwrites the player's handling outright and drags
+      // them toward it — Tank.as:84-93. Applied before the step so the pull is
+      // part of this frame's motion rather than the next one's.
+      const tethered = this.tetheredTo !== null;
+      if (tethered) {
+        const pulled = tetherPull(
+          this.motion,
+          this.motion.x,
+          this.motion.y,
+          this.tetheredTo!,
+          (deltaMs / 1000) * 30,
+        );
+        this.motion = { ...this.motion, xVel: pulled.xVel, yVel: pulled.yVel };
+      }
+
       const result = moveTank(
         this.motion,
         input,
-        this.stats,
+        tethered ? tetheredTankStats() : this.stats,
         { roomWidth: this.roomWidth, roomHeight: this.roomHeight, radius: this.radius },
         deltaMs,
       );

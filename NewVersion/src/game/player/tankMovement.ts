@@ -21,6 +21,12 @@
  */
 
 import type { UpgradeState } from '../upgrades/upgradeState';
+import {
+  TETHERED_TANK_ACC_SPEED,
+  TETHERED_TANK_FRICTION,
+  TETHERED_TANK_MAX_SPEED,
+  TETHER_PULL,
+} from '../enemies/enemyGrapple';
 import { findUpgradeById, getStatValue } from '../upgrades/upgradeState';
 
 const AS3_FPS = 30;
@@ -280,5 +286,70 @@ export function tankStartPosition(
   return {
     x: roomWidth / 2,
     y: mode === 'Defense' ? DEFENSE_START_Y : roomHeight / 2,
+  };
+}
+
+/**
+ * The tank's handling while a **boss** grappler has it tethered —
+ * `Tank.as:84-93`.
+ *
+ * The tether overwrites the player's upgraded stats outright rather than
+ * modifying them, so a fully upgraded tank handles exactly the same as an
+ * unupgraded one while attached. That is the mechanic: it is a handling
+ * penalty, not a slow.
+ *
+ * Only the boss does this. A non-boss GrapplingHook sets `isGrapping` on itself
+ * and charges; it never touches the tank.
+ */
+export function tetheredTankStats(): TankStats {
+  return {
+    maxSpeed: TETHERED_TANK_MAX_SPEED,
+    accSpeed: TETHERED_TANK_ACC_SPEED,
+    friction: TETHERED_TANK_FRICTION,
+  };
+}
+
+/**
+ * Velocity after one frame of being dragged toward the tethering enemy.
+ *
+ * Added to the tank's own velocity rather than replacing it, so the player can
+ * still fight the pull — unlike the enemy's reel, which overwrites.
+ */
+export function tetherPull(
+  state: { xVel: number; yVel: number },
+  tankX: number,
+  tankY: number,
+  enemy: { x: number; y: number },
+  frames: number,
+): { xVel: number; yVel: number } {
+  const angle = Math.atan2(enemy.y - tankY, enemy.x - tankX);
+  return {
+    xVel: state.xVel + Math.cos(angle) * TETHER_PULL * frames,
+    yVel: state.yVel + Math.sin(angle) * TETHER_PULL * frames,
+  };
+}
+
+/**
+ * Keeps a directly-written tank position inside the room.
+ *
+ * ── Deliberate divergence from the AS3 ────────────────────────────────────
+ * `PartGameArea.as:5319-5320` shoves the tank clear of a boss's hitbox by
+ * writing `tank.x`/`tank.y` outright, with **no clamp**. Against a boss pinned
+ * against a wall that places the player outside the room, where nothing pulls
+ * them back — the ordinary movement clamp only constrains *steps*, not absolute
+ * writes.
+ *
+ * Clamped here instead. This is the same category as the `:1716` magic-retarget
+ * fix rather than Group A's stat quirks: a reachable defect with a visible
+ * consequence, not a balance oddity worth preserving.
+ */
+export function clampTankToRoom(
+  x: number,
+  y: number,
+  bounds: TankBounds,
+): { x: number; y: number } {
+  return {
+    x: Math.min(Math.max(x, bounds.radius), bounds.roomWidth - bounds.radius),
+    y: Math.min(Math.max(y, bounds.radius), bounds.roomHeight - bounds.radius),
   };
 }

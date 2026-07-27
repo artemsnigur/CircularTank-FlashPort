@@ -9,10 +9,8 @@
  *
  * Deliberately **not** covered, and each needs its own pass:
  *
- *   Hook                         GrapplingHook's tether
  *   FrontAmount, FrontSides      two other firing patterns
  *   reflected                    the BulletReflect upgrade bouncing shots back
- *   bulletsShooting              GrapplingHook's tether accounting
  *
  * The stats are already extracted: `shoot`, `shootType`, `shootAngle`,
  * `reloadTimeMax` and `bulletAmount` all come from the generated
@@ -24,6 +22,8 @@
  * Level 1-1 is 10 enemies at 5 damage against 100 HP, so losing was
  * arithmetically impossible. Ranged fire removes that cap.
  */
+
+import { HOOK_BULLET } from './enemyGrapple';
 
 const AS3_FPS = 30;
 
@@ -199,6 +199,7 @@ export const SUPPORTED_SHOOT_TYPES = [
   'Following',
   'FollowingBoss',
   'Trap',
+  'Hook',
 ] as const;
 /** Firing patterns this slice can lay out. */
 export const SUPPORTED_SHOOT_ANGLES = ['Front', 'Circle', 'BackTrap'] as const;
@@ -209,6 +210,7 @@ export function bulletClassFor(shootType: string | undefined): BulletClassSpec |
   if (shootType === 'Following') return FOLLOWING_BULLET;
   if (shootType === 'FollowingBoss') return FOLLOWING_BOSS_BULLET;
   if (shootType === 'Trap') return TRAP_BULLET;
+  if (shootType === 'Hook') return HOOK_BULLET;
   return null;
 }
 

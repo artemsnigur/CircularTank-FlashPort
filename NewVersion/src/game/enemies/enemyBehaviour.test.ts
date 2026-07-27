@@ -37,12 +37,17 @@ describe('ranged support is derived, not declared', () => {
     expect(isRangedImplemented(resolveEnemyStats('Shooting', '1', 'Easy'))).toBe(true);
     // Crazy: Basic + Circle — both supported after this pass.
     expect(isRangedImplemented(resolveEnemyStats('Crazy', '1', 'Easy'))).toBe(true);
-    // GrapplingHook: Hook — bullet class not ported. (Soldier used to be the
-    // example here; Following landed, which is the derived board working.)
-    expect(isRangedImplemented(resolveEnemyStats('GrapplingHook', '1', 'Easy'))).toBe(false);
-    // GrapplingHook: Hook — the last unported bullet class. Trap was the
-    // example here until BackTrap landed.
-    expect(isRangedImplemented(resolveEnemyStats('GrapplingHook', '1', 'Easy'))).toBe(false);
+    // GrapplingHook: Hook + Front — the last pair to land.
+    expect(isRangedImplemented(resolveEnemyStats('GrapplingHook', '1', 'Easy'))).toBe(true);
+    // No enemy is unsupported any more, so the negative case uses a pattern
+    // the tables never reference.
+    expect(
+      isRangedImplemented({ shoot: true, shootType: 'Basic', shootAngle: 'FrontSides' }),
+    ).toBe(false);
+    // And an unknown bullet class, for the other half of the conjunction.
+    expect(isRangedImplemented({ shoot: true, shootType: 'Nonexistent', shootAngle: 'Front' })).toBe(
+      false,
+    );
   });
 
   it('is false for anything that does not shoot', () => {
@@ -215,6 +220,9 @@ describe('every declared mechanic exists in the AS3', () => {
       'enemy.velocityAngle = 0;',
       'enemy.velocitySpeed = 0;',
     ],
+    // enemyGrapple.createGrappleState — the one-hook counter and the tether
+    // flag, both starting clear.
+    GrapplingHook: ['enemy.bulletsShooting = 0;', 'enemy.isGrapping = false;'],
     // Enemy.radiusStart, captured in the constructor from the same diameter.
     Shrinking: ['enemy.radiusStart = enemy.width / 2;'],
     // enemyStatMods.createRageState. `gotoAndStop(1)` is the calm sprite frame,
@@ -325,12 +333,21 @@ describe('the current picture', () => {
     });
   });
 
-  it('GrapplingHook is the last one, waiting on the Hook bullet', () => {
-    expect(describeEnemy('GrapplingHook').rangedImplemented).toBe(false);
-    expect(describeEnemy('GrapplingHook').status).toBe('data-only');
+  it('GrapplingHook was the last, and it is in', () => {
+    expect(describeEnemy('GrapplingHook')).toMatchObject({
+      status: 'implemented',
+      rangedImplemented: true,
+    });
   });
 
-  it('stands at 19 implemented, 0 partial, 1 data-only of 20', () => {
+  it('nothing is data-only any more', () => {
+    // The end of the port: every one of the twenty has its distinguishing
+    // behaviour built, not just its stat row.
+    expect(describeAllEnemies().filter((r) => r.status !== 'implemented')).toEqual([]);
+    expect(Object.keys(SPECIAL_MECHANICS)).toEqual([]);
+  });
+
+  it('stands at 20 implemented, 0 partial, 0 data-only', () => {
     // The exact figure, not a comparative: it is knowable, and a board that
     // moves without anyone noticing is the failure this module exists to stop.
     //
@@ -340,9 +357,9 @@ describe('the current picture', () => {
     // Ninja and Random — whose mechanics turned out not to exist. Every
     // remaining mechanic belongs to a type whose shooting is also unported.
     expect(behaviourTotals(describeAllEnemies())).toEqual({
-      implemented: 19,
+      implemented: 20,
       partial: 0,
-      dataOnly: 1,
+      dataOnly: 0,
       total: 20,
     });
   });

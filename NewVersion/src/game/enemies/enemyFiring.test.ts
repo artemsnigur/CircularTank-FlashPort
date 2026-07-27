@@ -36,6 +36,7 @@ import {
   tickShooter,
 } from './enemyFiring';
 import { resolveEnemyStats } from './enemyStats';
+import { ENEMY_STATS } from './enemyStatsData';
 import { TANK_MAX_HP } from '../player/tankDamage';
 import { getLevel } from '../levels/levelData';
 
@@ -214,16 +215,27 @@ describe('createVolley dispatch', () => {
     }
   });
 
-  it('produces nothing for an unported combination', () => {
-    // GrapplingHook fires a tether, still unported, and must stay harmless
-    // rather than throw or fire a wrong-looking shot. Soldier was here until
-    // Following landed, and Trap until BackTrap did — one name left.
-    for (const type of ['GrapplingHook']) {
-      const stats = resolveEnemyStats(type, '1', 'Easy')!;
+  it('produces nothing for an unported firing pattern', () => {
+    // Every *shoot type* is supported now — Hook was the last. What remains
+    // unported is two patterns, FrontAmount and FrontSides, which no enemy in
+    // the tables uses. An unsupported combination must stay harmless rather
+    // than throw or fire a wrong-looking shot.
+    for (const angle of ['FrontAmount', 'FrontSides']) {
       expect(
-        createVolley(origin, stats.shootType, stats.shootAngle, stats.bulletAmount ?? 1, () => 0.5),
-        type,
+        createVolley(origin, 'Basic', angle, 1, () => 0.5),
+        angle,
       ).toHaveLength(0);
+    }
+  });
+
+  it('supports every shoot type the tables actually use', () => {
+    const used = new Set(
+      Object.values(ENEMY_STATS).flatMap((v) =>
+        [v.normal.shootType, v.boss.shootType].filter(Boolean),
+      ),
+    );
+    for (const type of used) {
+      expect(SUPPORTED_SHOOT_TYPES, type as string).toContain(type);
     }
   });
 

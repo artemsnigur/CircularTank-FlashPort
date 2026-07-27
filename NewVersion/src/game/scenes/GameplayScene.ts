@@ -58,6 +58,7 @@ import { findMagicTarget, magicVelocity } from '../weapons/magic';
 import type { HitTarget } from '../weapons/bullets';
 import { applyBomb, applyPoison } from '../enemies/statusEffects';
 import { healedTo, isInHealRange } from '../enemies/enemyHealing';
+import { canFireHook } from '../enemies/enemyGrapple';
 import { impactFeedback } from '../enemies/damageTypes';
 import {
   blastDamage,
@@ -330,6 +331,8 @@ export class GameplayScene extends Phaser.Scene {
     sprite: Phaser.GameObjects.Image;
     /** Degrees per frame it may turn, or null when it flies straight. */
     turnRate: number | null;
+    /** The grappler that fired this hook, or null for every other bullet. */
+    hookOwner: Enemy | null;
   }> =
     [];
 
@@ -1603,8 +1606,25 @@ export class GameplayScene extends Phaser.Scene {
 
       if (result.push) {
         this.pushedFrames = PUSHED_TIMER_MAX;
+        // `:5342` — the push that shoves an enemy off also tears a non-boss
+        // grapple loose, restoring its own speed and flinging it away on the
+        // 105+-15 / 75+-15 fan. The boss release at `:5323` is the contact
+        // path above, which clears the tank's tether instead.
+        enemy.releaseGrapple();
         // Knockback is not yet fed back into the tank's velocity — that needs
         // Tank.as's `pushed` branch, which is part of the unported loop.
+      }
+
+      // `:5319` — a boss shoves the tank clear of its hitbox. The AS3 writes
+      // the position unclamped, which can put the player outside the room
+      // against a wall-pinned boss; `shoveTo` clamps it.
+      if (result.enemyDies === false && enemy.enemyLevel === 'B') {
+        const angle = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
+        const clearance = this.player.radius + enemy.radius;
+        this.player.shoveTo(
+          enemy.x + Math.cos(angle) * clearance,
+          enemy.y + Math.sin(angle) * clearance,
+        );
       }
 
       if (result.enemyDies) this.removeEnemy(enemy, false);
@@ -1659,8 +1679,15 @@ export class GameplayScene extends Phaser.Scene {
       // An unported type/pattern yields no bullets; leave the clock alone so
       // it is not silently "firing" blanks on a timer.
       if (volley.length === 0) continue;
+      // `:6891` — a grappler may only have one hook out, and none while
+      // attached. No other enemy needs this; it is a firing gate, not a
+      // property of the bullet.
+      if (enemy.grapple && !canFireHook(enemy.grapple)) continue;
 
       enemy.shooter = registerShot(enemy.shooter);
+      if (enemy.grapple) {
+        enemy.grapple = { ...enemy.grapple, bulletsShooting: enemy.grapple.bulletsShooting + 1 };
+      }
       getSoundManager(this)?.queue('EnemyShoot');
 
       // `PartGameArea.as:6972-6980` puts traps on `enemyTrapLayer` and
@@ -1680,11 +1707,23 @@ export class GameplayScene extends Phaser.Scene {
           state,
           sprite,
           turnRate: turnRateFor(enemy.stats.shootType),
+          // Only hooks need to find their owner again — on impact to attach,
+          // on expiry to free the one-hook slot.
+          hookOwner: enemy.stats.shootType === 'Hook' ? enemy : null,
         });
       }
     }
 
     this.advanceEnemyBullets(deltaMs);
+  }
+
+  /** Frees a grappler's one-hook slot, on impact or expiry. */
+  private releaseHookSlot(owner: Enemy): void {
+    if (!owner.grapple) return;
+    owner.grapple = {
+      ...owner.grapple,
+      bulletsShooting: Math.max(0, owner.grapple.bulletsShooting - 1),
+    };
   }
 
   private advanceEnemyBullets(deltaMs: number): void {
@@ -1711,11 +1750,27 @@ export class GameplayScene extends Phaser.Scene {
         deltaMs,
       );
       if (!next) {
+        // `:1510` — a missed hook frees the slot when it expires.
+        if (entry.hookOwner) this.releaseHookSlot(entry.hookOwner);
         entry.sprite.destroy();
         continue;
       }
 
       if (hitsTank(next, tank)) {
+        // `:1567-1571` — the hook damages *and* attaches. `isGrapping` is set
+        // on both ranks, but the tank is only tethered by a boss: a non-boss
+        // reels itself in and never touches the player.
+        if (entry.hookOwner) {
+          this.releaseHookSlot(entry.hookOwner);
+          if (entry.hookOwner.active) {
+            entry.hookOwner.grapple = {
+              ...entry.hookOwner.grapple!,
+              isGrapping: true,
+            };
+            if (entry.hookOwner.enemyLevel === 'B') this.player.tetheredTo = entry.hookOwner;
+          }
+        }
+
         this.hp = applyBulletToTank(this.hp, next.damage);
         getSoundManager(this)?.queue('TankDamaged');
         this.cameras.main.shake(60, 0.0008);
@@ -2091,6 +2146,12 @@ export class GameplayScene extends Phaser.Scene {
    * `noMoney = true` on contact, so a suicide attack earns the player nothing.
    */
   private removeEnemy(enemy: Enemy, payMoney: boolean): void {
+    // `Tank.as:94-99` — the tether is held by reference, and the AS3 notices it
+    // has gone by testing `stage.contains`. Clearing it here is the same thing
+    // said at the moment it becomes true, and it restores the player's own
+    // upgraded handling.
+    if (this.player.tetheredTo === enemy) this.player.tetheredTo = null;
+
     // Everything below is once-per-enemy, so the guard is the first thing in
     // the function.
     //
