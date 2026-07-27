@@ -57,6 +57,7 @@ import { createBeam, findBeamHits } from '../weapons/laser';
 import { findMagicTarget, magicVelocity } from '../weapons/magic';
 import type { HitTarget } from '../weapons/bullets';
 import { applyBomb, applyPoison } from '../enemies/statusEffects';
+import { healedTo, isInHealRange } from '../enemies/enemyHealing';
 import { impactFeedback } from '../enemies/damageTypes';
 import {
   blastDamage,
@@ -629,6 +630,7 @@ export class GameplayScene extends Phaser.Scene {
       if (enemy.health <= 0) this.removeEnemy(enemy, true);
     }
     this.resolveDefenseBreaches();
+    this.resolveHealAuras();
 
     this.updateEnemyFire(delta);
     this.flushDeathBlasts();
@@ -1473,6 +1475,51 @@ export class GameplayScene extends Phaser.Scene {
    * Non-bosses die on contact and pay nothing — a suicide attack, so the only
    * way to earn from an enemy is to kill it first.
    */
+  /**
+   * Medics topping up everything damaged around them.
+   *
+   * The loop lives here rather than on the entity because a Medic has to see
+   * its peers. `PartGameArea.as:6722` walks the whole enemy array on each
+   * pulse and heals *every* damaged enemy in range at once — no nearest-target
+   * selection, no randomness — and skips itself via `u != i`.
+   *
+   * ── Healing a DamageAddict keeps it alive, and that is correct ───────────
+   * The heal goes through `setHealth`, whose immunity guard blocks decreases
+   * only, so a Medic can top up a `DamageAddict` — and the AS3 agrees, since
+   * its immunity lives at the damage sites and the heal writes `hp += 1`
+   * unguarded. The arithmetic then produces an unkillable enemy:
+   *
+   *   heal   1 hp / 15 frames  = 0.0667 /frame
+   *   decay  Easy t1  0.04500  -> net +0.0217  never dies
+   *          Hard t3  0.07344  -> net -0.0068  dies slowly
+   *          boss     0.10000  -> net -0.0333  dies
+   *
+   * So on most difficulties one Medic out-heals the bleed and the DamageAddict
+   * sits at full health, immune to damage and not decaying, until the Medic is
+   * killed. Eight of the fifty-five Medic levels also contain DamageAddict, so
+   * it is reachable rather than theoretical.
+   *
+   * This is emergent behaviour from two separately faithful systems, not an
+   * oversight in either. Do not "fix" it by special-casing the pair.
+   */
+  private resolveHealAuras(): void {
+    for (const medic of this.enemies) {
+      if (!medic.pulsedHeal) continue;
+      medic.pulsedHeal = false;
+
+      for (const target of this.enemies) {
+        if (target === medic) continue;
+        if (target.health >= target.maxHealth) continue;
+        if (!isInHealRange(medic, target, medic.healDistance)) continue;
+
+        // Through the funnel, so `healthChanged` fires and an Accelerating
+        // enemy healed by a Medic resets its speed ramp — which is the
+        // behaviour the two-flag observer was built for.
+        target.setHealth(healedTo(target.health, target.maxHealth));
+      }
+    }
+  }
+
   /**
    * Enemies that reached the bottom of a Defense lane.
    *

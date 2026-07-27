@@ -175,6 +175,20 @@ describe('every declared mechanic exists in the AS3', () => {
       'enemy.ghostTimerMax = 150;',
       'enemy.ghostTimer = enemy.ghostTimerMax;',
     ],
+    // enemyHealing.createHealState, and healDistanceFor for the 50/100 radius.
+    // The IndicatorMedic ring is a visual the port does not draw.
+    Medic: [
+      'enemy.healDistance = 50;',
+      'enemy.healDistance = 100;',
+      'enemy.healTimerMax = 15;',
+      'enemy.healTimer = enemy.healTimerMax;',
+      'indicator = new IndicatorMedic();',
+      'indicator.enemy = enemy;',
+      'indicator.scaleX = enemy.healDistance / 100;',
+      'indicator.scaleY = enemy.healDistance / 100;',
+      'this.medicIndicatorLayer.addChild(indicator);',
+      'this.medicIndicatorArray.push(indicator);',
+    ],
     // Enemy.radiusStart, captured in the constructor from the same diameter.
     Shrinking: ['enemy.radiusStart = enemy.width / 2;'],
     // enemyStatMods.createRageState. `gotoAndStop(1)` is the calm sprite frame,
@@ -275,7 +289,7 @@ describe('the current picture', () => {
     expect(r.missingMechanic).toBeNull();
   });
 
-  it('stands at 15 implemented, 0 partial, 5 data-only of 20', () => {
+  it('stands at 16 implemented, 0 partial, 4 data-only of 20', () => {
     // The exact figure, not a comparative: it is knowable, and a board that
     // moves without anyone noticing is the failure this module exists to stop.
     //
@@ -285,9 +299,9 @@ describe('the current picture', () => {
     // Ninja and Random — whose mechanics turned out not to exist. Every
     // remaining mechanic belongs to a type whose shooting is also unported.
     expect(behaviourTotals(describeAllEnemies())).toEqual({
-      implemented: 15,
+      implemented: 16,
       partial: 0,
-      dataOnly: 5,
+      dataOnly: 4,
       total: 20,
     });
   });

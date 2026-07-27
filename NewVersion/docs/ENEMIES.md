@@ -5,7 +5,7 @@
      Source of every figure: src/game/enemies/ and src/game/weapons/firing.ts.
      See scripts/gen-enemy-reference.ts for why this is generated. -->
 
-Covers the **15 of 20** enemy types whose behaviour is built.
+Covers the **16 of 20** enemy types whose behaviour is built.
 Types still marked `data-only` are omitted deliberately: they spawn and steer,
 but nothing that distinguishes them is implemented, so an entry would describe
 intent rather than the game.
@@ -26,6 +26,7 @@ is not a world-1 Basic.
 - [Exploding](#exploding)
 - [Fast](#fast)
 - [Ghost](#ghost)
+- [Medic](#medic)
 - [Ninja](#ninja)
 - [Random](#random)
 - [ScaredGhost](#scaredghost)
@@ -290,6 +291,42 @@ _Can't be damaged when invisible._
 | Max speed | 2 | 2 |
 | Acceleration | 0.25 | 0.25 |
 | Turn rate (deg/frame) | 3 | 3 |
+
+---
+
+### Medic
+
+_Heals other enemies._
+
+**Special mechanic:** none recorded as outstanding. Either this type has no special behaviour, or it has some and that behaviour is already ported — `Exploding` is the second case. No unported mechanic was *found* for it by `enemyBehaviour.test.ts`'s branch survey; that survey matches two AS3 idioms and is a floor, not a census.
+
+**Ranged:** none — contact damage only.
+
+**Counters**
+
+**Counter with** Poison Cannon. **Avoid** Flamethrower, Gummy Bear Cannon, Cake Cannon.
+
+| Channel | Effect | Primary weapons |
+| --- | --- | --- |
+| Poison | 1.5x **weak** | Poison Cannon |
+| Bullets | 1x neutral | MiniGun, Shotgun |
+| Explosions | 1x neutral | Cannon, Big Cannon, Penetration Cannon, Timed Bomb Cannon |
+| Ice | 1x neutral | _no primary — secondaries only_ |
+| Laser | 1x neutral | Laser Cannon |
+| Magic | 1x neutral | Magic Cannon |
+| Food | 0.75x resists | Gummy Bear Cannon, Cake Cannon |
+| FireLava | 0.5x resists | Flamethrower |
+
+**Stats**
+
+| Stat | Normal | Boss |
+| --- | --- | --- |
+| Health | 25 | 1000 |
+| Contact damage | 5 | 15 |
+| Money dropped | 200 | 1600 |
+| Max speed | 2 | 2 |
+| Acceleration | 0.3 | 0.3 |
+| Turn rate (deg/frame) | 2 | 2 |
 
 ---
 

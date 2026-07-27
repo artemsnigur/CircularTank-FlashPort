@@ -77,7 +77,6 @@ import { bulletClassFor, SUPPORTED_SHOOT_ANGLES } from './enemyFiring';
  */
 export const SPECIAL_MECHANICS: Record<string, string> = {
   GrapplingHook: 'tethers the tank and reels it in',
-  Medic: 'heals nearby enemies',
   // Porting this? Two AS3 sites are easy to miss because they are sound cues,
   // not movement: `:4946` (TeleportOut, as the enemy leaves) and `:4973`
   // (TeleportIn, as it returns). Both are gated on `checkWithinScreen(x, y, w,

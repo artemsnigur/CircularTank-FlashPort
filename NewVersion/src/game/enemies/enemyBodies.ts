@@ -23,9 +23,11 @@ export const SHRINK_FLOOR = 1 / 3;
 
 export function shrinkScale(health: number, maxHealth: number): number {
   if (!(maxHealth > 0)) return 1;
-  // Health can sit slightly outside [0, max] for a frame — a killing blow
-  // overshoots, and a Medic heal is capped only after the fact — so the ratio
-  // is clamped rather than trusted.
+  // A killing blow overshoots below zero, so the ratio is clamped rather than
+  // trusted. (An earlier version of this note also blamed Medic heals for
+  // overshooting the top; that was speculative and wrong — `healedTo` clamps
+  // before writing, exactly as the AS3 does, so health never exceeds the
+  // maximum even for a frame. The upper clamp is kept as cheap insurance.)
   const fraction = Math.min(Math.max(health / maxHealth, 0), 1);
   return SHRINK_FLOOR + (1 - SHRINK_FLOOR) * fraction;
 }

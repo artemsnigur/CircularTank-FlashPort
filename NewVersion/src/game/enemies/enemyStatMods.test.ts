@@ -167,10 +167,15 @@ describe('the shared health observer', () => {
   it('is the only way the scene writes enemy health', () => {
     // The funnel is worthless if a site bypasses it, and a bypass is silent:
     // the ramp would simply not reset, and Temperamental would not rage.
+    //
+    // Five callers: four damage sources — laser, status effects, explosions,
+    // bullets — and Medic's heal, which is the one that goes *up*. The count is
+    // asserted rather than a floor so a sixth has to be considered rather than
+    // just added.
     const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
     expect(scene).not.toMatch(/enemy\.health\s*=[^=]/);
     expect(scene).not.toMatch(/enemy\.health\s*-=/);
-    expect(scene.match(/\.setHealth\(|\.takeDamage\(/g) ?? []).toHaveLength(4);
+    expect(scene.match(/\.setHealth\(|\.takeDamage\(/g) ?? []).toHaveLength(5);
   });
 });
 

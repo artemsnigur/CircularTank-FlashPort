@@ -39,6 +39,13 @@ import {
 } from '../enemies/enemyVisibility';
 import type { VisibilityState } from '../enemies/enemyVisibility';
 import {
+  createHealState,
+  healDistanceFor,
+  healsOthers,
+  tickHeal,
+} from '../enemies/enemyHealing';
+import type { HealState } from '../enemies/enemyHealing';
+import {
   acceleratesWhileUndamaged,
   acceleratingFactor,
   acceleratingSpeeds,
@@ -157,6 +164,9 @@ export class Enemy extends Phaser.GameObjects.Container {
    */
   breachedLine = false;
 
+  /** True on the frame this Medic's aura fired. Read and cleared by the scene. */
+  pulsedHeal = false;
+
   /**
    * Health changed since this enemy was last updated — **any** change.
    *
@@ -201,6 +211,10 @@ export class Enemy extends Phaser.GameObjects.Container {
   private decayRate: number | null = null;
   /** Blink/flinch state. Present only on Ghost and ScaredGhost. */
   private visibility: VisibilityState | null = null;
+  /** Medic's aura clock. Null for every other type. */
+  private healing: HealState | null = null;
+  /** Aura radius, valid only when `healing` is set. */
+  readonly healDistance: number = 0;
 
   /**
    * Mid-teleport, so untargetable — `Teleporting`, unported.
@@ -293,6 +307,10 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.rage = ragesWhenDamaged(config.type) ? createRageState() : null;
     this.visibility =
       blinksOnTimer(config.type) || hidesWhenHurt(config.type) ? createVisibilityState() : null;
+    if (healsOthers(config.type)) {
+      this.healing = createHealState();
+      this.healDistance = healDistanceFor(config.level === 'B');
+    }
     this.decayRate = decaysOverTime(config.type)
       ? decayPerFrame(
           getDifficultyProfile(config.difficulty).enemyHealth,
@@ -508,6 +526,19 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.setAlpha(this.visibility.invisible ? INVISIBLE_ALPHA : 1);
   }
 
+  /**
+   * Counts the heal aura down.
+   *
+   * Only reports *whether* it fired — the heal itself needs every other enemy,
+   * which this entity cannot see, so the scene owns that loop.
+   */
+  private tickHealAura(frames: number): boolean {
+    if (!this.healing) return false;
+    const result = tickHeal(this.healing, frames);
+    this.healing = result.state;
+    return result.pulses;
+  }
+
   private applyBodyScale(): void {
     if (!shrinksWithHealth(this.enemyType)) return;
 
@@ -606,6 +637,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.setRotation(Phaser.Math.DegToRad(this.steering.rotation));
     this.applyBodyScale();
     this.tickVisibility(frames);
+    this.pulsedHeal = this.tickHealAura(frames);
 
     // Consumed, so damage arriving before the next update is what the next
     // update sees.
