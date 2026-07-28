@@ -15,6 +15,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { bankLevelOutcome } from './levelBanking';
 import { TANK_MAX_HP } from './tankDamage';
+import { createLevelFlags } from '../achievements/achievementContext';
 import { PlayerProfile } from './playerProfile';
 import { MemoryBackend, SaveStore } from '../save/SaveStore';
 import {
@@ -62,9 +63,12 @@ describe('a real run writes', () => {
       level: 9,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
+      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
     });
 
-    expect(wrote).toBe(true);
+    expect(wrote.written).toBe(true);
     expect(savedBytes(store)).not.toBe(before);
   });
 
@@ -77,6 +81,9 @@ describe('a real run writes', () => {
       level: 9,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
+      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
     });
 
     // Re-read through a second profile over the same store: this proves the
@@ -108,9 +115,12 @@ describe('a sandbox run writes nothing', () => {
       level: 42,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
+      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
     });
 
-    expect(wrote).toBe(false);
+    expect(wrote.written).toBe(false);
     expect(savedBytes(store)).toBe(before);
   });
 
@@ -125,6 +135,9 @@ describe('a sandbox run writes nothing', () => {
       level: 3,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
+      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
     });
     const before = savedBytes(store);
     expect(before).not.toBe('');
@@ -138,6 +151,9 @@ describe('a sandbox run writes nothing', () => {
       level: 45,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
+      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
     });
 
     expect(savedBytes(store)).toBe(before);
@@ -152,6 +168,9 @@ describe('a sandbox run writes nothing', () => {
       level: 3,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
+      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
     });
 
     bankLevelOutcome(profile, {
@@ -162,6 +181,9 @@ describe('a sandbox run writes nothing', () => {
       level: 45,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
+      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
     });
 
     const reloaded = new PlayerProfile(store);
@@ -181,6 +203,9 @@ describe('a sandbox run writes nothing', () => {
       level: 3,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
+      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
     });
     const before = savedBytes(store);
 
@@ -192,6 +217,9 @@ describe('a sandbox run writes nothing', () => {
       level: 9,
       difficulty: 'Easy',
       hp: 0,
+      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
     });
 
     expect(savedBytes(store)).toBe(before);
@@ -208,6 +236,9 @@ describe('a sandbox run writes nothing', () => {
       level: 45,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
+      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
     });
 
     // Not just unpersisted — unset. Otherwise a later non-sandbox save in the
@@ -261,6 +292,9 @@ describe('an equipped dev run cannot leak into the shop', () => {
       level: 45,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
+      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
     });
 
     // Now the shop, which reads the profile and saves directly — exactly the

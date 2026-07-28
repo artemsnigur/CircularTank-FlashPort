@@ -78,6 +78,8 @@ import { Mine } from '../entities/Mine';
 import { createInitialUpgradeState, maxedUpgradeState } from '../upgrades/upgradeState';
 import type { UpgradeState } from '../upgrades/upgradeState';
 import { getPlayerProfile } from '../player/playerProfile';
+import { createLevelFlags } from '../achievements/achievementContext';
+import type { LevelAchievementFlags } from '../achievements/achievementContext';
 import type { PlayerProfile } from '../player/playerProfile';
 import {
   chooseWeapon,
@@ -120,6 +122,8 @@ import {
 } from '../player/tankDamage';
 import { tankStartPosition } from '../player/tankMovement';
 import { bankLevelOutcome } from '../player/levelBanking';
+import type { LevelBankingResult } from '../player/levelBanking';
+import { MEDAL_HP_GOLD } from '../waves/medals';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import {
   centredCameraBounds,
@@ -262,6 +266,16 @@ export class GameplayScene extends Phaser.Scene {
    * only stores the slot *contents*.
    */
   private currentSlot: 1 | 2 = 1;
+  /**
+   * The per-level achievement flags — `PartGameArea`'s `temp*` statics.
+   *
+   * Reset at level start. Three begin **true** and are cleared by doing
+   * something, so a level the player walks away from must not bank them:
+   * quitting uses `createQuitFlags`, a different starting point.
+   */
+  private levelFlags: LevelAchievementFlags = createLevelFlags();
+  /** What the last banked level earned — newly won achievements and enemies. */
+  private banking: LevelBankingResult | null = null;
   /** Which level is being played — set from LevelSelect via scene data. */
   private world = 1;
   private level = 1;
@@ -482,6 +496,9 @@ export class GameplayScene extends Phaser.Scene {
     this.pendingDeathBlasts = [];
     this.hp = TANK_MAX_HP;
     this.pushedFrames = 0;
+    // `resetTempVariables("LevelStart")` — three of these start true.
+    this.levelFlags = createLevelFlags();
+    this.banking = null;
   }
 
   create(): void {
@@ -647,6 +664,20 @@ export class GameplayScene extends Phaser.Scene {
       right: (cursors?.right.isDown ?? false) || (wasd?.D.isDown ?? false),
     };
 
+    // `:2828` — any input at all ends the Idle achievement's run. Movement,
+    // aiming and firing all count; the AS3 clears it on the same keyboard and
+    // mouse state this reads.
+    if (
+      input.up ||
+      input.down ||
+      input.left ||
+      input.right ||
+      this.firePressed ||
+      this.input.activePointer.isDown
+    ) {
+      this.levelFlags.nothingPressed = false;
+    }
+
     const aim = this.pointerWorldPoint();
 
     // On a loss the tank is gone, so it neither drives nor shoots. On a win it
@@ -699,6 +730,7 @@ export class GameplayScene extends Phaser.Scene {
       // accounting and the level-complete check all key off that one call.
       if (enemy.health <= 0) this.removeEnemy(enemy, true);
     }
+    this.trackTankReachedBottom();
     this.resolveDefenseBreaches();
     this.resolveHealAuras();
 
@@ -933,6 +965,11 @@ export class GameplayScene extends Phaser.Scene {
     if (!spec) return;
 
     this.wave = createWaveState(spec);
+    // `:305-308` — set at level start from the level's own boss count, not by
+    // watching three bosses be alive together. It is a property of the level,
+    // so a Boss level with two bosses can never earn BossOnlySpecial however it
+    // is played.
+    this.levelFlags.threeBosses = this.wave.bossAmount >= 3;
     this.spawnRng = new Phaser.Math.RandomDataGenerator([`spawn-${world}-${level}`]);
 
     console.info(
@@ -1069,6 +1106,7 @@ export class GameplayScene extends Phaser.Scene {
     tickFiring(this.firing, deltaMs);
 
     const held = this.input.activePointer.isDown || this.firePressed;
+    const before = this.firing.reloadTime;
     if (held && this.weapon && this.weaponStats) {
       const shots = fire(this.firing, this.weapon, this.weaponStats, {
         x: this.player.x,
@@ -1112,6 +1150,21 @@ export class GameplayScene extends Phaser.Scene {
           );
         }
       }
+    }
+
+    // `:3732-3739` — recorded on a shot actually leaving the barrel, which is
+    // what the reload clock moving tells us. Holding fire through a reload sets
+    // nothing, so a level spent with the button down but never able to fire
+    // still counts as no weapons used.
+    if (this.firing.reloadTime > before) {
+      if (this.weapon?.name === 'Timed Bomb Cannon') {
+        this.levelFlags.timedBombsFired = true;
+      } else {
+        this.levelFlags.otherThanTimedBombsFired = true;
+      }
+      // A *primary* ends "specials only"; a secondary above does not.
+      this.levelFlags.onlySpecialWeapons = false;
+      this.levelFlags.noWeaponsUsed = false;
     }
 
     this.advanceBullets(deltaMs);
@@ -1401,6 +1454,13 @@ export class GameplayScene extends Phaser.Scene {
       // A cake round bursts into a ring around the enemy — but only the first
       // one to reach it this frame. `:5822` folds `hitByCake` into the
       // `dead = true` condition, so a later fragment neither bursts nor dies.
+      // `:5678` — the parent cake round striking a DamageAddict, before the
+      // burst. DamageAddict is immune to damage, so this is the only trace the
+      // hit leaves.
+      if (struck.enemyType === 'DamageAddict') {
+        this.levelFlags.damageAddictEnemyCake = true;
+      }
+
       if (bullet.burstsIntoCake) {
         if (!cakedThisFrame.has(struck)) {
           cakedThisFrame.add(struck);
@@ -1505,6 +1565,11 @@ export class GameplayScene extends Phaser.Scene {
       if (placed) {
         getSoundManager(this)?.queue(this.secondary!.sound);
         this.mines.push(new Mine(this, placed));
+        // `:3984-3985`. A secondary is "other than timed bombs" and counts as a
+        // weapon used, but leaves `onlySpecialWeapons` intact — that is the
+        // whole distinction the BossOnlySpecial achievement rests on.
+        this.levelFlags.otherThanTimedBombsFired = true;
+        this.levelFlags.noWeaponsUsed = false;
       }
     }
 
@@ -1535,7 +1600,18 @@ export class GameplayScene extends Phaser.Scene {
       return false;
     });
 
+    // `:6628` — the achievement needs the *mine's* blast to be what killed a
+    // Trap, so the parentage is checked here rather than in the shared
+    // explosion path, which has no idea what spawned it.
+    const trapsBefore = new Set(
+      this.enemies.filter((e) => e.enemyType === 'Trap' && e.active),
+    );
     for (const spec of detonations) this.spawnExplosion(spec);
+    if (trapsBefore.size > 0) {
+      for (const trap of trapsBefore) {
+        if (!trap.active) this.levelFlags.trapEnemyMineKill = true;
+      }
+    }
   }
 
   /**
@@ -1599,6 +1675,22 @@ export class GameplayScene extends Phaser.Scene {
    *
    * Iterated over a copy because `removeEnemy` mutates `this.enemies`.
    */
+  /**
+   * `Tank.as:210` — the tank itself reaching the bottom of a Defense lane.
+   *
+   * Set from the tank's own position, not from an enemy crossing: the Racing
+   * achievement is "get there before any enemy does". The flag is set in any
+   * mode by the original and filtered to Defense when the achievement reads it,
+   * which is reproduced rather than tidied — a mode check here would move the
+   * condition and quietly change nothing, until someone read one of the two
+   * sites and believed it.
+   */
+  private trackTankReachedBottom(): void {
+    if (this.player.y + this.player.radius >= this.roomHeight) {
+      this.levelFlags.hitBottom = true;
+    }
+  }
+
   private resolveDefenseBreaches(): void {
     for (const enemy of [...this.enemies]) {
       if (!enemy.breachedLine) continue;
@@ -1972,7 +2064,19 @@ export class GameplayScene extends Phaser.Scene {
       // `bankLevelOutcome` so they can be tested against a real profile — the
       // scene cannot be instantiated, and a regex over this file cannot tell
       // whether the guard is actually reached.
-      bankLevelOutcome(this.profile, {
+      // `:2764-2770` — completing with any damage taken clears the four
+      // "did it cleanly" flags, so FlagNoWeapons, DefensiveBombs and
+      // BossOnlySpecial each additionally require a flawless run. A
+      // completion-time rule, so it is applied here rather than at each set
+      // site.
+      if (this.hp < MEDAL_HP_GOLD) {
+        this.levelFlags.noWeaponsUsed = false;
+        this.levelFlags.timedBombsFired = false;
+        this.levelFlags.otherThanTimedBombsFired = false;
+        this.levelFlags.onlySpecialWeapons = false;
+      }
+
+      this.banking = bankLevelOutcome(this.profile, {
         sandbox: this.sandbox,
         upgrades: this.upgrades,
         currency: this.currency,
@@ -1982,6 +2086,16 @@ export class GameplayScene extends Phaser.Scene {
         // The medal count comes from remaining HP, and a loss ends at 0 — so
         // the win/lose result is derived there rather than passed alongside.
         hp: this.hp,
+        levelRecord: {
+          mode: this.levelSpec?.mode ?? 'Normal',
+          // `PartGameArea.levelDone` — the level reached its end, however it
+          // went. Quitting never reaches this block.
+          completed: true,
+          flags: this.levelFlags,
+        },
+        kills: this.kills,
+        // The level's takings, not the running balance — see the field's note.
+        earned: this.currency - this.openingBalance,
       });
     }
 
@@ -1998,6 +2112,11 @@ export class GameplayScene extends Phaser.Scene {
         // check this replaced did not — see levelProgress.ts.
         nextLevel:
           this.outcome.result === 'won' ? nextLevelAfter(this.world, this.level) : null,
+        // The reveal pages. Empty on a sandbox run and on a loss, which is what
+        // `bankLevelOutcome` returns in both cases.
+        medals: this.banking?.medals ?? 0,
+        newAchievements: this.banking?.newAchievements ?? [],
+        newEnemies: this.banking?.newEnemies ?? [],
       });
       // Stop simulating; the result overlay owns the screen from here.
       this.scene.pause();
@@ -2167,11 +2286,14 @@ export class GameplayScene extends Phaser.Scene {
     // `:5981`). It is scaled by the enemy's own Poison resistance, and an
     // immune enemy takes none — applyPoison refuses outright.
     if (bullet.appliesPoison) {
-      applyPoison(
+      const poisoned = applyPoison(
         enemy.status,
         { poisonTime: bullet.poisonTime, poisonDamage: bullet.poisonDamage },
         enemy.damageMultipliers.Poison,
       );
+      // `:6364` — the flag is set where the poison lands, so an immune enemy
+      // that `applyPoison` refuses does not count.
+      if (poisoned && enemy.enemyType === 'Medic') this.levelFlags.doctorPoisoned = true;
     }
 
     // The Cannon's plain `Bullet` is untyped, so this is a no-op multiplier
@@ -2334,21 +2456,16 @@ export class GameplayScene extends Phaser.Scene {
     // updates from this, with no polling and no shared mutable object.
     GameEvents.emit('currency:earned', { amount: pickup.value, total: this.currency });
 
-    const remaining = this.pickups.countActive(true);
-
-    if (this.currency >= PICKUP_VALUE * 3) {
-      GameEvents.emit('achievement:unlocked', {
-        id: 'first-coins',
-        title: 'Pocket Change',
-      });
-    }
-
-    if (remaining === 0) {
-      GameEvents.emit('achievement:unlocked', {
-        id: 'clear-board',
-        title: 'Swept the Field',
-      });
-    }
+    // Two invented achievements used to fire from here — `first-coins`
+    // ("Pocket Change") and `clear-board` ("Swept the Field") — keyed off the
+    // decorative placeholder coins. Neither is one of the 36 in
+    // `achievementData.ts`; they were demo scaffolding for the toast channel,
+    // and the toast has shown fabricated achievements ever since. Same
+    // treatment as the five invented `SPECIAL_MECHANICS` entries: removed
+    // rather than renamed, because there is nothing behind them to keep.
+    //
+    // Real achievements are evaluated once at level end and announced from
+    // `level:ended`.
   }
 
   private updateHud(delta: number): void {

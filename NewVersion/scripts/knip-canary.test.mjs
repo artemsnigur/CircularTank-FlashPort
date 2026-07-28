@@ -42,13 +42,18 @@ import { execFileSync } from 'node:child_process';
  * wired into `PlayerProfile.recordLevel`: the canary fired on the commit that
  * wired it, which is the mechanism behaving correctly. `isEnemyKnown` and its
  * neighbours go the same way when the bestiary screen lands.
+ *
+ * `countMaxedPrimary` and `getAchievementTiers` went the same way when
+ * `achievementContext` gave the 36 achievements a value source — both fired on
+ * that commit, both were genuinely wired, and both were replaced here rather
+ * than excused. `countOwned` and `hintsCompleted` are their successors.
  */
 const CANARIES = [
-  'countMaxedPrimary',
+  'countOwned',
   'bombFuseRemaining',
   'applyFreeze',
   'isEnemyKnown',
-  'getAchievementTiers',
+  'hintsCompleted',
   'getTotalValues',
 ];
 

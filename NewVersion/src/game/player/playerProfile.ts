@@ -33,6 +33,9 @@ import type { UpgradeState } from '../upgrades/upgradeState';
 import type { LoadoutState } from '../loadout/loadout';
 import { nextLevelAfter, recordLevelResult } from '../levels/levelProgress';
 import { discoverEnemies } from '../enemies/enemyKnowledge';
+import { updateAchievements } from '../achievements/achievementState';
+import type { AchievementValueSource } from '../achievements/achievementState';
+import type { AchievementSaveData } from '../achievements/achievementSave';
 import { isHintDone, markHintDone } from '../onboarding/mainFlags';
 import type { MainFlags, UiHintId } from '../onboarding/mainFlags';
 import type { TutorialState } from '../tutorial/tutorialState';
@@ -98,6 +101,36 @@ export class PlayerProfile {
 
   get progress(): ProgressTable {
     return this.data.levelSelect.progress;
+  }
+
+  get achievements(): AchievementSaveData {
+    return this.data.achievements;
+  }
+
+  /**
+   * Banks a level's kills and takings into the running totals, then evaluates.
+   *
+   * ── Level end, not per kill ───────────────────────────────────────────────
+   * `PartGameArea.moveTempVariablesWhenCompleted` (`:216-219`) adds the level's
+   * accumulators once, when it finishes. Incrementing per kill would look
+   * equivalent and is not: a level abandoned partway would keep its kills, and
+   * the Kills achievements would count runs the player walked out of.
+   *
+   * Returns the ids newly earned, for the reveal pages.
+   */
+  recordAchievements(
+    totalsDelta: { enemyKills: number; moneyEarned: number },
+    getValue: AchievementValueSource,
+    difficulty: Difficulty,
+  ): string[] {
+    const totals = {
+      enemyKills: this.data.achievements.totals.enemyKills + totalsDelta.enemyKills,
+      moneyEarned: this.data.achievements.totals.moneyEarned + totalsDelta.moneyEarned,
+    };
+
+    const result = updateAchievements(this.data.achievements.states, getValue, difficulty);
+    this.data = { ...this.data, achievements: { states: result.states, totals } };
+    return result.newlyEarned;
   }
 
   get mainFlags(): MainFlags {

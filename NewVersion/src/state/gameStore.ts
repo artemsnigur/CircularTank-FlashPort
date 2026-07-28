@@ -48,6 +48,11 @@ export interface LevelOutcomeSummary {
   currency: number;
   /** Coordinates of the level to offer next, or null when there is none. */
   nextLevel: LevelRef | null;
+  /** Medals awarded, 0-3. */
+  medals: number;
+  /** Achievement ids newly earned, and enemy names newly discovered. */
+  newAchievements: string[];
+  newEnemies: string[];
 }
 
 /** The bestiary as the screen renders it. */

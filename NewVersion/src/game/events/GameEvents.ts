@@ -134,6 +134,18 @@ export interface GameEventMap {
      * locked and offering to start it would bypass the rule.
      */
     nextLevel: LevelRef | null;
+    /** Medals awarded, 0-3 — see `waves/medals.ts`. */
+    medals: number;
+    /**
+     * Achievement ids newly earned, and enemy display names newly discovered.
+     *
+     * `ScreenStatus.as:405-429` appends one page per entry, achievements first
+     * then enemies, and shows them newest-first. Both are empty on a sandbox
+     * run; enemies are additionally empty on a loss, because discovery is gated
+     * on `hp > 0`.
+     */
+    newAchievements: string[];
+    newEnemies: string[];
   };
 
   /* ── Diagnostics ─────────────────────────────────────────────────────── */

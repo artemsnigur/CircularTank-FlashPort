@@ -22,6 +22,11 @@
 import type { Difficulty } from '../config/constants';
 import type { UpgradeState } from '../upgrades/upgradeState';
 import { medalsForHp } from '../waves/medals';
+import { achievementValueSource } from '../achievements/achievementContext';
+import type { LevelRecord } from '../achievements/achievementContext';
+import type { AchievementValueSource } from '../achievements/achievementState';
+import type { AchievementSaveData } from '../achievements/achievementSave';
+import type { ProgressTable } from '../levels/levelProgress';
 
 /**
  * The slice of `PlayerProfile` this needs.
@@ -37,7 +42,15 @@ export interface BankingTarget {
     difficulty: Difficulty,
     value: number,
     won: boolean,
-  ): void;
+  ): string[];
+  recordAchievements(
+    totalsDelta: { enemyKills: number; moneyEarned: number },
+    getValue: AchievementValueSource,
+    difficulty: Difficulty,
+  ): string[];
+  readonly achievements: AchievementSaveData;
+  readonly upgrades: UpgradeState;
+  readonly progress: ProgressTable;
   save(): void;
 }
 
@@ -64,6 +77,29 @@ export interface LevelBankingInput {
    * rather than passed alongside.
    */
   hp: number;
+  /** The level's mode and one-shot flags, for the nine Boolean achievements. */
+  levelRecord: LevelRecord;
+  /** Enemies killed this level — `PartGameArea.tempEnemyKills`. */
+  kills: number;
+  /**
+   * Takings *this level*, not the running balance.
+   *
+   * `moveTempVariablesWhenCompleted` adds `ScreenGame.money`, which the AS3
+   * resets per level; `currency` above is the whole balance, so the two are
+   * different numbers and passing `currency` here would inflate the Money
+   * achievements by the opening balance on every level.
+   */
+  earned: number;
+}
+
+/** What a banked level reports back, for the results pages. */
+export interface LevelBankingResult {
+  written: boolean;
+  /** Achievement ids newly earned — `newAchievementsArray`. */
+  newAchievements: string[];
+  /** Enemy display names newly discovered — `newEnemiesArray`. */
+  newEnemies: string[];
+  medals: number;
 }
 
 /**
@@ -72,8 +108,17 @@ export interface LevelBankingInput {
  * Returns whether anything was written, so the caller can log or assert on it
  * rather than inferring from side effects.
  */
-export function bankLevelOutcome(profile: BankingTarget, input: LevelBankingInput): boolean {
-  if (input.sandbox) return false;
+export function bankLevelOutcome(
+  profile: BankingTarget,
+  input: LevelBankingInput,
+): LevelBankingResult {
+  const nothing: LevelBankingResult = {
+    written: false,
+    newAchievements: [],
+    newEnemies: [],
+    medals: 0,
+  };
+  if (input.sandbox) return nothing;
 
   profile.setUpgrades({ ...input.upgrades, money: input.currency });
 
@@ -97,7 +142,28 @@ export function bankLevelOutcome(profile: BankingTarget, input: LevelBankingInpu
   // passed in beside it.
   const won = medals > 0;
 
-  profile.recordLevel(input.world, input.level, input.difficulty, medals, won);
+  const newEnemies = profile.recordLevel(
+    input.world,
+    input.level,
+    input.difficulty,
+    medals,
+    won,
+  );
+
+  // After `recordLevel`, deliberately: the medal-total achievements read the
+  // progress table, so evaluating first would measure the player one level
+  // behind and award Stars3 a level late.
+  const newAchievements = profile.recordAchievements(
+    { enemyKills: input.kills, moneyEarned: input.earned },
+    achievementValueSource({
+      totals: profile.achievements.totals,
+      upgrades: profile.upgrades,
+      progress: profile.progress,
+      level: input.levelRecord,
+    }),
+    input.difficulty,
+  );
+
   profile.save();
-  return true;
+  return { written: true, newAchievements, newEnemies, medals };
 }

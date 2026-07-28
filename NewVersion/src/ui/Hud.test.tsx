@@ -177,6 +177,9 @@ describe('Hud', () => {
         kills: 12,
         currency: 240,
         nextLevel: { world: 1, level: 4 },
+        medals: 3,
+        newAchievements: [],
+        newEnemies: [],
       });
     });
     rerender(<Hud />);
@@ -199,6 +202,9 @@ describe('Hud', () => {
         kills: 5,
         currency: 100,
         nextLevel: { world: 1, level: 4 },
+        medals: 3,
+        newAchievements: [],
+        newEnemies: [],
       });
     });
     rerender(<Hud />);
@@ -222,6 +228,9 @@ describe('Hud', () => {
         kills: 5,
         currency: 100,
         nextLevel: null,
+        medals: 3,
+        newAchievements: [],
+        newEnemies: [],
       });
     });
     rerender(<Hud />);
@@ -247,6 +256,9 @@ describe('Hud', () => {
         kills: 9,
         currency: 300,
         nextLevel: { world: 2, level: 1 },
+        medals: 3,
+        newAchievements: [],
+        newEnemies: [],
       });
     });
     rerender(<Hud />);
@@ -269,6 +281,9 @@ describe('Hud', () => {
         kills: 2,
         currency: 10,
         nextLevel: null,
+        medals: 3,
+        newAchievements: [],
+        newEnemies: [],
       });
     });
     rerender(<Hud />);

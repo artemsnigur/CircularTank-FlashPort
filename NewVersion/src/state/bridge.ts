@@ -12,6 +12,7 @@
 import { GameEvents } from '../game/events/GameEvents';
 import type { GameEventHandler, GameEventName } from '../game/events/GameEvents';
 import { useGameStore } from './gameStore';
+import { getAchievement } from '../game/achievements/achievementState';
 
 let detach: (() => void) | null = null;
 
@@ -100,6 +101,13 @@ export function attachStoreBridge(): () => void {
 
   on('level:ended', (summary) => {
     store.getState().endLevel(summary);
+
+    // Real achievements, announced once at level end. The toast used to carry
+    // two invented ids fired from the coin pickup path; see GameplayScene.
+    for (const id of summary.newAchievements) {
+      const spec = getAchievement(id);
+      if (spec) store.getState().pushAchievement({ id, title: spec.title, at: Date.now() });
+    }
   });
 
   on('wave:changed', ({ wave, enemiesRemaining, mode, flagsRemaining }) => {
