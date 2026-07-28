@@ -25,15 +25,18 @@ import { findUpgradeById } from './upgradeState';
 import { SECONDARY_WEAPONS } from '../weapons/secondaries';
 import { PRIMARY_WEAPONS } from '../weapons/firing';
 
-describe('the two money sinks are gone', () => {
-  it.each(['BulletReflect', 'KillReload'])('%s is not purchasable', (id) => {
-    expect(isPurchasable(findUpgradeById(id)!)).toBe(false);
+describe('the money sinks', () => {
+  it('KillReload is still not purchasable', () => {
+    expect(isPurchasable(findUpgradeById('KillReload')!)).toBe(false);
+    expect(purchasableUpgrades().map((u) => u.id)).not.toContain('KillReload');
   });
 
-  it('neither appears in the catalogue', () => {
-    const ids = purchasableUpgrades().map((u) => u.id);
-    expect(ids).not.toContain('BulletReflect');
-    expect(ids).not.toContain('KillReload');
+  it('BulletReflect is sold now that it has a reader', () => {
+    // It came off the withheld list when Shield shipped: `:1557` is one
+    // condition covering the shield and the upgrade, so porting one ported the
+    // other's only read site. This is the inverse test below firing for real.
+    expect(isPurchasable(findUpgradeById('BulletReflect')!)).toBe(true);
+    expect(purchasableUpgrades().map((u) => u.id)).toContain('BulletReflect');
   });
 
   it('together they were worth about 135,000 coins', () => {
@@ -93,6 +96,7 @@ describe('every misc upgrade sold has a real reader', () => {
   const readSites: Record<string, string> = {
     Speed: 'src/game/player/tankMovement.ts',
     EnemyAbsorb: 'src/game/player/tankDamage.ts',
+    BulletReflect: 'src/game/weapons/shield.ts',
   };
 
   it.each(Object.keys(MISC_WITH_EFFECT))('%s is read at runtime', (id) => {
@@ -106,8 +110,9 @@ describe('every misc upgrade sold has a real reader', () => {
   });
 
   it('withheld misc upgrades are absent from those files', () => {
-    // The inverse, which is the half that would have caught the original bug:
-    // if BulletReflect ever gains a reader, this fails and tells us to sell it.
+    // The inverse, which is the half that caught this for real: BulletReflect
+    // gained a reader when Shield landed, this failed, and it was sold rather
+    // than left shelved. KillReload is the one still waiting.
     const sources = Object.values(readSites).map((p) => readFileSync(p, 'utf8'));
     for (const id of Object.keys(MISC_WITHOUT_EFFECT)) {
       for (const source of sources) {
@@ -139,10 +144,11 @@ describe('the catalogue and the withheld list partition the table', () => {
     for (const spec of withheldUpgrades()) expect(sold.has(spec.id)).toBe(false);
   });
 
-  it('withholds 12 of 28 today — 10 secondaries and 2 misc', () => {
+  it('withholds 11 of 28 today — 10 secondaries and 1 misc', () => {
     // The exact figure, so a change to what the shop sells is visible in a diff
-    // rather than discovered in play. Was 13; Shield came off when it landed.
-    expect(withheldUpgrades()).toHaveLength(12);
-    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 12);
+    // rather than discovered in play. Was 13: Shield came off when it landed,
+    // and BulletReflect came off with it.
+    expect(withheldUpgrades()).toHaveLength(11);
+    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 11);
   });
 });

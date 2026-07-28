@@ -2,10 +2,16 @@
  * Which upgrades the shop may sell — i.e. which ones actually do something.
  *
  * The audit found the store lying in two ways. `BulletReflect` and `KillReload`
- * are buyable to level 10 for ~135,000 coins combined and have **no runtime read
- * site at all**. Eleven of the twelve secondaries are buyable — `Shield` alone
- * costs up to 12,500 — while `SECONDARY_WEAPONS` contains only `Mine`, so the
- * purchase resolves to `undefined` and the HUD shows `'—'`.
+ * were buyable to level 10 for ~135,000 coins combined with **no runtime read
+ * site at all**. Eleven of the twelve secondaries were buyable — `Shield` alone
+ * costs up to 12,500 — while `SECONDARY_WEAPONS` contained only `Mine`, so the
+ * purchase resolved to `undefined` and the HUD showed `'—'`.
+ *
+ * Both have since shrunk. `Shield` shipped and appeared on its own, because
+ * sellability is derived. `BulletReflect` shipped **with** it: `:1557` is one
+ * condition covering the shield and the upgrade, so porting one ported the
+ * other's only reader. Neither needed an edit to the withheld list beyond
+ * deleting a line.
  *
  * Money is the scarcest thing in the game and it is not refundable. Selling a
  * weapon that cannot fire is worse than not offering it.
@@ -37,6 +43,10 @@ export const MISC_WITH_EFFECT: Readonly<Record<string, string>> = {
   Speed: 'player/tankMovement.ts absorptionless speed tracks',
   // `absorptionMultiplier` reads track 0 on every contact hit.
   EnemyAbsorb: 'player/tankDamage.ts contact-damage absorption',
+  // `bulletReflectChance` reads track 0 on every enemy bullet that reaches the
+  // tank. Shipped with the Shield secondary: `:1557` is one condition covering
+  // both, so porting Shield ported this upgrade's only reader too.
+  BulletReflect: 'weapons/shield.ts bulletReflectChance, the no-shield roll',
 };
 
 /**
@@ -47,7 +57,6 @@ export const MISC_WITH_EFFECT: Readonly<Record<string, string>> = {
  * test instead of silently defaulting to hidden.
  */
 export const MISC_WITHOUT_EFFECT: Readonly<Record<string, string>> = {
-  BulletReflect: 'bullet reflection is unported — see enemyFiring.ts',
   KillReload: 'no reader; the reload-on-kill rule is unported',
 };
 
