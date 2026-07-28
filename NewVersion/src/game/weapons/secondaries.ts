@@ -37,7 +37,6 @@
 import type { UpgradeState } from '../upgrades/upgradeState';
 import { findUpgradeById, getStatValue } from '../upgrades/upgradeState';
 import type { ExplosionSpec } from './explosions';
-import type { FiringState } from './firing';
 
 /**
  * How a secondary reads its stats and announces itself.
@@ -375,19 +374,18 @@ export interface MineState {
 export const MINE_TRIGGER_RADIUS = 12;
 
 /**
- * Places a mine if the secondary is off cooldown, or returns null.
+ * Builds the mine a placement produces.
  *
- * Mirrors `fire()` in firing.ts, including `+=` on the reload rather than `=`.
+ * The cooldown gate used to live here, mirroring `fire()`. It moved up to
+ * `GameplayScene.updateSecondary` when Rockets arrived: `:3979-3986` gates once
+ * above the weapon dispatch, and a weapon that *declines* — Rockets, when
+ * nothing is targetable — still has to have burnt the achievement flags. A
+ * per-weapon gate cannot express that.
  */
 export function placeMine(
-  state: FiringState,
   stats: SecondaryStats,
   position: { x: number; y: number },
-): MineState | null {
-  if (state.reloadTime > 0) return null;
-
-  state.reloadTime += stats.reloadTimeMax;
-
+): MineState {
   return {
     x: position.x,
     y: position.y,

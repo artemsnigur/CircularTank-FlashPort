@@ -1614,9 +1614,8 @@ export class GameplayScene extends Phaser.Scene {
    * which is what the achievement flags key off.
    */
   private raiseShield(): boolean {
-    if (this.secondaryFiring.reloadTime > 0 || !this.secondaryStats) return false;
+    if (!this.secondaryStats) return false;
 
-    this.secondaryFiring.reloadTime += this.secondaryStats.reloadTimeMax;
     this.shield = raiseShield(this.secondaryStats.duration);
     return this.shield.on;
   }
@@ -1629,12 +1628,10 @@ export class GameplayScene extends Phaser.Scene {
    * AS3's camera correction has no counterpart here.
    */
   private throwGrenade(): boolean {
-    if (this.secondaryFiring.reloadTime > 0 || !this.secondaryStats) return false;
+    if (!this.secondaryStats) return false;
 
     const aim = this.pointerWorldPoint();
     if (!aim) return false;
-
-    this.secondaryFiring.reloadTime += this.secondaryStats.reloadTimeMax;
 
     const state = throwGrenade({
       tankX: this.player.x,
@@ -1744,11 +1741,9 @@ export class GameplayScene extends Phaser.Scene {
    * the count is the entire mechanic.
    */
   private fireChainRound(): boolean {
-    if (this.secondaryFiring.reloadTime > 0 || !this.secondaryStats) return false;
+    if (!this.secondaryStats) return false;
 
     const stats = this.secondaryStats;
-    this.secondaryFiring.reloadTime += stats.reloadTimeMax;
-
     const heading = (this.player.towerRotationDegrees * Math.PI) / 180;
     const offset = CHAIN_MUZZLE_OFFSET + CHAIN_RADIUS;
 
@@ -1791,11 +1786,9 @@ export class GameplayScene extends Phaser.Scene {
    * thing the fan adds is where they start and which way they point.
    */
   private fireSpikes(): boolean {
-    if (this.secondaryFiring.reloadTime > 0 || !this.secondaryStats) return false;
+    if (!this.secondaryStats) return false;
 
     const stats = this.secondaryStats;
-    this.secondaryFiring.reloadTime += stats.reloadTimeMax;
-
     // Icicles carry a freeze, Poison Spikes a poison; the spec's tracks decide
     // which, so the fan needs no branch of its own.
     const freezing = this.secondary?.upgradeId === 'Icicles';
@@ -1825,13 +1818,11 @@ export class GameplayScene extends Phaser.Scene {
   }
 
   private placeMine(): boolean {
-    const placed = placeMine(this.secondaryFiring, this.secondaryStats!, {
-      x: this.player.x,
-      y: this.player.y,
-    });
-    if (!placed) return false;
+    if (!this.secondaryStats) return false;
 
-    this.mines.push(new Mine(this, placed));
+    this.mines.push(
+      new Mine(this, placeMine(this.secondaryStats, { x: this.player.x, y: this.player.y })),
+    );
     return true;
   }
 
@@ -1870,16 +1861,28 @@ export class GameplayScene extends Phaser.Scene {
     this.updateShieldSprite();
     this.updateGrenades(deltaMs);
 
+    // `:3979-3986` — the cooldown gate and the achievement flags sit *above* the
+    // weapon dispatch, so a press that passes the gate counts as a weapon use
+    // whatever the weapon then decides to do. Only the sound is per-weapon.
+    //
+    // The port used to gate inside each spawn method and set the flags on
+    // success. Identical while every secondary always spawns — which was true
+    // until Rockets, which declines when nothing on screen is targetable and
+    // still burns `noWeaponsUsed` in the original.
     if (this.secondaryPressed && this.secondaryStats && this.secondary) {
-      const used = this.useSecondary(this.secondary.kind);
-
-      if (used) {
-        getSoundManager(this)?.queue(this.secondary.sound);
-        // `:3984-3985`. A secondary is "other than timed bombs" and counts as a
-        // weapon used, but leaves `onlySpecialWeapons` intact — that is the
-        // whole distinction the BossOnlySpecial achievement rests on.
+      if (this.secondaryFiring.reloadTime <= 0) {
+        this.secondaryFiring.reloadTime += this.secondaryStats.reloadTimeMax;
         this.levelFlags.otherThanTimedBombsFired = true;
         this.levelFlags.noWeaponsUsed = false;
+
+        // The weapon decides only whether it spawns. Returning false refunds
+        // the cooldown — `:4169` sets `reloadTimeSecondary = 0`, which is
+        // exactly a refund because the gate above guarantees it was zero.
+        if (this.useSecondary(this.secondary.kind)) {
+          getSoundManager(this)?.queue(this.secondary.sound);
+        } else {
+          this.secondaryFiring.reloadTime = 0;
+        }
       }
     }
 

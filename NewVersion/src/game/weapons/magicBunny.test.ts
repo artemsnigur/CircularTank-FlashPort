@@ -185,3 +185,72 @@ describe('secondaries dispatch on a declared kind', () => {
     expect(SCENE).not.toContain("this.secondary?.name === 'Shield'");
   });
 });
+
+/**
+ * The gate and the achievement flags sit above the dispatch — `:3979-3986`.
+ *
+ * Moved there ahead of Rockets, which is the first secondary that can decline a
+ * press *after* the gate has already counted it. A regression here would be
+ * silent and would touch every secondary, so it is pinned per kind.
+ */
+describe('one cooldown gate, above the dispatch', () => {
+  const method = (name: string, next: string): string => {
+    const start = SCENE.indexOf(`private ${name}(`);
+    expect(start, name).toBeGreaterThan(-1);
+    return SCENE.slice(start, SCENE.indexOf(`private ${next}(`, start));
+  };
+
+  it('gates once, before the weapon runs', () => {
+    expect(SCENE).toContain('if (this.secondaryFiring.reloadTime <= 0) {');
+    const gate = SCENE.indexOf('this.secondaryFiring.reloadTime += this.secondaryStats.reloadTimeMax;');
+    const dispatch = SCENE.indexOf('this.useSecondary(this.secondary.kind)');
+
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(dispatch);
+  });
+
+  it('sets the flags before the weapon can decline', () => {
+    // The AS3 sets them at `:3984-3985`, above the dispatch, so a refused press
+    // still burns `noWeaponsUsed`. Setting them on success would be a silent
+    // divergence the moment a weapon declines.
+    const flags = SCENE.indexOf('this.levelFlags.noWeaponsUsed = false;');
+    const dispatch = SCENE.indexOf('this.useSecondary(this.secondary.kind)');
+
+    expect(flags).toBeLessThan(dispatch);
+  });
+
+  it('refunds the cooldown when the weapon declines', () => {
+    // `:4169` sets `reloadTimeSecondary = 0`, which is exactly a refund because
+    // the gate guarantees it was zero before the `+=`.
+    expect(SCENE).toContain('this.secondaryFiring.reloadTime = 0;');
+  });
+
+  it('plays the sound only when something actually spawned', () => {
+    // `push("Rockets")` is inside `if (rocketCount > 0)`, unlike the flags.
+    expect(SCENE).toContain('getSoundManager(this)?.queue(this.secondary.sound);');
+  });
+
+  it('no shipped kind holds its own gate any more', () => {
+    // The regression that would be silent and wide: one weapon keeping a
+    // private check would double-charge or block itself.
+    const bodies: Array<[string, string]> = [
+      ['raiseShield', 'throwGrenade'],
+      ['throwGrenade', 'updateGrenades'],
+      ['useSecondary', 'fireChainRound'],
+      ['fireChainRound', 'fireSpikes'],
+      ['fireSpikes', 'placeMine'],
+    ];
+
+    for (const [name, next] of bodies) {
+      expect(method(name, next), name).not.toContain('reloadTime');
+    }
+  });
+
+  it('and neither does the mine helper it used to live in', () => {
+    const source = readFileSync('src/game/weapons/secondaries.ts', 'utf8');
+    const start = source.indexOf('export function placeMine(');
+    expect(source.slice(start, source.indexOf('export function sweepMines(', start))).not.toContain(
+      'reloadTime',
+    );
+  });
+});

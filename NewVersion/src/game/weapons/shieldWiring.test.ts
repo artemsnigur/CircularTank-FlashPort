@@ -211,11 +211,17 @@ describe('the window is scene state, reset per level', () => {
   });
 
   it('shares the secondary cooldown rather than inventing a gate', () => {
-    const raise = SCENE.slice(SCENE.indexOf('private raiseShield()'));
-    expect(raise.slice(0, raise.indexOf('}'))).toContain(
-      'if (this.secondaryFiring.reloadTime > 0',
+    // The gate moved above the dispatch when Rockets needed a weapon that can
+    // decline after being counted, so Shield no longer holds one — which is the
+    // point: there is exactly one gate and every secondary passes through it.
+    const start = SCENE.indexOf('private raiseShield()');
+    const raise = SCENE.slice(start, SCENE.indexOf('private throwGrenade()', start));
+    expect(raise).not.toContain('reloadTime');
+
+    expect(SCENE).toContain('if (this.secondaryFiring.reloadTime <= 0) {');
+    expect(SCENE).toContain(
+      'this.secondaryFiring.reloadTime += this.secondaryStats.reloadTimeMax;',
     );
-    expect(raise).toContain('this.secondaryFiring.reloadTime += this.secondaryStats.reloadTimeMax;');
   });
 
   it('the sprite fades with the window', () => {

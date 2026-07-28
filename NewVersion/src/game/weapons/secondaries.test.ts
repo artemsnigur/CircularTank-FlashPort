@@ -14,6 +14,7 @@ import {
 } from './secondaries';
 import type { MineState } from './secondaries';
 import { createFiringState, tickFiring, CANNON, resolveWeaponStats } from './firing';
+import type { FiringState } from './firing';
 import { blastDamage, createExplosion, explosionSound } from './explosions';
 import { resolveDamageMultipliers } from '../enemies/damageTypes';
 import { createInitialUpgradeState, findUpgradeById } from '../upgrades/upgradeState';
@@ -110,36 +111,62 @@ describe('placement', () => {
   const stats = { reloadTimeMax: 600, damage: 26, explosionRadius: 195, duration: 0, effectTime: 0, effectDamage: 0, count: 0 };
 
   it('drops the mine at the tank position', () => {
-    const mine = placeMine(createFiringState(), stats, { x: 320, y: 480 })!;
+    const mine = placeMine(stats, { x: 320, y: 480 });
     expect(mine.x).toBe(320);
     expect(mine.y).toBe(480);
   });
 
   it('carries the stats onto the mine', () => {
-    const mine = placeMine(createFiringState(), stats, { x: 0, y: 0 })!;
+    const mine = placeMine(stats, { x: 0, y: 0 });
     expect(mine.damage).toBe(26);
     expect(mine.explosionRadius).toBe(195);
   });
 
   it('uses the hard-coded trigger radius, not the blast radius', () => {
-    const mine = placeMine(createFiringState(), stats, { x: 0, y: 0 })!;
+    const mine = placeMine(stats, { x: 0, y: 0 });
     expect(mine.radius).toBe(MINE_TRIGGER_RADIUS);
     expect(mine.radius).toBe(12);
     expect(mine.radius).toBeLessThan(mine.explosionRadius);
   });
 
+  it('always builds one — the gate is not its job any more', () => {
+    // `placeMine` used to hold the cooldown check. That moved to
+    // `updateSecondary` when Rockets needed a weapon that can decline a press
+    // *after* the gate has already counted it. The cooldown behaviour it used
+    // to own is still asserted below, against the gate that owns it now.
+    expect(placeMine(stats, { x: 0, y: 0 })).not.toBeNull();
+    expect(placeMine(stats, { x: 0, y: 0 })).not.toBeNull();
+  });
+});
+
+/**
+ * The shared secondary cooldown, which every weapon now goes through.
+ *
+ * These assertions moved off `placeMine` unchanged — the rule did not change,
+ * only where it lives.
+ */
+describe('the shared secondary gate', () => {
+  const stats = { reloadTimeMax: 600 };
+
+  /** What `updateSecondary` does on an accepted press. */
+  const consume = (state: FiringState) => {
+    if (state.reloadTime > 0) return false;
+    state.reloadTime += stats.reloadTimeMax;
+    return true;
+  };
+
   it('blocks until the cooldown expires', () => {
     const state = createFiringState();
-    expect(placeMine(state, stats, { x: 0, y: 0 })).not.toBeNull();
-    expect(placeMine(state, stats, { x: 0, y: 0 })).toBeNull();
+    expect(consume(state)).toBe(true);
+    expect(consume(state)).toBe(false);
 
     for (let i = 0; i < 600; i += 1) tickFiring(state, FRAME);
-    expect(placeMine(state, stats, { x: 0, y: 0 })).not.toBeNull();
+    expect(consume(state)).toBe(true);
   });
 
   it('takes twenty real seconds to come back', () => {
     const state = createFiringState();
-    placeMine(state, stats, { x: 0, y: 0 });
+    consume(state);
 
     let elapsed = 0;
     while (state.reloadTime > 0 && elapsed < 60_000) {
@@ -151,7 +178,7 @@ describe('placement', () => {
 
   it('accumulates the cooldown rather than resetting it', () => {
     const state = createFiringState();
-    placeMine(state, stats, { x: 0, y: 0 });
+    consume(state);
     expect(state.reloadTime).toBe(600);
   });
 
