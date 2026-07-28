@@ -167,19 +167,15 @@ export function applyBomb(state: StatusState, source: BombSource): boolean {
  * reset rather than a comparison.
  */
 /**
- * **Tower mode requires one extra step here when this is wired.**
+ * ── The Tower ramp reset lives in `Enemy.freeze`, not here ────────────────
+ * `PartGameArea.as:5864`, `:6228` and `:6572` each set `accSpeed = 0` under
+ * `levelMode == "Tower"`, immediately after their `frozen = true`. That needs
+ * the *enemy*, not the status record, so it cannot live in this function —
+ * `Enemy.freeze` wraps both and is the only thing gameplay calls.
  *
- * `PartGameArea.as:5862` sets `theEnemy.accSpeed = 0` on freeze in Tower —
- * deliberately zero, not the stat value a spawn restores. Tower enemies build
- * acceleration for the whole level (`enemySteering.towerAccSpeed`), and
- * freezing undoes that build-up rather than pausing it, which is most of why
- * ice is worth using there. Without it, ice would only stall an enemy and it
- * would resume at full spiral speed.
- *
- * `Enemy.resetTowerRamp` restores the stat value and is the spawn path; the
- * freeze path needs a zeroing equivalent. It is not implemented as a method
- * today because nothing freezes — there is no Ice damage source yet — and an
- * unreachable class method is invisible debt rather than visible debt.
+ * This note used to say the step was unimplemented because nothing froze yet.
+ * Something does now, and it is implemented; the pointer is kept because the
+ * split is not obvious from either side alone.
  */
 export function applyFreeze(
   state: StatusState,

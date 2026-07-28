@@ -285,7 +285,7 @@ describe('each flag is set somewhere in gameplay', () => {
     // mysteriously unearned. The Ice Grenade is the source that closed it — a
     // missing damage source, exactly as the note predicted, not a missing
     // subsystem.
-    expect(SCENE).toContain('applyFreeze(');
+    expect(SCENE).toContain('enemy.freeze(');
     expect(SCENE).toContain(
       "if (enemy.enemyType === 'Temperamental') this.levelFlags.temperamentalFrozen = true;",
     );

@@ -130,7 +130,9 @@ describe('the blast carries the payload', () => {
     // `:6484`/`:6607` — the status lands first, so an enemy killed by the blast
     // still spent a frame affected.
     const body = SCENE.slice(SCENE.indexOf('private applyBlastStatus('));
-    expect(body).toContain('applyFreeze(');
+    // Freeze goes through `Enemy.freeze`, which also zeroes the Tower ramp;
+    // poison has no such companion so it calls the status function directly.
+    expect(body).toContain('enemy.freeze(');
     expect(body).toContain('applyPoison(');
 
     const loop = SCENE.slice(SCENE.indexOf('for (const enemy of caught) {'));

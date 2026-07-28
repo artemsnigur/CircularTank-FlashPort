@@ -82,7 +82,7 @@ import { aimPoint } from '../enemies/enemyAim';
 import type { AimTank } from '../enemies/enemyAim';
 import type { AcceleratingState, RageState, RampedSpeeds } from '../enemies/enemyStatMods';
 import type { DamageMultipliers, ImpactFeedback } from '../enemies/damageTypes';
-import { createStatusState, tickStatuses } from '../enemies/statusEffects';
+import { applyFreeze, createStatusState, tickStatuses } from '../enemies/statusEffects';
 import { createShooter } from '../enemies/enemyFiring';
 import type { ShooterState } from '../enemies/enemyFiring';
 import type { StatusState, StatusTickResult } from '../enemies/statusEffects';
@@ -396,13 +396,44 @@ export class Enemy extends Phaser.GameObjects.Container {
    * would otherwise carry into the next enemy, which is exactly the failure
    * `resets the ramp on reuse, not just on construction` pins.
    *
-   * Note freezing is specified to do something *different* — it zeroes the
-   * ramp outright (`PartGameArea.as:5862`) rather than restoring the stat.
-   * Nothing freezes yet, so that is recorded in `statusEffects.applyFreeze`
-   * rather than implemented here as a method no caller can reach.
+   * Freezing does something *different* — see `freeze` below, which zeroes the
+   * ramp outright rather than restoring the stat.
    */
   resetTowerRamp(): void {
     this.towerAcc = this.stats.accSpeed;
+  }
+
+  /**
+   * Freezes this enemy, and in Tower mode destroys its acceleration build-up.
+   *
+   * ── One rule the AS3 writes three times ───────────────────────────────
+   * `theEnemy.accSpeed = 0` under `levelMode == "Tower"` appears at `:5864`,
+   * `:6228` and `:6572` — character-identical, immediately after each of the
+   * three `frozen = true` sites (bullet impact, ice ground trail, explosion).
+   * Every freeze source does it; none is special.
+   *
+   * So it belongs *inside* the freeze rather than beside each caller. Both port
+   * freeze sources — the Icicle's impact and the Ice Grenade's blast — go
+   * through here, and a fourth inherits it for free.
+   *
+   * ── Zero, not the spawn value ─────────────────────────────────────────
+   * `resetTowerRamp` restores `stats.accSpeed`; this sets **0**, which is below
+   * where the enemy spawned. `towerAccSpeed` then climbs from nothing and
+   * `towerRotSpeedMax(0)` is 1, its floor — so a thawed enemy is both slower
+   * and turns worse than a fresh one. Freezing in Tower undoes the build-up
+   * rather than pausing it, which is most of why ice is worth using there.
+   *
+   * ── Why the Ice Grenade shipped without it ────────────────────────────
+   * Not a divergence between the AS3's bullet and blast paths — those agree.
+   * `applyFreeze` was extracted as a pure status function before anything
+   * could freeze, and the ramp reset needs the enemy rather than the status
+   * record, so it was documented at both `applyFreeze` and `resetTowerRamp`
+   * instead of implemented. G2's Ice Grenade then became the first freeze
+   * source and inherited the gap. This closes it.
+   */
+  freeze(frozenTime: number, isTower: boolean): void {
+    applyFreeze(this.status, frozenTime, this.damageMultipliers.Ice, this.enemyLevel === 'B');
+    if (isTower) this.towerAcc = 0;
   }
 
   /** The Tower ramp, for tests and the debug readout. */

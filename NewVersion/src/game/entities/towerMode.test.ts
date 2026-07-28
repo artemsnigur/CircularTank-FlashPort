@@ -20,7 +20,11 @@ import { readFileSync } from 'node:fs';
 import { moveTank, tankStatsFor } from '../player/tankMovement';
 import type { TankState } from '../player/tankMovement';
 import { createInitialUpgradeState } from '../upgrades/upgradeState';
-import { towerAccSpeed, TOWER_ACC_SPEED_MAX } from '../enemies/enemySteering';
+import {
+  towerAccSpeed,
+  towerRotSpeedMax,
+  TOWER_ACC_SPEED_MAX,
+} from '../enemies/enemySteering';
 import { getLevel } from '../levels/levelData';
 import { placeWarning } from '../waves/spawnPlacement';
 
@@ -184,5 +188,89 @@ describe('level 1-7 actually reaches the Tower paths', () => {
       expect(p.offCamera, 'Tower must not use the off-camera search').toBe(false);
       expect(p.wall).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * Freezing a Tower enemy destroys its acceleration build-up.
+ *
+ * `:5864`, `:6228` and `:6572` — one rule the AS3 writes three times, once
+ * after each `frozen = true`. It sets **0**, not the spawn value, so a thawed
+ * enemy is worse off than a fresh one.
+ */
+describe('the freeze reset', () => {
+  /** The ramp as `towerAccSpeed` advances it, and as a freeze zeroes it. */
+  const ramp = (start: number, frames: number, moveSpeedMax = 4) =>
+    towerAccSpeed(start, moveSpeedMax, frames);
+
+  it('zeroes the ramp rather than restoring the spawn value', () => {
+    // `resetTowerRamp` restores `stats.accSpeed`; the freeze does not.
+    const source = readFileSync('src/game/entities/Enemy.ts', 'utf8');
+
+    expect(source).toContain('if (isTower) this.towerAcc = 0;');
+    expect(source).toContain('this.towerAcc = this.stats.accSpeed;');
+  });
+
+  it('leaves a thawed enemy below where it spawned', () => {
+    // Spawn ramp is `stats.accSpeed` — 0.2 for a typical enemy. After a freeze
+    // it climbs from 0, so it needs time just to get back to the start.
+    const spawn = 0.2;
+    const afterFreeze = 0;
+
+    expect(afterFreeze).toBeLessThan(spawn);
+    // 400 frames at moveSpeedMax 4 adds 4/400 * 400 = 4.
+    expect(ramp(afterFreeze, 400)).toBeCloseTo(4, 10);
+    expect(ramp(spawn, 400)).toBeCloseTo(4.2, 10);
+  });
+
+  it('costs the whole build-up, not just the frozen time', () => {
+    // The distinction that makes ice worth using in Tower: a long-lived enemy
+    // near the cap loses everything, not the seconds it spent frozen.
+    const built = ramp(0.2, 4000);
+    expect(built).toBe(TOWER_ACC_SPEED_MAX);
+
+    // Freeze, then rebuild for the same 400 frames a short freeze might cost.
+    const rebuilt = ramp(0, 400);
+    expect(rebuilt).toBeLessThan(built);
+    expect(built - rebuilt).toBeGreaterThan(5);
+  });
+
+  it('collapses the turn rate to its floor as well', () => {
+    // `towerRotSpeedMax` is derived from the ramp, so zeroing it also makes the
+    // enemy turn worse — the second half of the punishment.
+    expect(towerRotSpeedMax(0)).toBe(1);
+    expect(towerRotSpeedMax(TOWER_ACC_SPEED_MAX)).toBeGreaterThan(1);
+  });
+
+  it('rebuilds normally afterwards, so the effect is temporary', () => {
+    // A freeze → unfreeze cycle: the ramp climbs again at the ordinary rate
+    // from 0, rather than staying pinned or snapping back.
+    let acc = 0;
+    const readings = [acc];
+    for (let i = 0; i < 4; i += 1) {
+      acc = ramp(acc, 100);
+      readings.push(acc);
+    }
+
+    // Strictly increasing, and by the same step each time.
+    for (let i = 1; i < readings.length; i += 1) {
+      expect(readings[i]).toBeGreaterThan(readings[i - 1]);
+    }
+    expect(readings[2] - readings[1]).toBeCloseTo(readings[1] - readings[0], 10);
+  });
+
+  it('only applies in Tower', () => {
+    // The AS3 gates all three sites on `levelMode == "Tower"`; every other mode
+    // freezes without touching acceleration, which it does not use anyway.
+    const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
+    expect((scene.match(/this\.levelSpec\?\.mode === 'Tower'\)/g) ?? []).length).toBe(2);
+  });
+
+  it('both freeze sources go through the one method', () => {
+    // Bullet impact and blast. A third source inherits it for free, which is
+    // the reason it lives on Enemy rather than beside each caller.
+    const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
+    expect((scene.match(/enemy\.freeze\(/g) ?? []).length).toBe(2);
+    expect(scene).not.toContain('applyFreeze(');
   });
 });

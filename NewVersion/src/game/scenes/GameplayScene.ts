@@ -55,7 +55,7 @@ import { spawnCakePieces } from '../weapons/cake';
 import { createBeam, findBeamHits } from '../weapons/laser';
 import { findMagicTarget, magicVelocity } from '../weapons/magic';
 import type { HitTarget } from '../weapons/bullets';
-import { applyBomb, applyFreeze, applyPoison } from '../enemies/statusEffects';
+import { applyBomb, applyPoison } from '../enemies/statusEffects';
 import { healedTo, isInHealRange } from '../enemies/enemyHealing';
 import { canFireHook } from '../enemies/enemyGrapple';
 import { impactFeedback } from '../enemies/damageTypes';
@@ -2547,12 +2547,7 @@ export class GameplayScene extends Phaser.Scene {
     if (explosion.effectTime === undefined || explosion.effectTime <= 0) return;
 
     if (explosion.type === 'Ice') {
-      applyFreeze(
-        enemy.status,
-        explosion.effectTime,
-        enemy.damageMultipliers.Ice,
-        enemy.enemyLevel === 'B',
-      );
+      enemy.freeze(explosion.effectTime, this.levelSpec?.mode === 'Tower');
       // `:6324` — freezing a raged Temperamental. Unreachable until the Ice
       // Grenade landed, because nothing dealt Ice damage: the achievement was
       // documented as a known gap and this is the source that closes it.
@@ -2595,12 +2590,7 @@ export class GameplayScene extends Phaser.Scene {
     // Ice resistance and quartered against a boss. Same timer the Ice Grenade's
     // blast writes to, so the two stack by the same rule.
     if (bullet.appliesFreeze && enemy.damageMultipliers.Ice > 0) {
-      applyFreeze(
-        enemy.status,
-        bullet.freezeTime,
-        enemy.damageMultipliers.Ice,
-        enemy.enemyLevel === 'B',
-      );
+      enemy.freeze(bullet.freezeTime, this.levelSpec?.mode === 'Tower');
       if (enemy.enemyType === 'Temperamental') this.levelFlags.temperamentalFrozen = true;
     }
 
