@@ -480,11 +480,10 @@ export class GameplayScene extends Phaser.Scene {
 
     this.physics.world.setBounds(0, 0, this.roomWidth, this.roomHeight);
 
-    // Real extracted bitmap, tiled across the room. The default is
-    // `ground-desert` (351.png, a 256x256 seamless tile); 1-1 and 1-6 draw the
-    // 1024 upscale at different scales so the two treatments can be compared
-    // in game — see levels/groundTexture.ts.
-    const ground = groundFor(this.world, this.level);
+    // Real extracted bitmap, tiled across the room, chosen by the level's own
+    // theme — nine tiles, one per world. See levels/groundTexture.ts for why
+    // Desert draws a 1024 upscale and the other eight the 256 extraction.
+    const ground = groundFor(this.levelSpec?.theme);
     this.ground = this.add
       .tileSprite(0, 0, this.roomWidth, this.roomHeight, ground.key)
       .setOrigin(0, 0)

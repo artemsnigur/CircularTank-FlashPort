@@ -162,13 +162,77 @@ function Medals({ value }: { value: number }): React.ReactElement {
   );
 }
 
+/**
+ * The world picker — `ButtonWorld`, `ScreenLevelSelect.as:1504-1576`.
+ *
+ * A locked world shows nothing at all in the original: the number, the progress
+ * line and all three tallies are blanked (`:1520-1524`), and tapping it does
+ * nothing. Both kept — the button is disabled, so a locked world is inert here
+ * for the same reason it is there.
+ */
+function WorldPicker(): React.ReactElement {
+  const listing = useGameStore((s) => s.worldList);
+  const worlds = listing?.worlds ?? [];
+
+  if (worlds.length === 0) return <p className="screen__hint">Loading…</p>;
+
+  return (
+    <ul className="world-grid">
+      {worlds.map((entry) => (
+        <li key={entry.world}>
+          <button
+            type="button"
+            className={`world-grid__cell${entry.unlocked ? '' : ' world-grid__cell--locked'}`}
+            disabled={!entry.unlocked}
+            aria-label={
+              entry.unlocked
+                ? `World ${entry.world}, ${entry.name}, level ${entry.frontier} of ${entry.totalLevels}`
+                : `World ${entry.world}, locked`
+            }
+            title={
+              entry.unlocked
+                ? `${entry.name} — ${entry.levelsCompleted}/${entry.totalLevels} cleared`
+                : 'Finish the previous world first'
+            }
+            onClick={() => GameEvents.emit('ui:select-world', { world: entry.world })}
+          >
+            {entry.unlocked ? (
+              <>
+                <span className="world-grid__number">{entry.world}</span>
+                <span className="world-grid__name">{entry.name}</span>
+                <span className="world-grid__progress">
+                  Level {entry.frontier}/{entry.totalLevels}
+                </span>
+                {/* Three tiers at once, as the world button shows them — the
+                    grid's per-difficulty count is a different question. */}
+                <span className="world-grid__tiers">
+                  <span className="world-grid__tier world-grid__tier--bronze">{entry.bronze}</span>
+                  <span className="world-grid__tier world-grid__tier--silver">{entry.silver}</span>
+                  <span className="world-grid__tier world-grid__tier--gold">{entry.gold}</span>
+                  <span className="world-grid__tier-total">/{entry.totalLevels * MAX_LEVEL_VALUE}</span>
+                </span>
+              </>
+            ) : (
+              <span className="world-grid__number">🔒</span>
+            )}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function LevelSelectScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
   const listing = useGameStore((s) => s.levelList);
+  const worldList = useGameStore((s) => s.worldList);
   const difficulty = useGameStore((s) => s.difficulty);
   if (activeScene !== 'LevelSelect') return null;
 
-  const levels = listing?.levels ?? [];
+  // `selected` 0 is the picker — the AS3's `selectedWorld = 0`. The scene owns
+  // it; this only renders whichever view it names.
+  const showingPicker = (worldList?.selected ?? 0) === 0;
+  const levels = showingPicker ? [] : (listing?.levels ?? []);
   const cleared = levels.filter((l) => l.cleared).length;
   const medals = levels.reduce((sum, l) => sum + l.value, 0);
 
@@ -178,16 +242,28 @@ export function LevelSelectScreen(): React.ReactElement | null {
         <button
           type="button"
           className="menu__button menu__button--ghost"
-          onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
+          // Back means "up one level of the screen": out to the world picker
+          // from a grid, out to the menu from the picker. `ButtonWorldSelect`
+          // is the AS3's equivalent and is likewise absent while the picker is
+          // showing (`:692`).
+          onClick={() =>
+            showingPicker
+              ? GameEvents.emit('ui:goto', { key: 'MainMenu' })
+              : GameEvents.emit('ui:select-world', { world: 0 })
+          }
         >
-          ‹ Back
+          {showingPicker ? '‹ Back' : '‹ Worlds'}
         </button>
-        <h2 className="screen__title">{listing?.worldName ?? 'Loading…'}</h2>
+        <h2 className="screen__title">
+          {showingPicker ? 'Choose a world' : (listing?.worldName ?? 'Loading…')}
+        </h2>
       </header>
 
       <DifficultyPicker />
 
-      {levels.length === 0 ? (
+      {showingPicker ? (
+        <WorldPicker />
+      ) : levels.length === 0 ? (
         <p className="screen__hint">No levels available.</p>
       ) : (
         <ul className="level-grid">
@@ -228,10 +304,18 @@ export function LevelSelectScreen(): React.ReactElement | null {
         </ul>
       )}
 
-      <p className="screen__hint">
-        {medals}/{levels.length * MAX_LEVEL_VALUE} medals on {difficulty} · {cleared}/
-        {levels.length} cleared · world 1 of 9 — the world picker is not ported yet
-      </p>
+      {showingPicker ? (
+        <p className="screen__hint">
+          {worldList?.worlds.filter((w) => w.unlocked).length ?? 0} of{' '}
+          {worldList?.worlds.length ?? 0} worlds open. Finish a world's last level to
+          open the next.
+        </p>
+      ) : (
+        <p className="screen__hint">
+          {medals}/{levels.length * MAX_LEVEL_VALUE} medals on {difficulty} · {cleared}/
+          {levels.length} cleared
+        </p>
+      )}
 
       {import.meta.env.DEV && <DevLevelJump />}
     </div>

@@ -197,6 +197,29 @@ export interface GameEventMap {
    * `ui:start-game`; it does not compute them.
    */
   'menu:resume-point': { world: number; level: number };
+  /**
+   * The world picker's rows, published by LevelSelectScene.
+   *
+   * `selected` is 0 while the picker itself is showing — the AS3's
+   * `selectedWorld = 0` (`ScreenLevelSelect.changeToWorldsFunction`), which is
+   * how one screen holds two views.
+   */
+  'worlds:listed': {
+    selected: number;
+    worlds: Array<{
+      world: number;
+      name: string;
+      unlocked: boolean;
+      totalLevels: number;
+      levelsCompleted: number;
+      frontier: number;
+      bronze: number;
+      silver: number;
+      gold: number;
+    }>;
+  };
+  /** Open a world's level grid, or return to the picker with 0. */
+  'ui:select-world': { world: number };
   'levels:listed': {
     world: number;
     worldName: string;

@@ -664,6 +664,82 @@ code {
   color: #ffd166;
 }
 
+/* World picker — ButtonWorld. Three per row, as the AS3 lays them out
+   (ScreenLevelSelect.as:1510 wraps every third button). */
+.world-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  list-style: none;
+}
+
+.world-grid__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  min-height: 5.5rem;
+  padding: 0.55rem 0.4rem;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 5%);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.world-grid__cell--locked {
+  border-style: dashed;
+  border-color: rgb(255 255 255 / 10%);
+  background: rgb(255 255 255 / 2%);
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.world-grid__number {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.world-grid__name {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.world-grid__progress {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+}
+
+.world-grid__tiers {
+  display: flex;
+  gap: 0.3rem;
+  align-items: baseline;
+  font-size: 0.62rem;
+}
+
+.world-grid__tier--bronze {
+  color: #cd8b62;
+}
+
+.world-grid__tier--silver {
+  color: #cdd3d8;
+}
+
+.world-grid__tier--gold {
+  color: #ffd166;
+}
+
+.world-grid__tier-total {
+  color: var(--text-dim);
+}
+
 /* Difficulty picker — ButtonDifficultyEasy/Medium/Hard. */
 .difficulty {
   display: flex;

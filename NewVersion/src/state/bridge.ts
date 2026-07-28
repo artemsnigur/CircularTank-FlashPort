@@ -94,6 +94,10 @@ export function attachStoreBridge(): () => void {
     store.getState().setLevelList(listing);
   });
 
+  on('worlds:listed', (listing) => {
+    store.getState().setWorldList(listing);
+  });
+
   on('level:ended', (summary) => {
     store.getState().endLevel(summary);
   });

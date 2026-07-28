@@ -131,10 +131,11 @@ export class MainMenuScene extends Phaser.Scene {
    * the player has reached. It reads the same progress table LevelSelect locks
    * levels from, so Play and the grid can never disagree.
    *
-   * The scan is limited to `SELECTABLE_WORLDS`, the same pin LevelSelect
-   * derives its displayed world from. Without that, Play could launch a level
-   * the grid cannot show — and while these were two separate constants that
-   * agreed only by convention, nothing stopped them drifting apart.
+   * The scan spans `SELECTABLE_WORLDS`, which is now every world — the pin came
+   * off with the world picker. Play therefore follows the player into world 2
+   * and beyond instead of stopping at the end of world 1, which it would have
+   * done silently: `getCurrentWorldAndLevel` returns `[0, 0]` when every scanned
+   * level is played, and the fallback is the last level played.
    *
    * `[0, 0]` means every scanned level has been played, which the AS3 returns
    * from its zero-initialised locals. Falls back to the last level played, and

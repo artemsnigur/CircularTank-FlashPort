@@ -66,7 +66,25 @@ export const SAMPLE_IMAGES: readonly ImageAsset[] = [
   // edge and a broken seam shows as grid lines. 34 KB at q90 (mean error
   // 0.9/255), so the 1024 tile is *smaller* than the 83 KB 256 original.
   img('ground-desert-hi', '351_upscale.webp', 'Desert ground, 1024x1024 upscale of 351'),
-  img('ground-grass', '353.png', 'Grass world ground tile'),
+  // The remaining eight world tiles, all 256x256 and seamless. IDs run
+  // 351,353,...,367 in theme order; each was opened and matched to its theme
+  // name rather than inferred from the sequence. Only Desert has an authored
+  // upscale — see levels/groundTexture.ts for why the other eight tile at 1.
+  //
+  // These add 529 KB to the preload — 738 KB for the whole nine-tile set — and
+  // every player pays it on first load to reach ground they may never see. Accepted for now — the menu music alone is
+  // 844 KB, so this is not the bottleneck — and measured rather than assumed:
+  // `groundTexture.test.ts` holds a budget that fails if the set grows. The
+  // cheap fix when it matters is WebP, which took the 1024 Desert upscale to
+  // 34 KB; these are flat noise and would compress at least as well.
+  img('ground-grass', '353.png', 'Grass world ground tile, 256x256'),
+  img('ground-bluedirt', '355.png', 'BlueDirt world ground tile, 256x256'),
+  img('ground-beach', '357.png', 'Beach world ground tile, 256x256'),
+  img('ground-concrete', '359.png', 'Concrete world ground tile, 256x256'),
+  img('ground-biology', '361.png', 'Biology world ground tile, 256x256'),
+  img('ground-hell', '363.png', 'Hell world ground tile, 256x256'),
+  img('ground-magicstone', '365.png', 'MagicStone world ground tile, 256x256'),
+  img('ground-futuristic', '367.jpg', 'Futuristic world ground tile, 256x256'),
   // Not a border, despite an earlier label here saying so — rendered and
   // checked: 822/827/.../841 are nine 131x48 ground *detail* patches, one per
   // world palette (sand, pale sand with pebbles, dark teal with grid lines).

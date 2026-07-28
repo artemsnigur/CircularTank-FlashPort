@@ -13,21 +13,34 @@ import { SceneKeys } from '../config/constants';
 import { GameEvents } from '../events/GameEvents';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import { getPlayerProfile } from '../player/playerProfile';
-import { levelUnlockStates, mayStartLevel, SELECTABLE_WORLDS } from '../levels/levelUnlock';
+import {
+  isWorldUnlocked,
+  levelUnlockStates,
+  mayStartLevel,
+  worldUnlockStates,
+} from '../levels/levelUnlock';
 import { chooseDifficulty, getDifficulty, publishDifficulty } from '../levels/difficultyService';
 import { Worlds } from '../config/constants';
 
-/**
- * The world the grid shows — the AS3's `ScreenLevelSelect.selectedWorld`.
- *
- * With no world picker there is nothing to pick from, so it shows the highest
- * world `SELECTABLE_WORLDS` admits. That constant is the single pin; this is
- * derived from it rather than being a second copy of the number.
- */
-const SELECTED_WORLD = SELECTABLE_WORLDS;
+/** `selectedWorld = 0` — the picker itself, not a world. See `selectWorld`. */
+const PICKER = 0;
 
 export class LevelSelectScene extends Phaser.Scene {
   private backdrop!: Phaser.GameObjects.TileSprite;
+
+  /**
+   * Which world's grid is open, or `PICKER` for the world list.
+   *
+   * The AS3's `ScreenLevelSelect.selectedWorld`, and the same two-views-one-
+   * screen model: `changeToWorldsFunction` (`:678`) sets it to 0 and swaps the
+   * level buttons for world buttons.
+   *
+   * Scene state rather than a module constant now that there is something to
+   * pick. It resets to the picker on every entry, matching `removed()`
+   * (`:630`) — arriving from the menu should show where the player is in the
+   * game, not the last grid they happened to look at.
+   */
+  private selectedWorld = PICKER;
 
   constructor() {
     super(SceneKeys.LevelSelect);
@@ -47,7 +60,8 @@ export class LevelSelectScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setAlpha(0.35);
 
-    this.publishLevels();
+    this.selectedWorld = PICKER;
+    this.publishWorlds();
     publishDifficulty(this);
 
     const offStart = GameEvents.subscribe(
@@ -59,9 +73,13 @@ export class LevelSelectScene extends Phaser.Scene {
     );
     const offDifficulty = GameEvents.subscribe('ui:set-difficulty', ({ difficulty }) => {
       // The medal counts the grid shows are per-difficulty, so a change has to
-      // republish the rows as well as the buttons.
+      // republish the rows as well as the buttons. The world tallies are not —
+      // they show all three tiers at once — so the picker needs no republish.
       chooseDifficulty(this, difficulty);
-      this.publishLevels();
+      if (this.selectedWorld !== PICKER) this.publishLevels();
+    });
+    const offWorld = GameEvents.subscribe('ui:select-world', ({ world }) => {
+      this.selectWorld(world);
     });
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.LevelSelect) this.scene.start(key);
@@ -76,6 +94,7 @@ export class LevelSelectScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offStart();
       offDifficulty();
+      offWorld();
       offGoto();
       GameEvents.off('viewport:changed', onResize);
       GameEvents.emit('scene:shutdown', { key: SceneKeys.LevelSelect });
@@ -113,7 +132,48 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   /**
-   * Publishes the world's levels with their unlock state.
+   * Opens a world's grid, or returns to the picker with `PICKER`.
+   *
+   * Refuses a locked world for the same reason `mayStart` refuses a locked
+   * level: `ui:select-world` is an ordinary event and `disabled` on a React
+   * button is presentation, not enforcement. A locked world in the AS3 is
+   * simply inert — `handleWorldButtons` (`:1324`) tests
+   * `clicked && !isLocked` and does nothing otherwise, with no message and no
+   * shake — so refusing silently is faithful as well as simple.
+   */
+  private selectWorld(world: number): void {
+    if (world === PICKER) {
+      this.selectedWorld = PICKER;
+      this.publishWorlds();
+      return;
+    }
+
+    if (!isWorldUnlocked(getPlayerProfile(this).progress, world)) {
+      console.warn(`[LevelSelectScene] Refused locked world ${world}.`);
+      return;
+    }
+
+    this.selectedWorld = world;
+    this.publishWorlds();
+    this.publishLevels();
+  }
+
+  /**
+   * Publishes the picker's rows, and which view is showing.
+   *
+   * Sent even while a grid is open so React knows to render the grid rather
+   * than the picker, and so the back control has the world list to return to
+   * without a second round trip.
+   */
+  private publishWorlds(): void {
+    GameEvents.emit('worlds:listed', {
+      selected: this.selectedWorld,
+      worlds: worldUnlockStates(getPlayerProfile(this).progress),
+    });
+  }
+
+  /**
+   * Publishes the open world's levels with their unlock state.
    *
    * The rows come from `levelUnlockStates` rather than being assembled here.
    * Building them inline is how the unlock rule acquired a copy in this file in
@@ -124,7 +184,8 @@ export class LevelSelectScene extends Phaser.Scene {
    */
   private publishLevels(): void {
     const profile = getPlayerProfile(this);
-    const world = SELECTED_WORLD;
+    const world = this.selectedWorld;
+    if (world === PICKER) return;
 
     GameEvents.emit('levels:listed', {
       world,

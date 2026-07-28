@@ -63,6 +63,22 @@ export interface BestiaryListing {
 }
 
 /** One world's levels with their unlock state. */
+export interface WorldListing {
+  /** 0 while the picker is showing; otherwise the open world. */
+  selected: number;
+  worlds: Array<{
+    world: number;
+    name: string;
+    unlocked: boolean;
+    totalLevels: number;
+    levelsCompleted: number;
+    frontier: number;
+    bronze: number;
+    silver: number;
+    gold: number;
+  }>;
+}
+
 export interface LevelListing {
   world: number;
   worldName: string;
@@ -129,6 +145,9 @@ export interface GameState {
   /** The selectable levels of the current world, published by LevelSelectScene. */
   levelList: LevelListing | null;
 
+  /** The world picker's rows. `selected` 0 means the picker is showing. */
+  worldList: WorldListing | null;
+
   /** The shop catalogue, published by UpgradesScene. */
   shop: ShopCatalogue | null;
   bestiary: BestiaryListing | null;
@@ -174,6 +193,7 @@ export interface GameState {
   /** Clears the result so the next level starts clean. */
   clearLevelOutcome: () => void;
   setLevelList: (listing: LevelListing) => void;
+  setWorldList: (listing: WorldListing) => void;
   setShop: (shop: ShopCatalogue) => void;
   setBestiary: (bestiary: BestiaryListing) => void;
   setResumePoint: (point: { world: number; level: number }) => void;
@@ -204,6 +224,7 @@ const initialRunState = {
   achievements: [] as AchievementToast[],
   levelOutcome: null as LevelOutcomeSummary | null,
   levelList: null as LevelListing | null,
+  worldList: null as WorldListing | null,
   shop: null as ShopCatalogue | null,
   bestiary: null as BestiaryListing | null,
   resumePoint: null as { world: number; level: number } | null,
@@ -248,6 +269,7 @@ export const useGameStore = create<GameState>()((set) => ({
   endLevel: (levelOutcome) => set({ levelOutcome }),
   clearLevelOutcome: () => set({ levelOutcome: null }),
   setLevelList: (levelList) => set({ levelList }),
+  setWorldList: (worldList) => set({ worldList }),
   setShop: (shop) => set({ shop }),
   setBestiary: (bestiary) => set({ bestiary }),
   setResumePoint: (resumePoint) => set({ resumePoint }),

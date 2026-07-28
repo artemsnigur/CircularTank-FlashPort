@@ -26,8 +26,11 @@ import {
   levelUnlockStates,
   mayStartLevel,
   SELECTABLE_WORLDS,
+  worldMedalTiers,
+  worldUnlockStates,
 } from './levelUnlock';
 import { LEVELS, levelsInWorld, WORLD_COUNT } from './levelData';
+import { Worlds } from '../config/constants';
 import { PlayerProfile } from '../player/playerProfile';
 import { MemoryBackend, SaveStore, saveSlotStoreName } from '../save/SaveStore';
 import { ACTIVE_SLOT } from '../player/playerProfile';
@@ -134,6 +137,114 @@ describe('the world unlock rule', () => {
   });
 });
 
+describe('the world picker rows', () => {
+  it('describes all nine worlds, in order, with their theme names', () => {
+    const rows = worldUnlockStates(createEmptyProgress());
+
+    expect(rows).toHaveLength(WORLD_COUNT);
+    expect(rows.map((r) => r.world)).toEqual(rows.map((_, i) => i + 1));
+    expect(rows.map((r) => r.name)).toEqual([...Worlds]);
+    expect(rows[0].totalLevels).toBe(levelsInWorld(1));
+  });
+
+  it('opens only world 1 on a fresh save', () => {
+    const rows = worldUnlockStates(createEmptyProgress());
+    expect(rows.filter((r) => r.unlocked).map((r) => r.world)).toEqual([1]);
+  });
+
+  it('opens world 2 once world 1 last level is cleared', () => {
+    const progress = clear(createEmptyProgress(), 1, levelsInWorld(1));
+    const rows = worldUnlockStates(progress);
+
+    expect(rows.filter((r) => r.unlocked).map((r) => r.world)).toEqual([1, 2]);
+  });
+
+  it('the frontier is the level the player is up to', () => {
+    // `:1563-1568` — levelsCompleted + 1, capped. Unlocks are strictly
+    // sequential, so this is exactly the first level that is open and unplayed.
+    let progress = createEmptyProgress();
+    for (let level = 1; level <= 6; level += 1) progress = clear(progress, 1, level);
+
+    const world1 = worldUnlockStates(progress)[0];
+    expect(world1.levelsCompleted).toBe(6);
+    expect(world1.frontier).toBe(7);
+    expect(isLevelUnlocked(progress, 1, world1.frontier)).toBe(true);
+    expect(isLevelUnlocked(progress, 1, world1.frontier + 1)).toBe(false);
+  });
+
+  it('the frontier stops at the last level of a finished world', () => {
+    const total = levelsInWorld(1);
+    let progress = createEmptyProgress();
+    for (let level = 1; level <= total; level += 1) progress = clear(progress, 1, level);
+
+    const world1 = worldUnlockStates(progress)[0];
+    expect(world1.levelsCompleted).toBe(total);
+    expect(world1.frontier).toBe(total);
+  });
+
+  it('counts medals for a locked world too, at zero', () => {
+    // The AS3 blanks a locked button's text; the numbers are not secret, they
+    // are simply zero, so the caller decides what to hide.
+    const rows = worldUnlockStates(createEmptyProgress());
+    expect(rows[8]).toMatchObject({ unlocked: false, bronze: 0, silver: 0, gold: 0 });
+  });
+});
+
+describe('the world medal tiers', () => {
+  it('separates the three tiers by the same cascade the grid uses', () => {
+    // 3 on Easy only: bronze sees it, silver and gold do not.
+    const progress = recordLevelResult(createEmptyProgress(), 1, 1, 'Easy', 3);
+    expect(worldMedalTiers(progress, 1)).toEqual({ bronze: 3, silver: 0, gold: 0 });
+
+    // 2 on Hard: every tier sees it, because clearing hard satisfies easier.
+    const hard = recordLevelResult(createEmptyProgress(), 1, 1, 'Hard', 2);
+    expect(worldMedalTiers(hard, 1)).toEqual({ bronze: 2, silver: 2, gold: 2 });
+  });
+
+  it('sums across the world', () => {
+    let progress = createEmptyProgress();
+    for (let level = 1; level <= 4; level += 1) {
+      progress = recordLevelResult(progress, 1, level, 'Medium', 2);
+    }
+    expect(worldMedalTiers(progress, 1)).toEqual({ bronze: 8, silver: 8, gold: 0 });
+  });
+
+  /**
+   * The AS3's bronze branch is wrong on a tie, and this is the corrected value.
+   *
+   *     if      (v0 > v1 && v0 > v2)  bronze += v0;
+   *     else if (v1 > v0)             bronze += v1;
+   *     else                          bronze += v2;
+   *
+   * With v0 = v1 = 3 and v2 = 1 both tests fail on `3 > 3` and it falls to v2,
+   * reporting 1 where the best is 3. Corrected rather than reproduced: it is
+   * display-only, but the level grid shows `getLevelValues`, so reproducing it
+   * would make two screens disagree about the same player's medals.
+   */
+  it('reports the true best when Hard and Medium tie above Easy', () => {
+    let progress = recordLevelResult(createEmptyProgress(), 1, 1, 'Hard', 3);
+    progress = recordLevelResult(progress, 1, 1, 'Medium', 3);
+    progress = recordLevelResult(progress, 1, 1, 'Easy', 1);
+
+    expect(progress[0][0]).toEqual([3, 3, 1]);
+    // The AS3 chain would give 1 here.
+    expect(worldMedalTiers(progress, 1).bronze).toBe(3);
+  });
+
+  it('agrees with the level grid on every row, tie or not', () => {
+    // The property that made correcting it the right call — one number, two
+    // screens. A per-level sum of the grid's own values must equal the world
+    // tally exactly.
+    let progress = recordLevelResult(createEmptyProgress(), 1, 1, 'Hard', 3);
+    progress = recordLevelResult(progress, 1, 1, 'Medium', 3);
+    progress = recordLevelResult(progress, 1, 1, 'Easy', 1);
+    progress = recordLevelResult(progress, 1, 2, 'Easy', 2);
+
+    const gridTotal = levelUnlockStates(progress, 1, 'Easy').reduce((s, r) => s + r.value, 0);
+    expect(worldMedalTiers(progress, 1).bronze).toBe(gridTotal);
+  });
+});
+
 describe('the grid rows', () => {
   it('describes every level in the world, in order', () => {
     const rows = levelUnlockStates(createEmptyProgress(), 1, 'Easy');
@@ -223,6 +334,26 @@ describe('a locked level cannot be started', () => {
     expect(mayStartLevel(progress, { world: 9, level: 45, sandbox: true })).toBe(true);
   });
 
+  it('refuses level 1 of a world the player has not reached', () => {
+    // The gap the picker introduced. `isLevelUnlocked(view, 5, 1)` is true on a
+    // fresh save because level 1 always is, so a level-only guard would have
+    // started world 5 from a stale or forged event. Unreachable while the port
+    // pinned itself to world 1; a real request once there is a picker.
+    const progress = createEmptyProgress();
+
+    expect(isLevelUnlocked(progress, 5, 1)).toBe(true);
+    expect(mayStartLevel(progress, { world: 5, level: 1 })).toBe(false);
+  });
+
+  it('allows a world the player has opened', () => {
+    const progress = clear(createEmptyProgress(), 1, levelsInWorld(1));
+
+    expect(mayStartLevel(progress, { world: 2, level: 1 })).toBe(true);
+    // Still one level at a time inside it.
+    expect(mayStartLevel(progress, { world: 2, level: 2 })).toBe(false);
+    expect(mayStartLevel(progress, { world: 3, level: 1 })).toBe(false);
+  });
+
   it('the exemption is the request, not the level', () => {
     // Same level, two requests, two answers — so a sandbox launch cannot leave
     // the level generally startable afterwards.
@@ -247,23 +378,82 @@ describe('a locked level cannot be started', () => {
   });
 });
 
-describe('one pin for how many worlds are reachable', () => {
-  it('is a single exported constant', () => {
-    // Previously two: LevelSelectScene.SELECTED_WORLD and
-    // MainMenuScene.SELECTABLE_WORLDS, agreeing only by convention. Nothing
-    // made them agree, and disagreeing would have let Play launch a level the
-    // grid cannot show.
-    expect(SELECTABLE_WORLDS).toBeGreaterThanOrEqual(1);
-    expect(SELECTABLE_WORLDS).toBeLessThanOrEqual(WORLD_COUNT);
+describe('the world pin is off', () => {
+  it('every world is reachable', () => {
+    // Was 1. All nine, deliberately: the port has no premium source, and the
+    // AS3 contradicts itself — ButtonNextLevel's own local totalWorlds is
+    // unconditionally 9 at :104, :194 and :285, so the original offers world 7
+    // regardless of the picker's cap.
+    expect(SELECTABLE_WORLDS).toBe(WORLD_COUNT);
+    expect(WORLD_COUNT).toBe(9);
+  });
 
+  it('no scene keeps a private copy of the number', () => {
     for (const file of [
       'src/game/scenes/LevelSelectScene.ts',
       'src/game/scenes/MainMenuScene.ts',
     ]) {
       const source = readFileSync(file, 'utf8');
-      expect(source, file).toContain("from '../levels/levelUnlock'");
       expect(source, file).not.toMatch(/const SELECTABLE_WORLDS\s*=\s*\d/);
+      expect(source, file).not.toMatch(/const SELECTED_WORLD\s*=/);
     }
+  });
+
+  it("Play's resume scan spans them all", () => {
+    // Scanning one world would stop Play at the end of world 1 silently:
+    // getCurrentWorldAndLevel returns [0, 0] when everything scanned is played,
+    // and the fallback is the last level played.
+    const source = readFileSync('src/game/scenes/MainMenuScene.ts', 'utf8');
+    expect(source).toContain('getCurrentWorldAndLevel(profile.progress, SELECTABLE_WORLDS)');
+  });
+});
+
+/**
+ * Two views, one screen — the AS3's `selectedWorld = 0` for the picker.
+ */
+describe('the picker and the grid are one screen', () => {
+  const scene = readFileSync('src/game/scenes/LevelSelectScene.ts', 'utf8');
+
+  it('the scene owns which view is showing', () => {
+    expect(scene).toContain('private selectedWorld = PICKER;');
+    expect(scene).toContain('const PICKER = 0;');
+  });
+
+  it('entering the screen shows the picker', () => {
+    // `removed()` (:630) resets to the picker, so arriving shows where the
+    // player is in the game rather than the last grid they looked at.
+    expect(scene).toMatch(/this\.selectedWorld = PICKER;\s*\r?\n\s*this\.publishWorlds\(\);/);
+  });
+
+  it('refuses a locked world, silently, as the AS3 does', () => {
+    // handleWorldButtons (:1324) tests `clicked && !isLocked` and does nothing
+    // otherwise — no message, no shake.
+    expect(scene).toContain('if (!isWorldUnlocked(getPlayerProfile(this).progress, world))');
+    expect(scene).toContain('Refused locked world');
+  });
+
+  it('publishes the level rows only once a world is open', () => {
+    expect(scene).toContain('if (world === PICKER) return;');
+  });
+
+  it('a difficulty change republishes the grid but not the picker', () => {
+    // World tallies show all three tiers at once, so they do not move with the
+    // difficulty; the grid's single count does.
+    expect(scene).toContain('if (this.selectedWorld !== PICKER) this.publishLevels();');
+  });
+
+  it('React renders whichever view the scene names', () => {
+    const screen = readFileSync('src/ui/screens/LevelSelectScreen.tsx', 'utf8');
+    expect(screen).toContain("const showingPicker = (worldList?.selected ?? 0) === 0;");
+    expect(screen).toContain('<WorldPicker />');
+    // Back goes up one level of the screen, not straight out.
+    expect(screen).toContain("GameEvents.emit('ui:select-world', { world: 0 })");
+  });
+
+  it('the bridge carries the world list across', () => {
+    const bridge = readFileSync('src/state/bridge.ts', 'utf8');
+    expect(bridge).toContain("on('worlds:listed'");
+    expect(bridge).toContain('setWorldList(listing)');
   });
 });
 

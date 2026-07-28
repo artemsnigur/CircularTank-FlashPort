@@ -34,11 +34,11 @@
  */
 
 import { getLevelValues, isLevelCleared } from './levelProgress';
+import { Worlds } from '../config/constants';
 import type { ProgressTable } from './levelProgress';
 import type { Difficulty } from '../config/constants';
-import { levelsInWorld, WORLD_COUNT } from './levelData';
+import { LEVELS, levelsInWorld, WORLD_COUNT } from './levelData';
 import type { LevelMode } from './levelData';
-import { LEVELS } from './levelData';
 
 /**
  * The table an unlock rule reads.
@@ -57,21 +57,22 @@ import { LEVELS } from './levelData';
 export type ProgressView = ProgressTable;
 
 /**
- * Worlds the player can reach — the AS3's `ScreenLevelSelect.totalWorlds`,
- * pinned to 1 until the world picker is ported.
+ * Worlds the player can reach.
  *
- * Previously two constants: `LevelSelectScene.SELECTED_WORLD` (which world the
- * grid shows) and `MainMenuScene.SELECTABLE_WORLDS` (how many worlds Play may
- * scan). Both said "1" and each carried a comment claiming to match the other,
- * which is a convention rather than a mechanism — nothing made them agree, and
- * disagreeing would have let Play launch a level the grid cannot display.
+ * All nine, deliberately. `Main.as:310-320` sets `totalWorlds` to 6 without
+ * premium and 9 with, but this port has no premium source — and the original
+ * contradicts itself anyway: `ButtonNextLevel` declares its own local
+ * `totalWorlds = worldModels.length / 3` at `:104`, `:194` and `:285`,
+ * unconditionally 9, and uses it to offer the next world. So finishing 6-45 in
+ * the original hands you world 7 regardless of the picker's cap, and
+ * `nextLevelAfter` already inherits that side of it.
  *
- * One count, with the grid showing the highest world it admits. `Main.as` sets
- * the real value to 6 or 9 depending on premium (`levelProgress.ts`
- * `FREE_WORLD_COUNT` / `PREMIUM_WORLD_COUNT`); this replaces it when the picker
- * lands.
+ * Was two constants that agreed only by convention —
+ * `LevelSelectScene.SELECTED_WORLD` and `MainMenuScene.SELECTABLE_WORLDS` —
+ * collapsed into one pin, and now into `WORLD_COUNT` itself as the pin comes
+ * off.
  */
-export const SELECTABLE_WORLDS = 1;
+export const SELECTABLE_WORLDS = WORLD_COUNT;
 
 /**
  * Whether a level can be entered — `ScreenLevelSelect.as:842`.
@@ -124,6 +125,111 @@ export function isWorldUnlocked(view: ProgressView, world: number): boolean {
   return isLevelCleared(view, previous, finalLevel);
 }
 
+/** One world's row in the picker. */
+export interface WorldUnlockState {
+  world: number;
+  /** Theme name — `Worlds[world - 1]`, what the AS3 labels the world with. */
+  name: string;
+  unlocked: boolean;
+  totalLevels: number;
+  /** Levels with any medal on any difficulty. */
+  levelsCompleted: number;
+  /** The level the player is up to — `levelsCompleted + 1`, capped (`:1565`). */
+  frontier: number;
+  /** Medal totals for the world, one per tier. See `worldMedalTiers`. */
+  bronze: number;
+  silver: number;
+  gold: number;
+}
+
+/**
+ * The three medal totals a world button shows — `ScreenLevelSelect.as:1531-1562`.
+ *
+ * Each is the sum over the world's levels of the best medal count *visible at
+ * that tier*, which is the same cascade `getLevelValues` implements:
+ *
+ *     gold    = Hard only
+ *     silver  = max(Hard, Medium)
+ *     bronze  = max(Hard, Medium, Easy)
+ *
+ * ── The AS3's bronze is wrong on a tie, and this corrects it ──────────────
+ * The world button does not call `getLevelValues`. It spells the rule out
+ * inline, and the bronze branch mishandles equal values:
+ *
+ *     if      (v0 > v1 && v0 > v2)  bronze += v0;
+ *     else if (v1 > v0)             bronze += v1;
+ *     else                          bronze += v2;
+ *
+ * With `v0 = v1 = 3` and `v2 = 1` — three medals on Hard *and* Medium, one on
+ * Easy — the first test fails on `3 > 3`, the second fails likewise, and it
+ * falls through to `v2`, reporting 1 where the best is 3. It is reachable by
+ * any player who clears on Hard and later replays on Easy for a worse score,
+ * because `recordLevelResult` only ever raises a slot.
+ *
+ * Corrected here rather than reproduced. It is display-only, but the level grid
+ * shows `getLevelValues`, so reproducing it would make two screens disagree
+ * about the same player's medals — worse than the infidelity. Same call as the
+ * `:1716` negation fix.
+ *
+ * This is the third copy of one rule in this file's neighbourhood: the named
+ * `getLevelValues` (`:212`, reading the earned table), the inline world-button
+ * chain (`:1531`, reading the visible table, with the tie bug), and the
+ * `getTotalValues` sum (`:1571`). Grepping the name finds one of the three.
+ */
+export function worldMedalTiers(
+  view: ProgressView,
+  world: number,
+): { bronze: number; silver: number; gold: number } {
+  const levels = levelsInWorld(world);
+  let bronze = 0;
+  let silver = 0;
+  let gold = 0;
+
+  for (let level = 1; level <= levels; level += 1) {
+    bronze += getLevelValues(view, world, level, 'Easy');
+    silver += getLevelValues(view, world, level, 'Medium');
+    gold += getLevelValues(view, world, level, 'Hard');
+  }
+
+  return { bronze, silver, gold };
+}
+
+/**
+ * Every world with its unlock state and progress summary, in picker order.
+ *
+ * Deliberately takes no difficulty, unlike `levelUnlockStates`. The level grid
+ * shows one medal count for the chosen difficulty; a world button shows all
+ * three tiers at once (`:1571-1573`), so a difficulty here would be meaningless.
+ *
+ * The AS3 shows nothing at all for a locked world — number, progress and all
+ * three tallies are blanked (`:1520-1524`). The counts are still computed here
+ * so the caller decides what to hide; a locked world's numbers are not secret,
+ * they are simply zero until something in it is played.
+ */
+export function worldUnlockStates(view: ProgressView): WorldUnlockState[] {
+  return LEVELS.map((levels, index) => {
+    const world = index + 1;
+    const totalLevels = levels.length;
+
+    let levelsCompleted = 0;
+    for (let level = 1; level <= totalLevels; level += 1) {
+      if (isLevelCleared(view, world, level)) levelsCompleted += 1;
+    }
+
+    return {
+      world,
+      name: Worlds[index] ?? `World ${world}`,
+      unlocked: isWorldUnlocked(view, world),
+      totalLevels,
+      levelsCompleted,
+      // `:1563-1568`. Unlocks are strictly sequential, so completed levels are
+      // always a prefix and this is exactly the unlock frontier.
+      frontier: Math.min(levelsCompleted + 1, totalLevels),
+      ...worldMedalTiers(view, world),
+    };
+  });
+}
+
 /** A request to enter a level, as `ui:start-game` carries it. */
 export interface StartRequest {
   world: number;
@@ -148,7 +254,16 @@ export interface StartRequest {
  */
 export function mayStartLevel(view: ProgressView, request: StartRequest): boolean {
   if (request.sandbox) return true;
-  return isLevelUnlocked(view, request.world, request.level);
+
+  // Both gates, not just the level one. `isLevelUnlocked(view, 5, 1)` is true
+  // on a fresh save because level 1 always is, so without this a stale or
+  // forged event for 5-1 would start a world the player has never reached.
+  // That was unreachable while the port pinned itself to world 1; the picker
+  // is what makes it a real request.
+  return (
+    isWorldUnlocked(view, request.world) &&
+    isLevelUnlocked(view, request.world, request.level)
+  );
 }
 
 /** One level's row in the grid. */
