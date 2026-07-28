@@ -26,12 +26,11 @@ const upgrades = () => createInitialUpgradeState();
 describe('registration', () => {
   it('exposes the ported secondaries', () => {
     expect(getSecondary('Mine')).toBe(MINE);
-    expect(Object.keys(SECONDARY_WEAPONS)).toEqual(['Mine', 'Shield']);
+    expect(Object.keys(SECONDARY_WEAPONS)).toEqual(['Mine', 'Shield', 'Grenade']);
   });
 
-  it('leaves the remaining ten unported', () => {
+  it('leaves the remaining nine unported', () => {
     for (const name of [
-      'Grenade',
       'Ice Grenade',
       'Poison Grenade',
       'Rockets',

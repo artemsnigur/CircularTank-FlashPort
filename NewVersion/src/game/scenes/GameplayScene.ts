@@ -90,6 +90,13 @@ import {
   tickShield,
 } from '../weapons/shield';
 import type { ShieldState } from '../weapons/shield';
+import {
+  bounceGrenade,
+  grenadeVelocity,
+  throwGrenade,
+  tickGrenade,
+} from '../weapons/grenade';
+import type { GrenadeState } from '../weapons/grenade';
 import { createLevelFlags } from '../achievements/achievementContext';
 import type { LevelAchievementFlags } from '../achievements/achievementContext';
 import type { PlayerProfile } from '../player/playerProfile';
@@ -169,6 +176,10 @@ const OUT_OF_BOUNDS_ALPHA = 0.55;
 const ENEMY_BULLET_DEPTH = 11;
 /** The shield ring, just above the tank and below enemy fire. */
 const SHIELD_DEPTH = 9.5;
+/** Thrown grenades roll on the ground, under everything that moves. */
+const GRENADE_DEPTH = 1;
+/** `grenade.radius = 3` — `PartGameArea.as:4041`, fixed at every level. */
+const GRENADE_RADIUS = 3;
 /** Traps sit below it — `enemyTrapLayer` against `enemyBulletLayer`. */
 const ENEMY_TRAP_DEPTH = 10;
 
@@ -292,6 +303,12 @@ export class GameplayScene extends Phaser.Scene {
   private shield: ShieldState = createShieldState();
   /** The shield ring, parented to nothing — it follows the tank each frame. */
   private shieldSprite: Phaser.GameObjects.Image | null = null;
+  /** Thrown grenades in flight, with their sprites and blast payloads. */
+  private grenades: Array<{
+    state: GrenadeState;
+    sprite: Phaser.GameObjects.Image;
+    blast: Omit<ExplosionSpec, 'x' | 'y'>;
+  }> = [];
   /** What the last banked level earned — newly won achievements and enemies. */
   private banking: LevelBankingResult | null = null;
   /** Which level is being played — set from LevelSelect via scene data. */
@@ -522,6 +539,7 @@ export class GameplayScene extends Phaser.Scene {
     // `:2783-2787` — the shield does not survive a level.
     this.shield = createShieldState();
     this.shieldSprite = null;
+    this.grenades = [];
   }
 
   create(): void {
@@ -1592,6 +1610,91 @@ export class GameplayScene extends Phaser.Scene {
     return this.shield.on;
   }
 
+  /**
+   * Throws a grenade at the cursor — `:4001-4056`.
+   *
+   * Consumes the shared secondary cooldown the same way the other two do. The
+   * aim point is the live pointer in world units; see `throwGrenade` for why the
+   * AS3's camera correction has no counterpart here.
+   */
+  private throwGrenade(): boolean {
+    if (this.secondaryFiring.reloadTime > 0 || !this.secondaryStats) return false;
+
+    const aim = this.pointerWorldPoint();
+    if (!aim) return false;
+
+    this.secondaryFiring.reloadTime += this.secondaryStats.reloadTimeMax;
+
+    const state = throwGrenade({
+      tankX: this.player.x,
+      tankY: this.player.y,
+      towerRotation: this.player.towerRotationDegrees,
+      targetX: aim.x,
+      targetY: aim.y,
+      radius: GRENADE_RADIUS,
+    });
+
+    const sprite = this.add
+      .image(state.x, state.y, 'particle-dot')
+      .setDisplaySize(state.radius * 3, state.radius * 3)
+      .setTint(0xb8d96a)
+      .setDepth(GRENADE_DEPTH);
+
+    this.grenades.push({
+      state,
+      sprite,
+      blast: {
+        radius: this.secondaryStats.explosionRadius,
+        damage: this.secondaryStats.damage,
+        type: 'Normal',
+        smallSound: false,
+      },
+    });
+    return true;
+  }
+
+  /**
+   * Advances every grenade and detonates the ones whose fuse has run out.
+   *
+   * Position is integrated *before* the decay, matching `:1810` sitting above
+   * the grenade branch — so a frame travels at the previous frame's speed.
+   */
+  private updateGrenades(deltaMs: number): void {
+    if (this.grenades.length === 0) return;
+
+    const frames = (deltaMs / 1000) * 30;
+    const surviving: typeof this.grenades = [];
+
+    for (const entry of this.grenades) {
+      const { xVel, yVel } = grenadeVelocity(entry.state);
+      const moved = {
+        ...entry.state,
+        x: entry.state.x + xVel * frames,
+        y: entry.state.y + yVel * frames,
+      };
+
+      const walled = bounceGrenade(moved, {
+        roomWidth: this.roomWidth,
+        roomHeight: this.roomHeight,
+      });
+
+      const ticked = tickGrenade(walled, frames);
+      if (ticked.detonated) {
+        this.spawnExplosion({ ...entry.blast, x: ticked.state.x, y: ticked.state.y });
+        entry.sprite.destroy();
+        continue;
+      }
+
+      entry.state = ticked.state;
+      entry.sprite
+        .setPosition(ticked.state.x, ticked.state.y)
+        .setRotation(Phaser.Math.DegToRad(ticked.state.spin));
+      surviving.push(entry);
+    }
+
+    this.grenades = surviving;
+  }
+
   private placeMine(): boolean {
     const placed = placeMine(this.secondaryFiring, this.secondaryStats!, {
       x: this.player.x,
@@ -1636,12 +1739,15 @@ export class GameplayScene extends Phaser.Scene {
     // `:1008-1042` — the window runs down whether or not the trigger is held.
     this.shield = tickShield(this.shield, (deltaMs / 1000) * 30);
     this.updateShieldSprite();
+    this.updateGrenades(deltaMs);
 
     if (this.secondaryPressed && this.secondaryStats) {
       const used =
         this.secondary?.name === 'Shield'
           ? this.raiseShield()
-          : this.placeMine();
+          : this.secondary?.name === 'Grenade'
+            ? this.throwGrenade()
+            : this.placeMine();
 
       if (used) {
         getSoundManager(this)?.queue(this.secondary!.sound);

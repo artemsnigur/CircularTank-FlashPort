@@ -55,9 +55,9 @@ describe('only ported secondaries are sold', () => {
     expect(isPurchasable(findUpgradeById('Mine')!)).toBe(true);
   });
 
-  it('the remaining ten are not', () => {
+  it('the remaining nine are not', () => {
     const sold = SECONDARY_UPGRADES.filter(isPurchasable).map((u) => u.id);
-    expect(sold).toEqual(['Mine', 'Shield']);
+    expect(sold).toEqual(['Mine', 'Grenade', 'Shield']);
     expect(SECONDARY_UPGRADES).toHaveLength(12);
   });
 
@@ -144,11 +144,11 @@ describe('the catalogue and the withheld list partition the table', () => {
     for (const spec of withheldUpgrades()) expect(sold.has(spec.id)).toBe(false);
   });
 
-  it('withholds 11 of 28 today — 10 secondaries and 1 misc', () => {
+  it('withholds 10 of 28 today — 9 secondaries and 1 misc', () => {
     // The exact figure, so a change to what the shop sells is visible in a diff
     // rather than discovered in play. Was 13: Shield came off when it landed,
-    // and BulletReflect came off with it.
-    expect(withheldUpgrades()).toHaveLength(11);
-    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 11);
+    // BulletReflect came off with it, and Grenade came off on its own.
+    expect(withheldUpgrades()).toHaveLength(10);
+    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 10);
   });
 });

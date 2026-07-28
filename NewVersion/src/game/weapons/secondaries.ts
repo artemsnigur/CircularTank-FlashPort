@@ -21,8 +21,8 @@
  *
  * The other eleven each need work this file does not do:
  *
- *   Grenade, Ice Grenade,   thrown arcs with a flight timer and a landing
- *   Poison Grenade          position, plus Ice/Poison explosion status effects
+ *   Ice Grenade,            Grenade's flight with an Ice/Poison explosion
+ *   Poison Grenade          payload — see weapons/grenade.ts
  *   Rockets                 multiple homing projectiles with target selection
  *   Icicles, Poison Spikes  fan of persistent ground hazards with lifetimes
  *   Ice Ball, Lava Ball     rolling projectiles that persist and pierce
@@ -102,10 +102,27 @@ export const SHIELD: SecondarySpec = {
   sound: 'Shield',
 };
 
+/**
+ * Grenade — `PartGameArea.as:4003`.
+ *
+ * A thrown object with a fuse; see `weapons/grenade.ts` for the flight. The
+ * blast is an ordinary `Normal` explosion, which is why this one needs no
+ * status payload and the other two do.
+ */
+export const GRENADE: SecondarySpec = {
+  name: 'Grenade',
+  upgradeId: 'Grenade',
+  reloadTrack: 0,
+  damageTrack: 1,
+  explosionTrack: 2,
+  sound: 'GrenadeThrow',
+};
+
 /** Secondaries ported so far, by display name. See the header for the rest. */
 export const SECONDARY_WEAPONS: Readonly<Record<string, SecondarySpec>> = {
   Mine: MINE,
   Shield: SHIELD,
+  Grenade: GRENADE,
 };
 
 export function getSecondary(name: string): SecondarySpec | undefined {
