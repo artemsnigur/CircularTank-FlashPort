@@ -14,6 +14,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { bankLevelOutcome } from './levelBanking';
+import { TANK_MAX_HP } from './tankDamage';
 import { PlayerProfile } from './playerProfile';
 import { MemoryBackend, SaveStore } from '../save/SaveStore';
 import {
@@ -60,7 +61,7 @@ describe('a real run writes', () => {
       world: 1,
       level: 9,
       difficulty: 'Easy',
-      won: true,
+      hp: TANK_MAX_HP,
     });
 
     expect(wrote).toBe(true);
@@ -75,7 +76,7 @@ describe('a real run writes', () => {
       world: 1,
       level: 9,
       difficulty: 'Easy',
-      won: true,
+      hp: TANK_MAX_HP,
     });
 
     // Re-read through a second profile over the same store: this proves the
@@ -106,7 +107,7 @@ describe('a sandbox run writes nothing', () => {
       world: 7,
       level: 42,
       difficulty: 'Easy',
-      won: true,
+      hp: TANK_MAX_HP,
     });
 
     expect(wrote).toBe(false);
@@ -123,7 +124,7 @@ describe('a sandbox run writes nothing', () => {
       world: 1,
       level: 3,
       difficulty: 'Easy',
-      won: true,
+      hp: TANK_MAX_HP,
     });
     const before = savedBytes(store);
     expect(before).not.toBe('');
@@ -136,7 +137,7 @@ describe('a sandbox run writes nothing', () => {
       world: 9,
       level: 45,
       difficulty: 'Easy',
-      won: true,
+      hp: TANK_MAX_HP,
     });
 
     expect(savedBytes(store)).toBe(before);
@@ -150,7 +151,7 @@ describe('a sandbox run writes nothing', () => {
       world: 1,
       level: 3,
       difficulty: 'Easy',
-      won: true,
+      hp: TANK_MAX_HP,
     });
 
     bankLevelOutcome(profile, {
@@ -160,7 +161,7 @@ describe('a sandbox run writes nothing', () => {
       world: 9,
       level: 45,
       difficulty: 'Easy',
-      won: true,
+      hp: TANK_MAX_HP,
     });
 
     const reloaded = new PlayerProfile(store);
@@ -179,7 +180,7 @@ describe('a sandbox run writes nothing', () => {
       world: 1,
       level: 3,
       difficulty: 'Easy',
-      won: true,
+      hp: TANK_MAX_HP,
     });
     const before = savedBytes(store);
 
@@ -190,7 +191,7 @@ describe('a sandbox run writes nothing', () => {
       world: 1,
       level: 9,
       difficulty: 'Easy',
-      won: false,
+      hp: 0,
     });
 
     expect(savedBytes(store)).toBe(before);
@@ -206,7 +207,7 @@ describe('a sandbox run writes nothing', () => {
       world: 9,
       level: 45,
       difficulty: 'Easy',
-      won: true,
+      hp: TANK_MAX_HP,
     });
 
     // Not just unpersisted — unset. Otherwise a later non-sandbox save in the
@@ -259,7 +260,7 @@ describe('an equipped dev run cannot leak into the shop', () => {
       world: 9,
       level: 45,
       difficulty: 'Easy',
-      won: true,
+      hp: TANK_MAX_HP,
     });
 
     // Now the shop, which reads the profile and saves directly — exactly the

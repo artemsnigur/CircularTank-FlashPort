@@ -1979,7 +1979,9 @@ export class GameplayScene extends Phaser.Scene {
         world: this.world,
         level: this.level,
         difficulty: this.difficulty,
-        won: this.outcome.result === 'won',
+        // The medal count comes from remaining HP, and a loss ends at 0 — so
+        // the win/lose result is derived there rather than passed alongside.
+        hp: this.hp,
       });
     }
 

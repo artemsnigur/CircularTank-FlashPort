@@ -21,6 +21,7 @@
  */
 import type { Difficulty } from '../config/constants';
 import type { UpgradeState } from '../upgrades/upgradeState';
+import { medalsForHp } from '../waves/medals';
 
 /**
  * The slice of `PlayerProfile` this needs.
@@ -54,7 +55,15 @@ export interface LevelBankingInput {
   world: number;
   level: number;
   difficulty: Difficulty;
-  won: boolean;
+  /**
+   * Health remaining when the level ended, which decides the medal count —
+   * `ScreenStatus.as:246`. A loss arrives here as 0.
+   *
+   * Replaced a `won: boolean`. Both would have been two sources of truth for
+   * one fact: `medalsForHp(0)` is already 0, and `won` is derived from it below
+   * rather than passed alongside.
+   */
+  hp: number;
 }
 
 /**
@@ -73,13 +82,22 @@ export function bankLevelOutcome(profile: BankingTarget, input: LevelBankingInpu
   // loss still updates "where the player was" but scores nothing, so it cannot
   // unlock anything.
   //
+  // The value is the medal count from remaining HP, 0-3, not a flat 1. See
+  // `waves/medals.ts`.
+  //
   // `recordLevel` also performs bestiary discovery on a win and returns the
   // newly-met enemy names. That return is deliberately dropped here: nothing
   // displays it yet, and the AS3 shows it as reveal pages on `ScreenStatus`,
   // which is unported. The discovery itself is still recorded in the profile —
   // only the announcement is missing. Thread the value through when that screen
   // lands rather than inventing a place to put it now.
-  profile.recordLevel(input.world, input.level, input.difficulty, input.won ? 1 : 0, input.won);
+  const medals = medalsForHp(input.hp);
+  // Surviving at all is the win, which is the same test the medal rule's bottom
+  // threshold makes — see `medals.ts` for why this is derived rather than
+  // passed in beside it.
+  const won = medals > 0;
+
+  profile.recordLevel(input.world, input.level, input.difficulty, medals, won);
   profile.save();
   return true;
 }
