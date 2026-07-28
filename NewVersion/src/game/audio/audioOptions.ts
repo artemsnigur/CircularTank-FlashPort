@@ -18,7 +18,7 @@
  * correctly — and changed nothing audible. The seam is the point, not the
  * state.
  */
-import { LocalStorageBackend, OPTIONS_STORE, SaveStore } from '../save/SaveStore';
+import type { SaveStore } from '../save/SaveStore';
 import type { SoundManager } from './SoundManager';
 
 /** Keys verbatim from `SaveManager.as:846-849`. */
@@ -84,7 +84,12 @@ export function currentAudioOptions(manager: SoundManager): AudioOptions {
   };
 }
 
-/** The options SharedObject. Separate from the save slots, as in the AS3. */
-export function openAudioOptionsStore(): SaveStore {
-  return new SaveStore(OPTIONS_STORE, new LocalStorageBackend());
-}
+/**
+ * Deliberately no store-opening helper here any more.
+ *
+ * This used to return its own `SaveStore(OPTIONS_STORE, …)`. That was safe only
+ * while audio was the sole occupant of the options SharedObject; difficulty now
+ * shares it, and `SaveStore` caches at construction and flushes the whole
+ * object, so a private handle would drop the other's keys. See
+ * `save/optionsStore.ts` for the shared handle and the failure it prevents.
+ */

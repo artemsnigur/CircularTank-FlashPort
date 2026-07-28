@@ -18,10 +18,10 @@ import { PhaserAudioBackend } from './PhaserAudioBackend';
 import {
   applyAudioOptions,
   currentAudioOptions,
-  openAudioOptionsStore,
   readAudioOptions,
   writeAudioOptions,
 } from './audioOptions';
+import { getOptionsStore } from '../save/optionsStore';
 
 export const SOUND_REGISTRY_KEY = 'soundManager';
 
@@ -47,7 +47,7 @@ export function installSoundManager(scene: Phaser.Scene): Installed {
   // Preferences load before the first tick, so a muted player never hears a
   // frame of audio they turned off. `SaveManager.as:860-863` reads these at
   // startup for the same reason.
-  const optionsStore = openAudioOptionsStore();
+  const optionsStore = getOptionsStore(scene);
   applyAudioOptions(manager, readAudioOptions(optionsStore));
 
   const tick = (_time: number, delta: number): void => {
