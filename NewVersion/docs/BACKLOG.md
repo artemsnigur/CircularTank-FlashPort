@@ -183,14 +183,18 @@ through with the square page buttons (`handleSquarePages`, `:629`).
 
 ### What is missing
 
-- [ ] **The page stack itself.** The single overlay becomes page 1 of N, with
-      paging controls. *Lift: medium — this is the host every reveal page needs.*
-- [ ] **Enemy reveal pages.** Consume `recordLevel`'s return value; the bestiary
-      screen (`BestiaryScreen.tsx`) already renders an enemy with its
-      strengths/weaknesses, so the card content largely exists.
-      *Lift: small once the stack exists.*
-- [ ] **Achievement reveal pages.** Blocked on Group H — there is nothing to
-      reveal until achievements are evaluated. *See dependency note below.*
+- [x] **The page stack** — shipped. The overlay is page 1 of N with prev/next
+      arrows, and it **opens on the last page** (`:431`) so the player lands on
+      the newest reveal and pages back to the results. The exit buttons are on
+      the results page only, as the AS3 has them, so the reveals cannot be
+      skipped — only walked through. Nothing auto-advances.
+- [x] **Enemy reveal pages** — shipped, reading `BESTIARY` for the description
+      and matching on the display name `discoverEnemies` produced. The AS3 also
+      shows strengths/weaknesses icons on this page; the bestiary screen does
+      not render those either, so they remain unported on both surfaces rather
+      than on one.
+- [x] **Achievement reveal pages** — shipped, taking the title and description
+      from the same 36 specs `achievementContext` evaluates.
 - [ ] **The medal-reveal animation.** The AS3 keeps two parallel arrays —
       `worldsValuesArrays` (earned) and `worldsValuesVisibleArrays` (shown) — and
       animates the difference (`ScreenLevelSelect.as:523-526`).

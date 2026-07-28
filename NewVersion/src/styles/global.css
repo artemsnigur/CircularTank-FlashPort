@@ -664,6 +664,68 @@ code {
   color: #ffd166;
 }
 
+/* Status pages — ScreenStatus. The overlay opens on the last page and pages
+   back to the results, so the pager is always visible when there is more than
+   one page and the exit buttons only exist on the results page. */
+.level-outcome__eyebrow {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #ffd166;
+}
+
+.level-outcome__medals {
+  margin: 0;
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
+  color: #ffd166;
+}
+
+.level-outcome__body {
+  margin: 0;
+  max-width: 30ch;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.level-outcome__note {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.level-outcome__pager {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.level-outcome__arrow {
+  min-width: 2.2rem;
+  min-height: 2.2rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 5%);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.level-outcome__arrow:disabled {
+  /* Hidden rather than dimmed, matching ButtonSquarePage's alpha = 0. */
+  visibility: hidden;
+}
+
+.level-outcome__count {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Equip controls — ButtonEquipSlot (two, primaries) and ButtonEquip (one,
    secondaries). Only rendered on an owned row. The slot that already holds the
    weapon is disabled rather than a toggle: the AS3 has no unequip. */

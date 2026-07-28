@@ -9,8 +9,9 @@
  * The overlay is `pointer-events: none` so taps fall through to the canvas;
  * individual controls re-enable it for themselves.
  */
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from '../state/gameStore';
+import { buildStatusPages, initialPageIndex } from '../game/waves/statusPages';
 import { AudioToggles } from './AudioToggles';
 import { GameEvents } from '../game/events/GameEvents';
 import { formatNumber } from '../game/core/Functions';
@@ -115,18 +116,60 @@ function AmmoReadout(): React.ReactElement | null {
   );
 }
 
+/** Medals earned, always three glyphs so the panel height does not jump. */
+function MedalRow({ value }: { value: number }): React.ReactElement {
+  return (
+    <p className="level-outcome__medals" aria-label={`${value} of 3 medals`}>
+      <span aria-hidden="true">
+        {'★'.repeat(value)}
+        {'☆'.repeat(Math.max(0, 3 - value))}
+      </span>
+    </p>
+  );
+}
+
 /**
- * End-of-level results.
+ * End-of-level results, and the reveal pages behind them — `ScreenStatus`.
  *
- * Deliberately minimal: `ScreenStatus` in the AS3 shows star ratings, a money
- * breakdown and achievement evaluation, and is a screen of its own. This
- * exists so a finished level has somewhere to land instead of freezing.
+ * ── The paging model is the AS3's, and it is unusual ──────────────────────
+ * The stack is results → achievements → enemies, and the screen **opens on the
+ * last page** (`:431`), so the player lands on the newest reveal and pages
+ * backwards to the results. The forward arrow is hidden on arrival because
+ * that is already the end; the back arrow is hidden once the results are
+ * showing.
+ *
+ * The exit buttons are on the results page only, exactly as the AS3 adds them
+ * (`:939-960`), so the reveals cannot be skipped — they can only be walked
+ * through. Nothing auto-advances and nothing responds to a tap elsewhere.
  */
 function LevelOutcomeOverlay(): React.ReactElement | null {
   const outcome = useGameStore((s) => s.levelOutcome);
   const clearLevelOutcome = useGameStore((s) => s.clearLevelOutcome);
   const difficulty = useGameStore((s) => s.difficulty);
+
+  const pages = useMemo(
+    () =>
+      outcome
+        ? buildStatusPages({
+            newAchievements: outcome.newAchievements,
+            newEnemies: outcome.newEnemies,
+          })
+        : [],
+    [outcome],
+  );
+  const [page, setPage] = useState(0);
+
+  // Reset to the opening page whenever a new result arrives, not on every
+  // render: paging back and forth must not be undone by an unrelated update.
+  useEffect(() => {
+    setPage(initialPageIndex(pages));
+  }, [pages]);
+
   if (!outcome) return null;
+
+  const current = pages[Math.min(page, pages.length - 1)] ?? { type: 'Standard' as const };
+  const atFirst = page <= 0;
+  const atLast = page >= pages.length - 1;
 
   const retry = (): void => {
     clearLevelOutcome();
@@ -155,36 +198,91 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
   return (
     <div className="level-outcome" role="dialog" aria-label="Level results">
       <div className="level-outcome__panel">
-        <h2 className="level-outcome__title">
-          {outcome.result === 'won' ? 'Level Cleared' : 'Tank Destroyed'}
-        </h2>
-        <dl className="level-outcome__stats">
-          <div>
-            <dt>Level</dt>
-            <dd>{outcome.level}</dd>
-          </div>
-          <div>
-            <dt>Kills</dt>
-            <dd>{outcome.kills}</dd>
-          </div>
-          <div>
-            <dt>Coins</dt>
-            <dd>{outcome.currency}</dd>
-          </div>
-        </dl>
-        <div className="level-outcome__actions">
-          {outcome.nextLevel !== null && (
-            <button type="button" className="hud__button hud__button--primary" onClick={playNext}>
-              Next level ›
+        {current.type === 'Standard' && (
+          <>
+            <h2 className="level-outcome__title">
+              {outcome.result === 'won' ? 'Level Cleared' : 'Tank Destroyed'}
+            </h2>
+            <MedalRow value={outcome.medals} />
+            <dl className="level-outcome__stats">
+              <div>
+                <dt>Level</dt>
+                <dd>{outcome.level}</dd>
+              </div>
+              <div>
+                <dt>Kills</dt>
+                <dd>{outcome.kills}</dd>
+              </div>
+              <div>
+                <dt>Coins</dt>
+                <dd>{outcome.currency}</dd>
+              </div>
+            </dl>
+            {/* Only the results page carries these, as the AS3 has it. */}
+            <div className="level-outcome__actions">
+              {outcome.nextLevel !== null && (
+                <button
+                  type="button"
+                  className="hud__button hud__button--primary"
+                  onClick={playNext}
+                >
+                  Next level ›
+                </button>
+              )}
+              <button type="button" className="hud__button" onClick={retry}>
+                {outcome.result === 'won' ? 'Replay' : 'Retry'}
+              </button>
+              <button type="button" className="hud__button" onClick={toMenu}>
+                Menu
+              </button>
+            </div>
+          </>
+        )}
+
+        {current.type === 'Achievement' && (
+          <>
+            <p className="level-outcome__eyebrow">New Achievement</p>
+            <h2 className="level-outcome__title">{current.title}</h2>
+            <p className="level-outcome__body">{current.description}</p>
+            {current.difficultyMatters && (
+              <p className="level-outcome__note">Earned on {difficulty}</p>
+            )}
+          </>
+        )}
+
+        {current.type === 'Enemy' && (
+          <>
+            <p className="level-outcome__eyebrow">New Enemy</p>
+            <h2 className="level-outcome__title">{current.displayName}</h2>
+            <p className="level-outcome__body">{current.description}</p>
+          </>
+        )}
+
+        {pages.length > 1 && (
+          <nav className="level-outcome__pager" aria-label="Results pages">
+            <button
+              type="button"
+              className="level-outcome__arrow"
+              disabled={atFirst}
+              aria-label="Previous page"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              ‹
             </button>
-          )}
-          <button type="button" className="hud__button" onClick={retry}>
-            {outcome.result === 'won' ? 'Replay' : 'Retry'}
-          </button>
-          <button type="button" className="hud__button" onClick={toMenu}>
-            Menu
-          </button>
-        </div>
+            <span className="level-outcome__count">
+              {page + 1} / {pages.length}
+            </span>
+            <button
+              type="button"
+              className="level-outcome__arrow"
+              disabled={atLast}
+              aria-label="Next page"
+              onClick={() => setPage((p) => Math.min(pages.length - 1, p + 1))}
+            >
+              ›
+            </button>
+          </nav>
+        )}
       </div>
     </div>
   );
