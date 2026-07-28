@@ -47,11 +47,16 @@ import { execFileSync } from 'node:child_process';
  * `achievementContext` gave the 36 achievements a value source — both fired on
  * that commit, both were genuinely wired, and both were replaced here rather
  * than excused. `countOwned` and `hintsCompleted` are their successors.
+ *
+ * `applyFreeze` was the fourth, and the most useful of them: it fired when the
+ * Ice Grenade landed, which was the first thing in the port to deal Ice damage.
+ * The canary marked the exact commit where a documented gap closed.
+ * `createQuitFlags` replaces it.
  */
 const CANARIES = [
   'countOwned',
   'bombFuseRemaining',
-  'applyFreeze',
+  'createQuitFlags',
   'isEnemyKnown',
   'hintsCompleted',
   'getTotalValues',

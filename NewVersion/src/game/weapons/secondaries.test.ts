@@ -26,13 +26,17 @@ const upgrades = () => createInitialUpgradeState();
 describe('registration', () => {
   it('exposes the ported secondaries', () => {
     expect(getSecondary('Mine')).toBe(MINE);
-    expect(Object.keys(SECONDARY_WEAPONS)).toEqual(['Mine', 'Shield', 'Grenade']);
-  });
-
-  it('leaves the remaining nine unported', () => {
-    for (const name of [
+    expect(Object.keys(SECONDARY_WEAPONS)).toEqual([
+      'Mine',
+      'Shield',
+      'Grenade',
       'Ice Grenade',
       'Poison Grenade',
+    ]);
+  });
+
+  it('leaves the remaining seven unported', () => {
+    for (const name of [
       'Rockets',
       'Icicles',
       'Poison Spikes',
@@ -61,8 +65,10 @@ describe('stats from the upgrade table', () => {
       reloadTimeMax: 600,
       damage: 26,
       explosionRadius: 195,
-      // Mine declares no duration track, so it resolves to zero.
+      // Mine declares none of the optional tracks, so they resolve to zero.
       duration: 0,
+      effectTime: 0,
+      effectDamage: 0,
     });
   });
 
@@ -100,7 +106,7 @@ describe('stats from the upgrade table', () => {
 });
 
 describe('placement', () => {
-  const stats = { reloadTimeMax: 600, damage: 26, explosionRadius: 195 , duration: 0 };
+  const stats = { reloadTimeMax: 600, damage: 26, explosionRadius: 195, duration: 0, effectTime: 0, effectDamage: 0 };
 
   it('drops the mine at the tank position', () => {
     const mine = placeMine(createFiringState(), stats, { x: 320, y: 480 })!;

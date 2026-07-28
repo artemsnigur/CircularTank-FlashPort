@@ -279,15 +279,16 @@ describe('each flag is set somewhere in gameplay', () => {
     expect(SCENE).toContain('if (this.hp < MEDAL_HP_GOLD) {');
   });
 
-  it('temperamentalFrozen has no reachable site, and that is faithful', () => {
-    // Freeze is inert: `applyFreeze` has no caller because nothing deals Ice
-    // damage yet. A missing damage *source*, not a missing subsystem — the same
-    // gap already recorded for the freeze status itself. Written down rather
-    // than faked, so the achievement is knowably unreachable instead of
-    // mysteriously unearned.
-    const status = readFileSync('src/game/enemies/statusEffects.ts', 'utf8');
-    expect(status).toContain('export function applyFreeze');
-    expect(SCENE).not.toContain('applyFreeze(');
+  it('temperamentalFrozen, now that something deals Ice damage', () => {
+    // This was a documented gap: `applyFreeze` had no caller because nothing
+    // dealt Ice damage, so the achievement was knowably unreachable rather than
+    // mysteriously unearned. The Ice Grenade is the source that closed it — a
+    // missing damage source, exactly as the note predicted, not a missing
+    // subsystem.
+    expect(SCENE).toContain('applyFreeze(');
+    expect(SCENE).toContain(
+      "if (enemy.enemyType === 'Temperamental') this.levelFlags.temperamentalFrozen = true;",
+    );
   });
 });
 

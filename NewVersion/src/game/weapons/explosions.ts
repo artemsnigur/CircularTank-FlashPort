@@ -47,6 +47,19 @@ export interface ExplosionSpec {
   type: ExplosionType;
   /** False plays the big boom; true the small one. */
   smallSound: boolean;
+  /**
+   * Status payload — `explosionQueueArray`'s slots 5 and 6.
+   *
+   * The AS3 queues `[x, y, radius, damage, type, effectTime, effectDamage,
+   * small]` and applies the effect at `:6484` (freeze) and `:6607` (poison).
+   * Absent means a blast that only damages, which is every explosion the port
+   * had before the Ice and Poison grenades.
+   *
+   * `effectTime` is frames of freeze or poison; `effectDamage` is poison's
+   * per-tick damage and is unused by Ice, exactly as the AS3 passes 0 there.
+   */
+  effectTime?: number;
+  effectDamage?: number;
 }
 
 export interface ExplosionState extends ExplosionSpec {

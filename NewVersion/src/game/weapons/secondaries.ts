@@ -21,8 +21,7 @@
  *
  * The other eleven each need work this file does not do:
  *
- *   Ice Grenade,            Grenade's flight with an Ice/Poison explosion
- *   Poison Grenade          payload — see weapons/grenade.ts
+
  *   Rockets                 multiple homing projectiles with target selection
  *   Icicles, Poison Spikes  fan of persistent ground hazards with lifetimes
  *   Ice Ball, Lava Ball     rolling projectiles that persist and pierce
@@ -68,6 +67,12 @@ export interface SecondarySpec {
   explosionTrack?: number;
   /** Stat track holding a duration in frames — Shield's window. */
   durationTrack?: number;
+  /** Stat track holding a status duration the blast applies — Ice/Poison. */
+  effectTimeTrack?: number;
+  /** Stat track holding poison's per-tick damage. */
+  effectDamageTrack?: number;
+  /** Explosion channel the blast uses. `Normal` unless stated. */
+  explosionType?: 'Normal' | 'Ice' | 'Poison';
   /** SoundManager logical name, played on use. */
   sound: string;
 }
@@ -118,11 +123,50 @@ export const GRENADE: SecondarySpec = {
   sound: 'GrenadeThrow',
 };
 
+/**
+ * Ice Grenade — `PartGameArea.as:4010`.
+ *
+ * Grenade's flight exactly, with an `Ice` blast that freezes. **Its cooldown is
+ * 400, not the 650 the other two share** — the only stat-shape difference
+ * between the three variants and the easiest to miss. Damage is traded away for
+ * the freeze: 8-12 against the plain Grenade's 22-31.
+ */
+export const ICE_GRENADE: SecondarySpec = {
+  name: 'Ice Grenade',
+  upgradeId: 'IceGrenade',
+  reloadTrack: 0,
+  damageTrack: 1,
+  explosionTrack: 2,
+  effectTimeTrack: 3,
+  explosionType: 'Ice',
+  sound: 'GrenadeThrow',
+};
+
+/**
+ * Poison Grenade — `PartGameArea.as:4018`.
+ *
+ * The lowest direct damage of the three (4-6) because the poison does the work
+ * over time: 360-450 frames of it at 2-2.3 a tick.
+ */
+export const POISON_GRENADE: SecondarySpec = {
+  name: 'Poison Grenade',
+  upgradeId: 'PoisonGrenade',
+  reloadTrack: 0,
+  damageTrack: 1,
+  explosionTrack: 2,
+  effectTimeTrack: 3,
+  effectDamageTrack: 4,
+  explosionType: 'Poison',
+  sound: 'GrenadeThrow',
+};
+
 /** Secondaries ported so far, by display name. See the header for the rest. */
 export const SECONDARY_WEAPONS: Readonly<Record<string, SecondarySpec>> = {
   Mine: MINE,
   Shield: SHIELD,
   Grenade: GRENADE,
+  'Ice Grenade': ICE_GRENADE,
+  'Poison Grenade': POISON_GRENADE,
 };
 
 export function getSecondary(name: string): SecondarySpec | undefined {
@@ -138,6 +182,10 @@ export interface SecondaryStats {
   explosionRadius: number;
   /** Frames the effect lasts, where the spec declares a duration track. */
   duration: number;
+  /** Frames of freeze or poison the blast applies. */
+  effectTime: number;
+  /** Poison's per-tick damage. Zero for Ice, which passes 0 in the AS3 too. */
+  effectDamage: number;
 }
 
 /**
@@ -170,9 +218,19 @@ export function resolveSecondaryStats(
   const damage = optional(spec.damageTrack);
   const explosionRadius = optional(spec.explosionTrack);
   const duration = optional(spec.durationTrack);
-  if (damage === null || explosionRadius === null || duration === null) return null;
+  const effectTime = optional(spec.effectTimeTrack);
+  const effectDamage = optional(spec.effectDamageTrack);
+  if (
+    damage === null ||
+    explosionRadius === null ||
+    duration === null ||
+    effectTime === null ||
+    effectDamage === null
+  ) {
+    return null;
+  }
 
-  return { reloadTimeMax, damage, explosionRadius, duration };
+  return { reloadTimeMax, damage, explosionRadius, duration, effectTime, effectDamage };
 }
 
 /**

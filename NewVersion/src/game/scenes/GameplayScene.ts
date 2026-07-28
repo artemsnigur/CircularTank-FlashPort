@@ -55,7 +55,7 @@ import { spawnCakePieces } from '../weapons/cake';
 import { createBeam, findBeamHits } from '../weapons/laser';
 import { findMagicTarget, magicVelocity } from '../weapons/magic';
 import type { HitTarget } from '../weapons/bullets';
-import { applyBomb, applyPoison } from '../enemies/statusEffects';
+import { applyBomb, applyFreeze, applyPoison } from '../enemies/statusEffects';
 import { healedTo, isInHealRange } from '../enemies/enemyHealing';
 import { canFireHook } from '../enemies/enemyGrapple';
 import { impactFeedback } from '../enemies/damageTypes';
@@ -1643,11 +1643,15 @@ export class GameplayScene extends Phaser.Scene {
     this.grenades.push({
       state,
       sprite,
+      // `:4084-4096` — one queue entry per variant, differing only in the
+      // channel and the payload. Ice passes 0 for effectDamage, as the AS3 does.
       blast: {
         radius: this.secondaryStats.explosionRadius,
         damage: this.secondaryStats.damage,
-        type: 'Normal',
+        type: this.secondary?.explosionType ?? 'Normal',
         smallSound: false,
+        effectTime: this.secondaryStats.effectTime,
+        effectDamage: this.secondaryStats.effectDamage,
       },
     });
     return true;
@@ -1742,10 +1746,12 @@ export class GameplayScene extends Phaser.Scene {
     this.updateGrenades(deltaMs);
 
     if (this.secondaryPressed && this.secondaryStats) {
+      // All three grenades share one throw; only the blast payload differs.
       const used =
         this.secondary?.name === 'Shield'
           ? this.raiseShield()
-          : this.secondary?.name === 'Grenade'
+          : this.secondary?.explosionType !== undefined ||
+              this.secondary?.name === 'Grenade'
             ? this.throwGrenade()
             : this.placeMine();
 
@@ -2466,6 +2472,11 @@ export class GameplayScene extends Phaser.Scene {
       .filter((enemy) => enemy.targetable);
 
     for (const enemy of caught) {
+      // `:6484` and `:6607` — the status lands *before* the damage, so an
+      // enemy killed by the blast still spent a frame frozen or poisoned in
+      // the AS3's ordering, and a survivor carries the effect either way.
+      this.applyBlastStatus(explosion, enemy);
+
       const damage = blastDamage(explosion, enemy.damageMultipliers);
       enemy.takeDamage(damage);
 
@@ -2474,6 +2485,41 @@ export class GameplayScene extends Phaser.Scene {
       } else {
         enemy.flashDamage(impactFeedback(enemy.damageMultipliers, 'Explosions'));
       }
+    }
+  }
+
+  /**
+   * Freeze or poison from a blast, where the explosion carries a payload.
+   *
+   * Routed through the same `statusEffects` timers a bullet uses, so the
+   * stacking rules come for free: poison compares strength and keeps the
+   * stronger, freeze overwrites. A `Normal` blast carries no payload and does
+   * nothing here, which is every explosion the port had before the Ice and
+   * Poison grenades.
+   */
+  private applyBlastStatus(explosion: ExplosionSpec, enemy: Enemy): void {
+    if (explosion.effectTime === undefined || explosion.effectTime <= 0) return;
+
+    if (explosion.type === 'Ice') {
+      applyFreeze(
+        enemy.status,
+        explosion.effectTime,
+        enemy.damageMultipliers.Ice,
+        enemy.enemyLevel === 'B',
+      );
+      // `:6324` — freezing a raged Temperamental. Unreachable until the Ice
+      // Grenade landed, because nothing dealt Ice damage: the achievement was
+      // documented as a known gap and this is the source that closes it.
+      if (enemy.enemyType === 'Temperamental') this.levelFlags.temperamentalFrozen = true;
+      return;
+    }
+
+    if (explosion.type === 'Poison') {
+      applyPoison(
+        enemy.status,
+        { poisonTime: explosion.effectTime, poisonDamage: explosion.effectDamage ?? 0 },
+        enemy.damageMultipliers.Poison,
+      );
     }
   }
 

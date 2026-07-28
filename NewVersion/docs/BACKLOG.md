@@ -26,9 +26,16 @@ far. Several items below are "the model is done, nothing calls it".
 
 ---
 
-## Group F — Secondary weapons (11 of 12)
+## Group F — Secondary weapons (7 of 12 remaining)
 
-`Mine` is ported (`src/game/weapons/secondaries.ts`). The other eleven are not.
+Ported: `Mine`, `Shield`, `Grenade`, `Ice Grenade`, `Poison Grenade`.
+
+Two things fell out of that which the original scoping did not predict.
+**Porting Shield ported `BulletReflect`** — `:1557` is one condition covering
+both, so the misc upgrade came off the withheld list with it. **Porting the Ice
+Grenade closed the `FreezeTemperamental` achievement**, which had been recorded
+as knowably unreachable because nothing dealt Ice damage; the knip canary fired
+on the exact commit that changed it.
 
 **All twelve upgrade tables are already generated** — `upgradeData.ts` carries
 every stat track for all of them, prices included. So no item in this group is
@@ -74,7 +81,7 @@ Bomb Cannon and **already covers poison, freeze and bomb** — `applyPoison`,
 `GameplayScene.ts:59`. CLAUDE.md still describes the per-enemy status timer as
 the blocker for this group; it is not, any more.
 
-- [ ] **Grenade** — `ObjectGrenade`, `:4001-4056`. A thrown arc: spawned at the
+- [x] **Grenade** — shipped. `ObjectGrenade`, `:4001-4056`. A thrown arc: spawned at the
       muzzle with `timeLeft = 50` frames, speed `shootDistance / 9.35` (floor
       2.1) and friction `0.101 + 0.0014 × (shootDistance / 200)`, so it
       decelerates and lands near the cursor. Detonates as an ordinary `Normal`
@@ -86,11 +93,11 @@ the blocker for this group; it is not, any more.
       and cannot be lifted verbatim into the RESIZE viewport.
       *Missing: a bullet with friction and a detonate-on-lifetime path.
       Lift: small — smallest of the eleven.*
-- [ ] **Ice Grenade** — Grenade plus `frozenTime`, detonating on the `Ice`
+- [x] **Ice Grenade** — shipped. Grenade plus `frozenTime`, detonating on the `Ice`
       channel. `ExplosionType` already has `'Ice'`
       (`src/game/weapons/explosions.ts:34`) and `applyFreeze` exists.
       *Lift: small, once Grenade lands.*
-- [ ] **Poison Grenade** — Grenade plus `poisonTime` / `poisonDamage` on the
+- [x] **Poison Grenade** — shipped. Grenade plus `poisonTime` / `poisonDamage` on the
       `Poison` channel. Same story. *Lift: small, once Grenade lands.*
 - [ ] **Icicles** — `:4058`, a radial burst of `spikeCount` icicles (23 at level 1
       rising to 32), speed 20, radius 6, carrying `frozenTime`.
@@ -135,7 +142,7 @@ the blocker for this group; it is not, any more.
 
 ### F3 — Not a projectile at all
 
-- [ ] **Shield** — `:4102`. Sets `shieldOn = true` and a timer; there is no
+- [x] **Shield** — shipped. `:4102`. Sets `shieldOn = true` and a timer; there is no
       entity. While up: contact damage is zeroed, non-boss enemies cannot connect
       at all, bosses connect at twice the tank radius, and enemy bullets are
       absorbed at twice the radius (`:1555`, `:5273-5277`). Thirteen sites in
