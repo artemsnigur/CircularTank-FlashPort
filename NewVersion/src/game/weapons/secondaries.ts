@@ -72,11 +72,48 @@ export interface SecondarySpec {
   effectDamageTrack?: number;
   /** Explosion channel the blast uses. `Normal` unless stated. */
   explosionType?: 'Normal' | 'Ice' | 'Poison';
-  /** Stat track holding how many projectiles one use fires — the spike fans. */
+  /**
+   * Stat track holding "how many", which each kind reads differently.
+   *
+   * The spike fans read it as projectiles per use; Magic Bunny reads it as
+   * enemies one round may chain through. Both are the AS3's own count stat for
+   * that weapon, so one track serves — but the two meanings are not
+   * interchangeable, which is why `kind` decides what to do with it rather
+   * than the presence of the track alone.
+   */
   countTrack?: number;
+  /**
+   * What this secondary *does*, and therefore which spawn path runs.
+   *
+   * Explicit rather than inferred from which tracks are present. The dispatch
+   * was a nested ternary reading spec shape — a count meant a fan, an explosion
+   * channel meant a throw — and that was already ambiguous at five branches:
+   * Magic Bunny has a count and is not a fan. Naming the kind means adding a
+   * secondary cannot silently land in another one's path.
+   */
+  kind: SecondaryKind;
   /** SoundManager logical name, played on use. */
   sound: string;
 }
+
+/**
+ * The five shapes a secondary takes.
+ *
+ * Not one per weapon — the three grenades share `thrown`, the two spike weapons
+ * share `fan`. A new secondary either matches one of these or needs a sixth,
+ * and being forced to say which is the point.
+ */
+export type SecondaryKind =
+  /** Dropped in place, armed until something walks into it. Mine. */
+  | 'mine'
+  /** A timed state on the tank, no projectile at all. Shield. */
+  | 'shield'
+  /** Thrown at the cursor with a fuse. The three grenades. */
+  | 'thrown'
+  /** A radial burst of ordinary rounds. Icicles, Poison Spikes. */
+  | 'fan'
+  /** One round that chains between enemies. Magic Bunny. */
+  | 'chain';
 
 /**
  * Mine — PartGameArea.as:3987.
@@ -90,6 +127,7 @@ export const MINE: SecondarySpec = {
   reloadTrack: 0,
   damageTrack: 1,
   explosionTrack: 2,
+  kind: 'mine',
   sound: 'PlaceMine',
 };
 
@@ -105,6 +143,7 @@ export const SHIELD: SecondarySpec = {
   upgradeId: 'Shield',
   reloadTrack: 0,
   durationTrack: 1,
+  kind: 'shield',
   sound: 'Shield',
 };
 
@@ -121,6 +160,7 @@ export const GRENADE: SecondarySpec = {
   reloadTrack: 0,
   damageTrack: 1,
   explosionTrack: 2,
+  kind: 'thrown',
   sound: 'GrenadeThrow',
 };
 
@@ -140,6 +180,7 @@ export const ICE_GRENADE: SecondarySpec = {
   explosionTrack: 2,
   effectTimeTrack: 3,
   explosionType: 'Ice',
+  kind: 'thrown',
   sound: 'GrenadeThrow',
 };
 
@@ -158,6 +199,7 @@ export const POISON_GRENADE: SecondarySpec = {
   effectTimeTrack: 3,
   effectDamageTrack: 4,
   explosionType: 'Poison',
+  kind: 'thrown',
   sound: 'GrenadeThrow',
 };
 
@@ -174,6 +216,7 @@ export const ICICLES: SecondarySpec = {
   damageTrack: 1,
   effectTimeTrack: 2,
   countTrack: 3,
+  kind: 'fan',
   sound: 'FireSpikes',
 };
 
@@ -192,7 +235,39 @@ export const POISON_SPIKES: SecondarySpec = {
   effectTimeTrack: 2,
   effectDamageTrack: 3,
   countTrack: 4,
+  kind: 'fan',
   sound: 'FireSpikes',
+};
+
+/**
+ * Magic Bunny — `PartGameArea.as:4233`.
+ *
+ * Mechanically `BulletMagic` — same radius, spread, `neverHitTarget`, the same
+ * chain-homing block at `:1714` — and numerically nothing like it:
+ *
+ *              Magic Cannon      Magic Bunny
+ *   reload     15 -> 13.2        900 flat
+ *   damage     2.2 -> 3.5        16 -> 30
+ *   targets    3 -> 4            5 -> 6
+ *   speed      14                10
+ *   muzzle     12 + w/2          16 + w/2
+ *
+ * A near-continuous stream of pinpricks against one round every thirty seconds
+ * that chains through six enemies for real damage. The longest cooldown in the
+ * game.
+ *
+ * `:1748` also turns the *sprite* to face travel, for the Bunny alone. The port
+ * does not rotate bullet sprites at all, so that is left out rather than given
+ * machinery nothing else uses.
+ */
+export const MAGIC_BUNNY: SecondarySpec = {
+  name: 'Magic Bunny',
+  upgradeId: 'MagicBunny',
+  reloadTrack: 0,
+  damageTrack: 1,
+  countTrack: 2,
+  kind: 'chain',
+  sound: 'MagicBunny',
 };
 
 /** Secondaries ported so far, by display name. See the header for the rest. */
@@ -204,6 +279,7 @@ export const SECONDARY_WEAPONS: Readonly<Record<string, SecondarySpec>> = {
   'Poison Grenade': POISON_GRENADE,
   Icicles: ICICLES,
   'Poison Spikes': POISON_SPIKES,
+  'Magic Bunny': MAGIC_BUNNY,
 };
 
 export function getSecondary(name: string): SecondarySpec | undefined {

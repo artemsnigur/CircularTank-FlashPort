@@ -98,6 +98,7 @@ import {
 } from '../weapons/grenade';
 import type { GrenadeState } from '../weapons/grenade';
 import { spawnFan } from '../weapons/radialFan';
+import type { SecondaryKind } from '../weapons/secondaries';
 import { createLevelFlags } from '../achievements/achievementContext';
 import type { LevelAchievementFlags } from '../achievements/achievementContext';
 import type { PlayerProfile } from '../player/playerProfile';
@@ -181,6 +182,15 @@ const SHIELD_DEPTH = 9.5;
 const GRENADE_DEPTH = 1;
 /** `grenade.radius = 3` — `PartGameArea.as:4041`, fixed at every level. */
 const GRENADE_RADIUS = 3;
+/**
+ * Magic Bunny's round — `:4236-4238`, `:4245`.
+ *
+ * Speed 10 and a `16 + width/2` muzzle, against the Magic Cannon's 14 and
+ * `12 + width/2`. Same mechanic, different numbers at every one of them.
+ */
+const CHAIN_RADIUS = 8;
+const CHAIN_SPEED = 10;
+const CHAIN_MUZZLE_OFFSET = 16;
 /** Traps sit below it — `enemyTrapLayer` against `enemyBulletLayer`. */
 const ENEMY_TRAP_DEPTH = 10;
 
@@ -1701,6 +1711,79 @@ export class GameplayScene extends Phaser.Scene {
   }
 
   /**
+   * Runs the spawn path for a secondary's kind.
+   *
+   * A `switch` on the declared kind, not a chain of tests against spec shape.
+   * The previous version read the shape — a count meant a fan, an explosion
+   * channel meant a throw — which was already wrong for Magic Bunny, whose
+   * count is a chain length. `SecondaryKind` is exhaustive, so a sixth kind is
+   * a compile error here rather than a weapon that silently runs the wrong
+   * spawn.
+   */
+  private useSecondary(kind: SecondaryKind): boolean {
+    switch (kind) {
+      case 'shield':
+        return this.raiseShield();
+      case 'thrown':
+        return this.throwGrenade();
+      case 'fan':
+        return this.fireSpikes();
+      case 'chain':
+        return this.fireChainRound();
+      case 'mine':
+        return this.placeMine();
+    }
+  }
+
+  /**
+   * Fires one chaining round — `:4233-4256`.
+   *
+   * `Bullet` gives any spec with `targets > 0` the whole chain-homing path
+   * (`Bullet.ts:78`): the retarget search, the hit-once tracking and the
+   * final-target death rule all come from the Magic Cannon's wiring. Setting
+   * the count is the entire mechanic.
+   */
+  private fireChainRound(): boolean {
+    if (this.secondaryFiring.reloadTime > 0 || !this.secondaryStats) return false;
+
+    const stats = this.secondaryStats;
+    this.secondaryFiring.reloadTime += stats.reloadTimeMax;
+
+    const heading = (this.player.towerRotationDegrees * Math.PI) / 180;
+    const offset = CHAIN_MUZZLE_OFFSET + CHAIN_RADIUS;
+
+    this.bullets.push(
+      new Bullet(
+        this,
+        {
+          x: this.player.x + Math.cos(heading) * offset,
+          y: this.player.y + Math.sin(heading) * offset,
+          xVel: Math.cos(heading) * CHAIN_SPEED,
+          yVel: Math.sin(heading) * CHAIN_SPEED,
+          rotation: this.player.towerRotationDegrees,
+          speed: CHAIN_SPEED,
+          radius: CHAIN_RADIUS,
+          damage: stats.damage,
+          explosion: false,
+          explosionRadius: 0,
+          penetrates: false,
+          bombTimer: 0,
+          freezeTime: 0,
+          poisonTime: 0,
+          poisonDamage: 0,
+          cakePieces: 0,
+          // The whole mechanic — see `Bullet.ts:78`.
+          targets: stats.count,
+        },
+        this.roomWidth,
+        this.roomHeight,
+        'BulletMagicBunny',
+      ),
+    );
+    return true;
+  }
+
+  /**
    * Fires a radial burst — `:4058-4098`.
    *
    * Ordinary bullets on the shared secondary cooldown: they travel, hit, and
@@ -1787,22 +1870,11 @@ export class GameplayScene extends Phaser.Scene {
     this.updateShieldSprite();
     this.updateGrenades(deltaMs);
 
-    if (this.secondaryPressed && this.secondaryStats) {
-      // Dispatched on what the secondary *is*, not on its name where a shape
-      // can say it: a count means a fan, an explosion channel or the plain
-      // Grenade means a throw.
-      const used =
-        this.secondary?.name === 'Shield'
-          ? this.raiseShield()
-          : this.secondary?.countTrack !== undefined
-            ? this.fireSpikes()
-            : this.secondary?.explosionType !== undefined ||
-                this.secondary?.name === 'Grenade'
-              ? this.throwGrenade()
-              : this.placeMine();
+    if (this.secondaryPressed && this.secondaryStats && this.secondary) {
+      const used = this.useSecondary(this.secondary.kind);
 
       if (used) {
-        getSoundManager(this)?.queue(this.secondary!.sound);
+        getSoundManager(this)?.queue(this.secondary.sound);
         // `:3984-3985`. A secondary is "other than timed bombs" and counts as a
         // weapon used, but leaves `onlySpecialWeapons` intact — that is the
         // whole distinction the BossOnlySpecial achievement rests on.

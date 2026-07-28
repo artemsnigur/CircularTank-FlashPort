@@ -26,10 +26,10 @@ far. Several items below are "the model is done, nothing calls it".
 
 ---
 
-## Group F — Secondary weapons (5 of 12 remaining)
+## Group F — Secondary weapons (4 of 12 remaining)
 
 Ported: `Mine`, `Shield`, `Grenade`, `Ice Grenade`, `Poison Grenade`,
-`Icicles`, `Poison Spikes`.
+`Icicles`, `Poison Spikes`, `Magic Bunny`.
 
 Two things fell out of that which the original scoping did not predict.
 **Porting Shield ported `BulletReflect`** — `:1557` is one condition covering
@@ -110,7 +110,7 @@ the blocker for this group; it is not, any more.
       *Missing: nothing but the loop. Lift: small.*
 - [x] **Poison Spikes** — shipped. Identical shape, flat 32 spikes at every level,
       carrying `poisonTime` (≈2.5) and `poisonDamage`. *Lift: small.*
-- [ ] **Magic Bunny** — `:4233`. Chain-homing with `targetsLeft`,
+- [x] **Magic Bunny** — shipped. `:4233`. Chain-homing with `targetsLeft`,
       `neverHitTarget` and a per-bullet `enemiesArray`. **This is `BulletMagic`.**
       Every code path is shared with the Magic Cannon — `:1714`, `:1758`, `:5795`,
       `:5807`, `:5822`, `:5917`, `:5945`, `:6070` all name both classes together —

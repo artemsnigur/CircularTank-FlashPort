@@ -39,9 +39,13 @@ describe('all three are the same throw', () => {
   it('share one throw path in the scene', () => {
     // One flight, three payloads. A second throw implementation is how the
     // variants would drift apart.
-    // The dispatch now reads the spec's shape rather than its name; the three
-    // grenades are still the only things that reach `throwGrenade`.
-    expect(SCENE).toContain("this.secondary?.explosionType !== undefined ||");
+    // The dispatch is a switch on the declared kind now; the three grenades
+    // are the only specs carrying `thrown`, so they are the only things that
+    // reach `throwGrenade`.
+    expect(SCENE).toContain("case 'thrown':");
+    for (const spec of [GRENADE, ICE_GRENADE, POISON_GRENADE]) {
+      expect(spec.kind, spec.name).toBe('thrown');
+    }
     expect((SCENE.match(/private throwGrenade\(\)/g) ?? []).length).toBe(1);
   });
 

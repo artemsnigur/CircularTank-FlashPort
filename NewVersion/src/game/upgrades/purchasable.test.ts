@@ -55,7 +55,7 @@ describe('only ported secondaries are sold', () => {
     expect(isPurchasable(findUpgradeById('Mine')!)).toBe(true);
   });
 
-  it('the remaining five are not', () => {
+  it('the remaining four are not', () => {
     const sold = SECONDARY_UPGRADES.filter(isPurchasable).map((u) => u.id);
     expect(sold).toEqual([
       'Mine',
@@ -65,6 +65,7 @@ describe('only ported secondaries are sold', () => {
       'Icicles',
       'PoisonSpikes',
       'Shield',
+      'MagicBunny',
     ]);
     expect(SECONDARY_UPGRADES).toHaveLength(12);
   });
@@ -152,12 +153,12 @@ describe('the catalogue and the withheld list partition the table', () => {
     for (const spec of withheldUpgrades()) expect(sold.has(spec.id)).toBe(false);
   });
 
-  it('withholds 6 of 28 today — 5 secondaries and 1 misc', () => {
+  it('withholds 5 of 28 today — 4 secondaries and 1 misc', () => {
     // The exact figure, so a change to what the shop sells is visible in a diff
     // rather than discovered in play. Was 13: Shield came off when it landed,
     // BulletReflect came off with it, and the three grenades came off on their
-    // own as each was registered, then the two spike weapons.
-    expect(withheldUpgrades()).toHaveLength(6);
-    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 6);
+    // own as each was registered, then the two spike weapons and Magic Bunny.
+    expect(withheldUpgrades()).toHaveLength(5);
+    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 5);
   });
 });

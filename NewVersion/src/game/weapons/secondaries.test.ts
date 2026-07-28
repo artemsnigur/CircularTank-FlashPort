@@ -34,15 +34,15 @@ describe('registration', () => {
       'Poison Grenade',
       'Icicles',
       'Poison Spikes',
+      'Magic Bunny',
     ]);
   });
 
-  it('leaves the remaining five unported', () => {
+  it('leaves the remaining four unported', () => {
     for (const name of [
       'Rockets',
       'Ice Ball',
       'Lava Ball',
-      'Magic Bunny',
       'Crazy Cheese',
     ]) {
       expect(getSecondary(name), name).toBeUndefined();
