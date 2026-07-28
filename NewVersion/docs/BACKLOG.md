@@ -26,9 +26,10 @@ far. Several items below are "the model is done, nothing calls it".
 
 ---
 
-## Group F — Secondary weapons (7 of 12 remaining)
+## Group F — Secondary weapons (5 of 12 remaining)
 
-Ported: `Mine`, `Shield`, `Grenade`, `Ice Grenade`, `Poison Grenade`.
+Ported: `Mine`, `Shield`, `Grenade`, `Ice Grenade`, `Poison Grenade`,
+`Icicles`, `Poison Spikes`.
 
 Two things fell out of that which the original scoping did not predict.
 **Porting Shield ported `BulletReflect`** — `:1557` is one condition covering
@@ -99,7 +100,7 @@ the blocker for this group; it is not, any more.
       *Lift: small, once Grenade lands.*
 - [x] **Poison Grenade** — shipped. Grenade plus `poisonTime` / `poisonDamage` on the
       `Poison` channel. Same story. *Lift: small, once Grenade lands.*
-- [ ] **Icicles** — `:4058`, a radial burst of `spikeCount` icicles (23 at level 1
+- [x] **Icicles** — shipped. `:4058`, a radial burst of `spikeCount` icicles (23 at level 1
       rising to 32), speed 20, radius 6, carrying `frozenTime`.
       **Quirk to reproduce or document:** the bearing is
       `360 / (spikeCount − 1) × c` for `c` in `0 … spikeCount − 1`, so the last
@@ -107,7 +108,7 @@ the blocker for this group; it is not, any more.
       produce N−1 distinct bearings with one doubled. This is the fan formula
       (endpoints inclusive) applied to a full circle.
       *Missing: nothing but the loop. Lift: small.*
-- [ ] **Poison Spikes** — identical shape, flat 32 spikes at every level,
+- [x] **Poison Spikes** — shipped. Identical shape, flat 32 spikes at every level,
       carrying `poisonTime` (≈2.5) and `poisonDamage`. *Lift: small.*
 - [ ] **Magic Bunny** — `:4233`. Chain-homing with `targetsLeft`,
       `neverHitTarget` and a per-bullet `enemiesArray`. **This is `BulletMagic`.**

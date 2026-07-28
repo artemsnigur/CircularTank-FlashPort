@@ -44,6 +44,14 @@ export interface BulletState {
   penetrates?: boolean;
   /** Fuse length in frames when this round attaches a bomb rather than hitting. */
   bombTimer?: number;
+  /**
+   * Freeze duration in frames; 0 or absent when this round leaves no freeze.
+   *
+   * Mirrors `poisonTime`. The Icicle is the first bullet to carry one — before
+   * it, the only Ice damage in the port came from the Ice Grenade's blast,
+   * which routes through `ExplosionSpec.effectTime` instead.
+   */
+  freezeTime?: number;
   /** Poison duration in frames; 0 or absent when this round leaves no poison. */
   poisonTime?: number;
   /** Poison damage per second. */

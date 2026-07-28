@@ -115,6 +115,7 @@ export function spawnCakePieces(source: CakeSource, host: CakeHost): BulletSpec[
       explosionRadius: 0,
       penetrates: false,
       bombTimer: 0,
+      freezeTime: 0,
       poisonTime: 0,
       poisonDamage: 0,
       // Inherited as the *table* count, not the boosted one, so the bonus is

@@ -690,6 +690,8 @@ export interface BulletSpec {
   penetrates: boolean;
   /** Non-zero when this round attaches a bomb rather than exploding. */
   bombTimer: number;
+  /** Freeze duration in frames; 0 when this round leaves no freeze. */
+  freezeTime: number;
   /** Poison duration in frames; 0 when this round leaves no poison. */
   poisonTime: number;
   /** Poison damage per second. */
@@ -798,6 +800,7 @@ export function fire(
       explosionRadius: stats.explosionRadius,
       penetrates: spec.penetrates ?? false,
       bombTimer: spec.attachesBomb ? (stats.bombTimer ?? 0) : 0,
+      freezeTime: 0,
       poisonTime: spec.appliesPoison ? (stats.poisonTime ?? 0) : 0,
       poisonDamage: spec.appliesPoison ? (stats.poisonDamage ?? 0) : 0,
       cakePieces: spec.spawnsCakePieces ? (stats.cakePieces ?? 0) : 0,

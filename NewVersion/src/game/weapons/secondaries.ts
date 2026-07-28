@@ -23,7 +23,6 @@
  *
 
  *   Rockets                 multiple homing projectiles with target selection
- *   Icicles, Poison Spikes  fan of persistent ground hazards with lifetimes
  *   Ice Ball, Lava Ball     rolling projectiles that persist and pierce
  *   Magic Bunny             homing pet with its own steering loop
  *   Crazy Cheese            spawns a temporary allied entity
@@ -73,6 +72,8 @@ export interface SecondarySpec {
   effectDamageTrack?: number;
   /** Explosion channel the blast uses. `Normal` unless stated. */
   explosionType?: 'Normal' | 'Ice' | 'Poison';
+  /** Stat track holding how many projectiles one use fires — the spike fans. */
+  countTrack?: number;
   /** SoundManager logical name, played on use. */
   sound: string;
 }
@@ -160,6 +161,40 @@ export const POISON_GRENADE: SecondarySpec = {
   sound: 'GrenadeThrow',
 };
 
+/**
+ * Icicles — `PartGameArea.as:4061`.
+ *
+ * A radial burst that freezes. Buys **quantity** as it levels: 23 spikes rising
+ * to 32, on the shortest secondary cooldown in the game at 400 flat.
+ */
+export const ICICLES: SecondarySpec = {
+  name: 'Icicles',
+  upgradeId: 'Icicles',
+  reloadTrack: 0,
+  damageTrack: 1,
+  effectTimeTrack: 2,
+  countTrack: 3,
+  sound: 'FireSpikes',
+};
+
+/**
+ * Poison Spikes — `PartGameArea.as:4065`.
+ *
+ * The same burst, poisoning instead. Buys **duration** rather than quantity:
+ * the count is a flat 32 at every level while the poison time grows, and the
+ * cooldown is 700 against Icicles' 400.
+ */
+export const POISON_SPIKES: SecondarySpec = {
+  name: 'Poison Spikes',
+  upgradeId: 'PoisonSpikes',
+  reloadTrack: 0,
+  damageTrack: 1,
+  effectTimeTrack: 2,
+  effectDamageTrack: 3,
+  countTrack: 4,
+  sound: 'FireSpikes',
+};
+
 /** Secondaries ported so far, by display name. See the header for the rest. */
 export const SECONDARY_WEAPONS: Readonly<Record<string, SecondarySpec>> = {
   Mine: MINE,
@@ -167,6 +202,8 @@ export const SECONDARY_WEAPONS: Readonly<Record<string, SecondarySpec>> = {
   Grenade: GRENADE,
   'Ice Grenade': ICE_GRENADE,
   'Poison Grenade': POISON_GRENADE,
+  Icicles: ICICLES,
+  'Poison Spikes': POISON_SPIKES,
 };
 
 export function getSecondary(name: string): SecondarySpec | undefined {
@@ -186,6 +223,8 @@ export interface SecondaryStats {
   effectTime: number;
   /** Poison's per-tick damage. Zero for Ice, which passes 0 in the AS3 too. */
   effectDamage: number;
+  /** Projectiles one use fires. Zero where the weapon fires a single thing. */
+  count: number;
 }
 
 /**
@@ -220,17 +259,27 @@ export function resolveSecondaryStats(
   const duration = optional(spec.durationTrack);
   const effectTime = optional(spec.effectTimeTrack);
   const effectDamage = optional(spec.effectDamageTrack);
+  const count = optional(spec.countTrack);
   if (
     damage === null ||
     explosionRadius === null ||
     duration === null ||
     effectTime === null ||
-    effectDamage === null
+    effectDamage === null ||
+    count === null
   ) {
     return null;
   }
 
-  return { reloadTimeMax, damage, explosionRadius, duration, effectTime, effectDamage };
+  return {
+    reloadTimeMax,
+    damage,
+    explosionRadius,
+    duration,
+    effectTime,
+    effectDamage,
+    count,
+  };
 }
 
 /**

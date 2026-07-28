@@ -144,6 +144,15 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     return this.poisonTime > 0;
   }
 
+  /** Frames of freeze this round leaves; 0 for everything but the Icicle. */
+  get freezeTime(): number {
+    return this.motion.freezeTime ?? 0;
+  }
+
+  get appliesFreeze(): boolean {
+    return this.freezeTime > 0;
+  }
+
   /** Fragments this round bursts into; 0 for everything but the Cake Cannon. */
   get cakePieces(): number {
     return this.motion.cakePieces ?? 0;

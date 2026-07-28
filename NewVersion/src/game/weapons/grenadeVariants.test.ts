@@ -39,7 +39,9 @@ describe('all three are the same throw', () => {
   it('share one throw path in the scene', () => {
     // One flight, three payloads. A second throw implementation is how the
     // variants would drift apart.
-    expect(SCENE).toContain('// All three grenades share one throw; only the blast payload differs.');
+    // The dispatch now reads the spec's shape rather than its name; the three
+    // grenades are still the only things that reach `throwGrenade`.
+    expect(SCENE).toContain("this.secondary?.explosionType !== undefined ||");
     expect((SCENE.match(/private throwGrenade\(\)/g) ?? []).length).toBe(1);
   });
 

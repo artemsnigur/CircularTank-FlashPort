@@ -32,14 +32,14 @@ describe('registration', () => {
       'Grenade',
       'Ice Grenade',
       'Poison Grenade',
+      'Icicles',
+      'Poison Spikes',
     ]);
   });
 
-  it('leaves the remaining seven unported', () => {
+  it('leaves the remaining five unported', () => {
     for (const name of [
       'Rockets',
-      'Icicles',
-      'Poison Spikes',
       'Ice Ball',
       'Lava Ball',
       'Magic Bunny',
@@ -69,6 +69,7 @@ describe('stats from the upgrade table', () => {
       duration: 0,
       effectTime: 0,
       effectDamage: 0,
+      count: 0,
     });
   });
 
@@ -106,7 +107,7 @@ describe('stats from the upgrade table', () => {
 });
 
 describe('placement', () => {
-  const stats = { reloadTimeMax: 600, damage: 26, explosionRadius: 195, duration: 0, effectTime: 0, effectDamage: 0 };
+  const stats = { reloadTimeMax: 600, damage: 26, explosionRadius: 195, duration: 0, effectTime: 0, effectDamage: 0, count: 0 };
 
   it('drops the mine at the tank position', () => {
     const mine = placeMine(createFiringState(), stats, { x: 320, y: 480 })!;

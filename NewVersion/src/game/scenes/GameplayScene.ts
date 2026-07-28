@@ -97,6 +97,7 @@ import {
   tickGrenade,
 } from '../weapons/grenade';
 import type { GrenadeState } from '../weapons/grenade';
+import { spawnFan } from '../weapons/radialFan';
 import { createLevelFlags } from '../achievements/achievementContext';
 import type { LevelAchievementFlags } from '../achievements/achievementContext';
 import type { PlayerProfile } from '../player/playerProfile';
@@ -1699,6 +1700,47 @@ export class GameplayScene extends Phaser.Scene {
     this.grenades = surviving;
   }
 
+  /**
+   * Fires a radial burst — `:4058-4098`.
+   *
+   * Ordinary bullets on the shared secondary cooldown: they travel, hit, and
+   * die at the border through the same paths every other round uses. The only
+   * thing the fan adds is where they start and which way they point.
+   */
+  private fireSpikes(): boolean {
+    if (this.secondaryFiring.reloadTime > 0 || !this.secondaryStats) return false;
+
+    const stats = this.secondaryStats;
+    this.secondaryFiring.reloadTime += stats.reloadTimeMax;
+
+    // Icicles carry a freeze, Poison Spikes a poison; the spec's tracks decide
+    // which, so the fan needs no branch of its own.
+    const freezing = this.secondary?.upgradeId === 'Icicles';
+
+    const spikes = spawnFan({
+      tankX: this.player.x,
+      tankY: this.player.y,
+      count: stats.count,
+      damage: stats.damage,
+      freezeTime: freezing ? stats.effectTime : 0,
+      poisonTime: freezing ? 0 : stats.effectTime,
+      poisonDamage: freezing ? 0 : stats.effectDamage,
+    });
+
+    for (const spike of spikes) {
+      this.bullets.push(
+        new Bullet(
+          this,
+          spike,
+          this.roomWidth,
+          this.roomHeight,
+          freezing ? 'BulletIcicle' : 'BulletPoisonSpike',
+        ),
+      );
+    }
+    return spikes.length > 0;
+  }
+
   private placeMine(): boolean {
     const placed = placeMine(this.secondaryFiring, this.secondaryStats!, {
       x: this.player.x,
@@ -1746,14 +1788,18 @@ export class GameplayScene extends Phaser.Scene {
     this.updateGrenades(deltaMs);
 
     if (this.secondaryPressed && this.secondaryStats) {
-      // All three grenades share one throw; only the blast payload differs.
+      // Dispatched on what the secondary *is*, not on its name where a shape
+      // can say it: a count means a fan, an explosion channel or the plain
+      // Grenade means a throw.
       const used =
         this.secondary?.name === 'Shield'
           ? this.raiseShield()
-          : this.secondary?.explosionType !== undefined ||
-              this.secondary?.name === 'Grenade'
-            ? this.throwGrenade()
-            : this.placeMine();
+          : this.secondary?.countTrack !== undefined
+            ? this.fireSpikes()
+            : this.secondary?.explosionType !== undefined ||
+                this.secondary?.name === 'Grenade'
+              ? this.throwGrenade()
+              : this.placeMine();
 
       if (used) {
         getSoundManager(this)?.queue(this.secondary!.sound);
@@ -2545,6 +2591,19 @@ export class GameplayScene extends Phaser.Scene {
     // (`:5927` sits inside the damage block, ahead of the kill check at
     // `:5981`). It is scaled by the enemy's own Poison resistance, and an
     // immune enemy takes none — applyPoison refuses outright.
+    // `:5837-5857` — the Icicle freezes on impact, scaled by the enemy's own
+    // Ice resistance and quartered against a boss. Same timer the Ice Grenade's
+    // blast writes to, so the two stack by the same rule.
+    if (bullet.appliesFreeze && enemy.damageMultipliers.Ice > 0) {
+      applyFreeze(
+        enemy.status,
+        bullet.freezeTime,
+        enemy.damageMultipliers.Ice,
+        enemy.enemyLevel === 'B',
+      );
+      if (enemy.enemyType === 'Temperamental') this.levelFlags.temperamentalFrozen = true;
+    }
+
     if (bullet.appliesPoison) {
       const poisoned = applyPoison(
         enemy.status,
