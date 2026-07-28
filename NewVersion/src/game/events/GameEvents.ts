@@ -14,7 +14,7 @@
  * only shows up after twenty level restarts.
  */
 import Phaser from 'phaser';
-import type { SceneKey } from '../config/constants';
+import type { Difficulty, SceneKey } from '../config/constants';
 import type { LevelResult } from '../waves/levelOutcome';
 import type { LevelRef } from '../levels/levelProgress';
 
@@ -162,6 +162,20 @@ export interface GameEventMap {
   'ui:start-game': {
     world: number;
     level: number;
+    /**
+     * Which difficulty to play, and therefore which of the three progress slots
+     * the result is written to.
+     *
+     * **Required, deliberately.** It replaced a pinned `'Easy'` constant in
+     * `GameplayScene`, and making it optional would have left every emitter that
+     * forgot it silently playing on Easy and banking to the Easy slot — the same
+     * silent-default trap `PlacementContext` documents for camera size. Required
+     * means the compiler names every launch site instead.
+     *
+     * React does not decide it: the value is published on `difficulty:changed`
+     * and echoed back here, exactly as `menu:resume-point` works.
+     */
+    difficulty: Difficulty;
     sandbox?: boolean;
     /**
      * Arrive fully upgraded. **Only honoured on a `sandbox` run**, so it can
@@ -191,6 +205,8 @@ export interface GameEventMap {
       mode: string;
       cleared: boolean;
       unlocked: boolean;
+      /** Medals 0-3 at the current difficulty; see `levelUnlockStates`. */
+      value: number;
     }>;
   };
   'ui:pause': { paused: boolean };
@@ -251,6 +267,20 @@ export interface GameEventMap {
   'ui:set-audio': { soundOn?: boolean; musicOn?: boolean };
   /** The current preferences, so React can render the toggles. */
   'audio:options': { soundOn: boolean; musicOn: boolean };
+  /**
+   * Choose the difficulty. Persisted to CircularTankOptions beside the volume
+   * settings, as `SaveManager.as:793` has it — it is a preference, not progress.
+   */
+  'ui:set-difficulty': { difficulty: Difficulty };
+  /**
+   * The current difficulty, so React can render the buttons and echo it back on
+   * `ui:start-game`.
+   *
+   * `hintPending` is `Main.hDifficultyChosen` inverted — true until the player
+   * has actually pressed a difficulty button, which is what the AS3 points its
+   * helper hand at (`ButtonGameDifficulty.as:41`).
+   */
+  'difficulty:changed': { difficulty: Difficulty; hintPending: boolean };
   'ui:run-audio-selftest': Record<string, never>;
   'ui:safe-area-changed': { top: number; right: number; bottom: number; left: number };
 }

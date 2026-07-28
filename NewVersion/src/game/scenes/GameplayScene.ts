@@ -99,6 +99,7 @@ import {
 } from '../enemies/enemyFiring';
 import type { EnemyBulletState } from '../enemies/enemyFiring';
 import { getDifficultyProfile } from '../config/difficultyMultipliers';
+import { DEFAULT_DIFFICULTY } from '../levels/difficultyOption';
 import type { FlagState } from '../waves/flag';
 import {
   createLevelOutcome,
@@ -201,11 +202,15 @@ const PLACEHOLDER_AMMO = 12;
 const FIRE_THAW_FRAMES = 15;
 
 /**
- * Difficulty is pinned until the difficulty selector is ported. It decides
- * which of the three progress slots a result is written to, and how enemy
- * stats scale.
+ * Fallback when a launch supplies no difficulty.
+ *
+ * `ui:start-game` requires one, so in practice every launch names it; this
+ * covers `scene.start(Gameplay)` calls that bypass the event (`ui:goto`, and a
+ * restart before `init` has run). It is the same value `difficultyOption`
+ * defaults to, so a run that lands here plays and banks exactly as an unset
+ * preference would.
  */
-const DIFFICULTY: Difficulty = 'Easy';
+const FALLBACK_DIFFICULTY: Difficulty = DEFAULT_DIFFICULTY;
 
 /** Dev-only top-up, so the shop can be exercised without grinding levels. */
 const DEV_MONEY_GRANT = 5000;
@@ -217,6 +222,11 @@ const FPS_EMIT_INTERVAL_MS = 500;
 interface GameplayData {
   world?: number;
   level?: number;
+  /**
+   * See `ui:start-game`. Decides which of the three progress slots the result
+   * is written to, how enemy stats scale, and whether enemies lead the tank.
+   */
+  difficulty?: Difficulty;
   /** See `ui:start-game` — a run that must not reach the player's save. */
   sandbox?: boolean;
   /** See `ui:start-game` — honoured only alongside `sandbox`. */
@@ -244,6 +254,8 @@ export class GameplayScene extends Phaser.Scene {
   /** Which level is being played — set from LevelSelect via scene data. */
   private world = 1;
   private level = 1;
+  /** The difficulty this run is being played on — see `ui:start-game`. */
+  private difficulty: Difficulty = FALLBACK_DIFFICULTY;
 
   /**
    * A sandbox run persists nothing — see `ui:start-game`.
@@ -388,6 +400,7 @@ export class GameplayScene extends Phaser.Scene {
   init(data: GameplayData): void {
     this.world = data.world ?? 1;
     this.level = data.level ?? 1;
+    this.difficulty = data.difficulty ?? FALLBACK_DIFFICULTY;
     this.sandbox = data.sandbox === true;
     this.equipped = data.equipped === true;
     // Seeded from the profile below — the AS3 has one running `money` total,
@@ -529,14 +542,20 @@ export class GameplayScene extends Phaser.Scene {
             this.scene.resume();
             // `sandbox` rides along: retrying a dev run must not become a
             // real one.
-            this.scene.restart({ world: this.world, level: this.level, sandbox: this.sandbox, equipped: this.equipped });
+            this.scene.restart({
+              world: this.world,
+              level: this.level,
+              difficulty: this.difficulty,
+              sandbox: this.sandbox,
+              equipped: this.equipped,
+            });
           }
           return;
         }
         this.scene.resume();
         this.scene.start(key);
       }),
-      GameEvents.subscribe('ui:start-game', ({ world, level, sandbox, equipped }) => {
+      GameEvents.subscribe('ui:start-game', ({ world, level, difficulty, sandbox, equipped }) => {
         // "Next level" from the results overlay.
         //
         // Gameplay has to listen for this itself. MainMenuScene and
@@ -553,7 +572,13 @@ export class GameplayScene extends Phaser.Scene {
         // entered from a dev jump stays off the save for its whole length,
         // which is the only useful reading: the player did not legitimately
         // reach level N+1 either.
-        this.scene.restart({ world, level, sandbox: sandbox ?? this.sandbox, equipped: equipped ?? this.equipped });
+        this.scene.restart({
+          world,
+          level,
+          difficulty,
+          sandbox: sandbox ?? this.sandbox,
+          equipped: equipped ?? this.equipped,
+        });
       }),
       GameEvents.subscribe('ui:set-audio', (change) => {
         setAudioOption(this, change);
@@ -636,7 +661,19 @@ export class GameplayScene extends Phaser.Scene {
     this.updateStatusEffects(delta);
 
     for (const enemy of [...this.enemies]) {
-      enemy.update({ x: this.player.x, y: this.player.y }, delta);
+      // Velocity and radius are required by `AimTank`, not optional: Medium and
+      // Hard lead the tank's motion, and a zero default would silently be the
+      // Easy rule on every difficulty.
+      enemy.update(
+        {
+          x: this.player.x,
+          y: this.player.y,
+          xVel: this.player.xVelPerFrame,
+          yVel: this.player.yVelPerFrame,
+          radius: this.player.radius,
+        },
+        delta,
+      );
 
       // `DamageAddict` bleeds itself to death inside `update`. Routed through
       // the same `removeEnemy(enemy, true)` the status-effect tick uses, so the
@@ -970,7 +1007,7 @@ export class GameplayScene extends Phaser.Scene {
     const enemy = Enemy.spawn(this, {
       type: warning.type,
       level: warning.level,
-      difficulty: DIFFICULTY,
+      difficulty: this.difficulty,
       mode: spec.mode,
       roomWidth: this.roomWidth,
       roomHeight: this.roomHeight,
@@ -1660,7 +1697,7 @@ export class GameplayScene extends Phaser.Scene {
     // A destroyed tank neither shoots at nor is shot by anything.
     if (this.outcome.result !== null) return;
 
-    const speedMultiplier = getDifficultyProfile(DIFFICULTY).enemyBulletSpeed;
+    const speedMultiplier = getDifficultyProfile(this.difficulty).enemyBulletSpeed;
 
     for (const enemy of this.enemies) {
       if (!enemy.shooter) continue;
@@ -1924,7 +1961,7 @@ export class GameplayScene extends Phaser.Scene {
         currency: this.currency,
         world: this.world,
         level: this.level,
-        difficulty: DIFFICULTY,
+        difficulty: this.difficulty,
         won: this.outcome.result === 'won',
       });
     }

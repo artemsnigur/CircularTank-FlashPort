@@ -78,6 +78,8 @@ import {
   tickRage,
 } from '../enemies/enemyStatMods';
 import { ENEMY_TIER_MULTIPLIERS, getDifficultyProfile } from '../config/difficultyMultipliers';
+import { aimPoint } from '../enemies/enemyAim';
+import type { AimTank } from '../enemies/enemyAim';
 import type { AcceleratingState, RageState, RampedSpeeds } from '../enemies/enemyStatMods';
 import type { DamageMultipliers, ImpactFeedback } from '../enemies/damageTypes';
 import { createStatusState, tickStatuses } from '../enemies/statusEffects';
@@ -206,6 +208,8 @@ export class Enemy extends Phaser.GameObjects.Container {
   private readonly roomWidth: number;
   private readonly roomHeight: number;
   private readonly mode: LevelMode;
+  /** Decides how far the enemy leads the tank — see `enemies/enemyAim.ts`. */
+  private readonly difficulty: Difficulty;
   /**
    * Tower's acceleration ramp — per-enemy mutable state, not a stat.
    *
@@ -321,6 +325,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.roomWidth = config.roomWidth;
     this.roomHeight = config.roomHeight;
     this.mode = config.mode;
+    this.difficulty = config.difficulty;
     this.resetTowerRamp();
     this.accelerating = acceleratesWhileUndamaged(config.type)
       ? createAcceleratingState(config.level === 'B')
@@ -697,7 +702,7 @@ export class Enemy extends Phaser.GameObjects.Container {
   }
 
   /** Advances steering. Call once per frame with the tank's position. */
-  override update(target: { x: number; y: number }, deltaMs: number): void {
+  override update(target: AimTank, deltaMs: number): void {
     // `PartGameArea.as:5027` gates the whole acceleration block on `!frozen`,
     // so a frozen enemy holds position rather than coasting.
     if (this.status.frozen) return;
@@ -733,6 +738,22 @@ export class Enemy extends Phaser.GameObjects.Container {
     // layering on it. Velocity and rotation are written from the bearing to the
     // tank every frame, which is also why the wall cannot produce Defense's
     // slide: whatever the clamp did is rebuilt next frame.
+    // Where to steer, which is not always where the tank is: on Medium and Hard
+    // the enemy leads the tank's velocity. `enemyAim.ts` owns that rule; the
+    // steering formulas below are unchanged and simply receive a different
+    // point, exactly as `PartGameArea.as:4585` does.
+    //
+    // Not applied to a reeling grappler: `:5041` replaces the whole steering
+    // branch with a straight pull to the tank's actual position.
+    const goal = aimPoint(this.steering, target, {
+      difficulty: this.difficulty,
+      mode: this.mode,
+      rotation: this.steering.rotation,
+      radius: this.radius,
+      roomWidth: this.roomWidth,
+      roomHeight: this.roomHeight,
+    });
+
     const stepped = this.grapple?.isGrapping
       ? this.reelStep(target, frames)
       : steerToward(
@@ -744,7 +765,7 @@ export class Enemy extends Phaser.GameObjects.Container {
         accSpeed: tower ? this.towerAcc : speeds?.accSpeed ?? this.stats.accSpeed,
         moveSpeedMax: speeds?.moveSpeedMax ?? this.stats.moveSpeedMax,
       },
-      target,
+      goal,
       deltaMs,
       // Defense enemies never re-steer. `PartGameArea.as:4528` gates the whole
       // steering block — goal selection, the tank-lead prediction, the capped
@@ -759,7 +780,7 @@ export class Enemy extends Phaser.GameObjects.Container {
       defense
         ? this.steering.rotation
         : tower
-          ? towerAngleToTarget(this.steering, target, this.stats.moveSpeedMax, this.roomWidth)
+          ? towerAngleToTarget(this.steering, goal, this.stats.moveSpeedMax, this.roomWidth)
           : undefined,
       );
 

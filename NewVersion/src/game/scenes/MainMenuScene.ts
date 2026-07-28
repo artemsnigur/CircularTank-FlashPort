@@ -11,6 +11,7 @@ import { SceneKeys } from '../config/constants';
 import { getPlayerProfile } from '../player/playerProfile';
 import { getCurrentWorldAndLevel } from '../levels/levelProgress';
 import { SELECTABLE_WORLDS } from '../levels/levelUnlock';
+import { publishDifficulty } from '../levels/difficultyService';
 import { GameEvents } from '../events/GameEvents';
 import { runAudioSelfTest } from '../audio/audioSelfTest';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
@@ -72,10 +73,14 @@ export class MainMenuScene extends Phaser.Scene {
     });
 
     this.publishResumePoint();
+    publishDifficulty(this);
 
-    const offStart = GameEvents.subscribe('ui:start-game', ({ world, level, sandbox, equipped }) => {
-      this.scene.start(SceneKeys.Gameplay, { world, level, sandbox, equipped });
-    });
+    const offStart = GameEvents.subscribe(
+      'ui:start-game',
+      ({ world, level, difficulty, sandbox, equipped }) => {
+        this.scene.start(SceneKeys.Gameplay, { world, level, difficulty, sandbox, equipped });
+      },
+    );
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.MainMenu) this.scene.start(key);
     });

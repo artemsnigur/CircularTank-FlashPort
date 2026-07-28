@@ -235,7 +235,7 @@ describe('Hud', () => {
     // for the non-existent 1-46. The scene resolves the target now, and this
     // asserts the button sends it verbatim rather than deriving anything.
     enterGameplay();
-    const started: Array<{ world: number; level: number }> = [];
+    const started: Array<{ world: number; level: number; difficulty: string }> = [];
     const off = GameEvents.subscribe('ui:start-game', (p) => void started.push(p));
     const { rerender } = render(<Hud />);
 
@@ -253,7 +253,8 @@ describe('Hud', () => {
     fireEvent.click(screen.getByRole('button', { name: /next level/i }));
     off();
 
-    expect(started).toEqual([{ world: 2, level: 1 }]);
+    // The difficulty rides along from the store, defaulting to Easy here.
+    expect(started).toEqual([{ world: 2, level: 1, difficulty: 'Easy' }]);
   });
 
   it('labels a defeat differently', () => {

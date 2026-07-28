@@ -77,9 +77,27 @@ export function shortestRotation(from: number, to: number): number {
   return difference;
 }
 
-/** Facing that points at the target, in the AS3's `atan2(dx, dy)` idiom. */
-export function angleToTarget(state: SteeringState, target: SteeringTarget): number {
-  return 90 - (Math.atan2(target.x - state.x, target.y - state.y) * 180) / Math.PI;
+/**
+ * Facing that points at the target, in the AS3's `atan2(dx, dy)` idiom.
+ *
+ * ── Two conventions, one angle — do not "fix" either ──────────────────────
+ * `PartGameArea.as` computes bearings two different ways and they are the same
+ * number:
+ *
+ *     angleBetween(x1,y1,x2,y2)  =  atan2(dy, dx)              (`:2594`, radians)
+ *     rotationGoal               =  90 - atan2(dx, dy)*180/pi  (`:4585`, degrees)
+ *
+ * `atan2(dx, dy)` is `90° - atan2(dy, dx)`, so `90 - atan2(dx, dy)` collapses
+ * back to `atan2(dy, dx)`. The flipped form exists because Flash measures
+ * `rotation` clockwise from the +x axis with +y downward; the two spellings sit
+ * side by side in the same function at `:4530` and `:4585`.
+ *
+ * This function is the second form. Rewriting it to match `angleBetween` would
+ * change nothing and rewriting `angleBetween` to match this one would silently
+ * add 90° to every bearing that reads it, so both stay as the source has them.
+ */
+export function angleToTarget(from: SteeringTarget, to: SteeringTarget): number {
+  return 90 - (Math.atan2(to.x - from.x, to.y - from.y) * 180) / Math.PI;
 }
 
 /**

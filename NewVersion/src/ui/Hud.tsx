@@ -125,6 +125,7 @@ function AmmoReadout(): React.ReactElement | null {
 function LevelOutcomeOverlay(): React.ReactElement | null {
   const outcome = useGameStore((s) => s.levelOutcome);
   const clearLevelOutcome = useGameStore((s) => s.clearLevelOutcome);
+  const difficulty = useGameStore((s) => s.difficulty);
   if (!outcome) return null;
 
   const retry = (): void => {
@@ -139,7 +140,11 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
   const playNext = (): void => {
     if (!outcome.nextLevel) return;
     clearLevelOutcome();
-    GameEvents.emit('ui:start-game', outcome.nextLevel);
+    // The difficulty is the live preference rather than one captured at the
+    // start of the finished level: `ScreenLevelSelect.levelDifficulty` is a
+    // global the AS3 reads afresh at every level start, and nothing on this
+    // overlay can change it, so the two agree.
+    GameEvents.emit('ui:start-game', { ...outcome.nextLevel, difficulty });
   };
 
   const toMenu = (): void => {

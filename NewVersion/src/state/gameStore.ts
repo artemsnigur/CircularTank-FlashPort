@@ -13,7 +13,8 @@
  * keeps a single place to look when a HUD value is wrong.
  */
 import { create } from 'zustand';
-import type { SceneKey } from '../game/config/constants';
+import type { Difficulty, SceneKey } from '../game/config/constants';
+import { DEFAULT_DIFFICULTY } from '../game/levels/difficultyOption';
 import type { AudioSelfTestReport, BootStage, FontReport } from '../game/events/GameEvents';
 import type { SafeAreaInsets } from '../game/config/viewport';
 import type { LevelResult } from '../game/waves/levelOutcome';
@@ -70,6 +71,8 @@ export interface LevelListing {
     mode: string;
     cleared: boolean;
     unlocked: boolean;
+    /** Medals 0-3 at the current difficulty — see `levelUnlockStates`. */
+    value: number;
   }>;
 }
 
@@ -138,6 +141,15 @@ export interface GameState {
   safeArea: SafeAreaInsets;
   /** Sound/music preferences, mirrored from SoundManager for the HUD toggles. */
   audioOptions: { soundOn: boolean; musicOn: boolean };
+  /**
+   * The chosen difficulty, mirrored from the options store.
+   *
+   * React renders the buttons from this and echoes it back on `ui:start-game`;
+   * it never decides it. `hintPending` is true until the player has pressed a
+   * difficulty button — `Main.hDifficultyChosen` inverted.
+   */
+  difficulty: Difficulty;
+  difficultyHintPending: boolean;
   fonts: FontReport[];
   audioReport: AudioSelfTestReport | null;
   fps: number;
@@ -170,6 +182,7 @@ export interface GameState {
   setViewport: (viewport: ViewportSnapshot) => void;
   setSafeArea: (insets: SafeAreaInsets) => void;
   setAudioOptions: (options: { soundOn: boolean; musicOn: boolean }) => void;
+  setDifficulty: (state: { difficulty: Difficulty; hintPending: boolean }) => void;
   setFonts: (fonts: FontReport[]) => void;
   setAudioReport: (report: AudioSelfTestReport | null) => void;
   setFps: (fps: number) => void;
@@ -208,6 +221,8 @@ export const useGameStore = create<GameState>()((set) => ({
   viewport: null,
   safeArea: NO_INSETS,
   audioOptions: { soundOn: true, musicOn: true },
+  difficulty: DEFAULT_DIFFICULTY,
+  difficultyHintPending: true,
   fonts: [],
   audioReport: null,
   fps: 0,
@@ -252,6 +267,8 @@ export const useGameStore = create<GameState>()((set) => ({
   setViewport: (viewport) => set({ viewport }),
   setSafeArea: (safeArea) => set({ safeArea }),
   setAudioOptions: (audioOptions) => set({ audioOptions }),
+  setDifficulty: ({ difficulty, hintPending }) =>
+    set({ difficulty, difficultyHintPending: hintPending }),
   setFonts: (fonts) => set({ fonts }),
   setAudioReport: (audioReport) => set({ audioReport }),
   setFps: (fps) => set({ fps }),

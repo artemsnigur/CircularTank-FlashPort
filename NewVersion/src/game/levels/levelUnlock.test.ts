@@ -136,7 +136,7 @@ describe('the world unlock rule', () => {
 
 describe('the grid rows', () => {
   it('describes every level in the world, in order', () => {
-    const rows = levelUnlockStates(createEmptyProgress(), 1);
+    const rows = levelUnlockStates(createEmptyProgress(), 1, 'Easy');
 
     expect(rows).toHaveLength(levelsInWorld(1));
     expect(rows.map((r) => r.level)).toEqual(rows.map((_, i) => i + 1));
@@ -144,7 +144,7 @@ describe('the grid rows', () => {
   });
 
   it('opens exactly one row on a fresh save', () => {
-    const rows = levelUnlockStates(createEmptyProgress(), 1);
+    const rows = levelUnlockStates(createEmptyProgress(), 1, 'Easy');
 
     expect(rows.filter((r) => r.unlocked)).toHaveLength(1);
     expect(rows.filter((r) => r.cleared)).toHaveLength(0);
@@ -153,17 +153,39 @@ describe('the grid rows', () => {
   it('cleared and unlocked are different facts', () => {
     // Level 1 cleared: level 1 is cleared *and* open, level 2 is open and not
     // cleared. Conflating them would make one of these wrong.
-    const rows = levelUnlockStates(clear(createEmptyProgress(), 1, 1), 1);
+    const rows = levelUnlockStates(clear(createEmptyProgress(), 1, 1), 1, 'Easy');
 
     expect(rows[0]).toMatchObject({ level: 1, cleared: true, unlocked: true });
     expect(rows[1]).toMatchObject({ level: 2, cleared: false, unlocked: true });
     expect(rows[2]).toMatchObject({ level: 3, cleared: false, unlocked: false });
   });
 
+  it('shows the medal count for the difficulty asked about', () => {
+    // Two medals on Medium. The cascade means Easy sees them and Hard does not:
+    // clearing on a harder setting satisfies every easier one, never the
+    // reverse. Same row, three different values.
+    const progress = recordLevelResult(createEmptyProgress(), 1, 1, 'Medium', 2);
+
+    expect(levelUnlockStates(progress, 1, 'Easy')[0].value).toBe(2);
+    expect(levelUnlockStates(progress, 1, 'Medium')[0].value).toBe(2);
+    expect(levelUnlockStates(progress, 1, 'Hard')[0].value).toBe(0);
+  });
+
+  it('a level opened on Easy stays open on Hard, at zero medals', () => {
+    // The unlock rule tests all three slots (`:842`); only the *value* is
+    // difficulty-scoped. Deriving one from the other would shut the grid on a
+    // player who switched to Hard.
+    const progress = clear(createEmptyProgress(), 1, 1);
+    const hard = levelUnlockStates(progress, 1, 'Hard');
+
+    expect(hard[1].unlocked).toBe(true);
+    expect(hard[0]).toMatchObject({ cleared: true, unlocked: true, value: 0 });
+  });
+
   it('yields nothing for a world that does not exist', () => {
     // A blank grid beats a crashed screen.
-    expect(levelUnlockStates(createEmptyProgress(), 0)).toEqual([]);
-    expect(levelUnlockStates(createEmptyProgress(), WORLD_COUNT + 1)).toEqual([]);
+    expect(levelUnlockStates(createEmptyProgress(), 0, 'Easy')).toEqual([]);
+    expect(levelUnlockStates(createEmptyProgress(), WORLD_COUNT + 1, 'Easy')).toEqual([]);
   });
 });
 
@@ -215,7 +237,11 @@ describe('a locked level cannot be started', () => {
     // handler returns early on refusal; it cannot prove the handler runs — the
     // three tests above are what check the decision itself.
     const source = readFileSync('src/game/scenes/LevelSelectScene.ts', 'utf8');
-    expect(source).toContain("GameEvents.subscribe('ui:start-game'");
+    // Matched on the event name alone, not the whole `subscribe(` call: the
+    // handler's signature grows as the payload does, and pinning its exact
+    // formatting makes this fail for reasons that have nothing to do with the
+    // guard.
+    expect(source).toContain("'ui:start-game',");
     expect(source).toContain('if (!this.mayStart(world, level, sandbox)) return;');
     expect(source).toContain('mayStartLevel(progress, { world, level, sandbox })');
   });

@@ -33,6 +33,9 @@ import type { UpgradeState } from '../upgrades/upgradeState';
 import type { LoadoutState } from '../loadout/loadout';
 import { nextLevelAfter, recordLevelResult } from '../levels/levelProgress';
 import { discoverEnemies } from '../enemies/enemyKnowledge';
+import { isHintDone, markHintDone } from '../onboarding/mainFlags';
+import type { MainFlags, UiHintId } from '../onboarding/mainFlags';
+import type { TutorialState } from '../tutorial/tutorialState';
 import type { ProgressTable } from '../levels/levelProgress';
 import type { Difficulty } from '../config/constants';
 
@@ -95,6 +98,28 @@ export class PlayerProfile {
 
   get progress(): ProgressTable {
     return this.data.levelSelect.progress;
+  }
+
+  get mainFlags(): MainFlags {
+    return this.data.mainFlags;
+  }
+
+  get tutorial(): TutorialState {
+    return this.data.tutorial;
+  }
+
+  /**
+   * Records a one-shot UI hint as seen — `Main.h<Name> = true`.
+   *
+   * Returns whether anything changed, so a caller can skip the save when the
+   * hint was already done. The AS3 calls `SaveManager.saveOtherHelpers()` on
+   * every press regardless (`ButtonGameDifficulty.as:42`); writing only on a
+   * change is the same end state without re-encoding the slot for nothing.
+   */
+  markUiHint(id: UiHintId): boolean {
+    if (isHintDone(this.data.mainFlags, id)) return false;
+    this.data = { ...this.data, mainFlags: markHintDone(this.data.mainFlags, id) };
+    return true;
   }
 
   /**

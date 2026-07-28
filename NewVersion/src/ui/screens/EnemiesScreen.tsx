@@ -23,6 +23,7 @@ const STATUS_LABEL: Record<BehaviourStatus, string> = {
 
 export function EnemiesScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
+  const difficulty = useGameStore((s) => s.difficulty);
   if (activeScene !== 'Enemies') return null;
 
   const reports = describeAllEnemies();
@@ -77,6 +78,9 @@ export function EnemiesScreen(): React.ReactElement | null {
                         GameEvents.emit('ui:start-game', {
                           world: DEV_WORLD,
                           level: devLevelForType(r.type)!,
+                          // A dev fight still honours the chosen difficulty, so
+                          // the stat multipliers can be exercised from here.
+                          difficulty,
                           // Makes the "records no progress" claim below true.
                           // It was not: the level-end block banked the run's
                           // money and wrote previousWorld: 0 regardless.

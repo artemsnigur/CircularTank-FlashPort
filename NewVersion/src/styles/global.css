@@ -655,6 +655,61 @@ code {
   color: var(--text-dim);
 }
 
+/* Medals earned at the current difficulty — 0..3, always three glyphs so the
+   cell height does not jump between an earned and an unearned level. */
+.level-grid__medals {
+  display: block;
+  font-size: 0.55rem;
+  letter-spacing: 0.05em;
+  color: #ffd166;
+}
+
+/* Difficulty picker — ButtonDifficultyEasy/Medium/Hard. */
+.difficulty {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+  margin: 0.25rem 0 0.75rem;
+}
+
+.difficulty__button {
+  padding: 0.3rem 0.9rem;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 4%);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.difficulty__button--on {
+  border-color: rgb(255 209 102 / 70%);
+  background: rgb(255 209 102 / 14%);
+  color: #ffd166;
+}
+
+/* `Main.hDifficultyChosen` still unset — the AS3 points a helper hand here.
+   Gated on the tutorial, so it does not show until that lands. */
+.difficulty--hint .difficulty__button {
+  animation: difficulty-hint 1.4s ease-in-out infinite;
+}
+
+@keyframes difficulty-hint {
+  50% {
+    border-color: rgb(255 209 102 / 80%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .difficulty--hint .difficulty__button {
+    animation: none;
+    border-color: rgb(255 209 102 / 55%);
+  }
+}
+
 /* Flag counter — only rendered on Flag levels. */
 .hud-stat--flags {
   color: #6ee7ff;

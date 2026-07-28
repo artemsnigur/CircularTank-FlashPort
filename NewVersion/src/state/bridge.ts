@@ -115,6 +115,10 @@ export function attachStoreBridge(): () => void {
     useGameStore.getState().setAudioOptions({ soundOn, musicOn });
   });
 
+  on('difficulty:changed', ({ difficulty, hintPending }) => {
+    useGameStore.getState().setDifficulty({ difficulty, hintPending });
+  });
+
   on('audio:selftest', (report) => {
     store.getState().setAudioReport(report);
   });

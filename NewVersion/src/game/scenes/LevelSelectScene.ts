@@ -14,6 +14,7 @@ import { GameEvents } from '../events/GameEvents';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import { getPlayerProfile } from '../player/playerProfile';
 import { levelUnlockStates, mayStartLevel, SELECTABLE_WORLDS } from '../levels/levelUnlock';
+import { chooseDifficulty, getDifficulty, publishDifficulty } from '../levels/difficultyService';
 import { Worlds } from '../config/constants';
 
 /**
@@ -47,10 +48,20 @@ export class LevelSelectScene extends Phaser.Scene {
       .setAlpha(0.35);
 
     this.publishLevels();
+    publishDifficulty(this);
 
-    const offStart = GameEvents.subscribe('ui:start-game', ({ world, level, sandbox, equipped }) => {
-      if (!this.mayStart(world, level, sandbox)) return;
-      this.scene.start(SceneKeys.Gameplay, { world, level, sandbox, equipped });
+    const offStart = GameEvents.subscribe(
+      'ui:start-game',
+      ({ world, level, difficulty, sandbox, equipped }) => {
+        if (!this.mayStart(world, level, sandbox)) return;
+        this.scene.start(SceneKeys.Gameplay, { world, level, difficulty, sandbox, equipped });
+      },
+    );
+    const offDifficulty = GameEvents.subscribe('ui:set-difficulty', ({ difficulty }) => {
+      // The medal counts the grid shows are per-difficulty, so a change has to
+      // republish the rows as well as the buttons.
+      chooseDifficulty(this, difficulty);
+      this.publishLevels();
     });
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.LevelSelect) this.scene.start(key);
@@ -64,6 +75,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offStart();
+      offDifficulty();
       offGoto();
       GameEvents.off('viewport:changed', onResize);
       GameEvents.emit('scene:shutdown', { key: SceneKeys.LevelSelect });
@@ -117,7 +129,7 @@ export class LevelSelectScene extends Phaser.Scene {
     GameEvents.emit('levels:listed', {
       world,
       worldName: Worlds[world - 1] ?? `World ${world}`,
-      levels: levelUnlockStates(profile.progress, world),
+      levels: levelUnlockStates(profile.progress, world, getDifficulty(this)),
     });
   }
 }

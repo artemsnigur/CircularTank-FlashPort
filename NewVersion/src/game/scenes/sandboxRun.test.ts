@@ -35,8 +35,8 @@ describe('the bus carries the flag', () => {
       seen.push(sandbox);
     });
 
-    GameEvents.emit('ui:start-game', { world: 1, level: 9, sandbox: true });
-    GameEvents.emit('ui:start-game', { world: 1, level: 1 });
+    GameEvents.emit('ui:start-game', { world: 1, level: 9, difficulty: 'Easy', sandbox: true });
+    GameEvents.emit('ui:start-game', { world: 1, level: 1, difficulty: 'Easy' });
     off();
 
     // Explicit true survives; an ordinary start stays undefined so the scene
@@ -56,11 +56,12 @@ describe('every scene that starts Gameplay forwards the flag', () => {
 
   it.each(forwarders)('%s passes sandbox through to scene.start', (path) => {
     const source = readFileSync(path, 'utf8');
+    // Destructured off the event, then handed on. `difficulty` joined the
+    // payload later and must ride the same route: a forwarder that drops it
+    // silently plays the run on the fallback and banks to the wrong slot.
+    expect(source).toContain("({ world, level, difficulty, sandbox, equipped })");
     expect(source).toContain(
-      "GameEvents.subscribe('ui:start-game', ({ world, level, sandbox, equipped })",
-    );
-    expect(source).toContain(
-      'this.scene.start(SceneKeys.Gameplay, { world, level, sandbox, equipped })',
+      'this.scene.start(SceneKeys.Gameplay, { world, level, difficulty, sandbox, equipped })',
     );
   });
 
@@ -113,9 +114,16 @@ describe('GameplayScene hands the flag to the banker', () => {
   });
 
   it('keeps the flag across a retry and a Next level', () => {
-    expect(source).toContain(
-      'this.scene.restart({ world: this.world, level: this.level, sandbox: this.sandbox, equipped: this.equipped })',
-    );
+    // A retry replays the same run, so every field comes off the scene.
+    for (const field of [
+      'world: this.world',
+      'level: this.level',
+      'difficulty: this.difficulty',
+      'sandbox: this.sandbox',
+      'equipped: this.equipped',
+    ]) {
+      expect(source, field).toContain(field);
+    }
     // Next level inherits when the emitter does not say — the Hud cannot know.
     expect(source).toContain('sandbox: sandbox ?? this.sandbox');
   });

@@ -13,7 +13,8 @@ import { useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 import { LEVELS } from '../../game/levels/levelData';
-import { Worlds } from '../../game/config/constants';
+import { Difficulties as DIFFICULTIES, Worlds } from '../../game/config/constants';
+import { MAX_LEVEL_VALUE } from '../../game/levels/levelProgress';
 
 /**
  * Dev-only jump to any level in any world.
@@ -42,6 +43,7 @@ import { Worlds } from '../../game/config/constants';
  * only call site.
  */
 function DevLevelJump(): React.ReactElement {
+  const difficulty = useGameStore((s) => s.difficulty);
   const [world, setWorld] = useState(1);
   const [equipped, setEquipped] = useState(true);
   const levels = LEVELS[world - 1] ?? [];
@@ -89,7 +91,7 @@ function DevLevelJump(): React.ReactElement {
                 title={`World ${world} level ${level} — ${spec.mode}, ${spec.roomWidth}x${spec.roomHeight}`}
                 aria-label={`World ${world}, level ${level}, ${spec.mode}`}
                 onClick={() =>
-                  GameEvents.emit('ui:start-game', { world, level, sandbox: true, equipped })
+                  GameEvents.emit('ui:start-game', { world, level, difficulty, sandbox: true, equipped })
                 }
               >
                 <span className="dev-jump__number">{level}</span>
@@ -111,13 +113,64 @@ function DevLevelJump(): React.ReactElement {
   );
 }
 
+/**
+ * The three difficulty buttons — `ButtonDifficultyEasy/Medium/Hard`.
+ *
+ * The press goes to the scene, which owns the options store and the save slot;
+ * this renders the answer that comes back. Pressing the active one is not
+ * suppressed here — the scene decides that it changes nothing and, in
+ * particular, that it does not consume the `DifficultyChosen` hint.
+ */
+function DifficultyPicker(): React.ReactElement {
+  const difficulty = useGameStore((s) => s.difficulty);
+  const hintPending = useGameStore((s) => s.difficultyHintPending);
+
+  return (
+    <div
+      className={`difficulty${hintPending ? ' difficulty--hint' : ''}`}
+      role="group"
+      aria-label="Difficulty"
+    >
+      {DIFFICULTIES.map((option) => (
+        <button
+          key={option}
+          type="button"
+          className={`difficulty__button${option === difficulty ? ' difficulty__button--on' : ''}`}
+          aria-pressed={option === difficulty}
+          onClick={() => GameEvents.emit('ui:set-difficulty', { difficulty: option })}
+        >
+          {option}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Medals earned, as seen from the current difficulty.
+ *
+ * The count is per-difficulty by the cascade in `getLevelValues`, so the same
+ * level reads 3 on Easy and 0 on Hard until it has been beaten on Hard. That is
+ * the whole reason the row carries a value rather than a boolean.
+ */
+function Medals({ value }: { value: number }): React.ReactElement {
+  return (
+    <span className="level-grid__medals" aria-hidden="true">
+      {'★'.repeat(value)}
+      {'☆'.repeat(MAX_LEVEL_VALUE - value)}
+    </span>
+  );
+}
+
 export function LevelSelectScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
   const listing = useGameStore((s) => s.levelList);
+  const difficulty = useGameStore((s) => s.difficulty);
   if (activeScene !== 'LevelSelect') return null;
 
   const levels = listing?.levels ?? [];
   const cleared = levels.filter((l) => l.cleared).length;
+  const medals = levels.reduce((sum, l) => sum + l.value, 0);
 
   return (
     <div className="screen screen--levels">
@@ -131,6 +184,8 @@ export function LevelSelectScreen(): React.ReactElement | null {
         </button>
         <h2 className="screen__title">{listing?.worldName ?? 'Loading…'}</h2>
       </header>
+
+      <DifficultyPicker />
 
       {levels.length === 0 ? (
         <p className="screen__hint">No levels available.</p>
@@ -153,18 +208,20 @@ export function LevelSelectScreen(): React.ReactElement | null {
                 title={entry.unlocked ? `${entry.mode} level` : 'Clear the previous level first'}
                 aria-label={
                   entry.unlocked
-                    ? `Level ${entry.level}, ${entry.mode}${entry.cleared ? ', cleared' : ''}`
+                    ? `Level ${entry.level}, ${entry.mode}, ${entry.value} of ${MAX_LEVEL_VALUE} on ${difficulty}`
                     : `Level ${entry.level}, locked`
                 }
                 onClick={() =>
                   GameEvents.emit('ui:start-game', {
                     world: listing!.world,
                     level: entry.level,
+                    difficulty,
                   })
                 }
               >
                 <span className="level-grid__number">{entry.unlocked ? entry.level : '🔒'}</span>
                 {entry.unlocked && <span className="level-grid__mode">{entry.mode}</span>}
+                {entry.unlocked && <Medals value={entry.value} />}
               </button>
             </li>
           ))}
@@ -172,7 +229,8 @@ export function LevelSelectScreen(): React.ReactElement | null {
       )}
 
       <p className="screen__hint">
-        {cleared}/{levels.length} cleared · world 1 of 9 — the world picker is not ported yet
+        {medals}/{levels.length * MAX_LEVEL_VALUE} medals on {difficulty} · {cleared}/
+        {levels.length} cleared · world 1 of 9 — the world picker is not ported yet
       </p>
 
       {import.meta.env.DEV && <DevLevelJump />}

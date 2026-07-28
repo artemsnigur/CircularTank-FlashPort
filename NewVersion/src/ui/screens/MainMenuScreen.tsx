@@ -15,6 +15,8 @@ export function MainMenuScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
   const phase = useGameStore((s) => s.phase);
   const resumePoint = useGameStore((s) => s.resumePoint);
+  // Echoed back, never decided here — MainMenuScene publishes it.
+  const difficulty = useGameStore((s) => s.difficulty);
 
   if (activeScene !== 'MainMenu' || phase !== 'ready') return null;
 
@@ -34,6 +36,7 @@ export function MainMenuScreen(): React.ReactElement | null {
             GameEvents.emit('ui:start-game', {
               world: resume.world,
               level: resume.level,
+              difficulty,
             })
           }
         >
@@ -86,6 +89,7 @@ export function MainMenuScreen(): React.ReactElement | null {
               GameEvents.emit('ui:start-game', {
                 world: DEV_WORLD,
                 level: DEV_COMBINED_LEVEL,
+                difficulty,
                 sandbox: true,
               })
             }

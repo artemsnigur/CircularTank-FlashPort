@@ -33,8 +33,9 @@
  * interesting difference between them.
  */
 
-import { isLevelCleared } from './levelProgress';
+import { getLevelValues, isLevelCleared } from './levelProgress';
 import type { ProgressTable } from './levelProgress';
+import type { Difficulty } from '../config/constants';
 import { levelsInWorld, WORLD_COUNT } from './levelData';
 import type { LevelMode } from './levelData';
 import { LEVELS } from './levelData';
@@ -156,6 +157,16 @@ export interface LevelUnlockState {
   mode: LevelMode;
   cleared: boolean;
   unlocked: boolean;
+  /**
+   * Medals earned, 0-3, as seen from the current difficulty.
+   *
+   * `getLevelValues` applies the cascade — clearing a level on a harder setting
+   * satisfies every easier one, so Easy sees the best of all three slots,
+   * Medium the best of the first two, Hard only the first. That is why the row
+   * carries a *value* and not just `cleared`: the same level shows 3 on Easy
+   * and 0 on Hard until it has been beaten on Hard.
+   */
+  value: number;
 }
 
 /**
@@ -165,10 +176,20 @@ export interface LevelUnlockState {
  * nothing — the previous version built these rows by hand and inlined the
  * unlock rule while doing it, which is how the fourth copy got there.
  *
+ * `difficulty` decides what `value` shows, not what `unlocked` means: the AS3
+ * gates on any of the three slots (`:842` tests all of them), so a level opened
+ * on Easy stays open when the player switches to Hard even though its medal
+ * count drops to zero. Keeping both facts on the row is what stops a caller
+ * inferring one from the other.
+ *
  * An unknown world yields an empty list rather than throwing: a blank grid is a
  * better failure than a crashed screen.
  */
-export function levelUnlockStates(view: ProgressView, world: number): LevelUnlockState[] {
+export function levelUnlockStates(
+  view: ProgressView,
+  world: number,
+  difficulty: Difficulty,
+): LevelUnlockState[] {
   // Indexed straight off the generated table; levelData.ts is regenerated from
   // the AS3, so helpers must not be added to it by hand.
   const specs = LEVELS[world - 1] ?? [];
@@ -180,6 +201,7 @@ export function levelUnlockStates(view: ProgressView, world: number): LevelUnloc
       mode: spec.mode,
       cleared: isLevelCleared(view, world, level),
       unlocked: isLevelUnlocked(view, world, level),
+      value: getLevelValues(view, world, level, difficulty),
     };
   });
 }
