@@ -253,11 +253,20 @@ describe('each flag is set somewhere in gameplay', () => {
     expect(SCENE).toContain("this.weapon?.name === 'Timed Bomb Cannon'");
     expect(SCENE).toContain('this.levelFlags.timedBombsFired = true;');
     expect(SCENE).toContain('this.levelFlags.onlySpecialWeapons = false;');
-    // The secondary sets two of them but leaves onlySpecialWeapons alone —
-    // the whole distinction BossOnlySpecial rests on.
-    const secondary = SCENE.slice(SCENE.indexOf('private updateSecondary('));
+    // Any secondary sets two of them and leaves onlySpecialWeapons alone —
+    // the whole distinction BossOnlySpecial rests on. `:3984-3985` sits above
+    // the weapon dispatch, so it applies to every secondary rather than to
+    // Mine alone, and the port sets them in the shared branch for that reason.
+    // Bounded to the method itself: `updateHud` is far enough down the file
+    // that the slice swept in the completion-time damage clear, which does set
+    // onlySpecialWeapons and legitimately so.
+    const start = SCENE.indexOf('private updateSecondary(');
+    const secondary = SCENE.slice(start, SCENE.indexOf('private resolveHealAuras(', start));
     expect(secondary).toContain('this.levelFlags.otherThanTimedBombsFired = true;');
-    expect(secondary.slice(0, secondary.indexOf('}'))).not.toContain('onlySpecialWeapons');
+    expect(secondary).toContain('this.levelFlags.noWeaponsUsed = false;');
+    // The assignment, not the word — the comment above the block explains the
+    // distinction and would otherwise match itself.
+    expect(secondary).not.toContain('this.levelFlags.onlySpecialWeapons');
   });
 
   it('threeBosses, from the level boss count at wave start', () => {

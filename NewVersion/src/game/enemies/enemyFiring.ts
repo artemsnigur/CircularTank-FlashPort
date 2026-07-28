@@ -409,8 +409,21 @@ export interface HitTarget {
 }
 
 /** Whether the bullet is touching the tank. */
-export function hitsTank(bullet: EnemyBulletState, tank: HitTarget): boolean {
-  return Math.hypot(tank.x - bullet.x, tank.y - bullet.y) <= tank.radius + bullet.radius;
+export function hitsTank(
+  bullet: EnemyBulletState,
+  tank: HitTarget,
+  /**
+   * Multiplier on the tank's radius — 2 while the Shield is up (`:1555`).
+   *
+   * The shield reaches further as well as reflecting, so a bullet is turned
+   * away before it touches the hull. Defaulted to 1 because most callers have
+   * no shield to consider, and a required parameter here would be noise at
+   * every one of them.
+   */
+  radiusMultiplier = 1,
+): boolean {
+  const reach = tank.radius * radiusMultiplier + bullet.radius;
+  return Math.hypot(tank.x - bullet.x, tank.y - bullet.y) <= reach;
 }
 
 /**

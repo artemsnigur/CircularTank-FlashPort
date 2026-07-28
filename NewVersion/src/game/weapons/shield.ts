@@ -30,6 +30,8 @@
  */
 
 import type { EnemyBulletState } from '../enemies/enemyFiring';
+import { findUpgradeById, getStatValue } from '../upgrades/upgradeState';
+import type { UpgradeState } from '../upgrades/upgradeState';
 
 /** Hit-radius multiplier while the shield is up — `:1555`, `:5275`. */
 export const SHIELD_RADIUS_MULTIPLIER = 2;
@@ -112,6 +114,20 @@ export function reflectChance(
   if (shielded) return true;
   if (bulletReflectChance <= 0) return false;
   return random() <= bulletReflectChance;
+}
+
+/**
+ * The `BulletReflect` upgrade's chance, or 0 when unowned — `:1557`.
+ *
+ * `upgradeArrayBulletReflect[1]` runs 0.10 to 0.325, so a maxed player turns
+ * away roughly a third of incoming fire with no shield at all. This is the
+ * upgrade's only runtime read, and its absence is why `purchasable.ts` withheld
+ * it as "bullet reflection is unported".
+ */
+export function bulletReflectChance(upgrades: UpgradeState): number {
+  const spec = findUpgradeById('BulletReflect');
+  if (!spec) return 0;
+  return getStatValue(upgrades, spec, 0) ?? 0;
 }
 
 /**

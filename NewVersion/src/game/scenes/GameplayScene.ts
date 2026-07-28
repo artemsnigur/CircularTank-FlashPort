@@ -78,6 +78,18 @@ import { Mine } from '../entities/Mine';
 import { createInitialUpgradeState, maxedUpgradeState } from '../upgrades/upgradeState';
 import type { UpgradeState } from '../upgrades/upgradeState';
 import { getPlayerProfile } from '../player/playerProfile';
+import {
+  bulletReflectChance,
+  createShieldState,
+  isReflectable,
+  raiseShield,
+  reflectBullet,
+  reflectChance,
+  shieldAlpha,
+  shieldRadiusMultiplier,
+  tickShield,
+} from '../weapons/shield';
+import type { ShieldState } from '../weapons/shield';
 import { createLevelFlags } from '../achievements/achievementContext';
 import type { LevelAchievementFlags } from '../achievements/achievementContext';
 import type { PlayerProfile } from '../player/playerProfile';
@@ -155,6 +167,8 @@ const OUT_OF_BOUNDS_ALPHA = 0.55;
 
 /** Live enemy fire. */
 const ENEMY_BULLET_DEPTH = 11;
+/** The shield ring, just above the tank and below enemy fire. */
+const SHIELD_DEPTH = 9.5;
 /** Traps sit below it — `enemyTrapLayer` against `enemyBulletLayer`. */
 const ENEMY_TRAP_DEPTH = 10;
 
@@ -274,6 +288,10 @@ export class GameplayScene extends Phaser.Scene {
    * quitting uses `createQuitFlags`, a different starting point.
    */
   private levelFlags: LevelAchievementFlags = createLevelFlags();
+  /** The Shield secondary's window — `PartGameArea.shieldOn`/`shieldTimer`. */
+  private shield: ShieldState = createShieldState();
+  /** The shield ring, parented to nothing — it follows the tank each frame. */
+  private shieldSprite: Phaser.GameObjects.Image | null = null;
   /** What the last banked level earned — newly won achievements and enemies. */
   private banking: LevelBankingResult | null = null;
   /** Which level is being played — set from LevelSelect via scene data. */
@@ -370,6 +388,8 @@ export class GameplayScene extends Phaser.Scene {
     turnRate: number | null;
     /** The grappler that fired this hook, or null for every other bullet. */
     hookOwner: Enemy | null;
+    /** AS3 class name, for the Shield's Trap exemption — see `isReflectable`. */
+    bulletClass: string;
   }> =
     [];
 
@@ -499,6 +519,9 @@ export class GameplayScene extends Phaser.Scene {
     // `resetTempVariables("LevelStart")` — three of these start true.
     this.levelFlags = createLevelFlags();
     this.banking = null;
+    // `:2783-2787` — the shield does not survive a level.
+    this.shield = createShieldState();
+    this.shieldSprite = null;
   }
 
   create(): void {
@@ -1554,17 +1577,74 @@ export class GameplayScene extends Phaser.Scene {
    * dropped under the tank cannot detonate on the placing frame anyway, since
    * an enemy that close would already have hit the tank.
    */
+  /**
+   * Raises the shield — `:4102-4107`.
+   *
+   * Consumes the cooldown the same way `placeMine` does, so the two secondaries
+   * share one clock rather than each inventing a gate. Returns whether it fired,
+   * which is what the achievement flags key off.
+   */
+  private raiseShield(): boolean {
+    if (this.secondaryFiring.reloadTime > 0 || !this.secondaryStats) return false;
+
+    this.secondaryFiring.reloadTime += this.secondaryStats.reloadTimeMax;
+    this.shield = raiseShield(this.secondaryStats.duration);
+    return this.shield.on;
+  }
+
+  private placeMine(): boolean {
+    const placed = placeMine(this.secondaryFiring, this.secondaryStats!, {
+      x: this.player.x,
+      y: this.player.y,
+    });
+    if (!placed) return false;
+
+    this.mines.push(new Mine(this, placed));
+    return true;
+  }
+
+  /**
+   * Draws the ring, following the tank and fading out over the last 120 frames.
+   *
+   * Created on demand rather than at level start: most levels never raise a
+   * shield, and an invisible sprite following the tank all game is a cost with
+   * no payoff.
+   */
+  private updateShieldSprite(): void {
+    if (!this.shield.on) {
+      this.shieldSprite?.destroy();
+      this.shieldSprite = null;
+      return;
+    }
+
+    if (!this.shieldSprite) {
+      this.shieldSprite = this.add
+        .image(this.player.x, this.player.y, 'particle-dot')
+        .setDisplaySize(this.player.radius * 4, this.player.radius * 4)
+        .setTint(0x6ee7ff)
+        .setDepth(SHIELD_DEPTH);
+    }
+
+    this.shieldSprite
+      .setPosition(this.player.x, this.player.y)
+      .setAlpha(shieldAlpha(this.shield) * 0.45);
+  }
+
   private updateSecondary(deltaMs: number): void {
     tickFiring(this.secondaryFiring, deltaMs);
 
+    // `:1008-1042` — the window runs down whether or not the trigger is held.
+    this.shield = tickShield(this.shield, (deltaMs / 1000) * 30);
+    this.updateShieldSprite();
+
     if (this.secondaryPressed && this.secondaryStats) {
-      const placed = placeMine(this.secondaryFiring, this.secondaryStats, {
-        x: this.player.x,
-        y: this.player.y,
-      });
-      if (placed) {
+      const used =
+        this.secondary?.name === 'Shield'
+          ? this.raiseShield()
+          : this.placeMine();
+
+      if (used) {
         getSoundManager(this)?.queue(this.secondary!.sound);
-        this.mines.push(new Mine(this, placed));
         // `:3984-3985`. A secondary is "other than timed bombs" and counts as a
         // weapon used, but leaves `onlySpecialWeapons` intact — that is the
         // whole distinction the BossOnlySpecial achievement rests on.
@@ -1723,6 +1803,10 @@ export class GameplayScene extends Phaser.Scene {
         enemyY: enemy.y,
         enemyRadius: enemy.radius,
         isBoss: enemy.enemyLevel === 'B',
+        // `:5273-5277` — with the shield up a non-boss cannot connect at all,
+        // and a boss connects at the doubled radius for zero damage. Both rules
+        // already live in tankDamage; nothing ever passed the flag until now.
+        shieldOn: this.shield.on,
       };
       // `:5172` — a mid-teleport enemy is intangible, so it neither collides
       // with the tank nor is pushed by anything.
@@ -1735,9 +1819,13 @@ export class GameplayScene extends Phaser.Scene {
           enemyDamage: enemy.stats.damage,
           upgrades: this.upgrades,
           pushed: this.pushedFrames > 0,
+          shieldOn: this.shield.on,
         },
         this.hp,
       );
+
+      // `:5308` — the shield turns the contact thud into its own sound.
+      if (this.shield.on) getSoundManager(this)?.queue('TankShieldCollision');
 
       if (result.damage > 0) {
         this.hp = result.hp;
@@ -1856,6 +1944,7 @@ export class GameplayScene extends Phaser.Scene {
           // Only hooks need to find their owner again — on impact to attach,
           // on expiry to free the one-hook slot.
           hookOwner: enemy.stats.shootType === 'Hook' ? enemy : null,
+          bulletClass: isTrap ? 'EnemyBulletTrap' : 'EnemyBulletBasic',
         });
       }
     }
@@ -1902,7 +1991,26 @@ export class GameplayScene extends Phaser.Scene {
         continue;
       }
 
-      if (hitsTank(next, tank)) {
+      // `:1555` — a reflected round is invisible to the tank for the rest of
+      // its short life, which is what stops it coming straight back.
+      const reach = isReflectable(entry.bulletClass) ? shieldRadiusMultiplier(this.shield) : 1;
+      if (!next.reflected && hitsTank(next, tank, reach)) {
+        // `:1557` — one condition, two entrances. The Trap's mine is exempt
+        // from both the doubled reach and the turn-away: it is not a projectile
+        // that can be batted aside.
+        if (
+          isReflectable(entry.bulletClass) &&
+          reflectChance(this.shield.on, bulletReflectChance(this.upgrades))
+        ) {
+          entry.state = reflectBullet(next, tank);
+          entry.sprite
+            .setPosition(entry.state.x, entry.state.y)
+            .setTint(0x9ad8ff);
+          getSoundManager(this)?.queue('ReflectBullet');
+          surviving.push(entry);
+          continue;
+        }
+
         // `:1567-1571` — the hook damages *and* attaches. `isGrapping` is set
         // on both ranks, but the tank is only tethered by a boss: a non-boss
         // reels itself in and never touches the player.
