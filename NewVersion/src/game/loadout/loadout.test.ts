@@ -10,7 +10,10 @@ import {
   hasTwoPrimaries,
   isValidPrimaryName,
   isValidSecondaryName,
+  nextSlot,
   NO_WEAPON,
+  resolveActivePrimary,
+  resolveActiveSlot,
   unequipPrimary,
 } from './loadout';
 import {
@@ -262,5 +265,130 @@ describe('save round trip', () => {
 
     const text = writeSlot(EMPTY_SAVE_STRING, 2, buildSlotBody(all));
     expect(decodeLoadoutFields(parseSlotFields(text, 2))).toEqual(createInitialLoadout());
+  });
+});
+
+/**
+ * Which weapon a level starts on — `ScreenGame.as:460-469`.
+ *
+ * Re-derived from the slots rather than read from the stored `primaryWeapon`,
+ * because `ButtonEquipSlot` writes a slot and never touches `primaryWeapon`.
+ */
+describe('the level-start weapon', () => {
+  it('is slot 1 when it holds something', () => {
+    const state = equipPrimary(createInitialLoadout(), 2, 'Shotgun');
+
+    expect(resolveActivePrimary(state)).toBe('Cannon');
+    expect(resolveActiveSlot(state)).toBe(1);
+  });
+
+  it('falls back to slot 2 when slot 1 is empty', () => {
+    // Reachable without any unequip control: equipping slot 1's weapon into
+    // slot 2 clears slot 1.
+    const state = equipPrimary(createInitialLoadout(), 2, 'Cannon');
+
+    expect(state.equippedWeapons).toEqual([NO_WEAPON, 'Cannon']);
+    expect(resolveActivePrimary(state)).toBe('Cannon');
+    expect(resolveActiveSlot(state)).toBe(2);
+  });
+
+  it('ignores a stored primaryWeapon that is in neither slot', () => {
+    // The bug the equip screen would otherwise introduce: equip over slot 1 and
+    // the saved `primaryWeapon` still names the weapon that was there.
+    const stale = { ...equipPrimary(createInitialLoadout(), 1, 'Shotgun'), primaryWeapon: 'Cannon' };
+
+    expect(stale.primaryWeapon).toBe('Cannon');
+    expect(stale.equippedWeapons).toEqual(['Shotgun', NO_WEAPON]);
+    expect(resolveActivePrimary(stale)).toBe('Shotgun');
+  });
+
+  it('agrees with chooseWeapon on the slot it names', () => {
+    for (const state of [
+      createInitialLoadout(),
+      equipPrimary(createInitialLoadout(), 2, 'Cannon'),
+      equipPrimary(equipPrimary(createInitialLoadout(), 1, 'Shotgun'), 2, 'MiniGun'),
+    ]) {
+      const chosen = chooseWeapon(state, resolveActiveSlot(state));
+      expect(chosen.primaryWeapon).toBe(resolveActivePrimary(state));
+    }
+  });
+
+  it('returns None rather than throwing on a loadout with nothing equipped', () => {
+    // Unreachable through the UI, but a corrupt save must not stop a level
+    // booting.
+    const empty = unequipPrimary(unequipPrimary(createInitialLoadout(), 1), 2);
+    expect(resolveActivePrimary(empty)).toBe(NO_WEAPON);
+  });
+});
+
+/**
+ * Shift/Q — `ScreenGame.update` (`:481-500`).
+ *
+ * A toggle between two slots with a refusal, not a ring through everything
+ * owned.
+ */
+describe('the weapon toggle', () => {
+  const both = equipPrimary(equipPrimary(createInitialLoadout(), 1, 'Cannon'), 2, 'Shotgun');
+
+  it('swaps between two filled slots', () => {
+    expect(nextSlot(both, 1)).toBe(2);
+    expect(nextSlot(both, 2)).toBe(1);
+  });
+
+  it('refuses when the other slot is empty', () => {
+    // The default loadout: Cannon in slot 1, nothing in slot 2.
+    const one = createInitialLoadout();
+
+    expect(one.equippedWeapons[1]).toBe(NO_WEAPON);
+    expect(nextSlot(one, 1)).toBeNull();
+  });
+
+  it('refuses from the empty side too', () => {
+    const slotTwoOnly = equipPrimary(createInitialLoadout(), 2, 'Cannon');
+
+    expect(slotTwoOnly.equippedWeapons).toEqual([NO_WEAPON, 'Cannon']);
+    expect(nextSlot(slotTwoOnly, 2)).toBeNull();
+  });
+
+  it('reports null rather than the current slot', () => {
+    // Explicit, so a blocked press cannot fall through into the switch path.
+    // Returning `current` would read as a successful no-op switch — which is
+    // how a rapid-fire exploit got in once before.
+    expect(nextSlot(createInitialLoadout(), 1)).not.toBe(1);
+  });
+});
+
+describe('a weapon occupies one slot at a time', () => {
+  it('moves rather than duplicates', () => {
+    const moved = equipPrimary(createInitialLoadout(), 2, 'Cannon');
+    expect(moved.equippedWeapons).toEqual([NO_WEAPON, 'Cannon']);
+  });
+
+  it('never holds the same weapon twice, however it is equipped', () => {
+    let state = createInitialLoadout();
+    for (const [slot, name] of [
+      [1, 'Shotgun'],
+      [2, 'Shotgun'],
+      [1, 'Shotgun'],
+      [2, 'MiniGun'],
+      [1, 'MiniGun'],
+    ] as Array<[1 | 2, string]>) {
+      state = equipPrimary(state, slot, name);
+      const filled = state.equippedWeapons.filter((n) => n !== NO_WEAPON);
+      expect(new Set(filled).size, `${slot}:${name}`).toBe(filled.length);
+    }
+  });
+
+  it('no equip can empty both slots', () => {
+    // There is no unequip control — `ButtonEquipSlot.onPressHandler` assigns
+    // unconditionally — so every reachable state keeps at least one weapon.
+    let state = createInitialLoadout();
+    const names = ['Cannon', 'Shotgun', 'MiniGun'];
+
+    for (let i = 0; i < 40; i += 1) {
+      const slot: 1 | 2 = i % 2 === 0 ? 1 : 2;
+      state = equipPrimary(state, slot, names[i % names.length]);
+      expect(state.equippedWeapons.some((n) => n !== NO_WEAPON), `step ${i}`).toBe(true);
+    }
   });
 });

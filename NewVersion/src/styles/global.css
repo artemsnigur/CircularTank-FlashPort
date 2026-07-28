@@ -664,6 +664,37 @@ code {
   color: #ffd166;
 }
 
+/* Equip controls — ButtonEquipSlot (two, primaries) and ButtonEquip (one,
+   secondaries). Only rendered on an owned row. The slot that already holds the
+   weapon is disabled rather than a toggle: the AS3 has no unequip. */
+.shop-row__equip {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.shop-row__slot {
+  min-width: 1.9rem;
+  min-height: 1.9rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 5%);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.shop-row__slot--on {
+  border-color: rgb(255 209 102 / 70%);
+  background: rgb(255 209 102 / 16%);
+  color: #ffd166;
+  /* Inert, not dimmed: it marks where the weapon is. */
+  cursor: default;
+  opacity: 1;
+}
+
 /* World picker — ButtonWorld. Three per row, as the AS3 lays them out
    (ScreenLevelSelect.as:1510 wraps every third button). */
 .world-grid {

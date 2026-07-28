@@ -30,6 +30,62 @@ function useShop() {
   return useGameStore((s) => s.shop);
 }
 
+/**
+ * The equip controls — `ButtonEquipSlot` (two, primaries) and `ButtonEquip`
+ * (one, secondaries).
+ *
+ * Shown only on an owned row, because the AS3 adds them inside
+ * `if (levelsArray[selectedWeapon - 1] != 0)` and shows the Buy button
+ * otherwise. There is **no unequip**: pressing a slot assigns, and nothing in
+ * the original ever empties one, so the button that already holds this weapon
+ * is simply inert rather than a toggle.
+ */
+function EquipControls({ row }: { row: ShopRow }): React.ReactElement | null {
+  if (!row.owned) return null;
+
+  if (row.category === 'secondary') {
+    return (
+      <div className="shop-row__equip">
+        <button
+          type="button"
+          className={`shop-row__slot${row.equipped ? ' shop-row__slot--on' : ''}`}
+          disabled={row.equipped}
+          aria-pressed={row.equipped}
+          aria-label={row.equipped ? `${row.name} equipped` : `Equip ${row.name}`}
+          onClick={() => GameEvents.emit('ui:equip-secondary', { id: row.id })}
+        >
+          {row.equipped ? 'Equipped' : 'Equip'}
+        </button>
+      </div>
+    );
+  }
+
+  if (row.category !== 'primary') return null;
+
+  return (
+    <div className="shop-row__equip" role="group" aria-label={`${row.name} slots`}>
+      {([1, 2] as const).map((slot) => {
+        const here = row.slot === slot;
+        return (
+          <button
+            key={slot}
+            type="button"
+            className={`shop-row__slot${here ? ' shop-row__slot--on' : ''}`}
+            disabled={here}
+            aria-pressed={here}
+            aria-label={
+              here ? `${row.name} in slot ${slot}` : `Put ${row.name} in slot ${slot}`
+            }
+            onClick={() => GameEvents.emit('ui:equip-primary', { slot, id: row.id })}
+          >
+            {slot}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function UpgradeRow({ row }: { row: ShopRow }): React.ReactElement {
   const maxed = row.cost === null;
   const label = maxed ? 'MAX' : `${formatNumber(row.cost ?? 0)}`;
@@ -42,6 +98,8 @@ function UpgradeRow({ row }: { row: ShopRow }): React.ReactElement {
           {row.owned ? `Level ${row.level}/${row.maxLevel}` : 'Not owned'}
         </span>
       </div>
+
+      <EquipControls row={row} />
 
       <div className="shop-row__meter" aria-hidden="true">
         {Array.from({ length: row.maxLevel }, (_, i) => (

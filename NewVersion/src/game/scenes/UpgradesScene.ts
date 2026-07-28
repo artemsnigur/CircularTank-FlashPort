@@ -16,11 +16,16 @@
  * calls `purchaseNextLevel`, which refuses when the player cannot afford it,
  * so a stale or forged event cannot produce a negative balance.
  *
+ * ── Equipping is authoritative here too ───────────────────────────────────
+ * `ButtonEquipSlot` and `ButtonEquip` are the AS3's equip controls, and both
+ * are added to the stage only inside `if (levelsArray[selectedWeapon - 1] != 0)`
+ * (`ScreenUpgrades.as:1079`, `:1414`) — the owned branch. That `!= 0` is the
+ * whole ownership gate; the buttons themselves never check. Reproduced with the
+ * check on this side rather than the button's, for the same reason purchases
+ * are: hiding a control is not a refusal.
+ *
  * ── Not ported ────────────────────────────────────────────────────────────
- * The two-slot equip UI (`ButtonEquipSlot`), which decides *which* owned
- * primaries go into the tank's two slots. Buying makes a weapon owned; Q in
- * Gameplay still chooses between owned ones. Also the per-upgrade description
- * text and the stat previews.
+ * The per-upgrade description text and the stat previews.
  */
 import Phaser from 'phaser';
 import { SceneKeys } from '../config/constants';
@@ -36,6 +41,21 @@ import {
   purchaseNextLevel,
 } from '../upgrades/upgradeState';
 import { getSoundManager } from '../audio/soundService';
+import { equipPrimary, equipSecondary, NO_WEAPON } from '../loadout/loadout';
+import type { LoadoutState } from '../loadout/loadout';
+
+/**
+ * Which slot holds a named primary, or null.
+ *
+ * Display names, because that is what `ScreenGame.equippedWeapons` stores —
+ * "Big Cannon", not the `BigCannon` upgrade id.
+ */
+function slotHolding(loadout: LoadoutState, name: string): 1 | 2 | null {
+  if (name === NO_WEAPON) return null;
+  if (loadout.equippedWeapons[0] === name) return 1;
+  if (loadout.equippedWeapons[1] === name) return 2;
+  return null;
+}
 
 export class UpgradesScene extends Phaser.Scene {
   private backdrop!: Phaser.GameObjects.TileSprite;
@@ -58,6 +78,12 @@ export class UpgradesScene extends Phaser.Scene {
     this.publishCatalogue();
 
     const offBuy = GameEvents.subscribe('ui:buy-upgrade', ({ id }) => this.buy(id));
+    const offEquipPrimary = GameEvents.subscribe('ui:equip-primary', ({ slot, id }) =>
+      this.equip(id, slot),
+    );
+    const offEquipSecondary = GameEvents.subscribe('ui:equip-secondary', ({ id }) =>
+      this.equip(id, null),
+    );
     const offGrant = GameEvents.subscribe('ui:dev-grant-money', ({ amount }) =>
       this.grantMoney(amount),
     );
@@ -73,6 +99,8 @@ export class UpgradesScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offBuy();
+      offEquipPrimary();
+      offEquipSecondary();
       offGrant();
       offGoto();
       GameEvents.off('viewport:changed', onResize);
@@ -86,6 +114,7 @@ export class UpgradesScene extends Phaser.Scene {
   private publishCatalogue(): void {
     const profile = getPlayerProfile(this);
     const state = profile.upgrades;
+    const loadout = profile.loadout;
 
     GameEvents.emit('upgrades:listed', {
       money: state.money,
@@ -103,6 +132,10 @@ export class UpgradesScene extends Phaser.Scene {
           cost,
           affordable: cost !== null && state.money >= cost,
           owned: level > 0,
+          // Matched on the display name, which is what the loadout stores —
+          // `ScreenGame.equippedWeapons` holds "Big Cannon", not "BigCannon".
+          slot: slotHolding(loadout, spec.name),
+          equipped: spec.category === 'secondary' && loadout.secondaryWeapon === spec.name,
         };
       }),
       withheld: withheldUpgrades().length,
@@ -135,6 +168,51 @@ export class UpgradesScene extends Phaser.Scene {
    * `purchaseNextLevel` returns the untouched state when the upgrade is maxed
    * or unaffordable, so an unaffordable click is a no-op rather than an error.
    */
+  /**
+   * Puts an owned weapon into a slot — `ButtonEquipSlot`/`ButtonEquip`.
+   *
+   * `slot` names a primary slot, or null for the single secondary slot.
+   *
+   * Ownership is re-checked against live state rather than trusted from the
+   * event, matching `buy`: the catalogue decides what is *shown*, this decides
+   * what may be *equipped*, and an id can arrive from a stale screen or a
+   * replayed event. Equipping something unbought would let a player fire a
+   * weapon they never paid for — `resolveWeaponStats` returns null at level 0,
+   * so the tank would silently stop firing instead.
+   *
+   * There is no unequip, faithfully: `onPressHandler` assigns unconditionally
+   * and no AS3 control empties a slot.
+   */
+  private equip(id: string, slot: 1 | 2 | null): void {
+    const spec = findUpgradeById(id);
+    if (!spec) {
+      console.warn(`[UpgradesScene] Unknown upgrade "${id}".`);
+      return;
+    }
+
+    const wanted = slot === null ? 'secondary' : 'primary';
+    if (spec.category !== wanted) {
+      console.warn(`[UpgradesScene] "${id}" is not a ${wanted}.`);
+      return;
+    }
+
+    const profile = getPlayerProfile(this);
+    if (getLevel(profile.upgrades, spec) === 0) {
+      console.warn(`[UpgradesScene] "${id}" is not owned; refusing to equip it.`);
+      return;
+    }
+
+    profile.setLoadout(
+      slot === null
+        ? equipSecondary(profile.loadout, spec.name)
+        : equipPrimary(profile.loadout, slot, spec.name),
+    );
+    profile.save();
+
+    getSoundManager(this)?.queue('InterfaceButtonClick');
+    this.publishCatalogue();
+  }
+
   private buy(id: string): void {
     const spec = findUpgradeById(id);
     if (!spec) {

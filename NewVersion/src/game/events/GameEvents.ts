@@ -235,6 +235,19 @@ export interface GameEventMap {
   'ui:pause': { paused: boolean };
   /** A purchase request from the shop; the scene owns the transaction. */
   'ui:buy-upgrade': { id: string };
+  /**
+   * Put an owned primary into a slot — `ButtonEquipSlot.onPressHandler`.
+   *
+   * Carries only ids. The scene re-reads the live upgrade state and refuses an
+   * unowned weapon, the same way `ui:buy-upgrade` lets `purchaseNextLevel`
+   * refuse: a stale or forged event must not equip something unbought.
+   *
+   * There is deliberately no unequip event. The AS3 assigns unconditionally and
+   * has no control that empties a slot, so a slot can only be overwritten.
+   */
+  'ui:equip-primary': { slot: 1 | 2; id: string };
+  /** Equip an owned secondary — `ButtonEquip`. One slot, always occupied. */
+  'ui:equip-secondary': { id: string };
   /** Dev-only: top up the balance and persist it immediately. */
   'ui:dev-grant-money': { amount: number };
   /**
@@ -280,6 +293,10 @@ export interface GameEventMap {
       cost: number | null;
       affordable: boolean;
       owned: boolean;
+      /** Primaries: which of the two slots holds this weapon, or null. */
+      slot: 1 | 2 | null;
+      /** Secondaries: whether this is the equipped one. */
+      equipped: boolean;
     }>;
   };
   'ui:goto': { key: SceneKey };

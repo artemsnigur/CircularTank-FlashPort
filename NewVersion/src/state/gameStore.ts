@@ -104,6 +104,10 @@ export interface ShopCatalogue {
     cost: number | null;
     affordable: boolean;
     owned: boolean;
+    /** Primaries: which of the two slots holds this weapon, or null. */
+    slot: 1 | 2 | null;
+    /** Secondaries: whether this is the equipped one. */
+    equipped: boolean;
   }>;
   /**
    * Upgrades that exist in the original but are not sold, because their effects

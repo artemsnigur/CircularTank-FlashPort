@@ -43,7 +43,6 @@ import {
   createFiringState,
   fire,
   getWeapon,
-  PRIMARY_WEAPONS,
   FLAME_RANGE_MULTIPLIER,
   resolveWeaponStats,
   tickFiring,
@@ -80,7 +79,12 @@ import { createInitialUpgradeState, maxedUpgradeState } from '../upgrades/upgrad
 import type { UpgradeState } from '../upgrades/upgradeState';
 import { getPlayerProfile } from '../player/playerProfile';
 import type { PlayerProfile } from '../player/playerProfile';
-import { chooseWeapon, equipPrimary } from '../loadout/loadout';
+import {
+  chooseWeapon,
+  nextSlot,
+  resolveActivePrimary,
+  resolveActiveSlot,
+} from '../loadout/loadout';
 import { isWaveComplete, registerEnemyKilled, registerFlagCaptured } from '../waves/waveState';
 import { canCaptureFlag, placeFlag, tickFlag } from '../waves/flag';
 import { deathExplosion } from '../enemies/enemyDeath';
@@ -251,6 +255,13 @@ export class GameplayScene extends Phaser.Scene {
   private wasd: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key> | null = null;
 
   private currency = 0;
+  /**
+   * Which primary slot is in hand — `ScreenGame.currentWeapon`.
+   *
+   * Derived at level start and toggled by Q; never read from the save, which
+   * only stores the slot *contents*.
+   */
+  private currentSlot: 1 | 2 = 1;
   /** Which level is being played — set from LevelSelect via scene data. */
   private world = 1;
   private level = 1;
@@ -439,8 +450,16 @@ export class GameplayScene extends Phaser.Scene {
     this.currency = this.upgrades.money;
     this.openingBalance = this.upgrades.money;
 
-    // The equipped weapon comes from the loadout — `ScreenGame.primaryWeapon`.
-    this.weapon = getWeapon(this.profile.loadout.primaryWeapon);
+    // Re-derived from the slots, not read from the stored `primaryWeapon` —
+    // `ScreenGame.as:460-469` picks slot 1 when it holds something and slot 2
+    // otherwise, on every level start.
+    //
+    // The stored value cannot be trusted once an equip screen exists:
+    // `ButtonEquipSlot` writes a slot and never touches `primaryWeapon`, so
+    // equipping over slot 1 leaves it naming a weapon that is now in no slot.
+    // Reading it would play the weapon the player just unequipped.
+    this.currentSlot = resolveActiveSlot(this.profile.loadout);
+    this.weapon = getWeapon(resolveActivePrimary(this.profile.loadout));
     this.weaponStats = this.weapon
       ? resolveWeaponStats(this.weapon, this.upgrades)
       : null;
@@ -820,9 +839,8 @@ export class GameplayScene extends Phaser.Scene {
       this.firePressed = false;
     });
 
-    // Q cycles the ported primaries. The AS3 switches between the two equipped
-    // slots on Shift/Q (ScreenGame.chooseWeapon); the equip screen that fills
-    // those slots is not ported, so this cycles what exists instead.
+    // Q toggles the two equipped slots, and refuses when the other is empty —
+    // `ScreenGame.update`. Fill the second slot on the upgrades screen.
     keyboard.on('keydown-Q', () => this.cycleWeapon());
 
     if (import.meta.env.DEV) {
@@ -2006,63 +2024,60 @@ export class GameplayScene extends Phaser.Scene {
   }
 
   /**
-   * Cycles through the primaries that have been ported.
+   * Shift/Q — toggles between the two equipped slots. `ScreenGame.update`
+   * (`:481-513`).
    *
-   * Both are owned from the start here: `Cannon` ships at level 1, and MiniGun
-   * is granted so it can be tried. Buying it properly needs the upgrade screen.
+   * ── A toggle with a refusal, not a ring ───────────────────────────────
+   * The AS3 swaps 1 <-> 2 **only when the target slot holds a weapon**. With
+   * one slot filled the press does nothing whatever: no sound, no reload
+   * change, no weapon change. That refusal is what makes the equip screen
+   * load-bearing — the player picks two weapons and toggles those, rather than
+   * cycling everything they own.
+   *
+   * This previously walked every ported primary and wrote the winner into slot
+   * 1, because there was no equip screen to fill slot 2. That made the slots
+   * decorative and is gone.
+   *
+   * ── The reload cost of a switch ───────────────────────────────────────
+   * A successful switch pays the **incoming** weapon's full reload. The AS3
+   * writes `reloadTime` twice — once before `chooseWeapon` with the outgoing
+   * weapon's `reloadTimeMax` (`:490`/`:495`) and once after with the incoming
+   * one's (`:506`/`:511`) — and the second overwrites the first, so only the
+   * incoming value survives. The first write is dead code.
+   *
+   * Two earlier readings of this were both wrong. `createFiringState()` reset
+   * it to 0, i.e. ready to fire now, which granted a free shot and made Q-mash
+   * an unbounded rate. Carrying the old countdown over was closer but still not
+   * the rule. A refused switch changes nothing at all, including this.
    */
   private cycleWeapon(): void {
-    const names = Object.keys(PRIMARY_WEAPONS);
-    const current = this.weapon ? names.indexOf(this.weapon.name) : -1;
+    const loadout = this.profile.loadout;
 
-    // Walk to the next weapon the player actually owns. `resolveWeaponStats`
-    // returns null at level 0, which is the ownership test. This used to try a
-    // single candidate and give up, so one unowned weapon in the ring blocked
-    // everything past it — invisible while the dev grant owned all twelve.
-    let next: WeaponSpec | undefined;
-    let stats: WeaponStats | null = null;
-    for (let step = 1; step <= names.length; step += 1) {
-      const candidate = getWeapon(names[(current + step) % names.length]);
-      if (!candidate) continue;
-      const candidateStats = resolveWeaponStats(candidate, this.upgrades);
-      if (candidateStats) {
-        next = candidate;
-        stats = candidateStats;
-        break;
-      }
+    const target = nextSlot(loadout, this.currentSlot);
+    // The other slot is empty. Nothing happens — deliberately not even a sound.
+    if (target === null) return;
+
+    const name = loadout.equippedWeapons[target - 1];
+    const next = getWeapon(name);
+    // Equipped but unported, or unowned. `resolveWeaponStats` returns null at
+    // upgrade level 0, which is the ownership test the shop uses too.
+    const stats = next ? resolveWeaponStats(next, this.upgrades) : null;
+    if (!next || !stats) {
+      console.warn(`[GameplayScene] Slot ${target} holds "${name}", which cannot be fired.`);
+      return;
     }
-    if (!next || !stats) return;
 
-    // Nothing to switch to. With one owned weapon the ring wraps back to the
-    // weapon already held, and treating that as a switch was half the
-    // rapid-fire exploit: every Q press ran the whole switch path.
-    if (next === this.weapon) return;
-
-    // Write the choice into the loadout rather than holding it beside one.
-    // The AS3 toggles between two equipped slots (`ScreenGame.chooseWeapon`);
-    // there is no equip screen yet, so this cycles slot 1 through everything
-    // ported. When that screen lands it mutates the same state and gameplay
-    // needs no change.
-    //
-    // Both calls are required: `equipPrimary` fills the slot, `chooseWeapon`
-    // promotes it to the active `primaryWeapon`. Doing only the first leaves
-    // the active weapon on whatever it was, which is what gameplay reads back
-    // on the next restart.
-    this.profile.setLoadout(
-      chooseWeapon(equipPrimary(this.profile.loadout, 1, next.name), 1),
-    );
-
+    this.currentSlot = target;
     this.weapon = next;
     this.weaponStats = stats;
 
-    // The reload countdown deliberately carries over. `ScreenGame.chooseWeapon`
-    // assigns `reloadTimeMax` — the interval for the new weapon — and never
-    // touches `reloadTime`, the running countdown.
-    //
-    // This used to call `createFiringState()`, which returns `reloadTime: 0`,
-    // i.e. ready to fire *now*. The comment claimed it stopped a switch
-    // bypassing a long reload; it granted one instead, and mashing Q while
-    // holding fire produced an unbounded rate.
+    // `chooseWeapon` writes `primaryWeapon` so a mid-level quit and resume
+    // returns to the same slot. The slot *contents* are not touched: switching
+    // is not equipping.
+    this.profile.setLoadout(chooseWeapon(loadout, target));
+
+    // The incoming weapon's full reload. See the note above.
+    this.firing.reloadTime = stats.reloadTimeMax;
 
     getSoundManager(this)?.queue('WeaponChange');
     // Capacity must stay above zero or the readout unmounts — see
@@ -2073,7 +2088,7 @@ export class GameplayScene extends Phaser.Scene {
       capacity: PLACEHOLDER_AMMO,
       weapon: next.name,
     });
-    console.info(`[GameplayScene] Weapon: ${next.name}`);
+    console.info(`[GameplayScene] Weapon: ${next.name} (slot ${target})`);
   }
 
   /**

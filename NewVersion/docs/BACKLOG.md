@@ -322,16 +322,26 @@ which two owned weapons are actually in the tank. The secondary has one slot.
       2-tuple, `equipPrimary`, `unequipPrimary`, `chooseWeapon`, `equipSecondary`,
       `activeSlot`, name validation against the upgrade tables.
 - [x] Persisted — `SaveSlotData.loadout`, encoded as the AS3's `ew`/`pw`/`sw`.
-- [x] **Wired in gameplay** — `GameplayScene.ts:83` imports `chooseWeapon` and
-      `equipPrimary`, so switching between the two slots works in play.
-- [ ] **No equip UI.** `UpgradesScene.ts:20` states it plainly under "Not
-      ported": `ButtonEquipSlot`. There is no `equip` or `slot` reference
-      anywhere in `UpgradesScreen.tsx`. So the player can *buy* the eleven other
-      primaries and can never put any of them in the tank — the loadout is
-      whatever the save was created with (`Cannon`, empty).
-      *Lift: small. This is the highest-value-per-line item in the whole backlog:
-      the model is complete and tested, the gameplay side already reads it, and
-      every purchased weapon is currently unreachable without it.*
+- [x] **Wired in gameplay** — Q toggles the two slots, refusing when the other
+      is empty, and the level start re-derives the active weapon from the slots
+      rather than the stored `primaryWeapon`.
+- [x] **The equip UI** — shipped. Two slot buttons per owned primary, one Equip
+      per owned secondary, with the ownership check re-run in `UpgradesScene`.
+
+      **Correction to what this entry originally claimed.** It said "the player
+      can buy the eleven other primaries and can never put any of them in the
+      tank". That was wrong: `cycleWeapon` walked every *ported* primary, skipped
+      any the player did not own — `resolveWeaponStats` returns null at level 0,
+      which is the ownership test — and wrote the winner into slot 1. Buying a
+      weapon did make it usable.
+
+      What was actually missing was narrower: **slot 2 was never filled**, so the
+      AS3's two-slot model did not exist, and **the secondary could not be
+      changed at all** (`equipSecondary` had no caller — latent while only Mine
+      is ported, real as soon as Group F lands). Fixing it also had to change
+      three gameplay rules, so it was not the pure UI addition this entry
+      assumed — see the commit for the level-start re-derive, the toggle
+      rewrite, and the reload cost of a switch.
 - [ ] Also listed as not ported in the same comment: per-upgrade description text
       and stat previews on the shop screen. Cosmetic; separable.
 
@@ -435,8 +445,8 @@ next — with cheap unblockers pulled forward.
 1. **I3** extract the unlock rule → **I1** difficulty selector → **I2** world
    picker + the visible-values model. Closes priorities (3) and (4). Pick up
    **L2** with I2.
-2. **J** equip slots. Small, self-contained, and it makes every purchasable
-   weapon reachable for the first time.
+2. ~~**J** equip slots~~ — done. Not self-contained after all: it changed three
+   gameplay rules as well as adding a UI.
 3. **H** counters, the eleven `temp*` flags, and evaluation → **G** the page
    stack and both kinds of reveal page. These two are one arc; H first because G
    has nothing to show without it.

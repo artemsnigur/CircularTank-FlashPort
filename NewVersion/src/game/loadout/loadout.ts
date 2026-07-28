@@ -104,6 +104,56 @@ export function equipSecondary(state: LoadoutState, name: string): LoadoutState 
   return { ...state, secondaryWeapon: name };
 }
 
+/**
+ * The slot a level should start on — `ScreenGame.as:460-469`.
+ *
+ *     if (equippedWeapons[0] != "None") { chooseWeapon(1); currentWeapon = 1; }
+ *     else                              { chooseWeapon(2); currentWeapon = 2; }
+ *
+ * ── Why the stored `primaryWeapon` is not trusted ─────────────────────────
+ * `ButtonEquipSlot.onPressHandler` writes a slot and **never touches
+ * `primaryWeapon`**, so the two can disagree the moment the equip screen exists:
+ * equip a new weapon into slot 1 and `primaryWeapon` still names the one that
+ * was there, which is now in no slot at all. The AS3 covers that by re-deriving
+ * on entry rather than reading the saved value, and so does this.
+ *
+ * Slot 2 is the fallback rather than an error: slot 1 really can be empty, by
+ * equipping its weapon into slot 2 (which clears slot 1 — see `equipPrimary`).
+ * Both empty is unreachable through the UI, because there is no unequip; it
+ * still returns `NO_WEAPON` rather than throwing, since a corrupt save should
+ * not stop a level booting.
+ */
+export function resolveActivePrimary(state: LoadoutState): string {
+  return state.equippedWeapons[0] !== NO_WEAPON
+    ? state.equippedWeapons[0]
+    : state.equippedWeapons[1];
+}
+
+/** Slot the level should start on, matching `resolveActivePrimary`. */
+export function resolveActiveSlot(state: LoadoutState): 1 | 2 {
+  return state.equippedWeapons[0] !== NO_WEAPON ? 1 : 2;
+}
+
+/**
+ * The slot Shift/Q moves to, or null when the switch is refused —
+ * `ScreenGame.update` (`:481-500`).
+ *
+ * ── A refusal, not a wrap ─────────────────────────────────────────────────
+ * The AS3 toggles 1 <-> 2 **only if the target slot holds a weapon**; with one
+ * slot empty the press does nothing at all — no sound, no reload change, no
+ * `chooseWeapon` call with any effect. That is the whole reason the equip
+ * screen matters: two chosen weapons, toggled, rather than a ring through
+ * everything owned.
+ *
+ * Returning null rather than `current` makes "nothing happened" explicit at the
+ * call site, so a blocked press cannot accidentally run the switch path — which
+ * is how a rapid-fire exploit got in once before.
+ */
+export function nextSlot(state: LoadoutState, current: 1 | 2): 1 | 2 | null {
+  const target: 1 | 2 = current === 1 ? 2 : 1;
+  return state.equippedWeapons[target - 1] !== NO_WEAPON ? target : null;
+}
+
 /** Slot (1-based) currently in hand, or null when the active primary is unset. */
 export function activeSlot(state: LoadoutState): 1 | 2 | null {
   if (state.equippedWeapons[0] === state.primaryWeapon && state.primaryWeapon !== NO_WEAPON) {
