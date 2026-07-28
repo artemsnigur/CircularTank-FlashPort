@@ -13,15 +13,17 @@ import { SceneKeys } from '../config/constants';
 import { GameEvents } from '../events/GameEvents';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import { getPlayerProfile } from '../player/playerProfile';
-import { isLevelCleared } from '../levels/levelProgress';
-import { LEVELS } from '../levels/levelData';
+import { levelUnlockStates, mayStartLevel, SELECTABLE_WORLDS } from '../levels/levelUnlock';
 import { Worlds } from '../config/constants';
 
 /**
- * Only world 1 is selectable until the world picker is ported — the AS3's
- * `ScreenLevelSelect.selectedWorld`.
+ * The world the grid shows — the AS3's `ScreenLevelSelect.selectedWorld`.
+ *
+ * With no world picker there is nothing to pick from, so it shows the highest
+ * world `SELECTABLE_WORLDS` admits. That constant is the single pin; this is
+ * derived from it rather than being a second copy of the number.
  */
-const SELECTED_WORLD = 1;
+const SELECTED_WORLD = SELECTABLE_WORLDS;
 
 export class LevelSelectScene extends Phaser.Scene {
   private backdrop!: Phaser.GameObjects.TileSprite;
@@ -47,6 +49,7 @@ export class LevelSelectScene extends Phaser.Scene {
     this.publishLevels();
 
     const offStart = GameEvents.subscribe('ui:start-game', ({ world, level, sandbox, equipped }) => {
+      if (!this.mayStart(world, level, sandbox)) return;
       this.scene.start(SceneKeys.Gameplay, { world, level, sandbox, equipped });
     });
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
@@ -70,35 +73,51 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   /**
+   * Whether a `ui:start-game` may proceed — the rule made load-bearing.
+   *
+   * `disabled` on a React button is presentation, not enforcement. `ui:start-game`
+   * is a shared channel — the dev level jump emits it too — so the lock was
+   * decorative: anything that emitted the event started the level, however
+   * locked the grid showed it.
+   *
+   * `UpgradesScene` already states this policy for purchases: it re-reads live
+   * state and lets `purchaseNextLevel` refuse, "so a stale or forged event
+   * cannot produce a negative balance". Same reasoning, same shape — the
+   * authority sits with the scene that owns the profile, not with the emitter.
+   *
+   * Sandbox runs are exempt by design. They are the dev jump, they record
+   * nothing (`bankLevelOutcome` skips them) and their whole purpose is reaching
+   * a level the campaign has not opened yet.
+   *
+   * The decision itself is `mayStartLevel`, so it can be driven against a real
+   * profile in a test; this method is only the lookup and the log.
+   */
+  private mayStart(world: number, level: number, sandbox?: boolean): boolean {
+    const progress = getPlayerProfile(this).progress;
+    if (mayStartLevel(progress, { world, level, sandbox })) return true;
+
+    console.warn(`[LevelSelectScene] Refused locked level ${world}-${level}.`);
+    return false;
+  }
+
+  /**
    * Publishes the world's levels with their unlock state.
    *
-   * `ScreenLevelSelect.as:842` locks level N when level N-1 scored zero on all
-   * three difficulties — i.e. was never cleared. Level 1 is always open.
+   * The rows come from `levelUnlockStates` rather than being assembled here.
+   * Building them inline is how the unlock rule acquired a copy in this file in
+   * the first place — see `levels/levelUnlock.ts`.
    *
    * Read here rather than in React because the profile lives in the Phaser
    * registry; the store bridge is the only sanctioned way across.
    */
   private publishLevels(): void {
     const profile = getPlayerProfile(this);
-    const progress = profile.progress;
     const world = SELECTED_WORLD;
-
-    // Indexed straight off the generated table; levelData.ts is regenerated
-    // from the AS3, so helpers must not be added to it by hand.
-    const levels = (LEVELS[world - 1] ?? []).map((spec, index) => {
-      const level = index + 1;
-      return {
-        level,
-        mode: spec.mode,
-        cleared: isLevelCleared(progress, world, level),
-        unlocked: level === 1 || isLevelCleared(progress, world, level - 1),
-      };
-    });
 
     GameEvents.emit('levels:listed', {
       world,
       worldName: Worlds[world - 1] ?? `World ${world}`,
-      levels,
+      levels: levelUnlockStates(profile.progress, world),
     });
   }
 }

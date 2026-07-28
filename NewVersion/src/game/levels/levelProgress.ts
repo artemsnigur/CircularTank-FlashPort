@@ -101,6 +101,13 @@ function bestValueFor(values: LevelValues, rank: number): number {
  *
  * `totalWorlds` limits the scan to the worlds actually unlocked, matching
  * `ScreenLevelSelect.totalWorlds`.
+ *
+ * The scan condition used to be `values[0] === 0 && values[1] === 0 &&
+ * values[2] === 0` written out here — the exact complement of `isLevelCleared`,
+ * thirty lines above the function that names it, and invisible to any grep for
+ * that name. It calls the predicate now. The AS3 spells the same test out
+ * longhand at `ScreenLevelSelect.as:255`, `:376`, `:842`, `:1518` and `:1539`
+ * without ever naming it, so this is a habit of the source worth not inheriting.
  */
 export function getCurrentWorldAndLevel(
   progress: ProgressTable,
@@ -110,8 +117,7 @@ export function getCurrentWorldAndLevel(
   for (let w = 0; w < limit; w += 1) {
     const world = progress[w];
     for (let l = 0; l < world.length; l += 1) {
-      const values = world[l];
-      if (values[0] === 0 && values[1] === 0 && values[2] === 0) {
+      if (!isLevelCleared(progress, w + 1, l + 1)) {
         return [w + 1, l + 1];
       }
     }

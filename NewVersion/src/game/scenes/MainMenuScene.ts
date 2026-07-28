@@ -10,13 +10,11 @@ import Phaser from 'phaser';
 import { SceneKeys } from '../config/constants';
 import { getPlayerProfile } from '../player/playerProfile';
 import { getCurrentWorldAndLevel } from '../levels/levelProgress';
+import { SELECTABLE_WORLDS } from '../levels/levelUnlock';
 import { GameEvents } from '../events/GameEvents';
 import { runAudioSelfTest } from '../audio/audioSelfTest';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
-
-/** Matches LevelSelect's pinned world until the world picker is ported. */
-const SELECTABLE_WORLDS = 1;
 
 export class MainMenuScene extends Phaser.Scene {
   private backdrop!: Phaser.GameObjects.TileSprite;
@@ -128,9 +126,10 @@ export class MainMenuScene extends Phaser.Scene {
    * the player has reached. It reads the same progress table LevelSelect locks
    * levels from, so Play and the grid can never disagree.
    *
-   * The scan is limited to one world to match LevelSelect, which pins world 1
-   * until the world picker is ported. Without that, Play could launch a level
-   * the grid cannot show.
+   * The scan is limited to `SELECTABLE_WORLDS`, the same pin LevelSelect
+   * derives its displayed world from. Without that, Play could launch a level
+   * the grid cannot show — and while these were two separate constants that
+   * agreed only by convention, nothing stopped them drifting apart.
    *
    * `[0, 0]` means every scanned level has been played, which the AS3 returns
    * from its zero-initialised locals. Falls back to the last level played, and
