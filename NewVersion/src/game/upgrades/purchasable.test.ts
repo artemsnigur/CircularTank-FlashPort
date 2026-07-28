@@ -52,15 +52,18 @@ describe('only ported secondaries are sold', () => {
     expect(isPurchasable(findUpgradeById('Mine')!)).toBe(true);
   });
 
-  it('the other eleven are not', () => {
+  it('the remaining ten are not', () => {
     const sold = SECONDARY_UPGRADES.filter(isPurchasable).map((u) => u.id);
-    expect(sold).toEqual(['Mine']);
+    expect(sold).toEqual(['Mine', 'Shield']);
     expect(SECONDARY_UPGRADES).toHaveLength(12);
   });
 
-  it('Shield in particular, which cost up to 12,500 a level', () => {
+  it('Shield appeared on its own when it was ported', () => {
+    // Nothing in purchasable.ts was edited to sell it. Adding it to
+    // SECONDARY_WEAPONS was the whole change — which is the property this
+    // derivation exists for, observed rather than asserted.
     const shield = findUpgradeById('Shield')!;
-    expect(isPurchasable(shield)).toBe(false);
+    expect(isPurchasable(shield)).toBe(true);
     expect(Math.max(...shield.prices)).toBe(12_500);
   });
 
@@ -136,10 +139,10 @@ describe('the catalogue and the withheld list partition the table', () => {
     for (const spec of withheldUpgrades()) expect(sold.has(spec.id)).toBe(false);
   });
 
-  it('withholds 13 of 28 today — 11 secondaries and 2 misc', () => {
+  it('withholds 12 of 28 today — 10 secondaries and 2 misc', () => {
     // The exact figure, so a change to what the shop sells is visible in a diff
-    // rather than discovered in play.
-    expect(withheldUpgrades()).toHaveLength(13);
-    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 13);
+    // rather than discovered in play. Was 13; Shield came off when it landed.
+    expect(withheldUpgrades()).toHaveLength(12);
+    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 12);
   });
 });

@@ -28,9 +28,7 @@
  *   Ice Ball, Lava Ball     rolling projectiles that persist and pierce
  *   Magic Bunny             homing pet with its own steering loop
  *   Crazy Cheese            spawns a temporary allied entity
- *   Shield                  a timed damage-blocking state on the tank, not a
- *                           projectile at all (see player/tankDamage.ts's
- *                           `shieldOn` parameter, already stubbed for it)
+ *   (Shield is ported — see weapons/shield.ts)
  *
  * ── The 20-second cooldown is not a typo ──────────────────────────────────
  * `upgradeArrayMine[1]` is a flat `[600 … 600]` — 600 frames at 30 fps, so 20
@@ -43,17 +41,33 @@ import { findUpgradeById, getStatValue } from '../upgrades/upgradeState';
 import type { ExplosionSpec } from './explosions';
 import type { FiringState } from './firing';
 
-/** How a secondary reads its stats and announces itself. */
+/**
+ * How a secondary reads its stats and announces itself.
+ *
+ * ── Only the reload track is universal ────────────────────────────────────
+ * Every secondary has a cooldown; almost nothing else is shared. Mine has
+ * damage and an explosion radius, Shield has neither and carries a duration
+ * instead, Icicles has a spike count, the balls carry a trail lifetime. The
+ * tracks are therefore optional and named for what they hold, rather than
+ * assumed present at fixed indices.
+ *
+ * This was fitted to Mine when Mine was the only one, which made damage and
+ * explosion look mandatory. Shield is the first that has neither, and the other
+ * ten each want a track this shape does not have — so widening it now rather
+ * than special-casing one secondary against a Mine-shaped interface.
+ */
 export interface SecondarySpec {
   /** Display name, matching `ScreenGame.secondaryWeapon`. */
   name: string;
   upgradeId: string;
-  /** Stat track holding the reload time (AS3 index 1). */
+  /** Stat track holding the reload time (AS3 index 1). Every secondary has one. */
   reloadTrack: number;
-  /** Stat track holding the damage (AS3 index 2). */
-  damageTrack: number;
-  /** Stat track holding the explosion radius (AS3 index 3). */
-  explosionTrack: number;
+  /** Stat track holding the damage (AS3 index 2), where there is damage. */
+  damageTrack?: number;
+  /** Stat track holding the explosion radius (AS3 index 3), where it explodes. */
+  explosionTrack?: number;
+  /** Stat track holding a duration in frames — Shield's window. */
+  durationTrack?: number;
   /** SoundManager logical name, played on use. */
   sound: string;
 }
@@ -73,9 +87,25 @@ export const MINE: SecondarySpec = {
   sound: 'PlaceMine',
 };
 
+/**
+ * Shield — `PartGameArea.as:4102`.
+ *
+ * The only secondary with no projectile at all: it sets a timed state on the
+ * tank. Track 1 is a *duration*, not damage — see `weapons/shield.ts` for what
+ * the window actually does, which is reflect rather than absorb.
+ */
+export const SHIELD: SecondarySpec = {
+  name: 'Shield',
+  upgradeId: 'Shield',
+  reloadTrack: 0,
+  durationTrack: 1,
+  sound: 'Shield',
+};
+
 /** Secondaries ported so far, by display name. See the header for the rest. */
 export const SECONDARY_WEAPONS: Readonly<Record<string, SecondarySpec>> = {
   Mine: MINE,
+  Shield: SHIELD,
 };
 
 export function getSecondary(name: string): SecondarySpec | undefined {
@@ -85,8 +115,12 @@ export function getSecondary(name: string): SecondarySpec | undefined {
 export interface SecondaryStats {
   /** Frames between uses at 30 fps. */
   reloadTimeMax: number;
+  /** Zero where the spec declares no damage track. */
   damage: number;
+  /** Zero where the spec declares no explosion track. */
   explosionRadius: number;
+  /** Frames the effect lasts, where the spec declares a duration track. */
+  duration: number;
 }
 
 /**
@@ -102,12 +136,26 @@ export function resolveSecondaryStats(
   const upgrade = findUpgradeById(spec.upgradeId);
   if (!upgrade) return null;
 
+  // The reload is the one track every secondary has, and its absence is what
+  // "unowned" looks like: `getStatValue` returns null at level 0.
   const reloadTimeMax = getStatValue(upgrades, upgrade, spec.reloadTrack);
-  const damage = getStatValue(upgrades, upgrade, spec.damageTrack);
-  const explosionRadius = getStatValue(upgrades, upgrade, spec.explosionTrack);
-  if (reloadTimeMax === null || damage === null || explosionRadius === null) return null;
+  if (reloadTimeMax === null) return null;
 
-  return { reloadTimeMax, damage, explosionRadius };
+  // A declared track that does not resolve is a data error, not an unowned
+  // weapon, so it fails rather than quietly reading zero — a zero explosion
+  // radius is a blast that hits nothing and a zero duration is a shield that
+  // never comes up.
+  const optional = (track: number | undefined): number | null => {
+    if (track === undefined) return 0;
+    return getStatValue(upgrades, upgrade, track);
+  };
+
+  const damage = optional(spec.damageTrack);
+  const explosionRadius = optional(spec.explosionTrack);
+  const duration = optional(spec.durationTrack);
+  if (damage === null || explosionRadius === null || duration === null) return null;
+
+  return { reloadTimeMax, damage, explosionRadius, duration };
 }
 
 /**

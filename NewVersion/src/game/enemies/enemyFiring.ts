@@ -64,6 +64,14 @@ export interface EnemyBulletState {
   damage: number;
   lifeTime: number;
   lifeTimeMax: number;
+  /**
+   * Turned away by the tank's shield or the BulletReflect upgrade — `:1601`.
+   *
+   * The tank-collision guard is `!reflected && …` (`:1555`), so this is what
+   * stops a reflected round coming straight back. Absent on a fresh bullet;
+   * only `reflectBullet` sets it.
+   */
+  reflected?: boolean;
 }
 
 export interface ShooterState {

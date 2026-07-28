@@ -24,12 +24,12 @@ const FRAME = 1000 / 30;
 const upgrades = () => createInitialUpgradeState();
 
 describe('registration', () => {
-  it('exposes Mine as the only ported secondary', () => {
+  it('exposes the ported secondaries', () => {
     expect(getSecondary('Mine')).toBe(MINE);
-    expect(Object.keys(SECONDARY_WEAPONS)).toEqual(['Mine']);
+    expect(Object.keys(SECONDARY_WEAPONS)).toEqual(['Mine', 'Shield']);
   });
 
-  it('leaves the other eleven unported', () => {
+  it('leaves the remaining ten unported', () => {
     for (const name of [
       'Grenade',
       'Ice Grenade',
@@ -41,7 +41,6 @@ describe('registration', () => {
       'Lava Ball',
       'Magic Bunny',
       'Crazy Cheese',
-      'Shield',
     ]) {
       expect(getSecondary(name), name).toBeUndefined();
     }
@@ -63,6 +62,8 @@ describe('stats from the upgrade table', () => {
       reloadTimeMax: 600,
       damage: 26,
       explosionRadius: 195,
+      // Mine declares no duration track, so it resolves to zero.
+      duration: 0,
     });
   });
 
@@ -88,13 +89,19 @@ describe('stats from the upgrade table', () => {
   it('maps its tracks to the AS3 table', () => {
     const table = findUpgradeById('Mine')!;
     expect(table.stats[MINE.reloadTrack][0]).toBe(600);
-    expect(table.stats[MINE.damageTrack][0]).toBe(26);
-    expect(table.stats[MINE.explosionTrack][0]).toBe(195);
+    expect(table.stats[MINE.damageTrack!][0]).toBe(26);
+    expect(table.stats[MINE.explosionTrack!][0]).toBe(195);
+  });
+
+  it('declares no duration, so the resolved one is zero', () => {
+    // Only Shield carries a duration; an absent track resolves to 0 rather
+    // than failing, which is what lets one interface serve all twelve.
+    expect(MINE.durationTrack).toBeUndefined();
   });
 });
 
 describe('placement', () => {
-  const stats = { reloadTimeMax: 600, damage: 26, explosionRadius: 195 };
+  const stats = { reloadTimeMax: 600, damage: 26, explosionRadius: 195 , duration: 0 };
 
   it('drops the mine at the tank position', () => {
     const mine = placeMine(createFiringState(), stats, { x: 320, y: 480 })!;
