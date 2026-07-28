@@ -98,6 +98,12 @@ import {
 } from '../weapons/grenade';
 import type { GrenadeState } from '../weapons/grenade';
 import { spawnFan } from '../weapons/radialFan';
+import {
+  nearestTargets,
+  ROCKET_MUZZLE_OFFSET,
+  ROCKET_RADIUS,
+  ROCKET_SPEED,
+} from '../weapons/rockets';
 import type { SecondaryKind } from '../weapons/secondaries';
 import { createLevelFlags } from '../achievements/achievementContext';
 import type { LevelAchievementFlags } from '../achievements/achievementContext';
@@ -1219,6 +1225,9 @@ export class GameplayScene extends Phaser.Scene {
       this.levelFlags.noWeaponsUsed = false;
     }
 
+    // `:1762` runs inside the bullet loop, ahead of the move — the rocket turns
+    // and then travels along the new heading in the same frame.
+    this.steerRockets();
     this.advanceBullets(deltaMs);
   }
 
@@ -1422,9 +1431,14 @@ export class GameplayScene extends Phaser.Scene {
       const reachable = (i: number): boolean => this.enemies[i].targetable;
 
       if (bullet.isFlame) canHit = (_t, i) => reachable(i) && !burnedThisFrame.has(this.enemies[i]);
-      // `:5917` — a magic round damages anything before it has a target, and
-      // only its target once it does. Never the same enemy twice.
-      else if (bullet.isMagic) {
+      // `:5917` for magic, `:5647` for a rocket — the same sentence in both:
+      // damages anything while it has no target, and only its target once it
+      // does. Never the same enemy twice.
+      //
+      // A rocket has no chain state, so `isMagic` alone would exclude it and it
+      // would detonate on the first enemy it met rather than flying through to
+      // the one it was launched at.
+      else if (bullet.isMagic || bullet.isLocked) {
         canHit = (_t, i) => {
           const enemy = this.enemies[i];
           if (!enemy.targetable || bullet.hasHit(enemy)) return false;
@@ -1727,6 +1741,8 @@ export class GameplayScene extends Phaser.Scene {
         return this.fireSpikes();
       case 'chain':
         return this.fireChainRound();
+      case 'volley':
+        return this.fireVolley();
       case 'mine':
         return this.placeMine();
     }
@@ -1785,6 +1801,101 @@ export class GameplayScene extends Phaser.Scene {
    * die at the border through the same paths every other round uses. The only
    * thing the fan adds is where they start and which way they point.
    */
+  /**
+   * Fires a volley of locked rockets — `:4108-4172`.
+   *
+   * Returns false when nothing on screen is targetable, which refunds the
+   * cooldown (`:4169`). The only secondary that can decline, and the reason the
+   * gate sits above the dispatch: the achievement flags are already set by then,
+   * exactly as `:3984-3985` does it.
+   */
+  private fireVolley(): boolean {
+    if (!this.secondaryStats) return false;
+
+    const stats = this.secondaryStats;
+    const view = this.cameras.main.worldView;
+    const targets = this.enemies.map((enemy) => ({
+      x: enemy.x,
+      y: enemy.y,
+      radius: enemy.radius,
+    }));
+
+    // `:4116` — on screen and targetable. Measured from the tank, not from a
+    // bullet: the volley picks before anything has been fired.
+    const picked = nearestTargets(
+      { x: this.player.x, y: this.player.y },
+      targets,
+      stats.count,
+      (_t, i) => this.enemies[i].targetable && view.contains(this.enemies[i].x, this.enemies[i].y),
+    );
+
+    if (picked.length === 0) return false;
+
+    for (const index of picked) {
+      const target = this.enemies[index];
+      const heading = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+      const offset = ROCKET_MUZZLE_OFFSET + ROCKET_RADIUS;
+
+      // `:4158` — each rocket leaves aimed at its own target, not at the tower.
+      const rocket = new Bullet(
+        this,
+        {
+          x: this.player.x + Math.cos(heading) * offset,
+          y: this.player.y + Math.sin(heading) * offset,
+          xVel: Math.cos(heading) * ROCKET_SPEED,
+          yVel: Math.sin(heading) * ROCKET_SPEED,
+          rotation: (heading * 180) / Math.PI,
+          speed: ROCKET_SPEED,
+          radius: ROCKET_RADIUS,
+          damage: stats.damage,
+          explosion: true,
+          explosionRadius: stats.explosionRadius,
+          penetrates: false,
+          bombTimer: 0,
+          freezeTime: 0,
+          poisonTime: 0,
+          poisonDamage: 0,
+          cakePieces: 0,
+          targets: 0,
+          seeking: true,
+        },
+        this.roomWidth,
+        this.roomHeight,
+        'BulletRocket',
+      );
+      rocket.magicTarget = target;
+      this.bullets.push(rocket);
+    }
+    return true;
+  }
+
+  /**
+   * Steers every locked rocket at its target — `:1762-1783`.
+   *
+   * No turn rate: velocity is overwritten outright, same as Magic's steer, so
+   * `magicVelocity` serves both. The difference is what happens on losing the
+   * target — `:1775`/`:1780` null it and there is **no search block**, so the
+   * rocket keeps its last velocity and flies straight off the map.
+   */
+  private steerRockets(): void {
+    for (const bullet of this.bullets) {
+      if (!bullet.isLocked) continue;
+
+      const target = bullet.magicTarget as Enemy | null;
+      if (!target || !target.active || !target.targetable) {
+        bullet.magicTarget = null;
+        continue;
+      }
+
+      const { xVel, yVel } = magicVelocity(
+        { x: bullet.x, y: bullet.y },
+        { x: target.x, y: target.y },
+        bullet.speedPerFrame,
+      );
+      bullet.steer(xVel, yVel);
+    }
+  }
+
   private fireSpikes(): boolean {
     if (!this.secondaryStats) return false;
 

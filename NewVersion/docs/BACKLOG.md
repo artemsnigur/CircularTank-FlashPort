@@ -26,10 +26,10 @@ far. Several items below are "the model is done, nothing calls it".
 
 ---
 
-## Group F — Secondary weapons (4 of 12 remaining)
+## Group F — Secondary weapons (3 of 12 remaining)
 
 Ported: `Mine`, `Shield`, `Grenade`, `Ice Grenade`, `Poison Grenade`,
-`Icicles`, `Poison Spikes`, `Magic Bunny`.
+`Icicles`, `Poison Spikes`, `Magic Bunny`, `Rockets`.
 
 Two things fell out of that which the original scoping did not predict.
 **Porting Shield ported `BulletReflect`** — `:1557` is one condition covering
@@ -121,7 +121,7 @@ the blocker for this group; it is not, any more.
 
 ### F2 — Blocked on an F0 subsystem
 
-- [ ] **Rockets** — `:4108-4172`. Fires up to `rocketCount` homing rockets, one
+- [x] **Rockets** — shipped. `:4108-4172`. Fires up to `rocketCount` homing rockets, one
       per nearest on-screen enemy, each with an explosion radius.
       **Refunds the cooldown when there are no targets** (`:4169`,
       `reloadTimeSecondary = 0`) — a detail easy to miss and visible in play.

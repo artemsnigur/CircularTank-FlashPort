@@ -112,7 +112,9 @@ export type SecondaryKind =
   /** A radial burst of ordinary rounds. Icicles, Poison Spikes. */
   | 'fan'
   /** One round that chains between enemies. Magic Bunny. */
-  | 'chain';
+  | 'chain'
+  /** N homing rounds, one locked to each of the N nearest enemies. Rockets. */
+  | 'volley';
 
 /**
  * Mine — PartGameArea.as:3987.
@@ -269,6 +271,28 @@ export const MAGIC_BUNNY: SecondarySpec = {
   sound: 'MagicBunny',
 };
 
+/**
+ * Rockets — `PartGameArea.as:4108`.
+ *
+ * Fires up to `count` homing rounds, one locked to each of the nearest
+ * on-screen enemies. Distinct from Magic Bunny's chaining: those are separate
+ * rounds each committed to one enemy, not one round passing between several.
+ *
+ * The volley is clamped to however many targets exist, and a press with none
+ * refunds its cooldown — the only secondary that can decline, and the reason
+ * the gate moved above the dispatch.
+ */
+export const ROCKETS: SecondarySpec = {
+  name: 'Rockets',
+  upgradeId: 'Rockets',
+  reloadTrack: 0,
+  damageTrack: 1,
+  explosionTrack: 2,
+  countTrack: 3,
+  kind: 'volley',
+  sound: 'Rockets',
+};
+
 /** Secondaries ported so far, by display name. See the header for the rest. */
 export const SECONDARY_WEAPONS: Readonly<Record<string, SecondarySpec>> = {
   Mine: MINE,
@@ -279,6 +303,7 @@ export const SECONDARY_WEAPONS: Readonly<Record<string, SecondarySpec>> = {
   Icicles: ICICLES,
   'Poison Spikes': POISON_SPIKES,
   'Magic Bunny': MAGIC_BUNNY,
+  Rockets: ROCKETS,
 };
 
 export function getSecondary(name: string): SecondarySpec | undefined {

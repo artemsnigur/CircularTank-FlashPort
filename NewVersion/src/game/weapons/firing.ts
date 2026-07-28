@@ -700,6 +700,14 @@ export interface BulletSpec {
   cakePieces: number;
   /** Enemies this round may chain through; 0 when it does not home. */
   targets: number;
+  /**
+   * Locked to one enemy at launch and never re-acquiring — Rockets (`:1762`).
+   *
+   * Distinct from `targets`, which is Magic's chain: that one *searches* as it
+   * flies. A seeking round is committed to whatever it was given and flies
+   * straight once it loses it.
+   */
+  seeking?: boolean;
 }
 
 export interface FiringState {
@@ -801,6 +809,7 @@ export function fire(
       penetrates: spec.penetrates ?? false,
       bombTimer: spec.attachesBomb ? (stats.bombTimer ?? 0) : 0,
       freezeTime: 0,
+      seeking: false,
       poisonTime: spec.appliesPoison ? (stats.poisonTime ?? 0) : 0,
       poisonDamage: spec.appliesPoison ? (stats.poisonDamage ?? 0) : 0,
       cakePieces: spec.spawnsCakePieces ? (stats.cakePieces ?? 0) : 0,

@@ -156,10 +156,10 @@ describe('secondaries dispatch on a declared kind', () => {
     const kinds = Object.values(SECONDARY_WEAPONS).map((s) => s.kind);
     const unique = new Set<SecondaryKind>(kinds);
 
-    // Eight weapons, five shapes: three grenades share `thrown`, two spike
+    // Nine weapons, six shapes: three grenades share `thrown`, two spike
     // weapons share `fan`.
-    expect(kinds).toHaveLength(8);
-    expect(unique.size).toBe(5);
+    expect(kinds).toHaveLength(9);
+    expect(unique.size).toBe(6);
     expect(kinds.filter((k) => k === 'thrown')).toHaveLength(3);
     expect(kinds.filter((k) => k === 'fan')).toHaveLength(2);
   });
@@ -175,7 +175,7 @@ describe('secondaries dispatch on a declared kind', () => {
   it('is a switch, so a sixth kind is a compile error not a silent path', () => {
     expect(SCENE).toContain('private useSecondary(kind: SecondaryKind): boolean {');
     expect(SCENE).toContain('switch (kind) {');
-    for (const kind of ['shield', 'thrown', 'fan', 'chain', 'mine']) {
+    for (const kind of ['shield', 'thrown', 'fan', 'chain', 'mine', 'volley']) {
       expect(SCENE, kind).toContain(`case '${kind}':`);
     }
   });
@@ -239,6 +239,7 @@ describe('one cooldown gate, above the dispatch', () => {
       ['useSecondary', 'fireChainRound'],
       ['fireChainRound', 'fireSpikes'],
       ['fireSpikes', 'placeMine'],
+      ['fireVolley', 'steerRockets'],
     ];
 
     for (const [name, next] of bodies) {

@@ -36,12 +36,12 @@ describe('registration', () => {
       'Icicles',
       'Poison Spikes',
       'Magic Bunny',
+      'Rockets',
     ]);
   });
 
-  it('leaves the remaining four unported', () => {
+  it('leaves the remaining three unported', () => {
     for (const name of [
-      'Rockets',
       'Ice Ball',
       'Lava Ball',
       'Crazy Cheese',

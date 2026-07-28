@@ -59,6 +59,19 @@ export class Bullet extends Phaser.GameObjects.Sprite {
    */
   magicTarget: object | null = null;
 
+  /**
+   * Locked at launch and never re-acquired — see `BulletSpec.seeking`.
+   *
+   * Deliberately not `isSeeking`, which already means something else on this
+   * class: Magic's "has hit something and still has budget to chase more".
+   * A locked round is the opposite — committed to one enemy and incapable of
+   * choosing another.
+   *
+   * Shares `magicTarget` as the held enemy because the field is the same idea;
+   * what differs is that nothing ever assigns a new one.
+   */
+  readonly isLocked: boolean;
+
   constructor(
     scene: Phaser.Scene,
     spec: BulletSpec,
@@ -76,6 +89,7 @@ export class Bullet extends Phaser.GameObjects.Sprite {
       this.flame = createFlame(flame.lifetimeMax, flame.rangeMultiplier);
     }
     if ((spec.targets ?? 0) > 0) this.magic = createMagicState(spec.targets);
+    this.isLocked = spec.seeking === true;
     this.roomWidth = roomWidth;
     this.roomHeight = roomHeight;
 
