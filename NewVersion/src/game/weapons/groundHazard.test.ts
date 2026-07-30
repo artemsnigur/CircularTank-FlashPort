@@ -26,7 +26,9 @@ import {
   hazardAlpha,
   hazardRadius,
   hazardTouches,
+  iceBlastApplies,
   iceFreezes,
+  iceGenerationAllows,
   isBiting,
   lavaAffects,
   lavaDamagePerFrame,
@@ -38,8 +40,8 @@ import { applyFreeze, createStatusState } from '../enemies/statusEffects';
 
 const SCENE = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
 
-const lay = (type: HazardType, trailLife: number, payload = 0, trailId = 0) =>
-  createHazard({ type, x: 0, y: 0, trailLife, payload, trailId, random: () => 0 });
+const lay = (type: HazardType, trailLife: number, payload = 0) =>
+  createHazard({ type, x: 0, y: 0, trailLife, payload, random: () => 0 });
 
 /** Runs a hazard to death, returning the frames it spent biting. */
 const bitingFrames = (type: HazardType, trailLife: number): number => {
@@ -102,38 +104,47 @@ describe('the active window', () => {
  * Two dedup shapes, side by side, so a future weapon cannot blur them.
  */
 describe('the two dedup rules are different shapes', () => {
-  const trail = (trailId: number) =>
-    Array.from({ length: 10 }, () => lay('Ice', 220, 200, trailId));
+  const trail = () => Array.from({ length: 10 }, () => lay('Ice', 220, 200));
 
-  it('ice freezes once for a whole trail — per throw, not per patch', () => {
-    const enemy = { trailId: 0, isBoss: false, iceMultiplier: 1 };
+  /** Walks an enemy through every patch, stamping it as `:6220` does. */
+  const walk = (
+    patches: GroundHazard[],
+    enemy: { trailId: number | null; isBoss: boolean; iceMultiplier: number },
+    currentTrailId: number,
+  ): number => {
     let freezes = 0;
-
-    for (const patch of trail(7)) {
-      if (iceFreezes(patch, enemy, false)) {
+    for (const patch of patches) {
+      if (iceFreezes(patch, enemy, currentTrailId, false)) {
         freezes += 1;
-        // The AS3 stamps the enemy with the trail id on the freeze — `:6220`.
-        enemy.trailId = patch.trailId;
+        enemy.trailId = currentTrailId;
       }
     }
+    return freezes;
+  };
 
-    expect(freezes).toBe(1);
+  it('ice freezes once for a whole trail — per generation, not per patch', () => {
+    const enemy = { trailId: null as number | null, isBoss: false, iceMultiplier: 1 };
+    expect(walk(trail(), enemy, 7)).toBe(1);
   });
 
   it('but a second throw freezes again', () => {
-    const enemy = { trailId: 0, isBoss: false, iceMultiplier: 1 };
-    let freezes = 0;
+    const enemy = { trailId: null as number | null, isBoss: false, iceMultiplier: 1 };
+    expect(walk(trail(), enemy, 7)).toBe(1);
+    expect(walk(trail(), enemy, 8)).toBe(1);
+  });
 
-    for (const throwId of [7, 8]) {
-      for (const patch of trail(throwId)) {
-        if (iceFreezes(patch, enemy, false)) {
-          freezes += 1;
-          enemy.trailId = patch.trailId;
-        }
-      }
-    }
+  it('and that second throw re-arms the *first* throw\'s patches too', () => {
+    // The case that distinguishes a live generation counter from a per-patch
+    // stamp, and the one this module originally got wrong. Ball #1's trail is
+    // still on the ground when ball #2 is thrown; `:6208` compares the enemy's
+    // stamp against the counter's current value, so those old patches bite
+    // again. A per-patch model leaves them spent for good.
+    const stale = trail();
+    const enemy = { trailId: null as number | null, isBoss: false, iceMultiplier: 1 };
 
-    expect(freezes).toBe(2);
+    expect(walk(stale, enemy, 1)).toBe(1);
+    expect(walk(stale, enemy, 1)).toBe(0); // same generation — spent
+    expect(walk(stale, enemy, 2)).toBe(1); // counter moved — the same patches bite
   });
 
   it('lava charges once per frame, not once per trail', () => {
@@ -159,37 +170,91 @@ describe('the two dedup rules are different shapes', () => {
   it('so ten patches cost ice one freeze and lava three frames of burn', () => {
     // The two numbers next to each other, which is the point: same overlap,
     // different accounting, and neither rule would be right for the other.
-    const iceEnemy = { trailId: 0, isBoss: false, iceMultiplier: 1 };
-    const iceFreezeCount = trail(7).filter((patch) => {
-      const hit = iceFreezes(patch, iceEnemy, false);
-      if (hit) iceEnemy.trailId = patch.trailId;
-      return hit;
-    }).length;
+    const iceEnemy = { trailId: null as number | null, isBoss: false, iceMultiplier: 1 };
+    const iceFreezeCount = walk(trail(), iceEnemy, 7);
 
     expect(iceFreezeCount).toBe(1);
     expect(lavaDamagePerFrame(30, 1, false, 1)).toBeCloseTo(1, 10);
   });
 });
 
-describe('ice freezing has three conditions beyond the overlap', () => {
-  const patch = lay('Ice', 220, 200, 3);
+describe('ice freezing has four conditions beyond the overlap', () => {
+  const patch = lay('Ice', 220, 200);
 
-  it('refuses an enemy already stamped by this trail', () => {
-    expect(iceFreezes(patch, { trailId: 3, isBoss: false, iceMultiplier: 1 }, false)).toBe(false);
-    expect(iceFreezes(patch, { trailId: 2, isBoss: false, iceMultiplier: 1 }, false)).toBe(true);
+  it('refuses an enemy already stamped for this generation', () => {
+    expect(iceFreezes(patch, { trailId: 3, isBoss: false, iceMultiplier: 1 }, 3, false)).toBe(false);
+    expect(iceFreezes(patch, { trailId: 2, isBoss: false, iceMultiplier: 1 }, 3, false)).toBe(true);
+  });
+
+  it('accepts an enemy that has never been stamped', () => {
+    expect(iceFreezes(patch, { trailId: null, isBoss: false, iceMultiplier: 1 }, 1, false)).toBe(
+      true,
+    );
   });
 
   it('refuses while a laser is on the enemy', () => {
-    expect(iceFreezes(patch, { trailId: 0, isBoss: false, iceMultiplier: 1 }, true)).toBe(false);
+    expect(iceFreezes(patch, { trailId: null, isBoss: false, iceMultiplier: 1 }, 3, true)).toBe(
+      false,
+    );
   });
 
   it('refuses an enemy immune to ice', () => {
-    expect(iceFreezes(patch, { trailId: 0, isBoss: false, iceMultiplier: 0 }, false)).toBe(false);
+    expect(iceFreezes(patch, { trailId: null, isBoss: false, iceMultiplier: 0 }, 3, false)).toBe(
+      false,
+    );
   });
 
   it('never freezes from a lava patch', () => {
     const lava = lay('Lava', 250, 20);
-    expect(iceFreezes(lava, { trailId: 0, isBoss: false, iceMultiplier: 1 }, false)).toBe(false);
+    expect(iceFreezes(lava, { trailId: null, isBoss: false, iceMultiplier: 1 }, 3, false)).toBe(
+      false,
+    );
+  });
+});
+
+/**
+ * `:6484` — the blast is behind the *same* gate as the trail, which is the part
+ * that is easy to miss: one throw cannot both trail-freeze and blast an enemy.
+ */
+describe('the ice blast shares the trail\'s generation budget', () => {
+  it('refuses an enemy this throw\'s trail already froze', () => {
+    expect(iceBlastApplies({ trailId: 4, iceMultiplier: 1 }, 4)).toBe(false);
+  });
+
+  it('applies to an enemy the trail never reached', () => {
+    expect(iceBlastApplies({ trailId: null, iceMultiplier: 1 }, 4)).toBe(true);
+    expect(iceBlastApplies({ trailId: 3, iceMultiplier: 1 }, 4)).toBe(true);
+  });
+
+  it('refuses an enemy immune to ice', () => {
+    expect(iceBlastApplies({ trailId: null, iceMultiplier: 0 }, 4)).toBe(false);
+  });
+
+  it('agrees with the trail on the generation dimension, at every pairing', () => {
+    // The "one gate, two callers" claim, enforced behaviourally rather than
+    // asserted in a docstring. Holding every other condition permissive, the
+    // trail and the blast must answer identically for any (stamp, counter) —
+    // so re-deriving either one independently fails here.
+    const patch = lay('Ice', 220, 200);
+    const stamps: (number | null)[] = [null, 0, 1, 2, 3];
+
+    for (const stamp of stamps) {
+      for (let counter = 0; counter <= 4; counter += 1) {
+        const gate = iceGenerationAllows(stamp, counter);
+        expect(iceFreezes(patch, { trailId: stamp, isBoss: false, iceMultiplier: 1 }, counter, false)).toBe(gate);
+        expect(iceBlastApplies({ trailId: stamp, iceMultiplier: 1 }, counter)).toBe(gate);
+      }
+    }
+  });
+
+  it('lets the blast through to a boss the trail could not touch', () => {
+    // The gate, not the duration — `applyFreeze` owns that and is asserted in
+    // the boss block below.
+    const trailPatch = lay('Ice', 220, 200);
+    expect(iceFreezes(trailPatch, { trailId: null, isBoss: true, iceMultiplier: 1 }, 1, false)).toBe(
+      false,
+    );
+    expect(iceBlastApplies({ trailId: null, iceMultiplier: 1 }, 1)).toBe(true);
   });
 });
 
@@ -198,9 +263,13 @@ describe('ice freezing has three conditions beyond the overlap', () => {
  */
 describe('a boss is immune to trail freeze but not to blast freeze', () => {
   it('the trail refuses it outright', () => {
-    const patch = lay('Ice', 220, 200, 1);
-    expect(iceFreezes(patch, { trailId: 0, isBoss: true, iceMultiplier: 1 }, false)).toBe(false);
-    expect(iceFreezes(patch, { trailId: 0, isBoss: false, iceMultiplier: 1 }, false)).toBe(true);
+    const patch = lay('Ice', 220, 200);
+    expect(iceFreezes(patch, { trailId: null, isBoss: true, iceMultiplier: 1 }, 1, false)).toBe(
+      false,
+    );
+    expect(iceFreezes(patch, { trailId: null, isBoss: false, iceMultiplier: 1 }, 1, false)).toBe(
+      true,
+    );
   });
 
   it('the blast freezes it, at a quarter of the duration', () => {
@@ -220,12 +289,14 @@ describe('a boss is immune to trail freeze but not to blast freeze', () => {
   it('so an Ice Ball cannot freeze a boss with its trail but can with its blast', () => {
     // Both facts in one assertion, because reading either alone gives the
     // wrong impression of the weapon.
-    const patch = lay('Ice', 220, 200, 1);
+    const patch = lay('Ice', 220, 200);
     const boss = createStatusState();
     applyFreeze(boss, 200, 1, true);
 
-    expect(iceFreezes(patch, { trailId: 0, isBoss: true, iceMultiplier: 1 }, false)).toBe(false);
-    expect(boss.frozenTimer).toBeGreaterThan(0);
+    expect(iceFreezes(patch, { trailId: null, isBoss: true, iceMultiplier: 1 }, 1, false)).toBe(
+      false,
+    );
+    expect(boss.frozenTimer).toBe(50);
   });
 });
 

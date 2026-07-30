@@ -27,13 +27,13 @@
  *   Lava  `onLava` — a **same-frame** flag (`:6250`). Standing in ten
  *         overlapping patches costs one patch's damage that frame, and the
  *         next frame it charges again. Per source, per frame.
- *   Ice   `trailID` against the ball's `iceTrailID` (`:6208`, `:6220`) — **once
- *         per throw**. Walk the length of an entire trail and you freeze once;
- *         a second ball freezes you again. Not per patch, not per frame.
+ *   Ice   `trailID` against the scene's **live** `iceTrailID` (`:6208`) — once
+ *         per *generation*. See `iceGenerationAllows`; it is not a per-patch
+ *         stamp, and reading it as one gets the reload case wrong.
  *
  * The port already models same-frame dedup as a `Set` scoped to one sweep
  * (`GameplayScene`'s `burnedThisFrame`), which is what lava wants. Ice needs
- * per-enemy state that outlives the frame, so it carries the trail id.
+ * per-enemy state that outlives the frame, so the enemy carries the id.
  */
 
 /** Both types spawn at this size — `:1800`. Lava then overrides it as it ages. */
@@ -94,14 +94,6 @@ export interface GroundHazard {
    * either would mislead about the other.
    */
   payload: number;
-  /**
-   * Which throw laid this — ice only, 0 for lava.
-   *
-   * The ball increments a counter per use and stamps every patch of its trail
-   * with it, which is what makes the freeze once-per-throw rather than
-   * once-per-patch.
-   */
-  trailId: number;
 }
 
 export interface HazardSpawn {
@@ -111,7 +103,6 @@ export interface HazardSpawn {
   /** The weapon's trail-life stat, *before* ice's bonus. */
   trailLife: number;
   payload: number;
-  trailId?: number;
   /** Injectable for tests; the AS3 jitters position by up to 8 units. */
   random?: () => number;
 }
@@ -137,7 +128,6 @@ export function createHazard(spawn: HazardSpawn): GroundHazard {
     lifeTime,
     lifeTimeMax: lifeTime,
     payload: spawn.payload,
-    trailId: spawn.trailId ?? 0,
   };
 }
 
@@ -237,23 +227,81 @@ export function lavaAffects(enemyType: string, fireLavaMultiplier: number): bool
 }
 
 /**
+ * The ice generation gate — `:6208` (trail) and `:6484` (blast).
+ *
+ * `iceTrailID` is a **scene counter**, incremented once per Ice Ball throw
+ * (`:4179`) and never written onto a patch: `:1786-1791` gives `ObjectGroundIce`
+ * a lifetime, a `frozenTime` and a radius, and nothing else. Both contact sites
+ * compare the *enemy's* stamp against the counter's live value.
+ *
+ * So this is not "have I already been hit by this patch", nor even "by this
+ * trail" — it is **"have I been frozen since the most recent throw"**. The
+ * difference is observable and easy to port wrong:
+ *
+ *   Throw #1, enemy walks the trail, is frozen and stamped `1`. The rest of
+ *   that trail is spent. Throw #2 → the counter is `2`, and **ball #1's patches
+ *   still lying on the ground freeze that enemy again**, because `1 != 2`. A new
+ *   throw re-arms the whole field, not just its own trail.
+ *
+ * Modelling it as a per-patch stamp reproduces every single-throw case and only
+ * diverges once a second ball is in flight over the first one's trail, which is
+ * why it survives casual play. This port got it wrong on the first pass.
+ *
+ * Exported because the blast shares it — see `iceBlastApplies`, and keep both
+ * callers routed through here so the two cannot drift apart.
+ */
+export function iceGenerationAllows(
+  enemyTrailId: number | null,
+  currentTrailId: number,
+): boolean {
+  // `:6484` spells out `trailID == null ||` and `:6208` does not. In AS3 a null
+  // stamp is unequal to any number, so the two agree; kept explicit because the
+  // asymmetry is in the source and reads as a real difference otherwise.
+  return enemyTrailId === null || enemyTrailId !== currentTrailId;
+}
+
+/**
  * Whether an ice patch may freeze this enemy — `:6208`.
  *
- * Three conditions beyond the overlap, and the boss one is the surprise:
- * **a boss cannot be frozen by a trail at all**, where the Ice Grenade's blast
- * freezes it at quarter duration. Same element, two rules.
+ * Four conditions beyond the overlap, and the boss one is the surprise:
+ * **a boss cannot be frozen by a trail at all**, where the blast freezes it at
+ * quarter duration (`:6564`). Same element, two rules.
  */
 export function iceFreezes(
   hazard: GroundHazard,
-  enemy: { trailId: number; isBoss: boolean; iceMultiplier: number },
+  enemy: { trailId: number | null; isBoss: boolean; iceMultiplier: number },
+  currentTrailId: number,
   collidingWithLaser: boolean,
 ): boolean {
   if (hazard.type !== 'Ice') return false;
-  if (enemy.trailId === hazard.trailId) return false;
+  if (!iceGenerationAllows(enemy.trailId, currentTrailId)) return false;
   if (enemy.isBoss) return false;
   if (collidingWithLaser) return false;
   return enemy.iceMultiplier > 0;
 }
+
+/**
+ * Whether an `ExplosionIce` may touch this enemy at all — `:6484`.
+ *
+ * The blast sits behind the *same* generation gate as the trail, and the `hp -=`
+ * is inside that branch, so an enemy already frozen by **this throw's trail**
+ * takes neither damage nor freeze from **that same throw's blast**. The trail
+ * and the blast are one budget, not two.
+ *
+ * Unlike the trail there is no boss exclusion here; a boss is gated later, at
+ * the freeze duration only (`:6556-6565`).
+ */
+export function iceBlastApplies(
+  enemy: { trailId: number | null; iceMultiplier: number },
+  currentTrailId: number,
+): boolean {
+  return iceGenerationAllows(enemy.trailId, currentTrailId) && enemy.iceMultiplier > 0;
+}
+
+// The blast's freeze *duration* is not here on purpose: `:6556-6565` is the
+// same round(frozenTime * iceMultiplier / (boss ? 4 : 1)) that `applyFreeze`
+// already owns for the Ice Grenade. A second copy here would be one rule in two
+// places, which is the trap this codebase keeps walking into.
 
 /**
  * Ice worn away by the player's own fire — `:7071-7089`.
