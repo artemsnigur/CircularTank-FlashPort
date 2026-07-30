@@ -99,6 +99,20 @@ import {
 import type { GrenadeState } from '../weapons/grenade';
 import { spawnFan } from '../weapons/radialFan';
 import {
+  createHazard,
+  hazardAlpha,
+  hazardTouches,
+  iceBlastApplies,
+  iceFreezes,
+  isBiting,
+  lavaAffects,
+  lavaDamagePerFrame,
+  tickHazard,
+} from '../weapons/groundHazard';
+import type { GroundHazard, HazardType } from '../weapons/groundHazard';
+import { advanceBall, ballIsOutOfBounds, throwBall } from '../weapons/ball';
+import type { BallState } from '../weapons/ball';
+import {
   nearestTargets,
   ROCKET_MUZZLE_OFFSET,
   ROCKET_RADIUS,
@@ -186,6 +200,8 @@ const ENEMY_BULLET_DEPTH = 11;
 const SHIELD_DEPTH = 9.5;
 /** Thrown grenades roll on the ground, under everything that moves. */
 const GRENADE_DEPTH = 1;
+/** Below everything — the AS3 keeps trails in their own `groundLayer`. */
+const HAZARD_DEPTH = 0;
 /** `grenade.radius = 3` — `PartGameArea.as:4041`, fixed at every level. */
 const GRENADE_RADIUS = 3;
 /**
@@ -326,6 +342,23 @@ export class GameplayScene extends Phaser.Scene {
     sprite: Phaser.GameObjects.Image;
     blast: Omit<ExplosionSpec, 'x' | 'y'>;
   }> = [];
+  /** Balls in flight, laying a trail every frame — `:1784`. */
+  private balls: Array<{
+    state: BallState;
+    sprite: Phaser.GameObjects.Image;
+  }> = [];
+  /** Ground hazards left by those balls, with the sprite drawn for each. */
+  private hazards: Array<{
+    hazard: GroundHazard;
+    sprite: Phaser.GameObjects.Image;
+  }> = [];
+  /**
+   * `PartGameArea.iceTrailID` — bumped once per Ice Ball throw (`:4179`).
+   *
+   * Scene-scoped rather than per-ball on purpose; the whole dedup rule depends
+   * on it being read live. `groundHazard.ts` explains why at length.
+   */
+  private iceTrailId = 0;
   /** What the last banked level earned — newly won achievements and enemies. */
   private banking: LevelBankingResult | null = null;
   /** Which level is being played — set from LevelSelect via scene data. */
@@ -1722,6 +1755,212 @@ export class GameplayScene extends Phaser.Scene {
   }
 
   /**
+   * Throws an Ice Ball or a Lava Ball — `:4174-4200`.
+   *
+   * The generation counter is bumped **here**, once per throw, and never
+   * touched again by the trail this throw lays. That is the whole of the ice
+   * dedup rule: `groundHazard.ts` compares an enemy's stamp against this
+   * counter's live value, so bumping it re-arms every ice patch on the floor,
+   * including ones an earlier throw left behind.
+   */
+  private throwBall(): boolean {
+    if (!this.secondaryStats || !this.secondary) return false;
+
+    const type: HazardType = this.secondary.name === 'Lava Ball' ? 'Lava' : 'Ice';
+    if (type === 'Ice') this.iceTrailId += 1;
+
+    const state = throwBall({
+      type,
+      tankX: this.player.x,
+      tankY: this.player.y,
+      towerRotation: this.player.towerRotationDegrees,
+      damage: this.secondaryStats.damage,
+      explosionRadius: this.secondaryStats.explosionRadius,
+      // Ice carries its freeze on both the blast and every patch; lava's
+      // per-second trail damage rides the same field. `BallState.payload`
+      // explains why one field rather than two.
+      payload: this.secondaryStats.effectTime ?? 0,
+      trailLife: this.secondaryStats.duration ?? 0,
+    });
+
+    const sprite = this.add
+      .image(state.x, state.y, 'particle-dot')
+      .setDisplaySize(state.radius * 2, state.radius * 2)
+      .setTint(type === 'Ice' ? 0x8fd8f2 : 0xff7a3c)
+      .setDepth(GRENADE_DEPTH);
+
+    this.balls.push({ state, sprite });
+    return true;
+  }
+
+  /**
+   * Flies every ball, laying a patch per frame — `:1784-1810`.
+   *
+   * The hazard is spawned *before* the move, matching where the AS3 does it, so
+   * the first patch sits at the muzzle rather than one step out.
+   */
+  private updateBalls(deltaMs: number): void {
+    if (this.balls.length === 0) return;
+
+    const frames = (deltaMs / 1000) * 30;
+    const surviving: typeof this.balls = [];
+
+    for (const entry of this.balls) {
+      this.layHazard(entry.state);
+
+      const moved = advanceBall(entry.state, frames);
+      const hit = this.enemies.find(
+        (enemy) =>
+          enemy.targetable &&
+          Math.hypot(moved.x - enemy.x, moved.y - enemy.y) < enemy.radius + moved.radius,
+      );
+
+      if (hit || ballIsOutOfBounds(moved, { width: this.roomWidth, height: this.roomHeight })) {
+        if (hit) this.detonateBall(moved);
+        entry.sprite.destroy();
+        continue;
+      }
+
+      entry.state = moved;
+      entry.sprite.setPosition(moved.x, moved.y);
+      surviving.push(entry);
+    }
+
+    this.balls = surviving;
+  }
+
+  /**
+   * The blast a ball leaves on contact — `:5893-5896` for ice.
+   *
+   * Ice queues its explosion by hand because it is excluded from *both* generic
+   * routes: `explosion = false` (`:4187`) keeps it out of the automatic blast
+   * path, and `:5917` then names `BulletIceball` in the exclusion list of the
+   * direct-damage path that flag would otherwise select. So the ball itself
+   * deals no contact damage at all, and everything it does to the enemy it
+   * touched arrives through this explosion.
+   *
+   * Lava sets `explosion = true` (`:4195`) and takes the ordinary path, which is
+   * why this is one method with no branch: the queue entry is the same shape.
+   */
+  private detonateBall(state: BallState): void {
+    this.spawnExplosion({
+      x: state.x,
+      y: state.y,
+      radius: state.explosionRadius,
+      damage: state.damage,
+      type: state.type === 'Ice' ? 'Ice' : 'Normal',
+      smallSound: false,
+      // `:5895` passes 0 for effectDamage — the freeze is the payload.
+      effectTime: state.type === 'Ice' ? state.payload : undefined,
+      effectDamage: 0,
+    });
+  }
+
+  /** Drops one patch under a ball — `:1786-1808`. */
+  private layHazard(state: BallState): void {
+    const hazard = createHazard({
+      type: state.type,
+      x: state.x,
+      y: state.y,
+      trailLife: state.trailLife,
+      payload: state.payload,
+    });
+
+    const sprite = this.add
+      .image(hazard.x, hazard.y, 'particle-dot')
+      .setDisplaySize(hazard.radius * 2, hazard.radius * 2)
+      .setTint(hazard.type === 'Ice' ? 0x9fe0f5 : 0xd8431a)
+      .setDepth(HAZARD_DEPTH);
+
+    this.hazards.push({ hazard, sprite });
+  }
+
+  /**
+   * Ages every patch and applies it to whatever is standing in it — `:6197`,
+   * `:7050`.
+   *
+   * The two hazards deliberately dedup differently, and this is the one place
+   * both shapes are visible: lava keeps a `Set` cleared each sweep, ice compares
+   * the enemy's stamp against the live generation counter. Neither rule would be
+   * correct for the other weapon.
+   */
+  private updateHazards(deltaMs: number): void {
+    if (this.hazards.length === 0) return;
+
+    const frames = (deltaMs / 1000) * 30;
+    const surviving: typeof this.hazards = [];
+    // `:6250` — per source, per frame, so overlapping lava costs one patch.
+    const burnedThisFrame = new Set<Enemy>();
+
+    for (const entry of this.hazards) {
+      const ticked = tickHazard(entry.hazard, frames);
+      if (!ticked) {
+        entry.sprite.destroy();
+        continue;
+      }
+
+      entry.hazard = ticked;
+      entry.sprite
+        .setDisplaySize(ticked.radius * 2, ticked.radius * 2)
+        .setAlpha(hazardAlpha(ticked));
+
+      if (isBiting(ticked)) this.applyHazard(ticked, burnedThisFrame, frames);
+      surviving.push(entry);
+    }
+
+    this.hazards = surviving;
+  }
+
+  /** One patch against every enemy standing in it. */
+  private applyHazard(hazard: GroundHazard, burned: Set<Enemy>, frames: number): void {
+    for (const enemy of this.enemies) {
+      if (!enemy.targetable) continue;
+      if (!hazardTouches(hazard, enemy)) continue;
+
+      if (hazard.type === 'Ice') {
+        if (
+          !iceFreezes(
+            hazard,
+            {
+              trailId: enemy.status.trailId,
+              isBoss: enemy.enemyLevel === 'B',
+              iceMultiplier: enemy.damageMultipliers.Ice,
+            },
+            this.iceTrailId,
+            // Nothing in the port drives a laser across a trail yet, so this is
+            // always false today — `:6208`'s third condition, kept so the rule
+            // is complete rather than approximated.
+            false,
+          )
+        ) {
+          continue;
+        }
+
+        enemy.status.trailId = this.iceTrailId;
+        // `:6221` has no boss divisor where the blast does, but `iceFreezes`
+        // has already refused every boss, so `freeze`'s divisor is unreachable
+        // here and the two spellings agree.
+        enemy.freeze(hazard.payload, this.levelSpec?.mode === 'Tower');
+        if (enemy.enemyType === 'Temperamental') this.levelFlags.temperamentalFrozen = true;
+        continue;
+      }
+
+      if (burned.has(enemy)) continue;
+      if (!lavaAffects(enemy.enemyType, enemy.damageMultipliers.FireLava)) continue;
+      burned.add(enemy);
+
+      const damage = lavaDamagePerFrame(
+        hazard.payload,
+        enemy.damageMultipliers.FireLava,
+        enemy.enemyLevel === 'B',
+        frames,
+      );
+      enemy.takeDamage(damage);
+      if (enemy.health <= 0) this.removeEnemy(enemy, true);
+    }
+  }
+
+  /**
    * Runs the spawn path for a secondary's kind.
    *
    * A `switch` on the declared kind, not a chain of tests against spec shape.
@@ -1744,14 +1983,7 @@ export class GameplayScene extends Phaser.Scene {
       case 'volley':
         return this.fireVolley();
       case 'trail':
-        // Ice Ball and Lava Ball land next. The kind exists now because the
-        // hazard subsystem it depends on does, and because an exhaustive switch
-        // is the only place that would have told us it was missing.
-        //
-        // Unreachable until a spec declares `kind: 'trail'` — asserted in
-        // `groundHazard.test.ts`, so this cannot quietly become a weapon that
-        // refuses every press.
-        throw new Error('[GameplayScene] trail secondaries are not wired yet.');
+        return this.throwBall();
       case 'mine':
         return this.placeMine();
     }
@@ -1980,6 +2212,11 @@ export class GameplayScene extends Phaser.Scene {
     this.shield = tickShield(this.shield, (deltaMs / 1000) * 30);
     this.updateShieldSprite();
     this.updateGrenades(deltaMs);
+    this.updateBalls(deltaMs);
+    // After the balls, so a patch laid this frame is aged and applied in the
+    // same frame the AS3 would — the spawn block and the expiry block are both
+    // inside one update there.
+    this.updateHazards(deltaMs);
 
     // `:3979-3986` — the cooldown gate and the achievement flags sit *above* the
     // weapon dispatch, so a press that passes the gate counts as a weapon use
@@ -2713,9 +2950,23 @@ export class GameplayScene extends Phaser.Scene {
       .filter((enemy) => enemy.targetable);
 
     for (const enemy of caught) {
-      // `:6484` and `:6607` — the status lands *before* the damage, so an
-      // enemy killed by the blast still spent a frame frozen or poisoned in
-      // the AS3's ordering, and a survivor carries the effect either way.
+      // `:6484` — an `ExplosionIce` is behind the *same* generation gate as the
+      // ice trail, and the `hp -=` sits inside that branch. So an enemy already
+      // frozen by this throw's trail takes neither damage nor freeze from that
+      // throw's blast: the trail and the blast are one budget, not two.
+      //
+      // This gates *every* Ice explosion, the Ice Grenade's included — a
+      // grenade thrown while an Ice Ball's stamp is current is refused too.
+      if (explosion.type === 'Ice' && !iceBlastApplies(
+        { trailId: enemy.status.trailId, iceMultiplier: enemy.damageMultipliers.Ice },
+        this.iceTrailId,
+      )) {
+        continue;
+      }
+
+      // `:6607` — the status lands *before* the damage, so an enemy killed by
+      // the blast still spent a frame frozen or poisoned in the AS3's ordering,
+      // and a survivor carries the effect either way.
       this.applyBlastStatus(explosion, enemy);
 
       const damage = blastDamage(explosion, enemy.damageMultipliers);
@@ -2742,6 +2993,20 @@ export class GameplayScene extends Phaser.Scene {
     if (explosion.effectTime === undefined || explosion.effectTime <= 0) return;
 
     if (explosion.type === 'Ice') {
+      // `:6554` — the stamp is written only when the *equipped* secondary is the
+      // Ice Ball, and that is not the redundancy it looks like. `ExplosionIce`
+      // is one class with two producers: the Ice Ball, whose blast shares a
+      // generation budget with its own trail, and the Ice Grenade, which has no
+      // trail and no generation of its own. Both are *gated* by the counter at
+      // `:6484`, but only the ball may *consume* a generation — stamping on a
+      // grenade would spend the ball's budget on a weapon that never earned it,
+      // silently disarming the next Ice Ball trail to touch that enemy.
+      //
+      // Ported literally, including reading the equipped weapon rather than the
+      // explosion's source: that is what the AS3 tests, and the two differ only
+      // if a blast outlives a weapon switch.
+      if (this.secondary?.name === 'Ice Ball') enemy.status.trailId = this.iceTrailId;
+
       enemy.freeze(explosion.effectTime, this.levelSpec?.mode === 'Tower');
       // `:6324` — freezing a raged Temperamental. Unreachable until the Ice
       // Grenade landed, because nothing dealt Ice damage: the achievement was

@@ -59,6 +59,19 @@ export interface StatusState {
 
   frozen: boolean;
   frozenTimer: number;
+
+  /**
+   * Which Ice Ball generation last froze this enemy — `theEnemy.trailID`.
+   *
+   * Not a patch id and not a trail id: the scene's `iceTrailID` counter is
+   * compared live, so this really means "the throw I was last frozen by". See
+   * `groundHazard.ts`'s `iceGenerationAllows`, which owns the comparison for
+   * both the trail (`:6208`) and the blast (`:6484`).
+   *
+   * `null` until an Ice Ball has frozen this enemy — `:6484` tests for it
+   * explicitly.
+   */
+  trailId: number | null;
 }
 
 export function createStatusState(): StatusState {
@@ -73,6 +86,7 @@ export function createStatusState(): StatusState {
     bombDamage: 0,
     frozen: false,
     frozenTimer: 0,
+    trailId: null,
   };
 }
 

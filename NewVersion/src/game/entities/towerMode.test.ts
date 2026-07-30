@@ -263,14 +263,16 @@ describe('the freeze reset', () => {
     // The AS3 gates all three sites on `levelMode == "Tower"`; every other mode
     // freezes without touching acceleration, which it does not use anyway.
     const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
-    expect((scene.match(/this\.levelSpec\?\.mode === 'Tower'\)/g) ?? []).length).toBe(2);
+    expect((scene.match(/this\.levelSpec\?\.mode === 'Tower'\)/g) ?? []).length).toBe(3);
   });
 
-  it('both freeze sources go through the one method', () => {
-    // Bullet impact and blast. A third source inherits it for free, which is
-    // the reason it lives on Enemy rather than beside each caller.
+  it('all three freeze sources go through the one method', () => {
+    // Bullet impact, blast, and the Ice Ball's ground trail. The third arrived
+    // with T2 and inherited the Tower reset for free, which is exactly why this
+    // lives on Enemy rather than beside each caller — `:6222` gates the trail
+    // on `levelMode == "Tower"` just as the other two are gated.
     const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
-    expect((scene.match(/enemy\.freeze\(/g) ?? []).length).toBe(2);
+    expect((scene.match(/enemy\.freeze\(/g) ?? []).length).toBe(3);
     expect(scene).not.toContain('applyFreeze(');
   });
 });

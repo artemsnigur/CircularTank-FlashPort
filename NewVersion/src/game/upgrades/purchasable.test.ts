@@ -55,7 +55,7 @@ describe('only ported secondaries are sold', () => {
     expect(isPurchasable(findUpgradeById('Mine')!)).toBe(true);
   });
 
-  it('the remaining three are not', () => {
+  it('the remaining two are not', () => {
     const sold = SECONDARY_UPGRADES.filter(isPurchasable).map((u) => u.id);
     expect(sold).toEqual([
       'Mine',
@@ -66,6 +66,7 @@ describe('only ported secondaries are sold', () => {
       'PoisonSpikes',
       'Shield',
       'Rockets',
+      'Iceball',
       'MagicBunny',
     ]);
     expect(SECONDARY_UPGRADES).toHaveLength(12);
@@ -154,12 +155,13 @@ describe('the catalogue and the withheld list partition the table', () => {
     for (const spec of withheldUpgrades()) expect(sold.has(spec.id)).toBe(false);
   });
 
-  it('withholds 4 of 28 today — 3 secondaries and 1 misc', () => {
+  it('withholds 3 of 28 today — 2 secondaries and 1 misc', () => {
     // The exact figure, so a change to what the shop sells is visible in a diff
     // rather than discovered in play. Was 13: Shield came off when it landed,
     // BulletReflect came off with it, and the three grenades came off on their
-    // own as each was registered, then the two spike weapons and Magic Bunny.
-    expect(withheldUpgrades()).toHaveLength(4);
-    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 4);
+    // own as each was registered, then the two spike weapons, Magic Bunny and
+    // Ice Ball. Lava Ball and Crazy Cheese are the two secondaries left.
+    expect(withheldUpgrades()).toHaveLength(3);
+    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 3);
   });
 });

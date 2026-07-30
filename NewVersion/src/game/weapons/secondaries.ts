@@ -22,8 +22,7 @@
  * The other eleven each need work this file does not do:
  *
 
- *   Rockets                 multiple homing projectiles with target selection
- *   Ice Ball, Lava Ball     rolling projectiles that persist and pierce
+ *   Lava Ball               a rolling projectile laying a damaging trail
  *   Magic Bunny             homing pet with its own steering loop
  *   Crazy Cheese            spawns a temporary allied entity
  *   (Shield is ported — see weapons/shield.ts)
@@ -194,6 +193,42 @@ export const ICE_GRENADE: SecondarySpec = {
 };
 
 /**
+ * Ice Ball — `PartGameArea.as:4174-4189`.
+ *
+ * A ball thrown along the tower's heading at a flat speed 12, laying an ice
+ * patch on **every frame it lives** (`:1784`) and detonating into an `Ice` blast
+ * on contact. The trail is the weapon; the blast is the smaller half.
+ *
+ * Three things make it unlike every secondary before it:
+ *
+ *  - **It deals no contact damage at all.** `:4187` sets `explosion = false`,
+ *    which routes it away from the generic blast path, and `:5917` then excludes
+ *    `BulletIceball` by name from the direct-damage path that `explosion == false`
+ *    normally selects. Carved out of both, it reaches enemies only through the
+ *    blast `:5895` queues by hand.
+ *  - **Its trail and its blast share one budget.** Both sit behind the same
+ *    generation gate (`groundHazard.ts`'s `iceGenerationAllows`), so a single
+ *    throw cannot both trail-freeze and blast the same enemy.
+ *  - **A boss is immune to the trail but not the blast** (`:6208` against
+ *    `:6564`), the blast freezing it at a quarter duration.
+ *
+ * `durationTrack` is the trail's lifetime and is the stat that matters most:
+ * 220-300 frames, plus the 15 the gate eats — see `activeWindow`.
+ */
+export const ICE_BALL: SecondarySpec = {
+  name: 'Ice Ball',
+  upgradeId: 'Iceball',
+  reloadTrack: 0,
+  damageTrack: 1,
+  explosionTrack: 2,
+  effectTimeTrack: 3,
+  durationTrack: 4,
+  explosionType: 'Ice',
+  kind: 'trail',
+  sound: 'Ball',
+};
+
+/**
  * Poison Grenade — `PartGameArea.as:4018`.
  *
  * The lowest direct damage of the three (4-6) because the poison does the work
@@ -312,6 +347,8 @@ export const SECONDARY_WEAPONS: Readonly<Record<string, SecondarySpec>> = {
   'Poison Spikes': POISON_SPIKES,
   'Magic Bunny': MAGIC_BUNNY,
   Rockets: ROCKETS,
+  // Appended as ported, which is why this list is not the upgrade table's order.
+  'Ice Ball': ICE_BALL,
 };
 
 export function getSecondary(name: string): SecondarySpec | undefined {

@@ -268,8 +268,12 @@ describe('the freeze lands through the shared timer', () => {
   });
 
   it('marks the Temperamental achievement, as the Ice Grenade does', () => {
+    // Three sites now: the Icicle's bullet freeze, the blast freeze, and the
+    // Ice Ball's trail. `:6324` marks it wherever a freeze lands on a raged
+    // Temperamental, so every freeze source has to carry it — which is the
+    // weakness of a per-site flag and the reason this count is pinned.
     expect(
       (SCENE.match(/this\.levelFlags\.temperamentalFrozen = true;/g) ?? []).length,
-    ).toBe(2);
+    ).toBe(3);
   });
 });

@@ -156,10 +156,11 @@ describe('secondaries dispatch on a declared kind', () => {
     const kinds = Object.values(SECONDARY_WEAPONS).map((s) => s.kind);
     const unique = new Set<SecondaryKind>(kinds);
 
-    // Nine weapons, six shapes: three grenades share `thrown`, two spike
-    // weapons share `fan`.
-    expect(kinds).toHaveLength(9);
-    expect(unique.size).toBe(6);
+    // Ten weapons, seven shapes: three grenades share `thrown`, two spike
+    // weapons share `fan`, and Ice Ball opened `trail` — which Lava Ball will
+    // join, making it the third shared shape.
+    expect(kinds).toHaveLength(10);
+    expect(unique.size).toBe(7);
     expect(kinds.filter((k) => k === 'thrown')).toHaveLength(3);
     expect(kinds.filter((k) => k === 'fan')).toHaveLength(2);
   });

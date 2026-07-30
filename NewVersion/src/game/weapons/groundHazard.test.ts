@@ -477,38 +477,55 @@ describe('the lifetime and fade', () => {
 /**
  * The sixth kind, and the proof it has not collapsed into another.
  */
-describe("the 'trail' kind", () => {
-  it('is distinct from every other kind', () => {
-    // The five shapes that already exist all describe how a projectile travels
-    // or what it hits. `trail` describes what it leaves behind, which is why
-    // none of them fits: an Ice Ball is an ordinary round that dies on its
-    // first enemy, and the whole weapon is the hazards it dropped on the way.
-    const existing = Object.values(SECONDARY_WEAPONS).map((s) => s.kind);
+/**
+ * The unreachability half of this block is gone on purpose.
+ *
+ * It asserted that no spec declared `'trail'`, which was true only until a
+ * weapon claimed the kind — a limitation, not a rule, in this project's
+ * vocabulary. Ice Ball claiming it is precisely the event it existed to catch,
+ * and it did catch it. Restoring it would mean re-asserting something now false.
+ *
+ * The *distinctness* half does not go away with it, so it keeps its own witness
+ * below rather than being folded into "Ice Ball freezes things" as an implicit
+ * side effect.
+ */
+describe("the 'trail' kind stays a distinct discriminant", () => {
+  it('is claimed by the ball weapons and by nothing else', () => {
+    // The other five shapes describe how a projectile travels or what it hits.
+    // `trail` describes what it leaves behind — an Ice Ball is an ordinary round
+    // that dies on its first enemy, and the weapon is the hazards it dropped on
+    // the way. Pinning which specs hold it stops a later weapon being filed here
+    // because it merely "also explodes".
+    const byKind = Object.values(SECONDARY_WEAPONS)
+      .filter((s) => s.kind === 'trail')
+      .map((s) => s.name);
 
-    expect(new Set(existing)).toEqual(
-      new Set(['mine', 'shield', 'thrown', 'fan', 'chain', 'volley']),
-    );
-    expect(existing).not.toContain('trail');
+    expect(byKind).toEqual(['Ice Ball']); // Lava Ball joins in T3.
   });
 
-  it('has its own case in the exhaustive switch', () => {
-    expect(SCENE).toContain("case 'trail':");
+  it('does not collapse into thrown, chain, volley or fan', () => {
+    // Same protection the old unreachability test gave, in the shape that
+    // survives the kind becoming reachable: a `trail` spec must not be
+    // describable as any neighbouring kind's shape. Ice Ball has an explosion
+    // channel like `thrown`, so shape-sniffing would misfile it — which is the
+    // bug the discriminator replaced.
+    const iceBall = SECONDARY_WEAPONS['Ice Ball'];
+
+    expect(iceBall.kind).toBe('trail');
+    expect(iceBall.kind).not.toBe('thrown');
+    expect(iceBall.durationTrack).toBeDefined(); // the trail's lifetime
+    expect(SECONDARY_WEAPONS['Ice Grenade'].durationTrack).toBeUndefined();
   });
 
-  it('is unreachable until a weapon declares it', () => {
-    // Which is what makes the placeholder honest rather than a stub that would
-    // silently refuse every press. Ice Ball declares it next.
-    const declared = Object.values(SECONDARY_WEAPONS).filter((s) => s.kind === 'trail');
-    expect(declared).toEqual([]);
-    expect(SCENE).toContain('trail secondaries are not wired yet');
-  });
-
-  it('throws rather than returning false, so a wiring slip is loud', () => {
-    // Returning false would refund the cooldown and look like a weapon that
-    // never fires — the quietest possible failure.
+  it('dispatches through its own branch, not a shared one', () => {
+    // The switch is exhaustive, so a missing case is a compile error — but a
+    // case that *aliases* another weapon's spawn is not. This pins that
+    // `trail` reaches `throwBall` and not `throwGrenade`.
     const start = SCENE.indexOf("case 'trail':");
-    const body = SCENE.slice(start, SCENE.indexOf('}', start));
-    expect(body).toContain('throw new Error');
-    expect(body).not.toContain('return false');
+    expect(start).toBeGreaterThan(-1);
+
+    const body = SCENE.slice(start, SCENE.indexOf('case ', start + 5));
+    expect(body).toContain('throwBall');
+    expect(body).not.toContain('throwGrenade');
   });
 });
