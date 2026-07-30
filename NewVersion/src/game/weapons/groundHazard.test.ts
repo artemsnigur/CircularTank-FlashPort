@@ -500,7 +500,9 @@ describe("the 'trail' kind stays a distinct discriminant", () => {
       .filter((s) => s.kind === 'trail')
       .map((s) => s.name);
 
-    expect(byKind).toEqual(['Ice Ball']); // Lava Ball joins in T3.
+    // Both balls, and only the balls. `trail` is now a shared shape like
+    // `thrown` and `fan`, which is what stops it reading as "the Ice Ball kind".
+    expect(byKind).toEqual(['Ice Ball', 'Lava Ball']);
   });
 
   it('does not collapse into thrown, chain, volley or fan', () => {

@@ -38,12 +38,12 @@ describe('registration', () => {
       'Magic Bunny',
       'Rockets',
       'Ice Ball',
+      'Lava Ball',
     ]);
   });
 
-  it('leaves the remaining two unported', () => {
+  it('leaves Crazy Cheese as the last unported secondary', () => {
     for (const name of [
-      'Lava Ball',
       'Crazy Cheese',
     ]) {
       expect(getSecondary(name), name).toBeUndefined();

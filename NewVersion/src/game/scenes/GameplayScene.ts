@@ -1776,11 +1776,13 @@ export class GameplayScene extends Phaser.Scene {
       towerRotation: this.player.towerRotationDegrees,
       damage: this.secondaryStats.damage,
       explosionRadius: this.secondaryStats.explosionRadius,
-      // Ice carries its freeze on both the blast and every patch; lava's
-      // per-second trail damage rides the same field. `BallState.payload`
-      // explains why one field rather than two.
-      payload: this.secondaryStats.effectTime ?? 0,
-      trailLife: this.secondaryStats.duration ?? 0,
+      // One field, two meanings, from two different tracks: ice's is the freeze
+      // its blast *and* every patch carry (`:1790`), lava's is the trail's
+      // damage per second (`:1796`). They never coexist on one ball, so naming
+      // the field for either would mislead about the other — `BallState.payload`
+      // says so at the type.
+      payload: type === 'Ice' ? this.secondaryStats.effectTime : this.secondaryStats.effectDamage,
+      trailLife: this.secondaryStats.duration,
     });
 
     const sprite = this.add
@@ -1927,9 +1929,14 @@ export class GameplayScene extends Phaser.Scene {
               iceMultiplier: enemy.damageMultipliers.Ice,
             },
             this.iceTrailId,
-            // Nothing in the port drives a laser across a trail yet, so this is
-            // always false today — `:6208`'s third condition, kept so the rule
-            // is complete rather than approximated.
+            // `:6208`'s third condition. Implemented rather than left as a TODO
+            // because a missing condition looks finished and is not — but
+            // nothing in the port drives a laser across a trail yet, so this
+            // argument is always `false` and the branch is unreachable.
+            //
+            // A real test is owed here, and is not possible until the Laser
+            // Cannon's beam reports what it overlaps. Whoever wires that: this
+            // is the site, and reviewing existing behaviour will not cover it.
             false,
           )
         ) {

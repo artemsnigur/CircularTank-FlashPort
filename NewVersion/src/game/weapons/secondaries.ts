@@ -229,6 +229,41 @@ export const ICE_BALL: SecondarySpec = {
 };
 
 /**
+ * Lava Ball — `PartGameArea.as:4190-4200`.
+ *
+ * Ice Ball's flight exactly, and the opposite weapon. Where ice freezes once per
+ * throw and does nothing else, lava damages continuously and never stops:
+ *
+ *  - **`explosion = true`** (`:4195`), so it takes the ordinary blast path
+ *    instead of ice's hand-queued one, and the blast is a plain `Normal`.
+ *  - **Its trail damages per second, not per hit.** `:6263` divides by 30 at
+ *    the point of use, so track 3's 15-28 is a rate. Reading it as per-frame
+ *    would make lava thirty times too strong and look plausible in a table.
+ *  - **Its dedup is per-frame, not per-throw.** `onLava` (`:6250`) is cleared
+ *    each sweep, so ten overlapping patches cost one patch's damage this frame
+ *    and charge again next frame. Ice's rule would be wrong here and vice
+ *    versa — `groundHazard.ts` keeps them side by side for that reason.
+ *  - **A boss takes a fifth** (`:6257`), and `DamageAddict` is excluded
+ *    outright rather than healed (`:6259`) — unlike a bullet, lava does not
+ *    touch it.
+ *
+ * The cooldown is 700 against Ice Ball's 400, the widest gap between two
+ * otherwise identically-shaped secondaries.
+ */
+export const LAVA_BALL: SecondarySpec = {
+  name: 'Lava Ball',
+  upgradeId: 'Lavaball',
+  reloadTrack: 0,
+  damageTrack: 1,
+  explosionTrack: 2,
+  effectDamageTrack: 3,
+  durationTrack: 4,
+  explosionType: 'Normal',
+  kind: 'trail',
+  sound: 'Ball',
+};
+
+/**
  * Poison Grenade — `PartGameArea.as:4018`.
  *
  * The lowest direct damage of the three (4-6) because the poison does the work
@@ -349,6 +384,7 @@ export const SECONDARY_WEAPONS: Readonly<Record<string, SecondarySpec>> = {
   Rockets: ROCKETS,
   // Appended as ported, which is why this list is not the upgrade table's order.
   'Ice Ball': ICE_BALL,
+  'Lava Ball': LAVA_BALL,
 };
 
 export function getSecondary(name: string): SecondarySpec | undefined {

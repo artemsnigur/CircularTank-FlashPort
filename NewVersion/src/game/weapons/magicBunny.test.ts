@@ -156,13 +156,14 @@ describe('secondaries dispatch on a declared kind', () => {
     const kinds = Object.values(SECONDARY_WEAPONS).map((s) => s.kind);
     const unique = new Set<SecondaryKind>(kinds);
 
-    // Ten weapons, seven shapes: three grenades share `thrown`, two spike
-    // weapons share `fan`, and Ice Ball opened `trail` — which Lava Ball will
-    // join, making it the third shared shape.
-    expect(kinds).toHaveLength(10);
+    // Eleven weapons, seven shapes: three grenades share `thrown`, two spike
+    // weapons share `fan`, and both balls share `trail` — the third shared
+    // shape, which is the whole argument for grouping by shape at all.
+    expect(kinds).toHaveLength(11);
     expect(unique.size).toBe(7);
     expect(kinds.filter((k) => k === 'thrown')).toHaveLength(3);
     expect(kinds.filter((k) => k === 'fan')).toHaveLength(2);
+    expect(kinds.filter((k) => k === 'trail')).toHaveLength(2);
   });
 
   it('Magic Bunny is a chain, not a fan, despite having a count', () => {
