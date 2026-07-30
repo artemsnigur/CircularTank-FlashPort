@@ -1743,6 +1743,15 @@ export class GameplayScene extends Phaser.Scene {
         return this.fireChainRound();
       case 'volley':
         return this.fireVolley();
+      case 'trail':
+        // Ice Ball and Lava Ball land next. The kind exists now because the
+        // hazard subsystem it depends on does, and because an exhaustive switch
+        // is the only place that would have told us it was missing.
+        //
+        // Unreachable until a spec declares `kind: 'trail'` — asserted in
+        // `groundHazard.test.ts`, so this cannot quietly become a weapon that
+        // refuses every press.
+        throw new Error('[GameplayScene] trail secondaries are not wired yet.');
       case 'mine':
         return this.placeMine();
     }

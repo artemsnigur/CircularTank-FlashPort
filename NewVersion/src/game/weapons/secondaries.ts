@@ -114,7 +114,15 @@ export type SecondaryKind =
   /** One round that chains between enemies. Magic Bunny. */
   | 'chain'
   /** N homing rounds, one locked to each of the N nearest enemies. Rockets. */
-  | 'volley';
+  | 'volley'
+  /**
+   * A projectile that lays persistent ground hazards as it flies.
+   *
+   * Ice Ball, Lava Ball. Distinct from every other kind by *what it leaves
+   * behind* rather than how it travels or what it hits — the ball itself is an
+   * ordinary round that dies on its first enemy.
+   */
+  | 'trail';
 
 /**
  * Mine — PartGameArea.as:3987.
