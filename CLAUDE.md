@@ -99,6 +99,26 @@ Two things the harness itself taught, both worth knowing before reading any fram
   and is completely hidden under the tank sprite. A frame taken on the press cannot tell
   "did not fire" from "fired underneath".
 
+### `head` truncates, it does not filter
+
+`grep ... | head -4` answers "the first four matches", not "the matches". Reading one as
+the other produced a confident claim that **enemies never shoot** — the first four hits
+were all `config/difficultyMultipliers.ts` because `config/` sorts before `scenes/`,
+while `enemies/enemyFiring.ts` (with its own test file) and its wiring at
+`GameplayScene.ts:2770` sat below the cut. That claim then produced "defeat is
+unreachable", which contradicted both a direct observation from the same pass and a
+correct record already in `docs/AUDIT-2026-07.md`.
+
+So: **before concluding something is absent, run the search without a limit, or count
+it.** `grep -rc`, `wc -l`, or no pipe at all. A truncated search is fine for orienting
+and worthless as evidence of absence.
+
+This is the cheapest to avoid of six instrument failures, all the same family — a tool
+returning a clean, decisive, wrong result and being believed: a CRLF-poisoned id list, a
+drifted string replace, a sub-frame key tap, an unowned weapon, a truncated grep, and a
+screenshot taken 500 ms after a radial burst had already left the frame. **Where a claim
+matters, drive it and watch it.** `npm run look` exists for this.
+
 ### Never edit a doc with an unchecked string replace
 
 **Partly enforceable, and the enforcing part is available: use the `Edit` tool, which

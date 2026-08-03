@@ -1,5 +1,26 @@
 # Backlog — what is left after the enemies
 
+> ## What this document does **not** cover
+>
+> **Finishing F–L is not finishing the port.** This was written immediately after the
+> enemy types landed, scoped at what was visible from there, and it has been read since
+> as though it were the whole remaining plan. It is not.
+>
+> Outside its scope entirely, and unlisted anywhere else:
+>
+> - **Tutorial** — 23 AS3 classes. State is persisted; no tutorial runs.
+> - **Particles** — `spawnParticle` / `handleParticles`. Every impact, death and
+>   strength/weakness cue in the original. No port equivalent.
+> - **`ItemMoney`** — money as a collectable drop. `moneyOnFloor: 0` stands in for it.
+> - **Enemy and medic off-screen indicators** — `handleEnemyIndicators`,
+>   `handleMedicIndicators`.
+> - **The UI and sound bulk** — the largest count by far, and the part most likely to
+>   move under a lighter process than the gameplay rules needed.
+>
+> Recorded here rather than in a report because a list that refers to work it does not
+> enumerate is how the dev aids ended up saying "remove the others" about a set nobody
+> could name. If you complete F–L, come back to this box before declaring anything done.
+
 All 20 enemy types are ported (`deedc29`). This is the inventory of what
 remains, scoped the same way the enemy inventory was: **by dependency, not by
 how novel the description sounds.** Groups A–E were the enemy porting order; this
