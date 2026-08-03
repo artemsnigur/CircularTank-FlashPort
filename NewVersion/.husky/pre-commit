@@ -40,11 +40,19 @@ if [ -f "$hook_source" ]; then
   fi
 fi
 
-# ── 1. Never commit on main ──────────────────────────────────────────────
+# ── 1. Never commit on develop ───────────────────────────────────────────
+# Inverted from "never commit on main" when the staging branch was retired.
+# Work lands on main directly now; develop is kept only as a marker of where the
+# T1-T7 arc finished and must not move again, because a commit stranded there
+# would look landed and never reach the remote anyone reads.
+#
+# The guard is inverted rather than deleted on purpose: it caught a real
+# accidental commit on the wrong branch once already, and the failure it
+# protects against did not go away when the branch names swapped.
 branch="$(git rev-parse --abbrev-ref HEAD)"
-if [ "$branch" = "main" ]; then
-  echo "pre-commit: refusing to commit on main. Work happens on develop."
-  echo "            git switch develop   (or git checkout -b <branch>)"
+if [ "$branch" = "develop" ]; then
+  echo "pre-commit: refusing to commit on develop. Work happens on main now."
+  echo "            git switch main   (develop is a historical marker)"
   exit 1
 fi
 
