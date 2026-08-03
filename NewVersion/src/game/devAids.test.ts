@@ -26,7 +26,7 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     'kill the tank (K)',
     'fund the shop (M)',
     'top-up amount',
-    'equipped secondary via ?secondary=',
+    'equipped + owned secondary via ?secondary=',
   ],
   'src/game/levels/devLevels.ts': ['QA levels for enemy behaviour'],
   'src/game/scenes/UpgradesScene.ts': ['money top-up'],

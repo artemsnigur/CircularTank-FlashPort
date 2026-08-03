@@ -73,8 +73,13 @@ import {
 } from '../weapons/secondaries';
 import type { SecondarySpec, SecondaryStats } from '../weapons/secondaries';
 import { Mine } from '../entities/Mine';
-import { createInitialUpgradeState, maxedUpgradeState } from '../upgrades/upgradeState';
+import {
+  createInitialUpgradeState,
+  findUpgradeById,
+  maxedUpgradeState,
+} from '../upgrades/upgradeState';
 import type { UpgradeState } from '../upgrades/upgradeState';
+import { MAX_UPGRADE_LEVEL } from '../upgrades/upgradeData';
 import { getPlayerProfile } from '../player/playerProfile';
 import {
   bulletReflectChance,
@@ -288,6 +293,15 @@ const FALLBACK_DIFFICULTY: Difficulty = DEFAULT_DIFFICULTY;
  * through to the loadout rather than disabling the secondary, because a silent
  * "no weapon" is the failure mode this exists to detect.
  */
+function withOwnedSecondary(state: UpgradeState, name: string): UpgradeState {
+  const spec = getSecondary(name);
+  const upgrade = spec ? findUpgradeById(spec.upgradeId) : undefined;
+  if (!upgrade) return state;
+  const secondary = [...state.secondary];
+  secondary[upgrade.index] = Math.max(secondary[upgrade.index], MAX_UPGRADE_LEVEL);
+  return { ...state, secondary };
+}
+
 function devSecondaryOverride(): string | null {
   if (!import.meta.env.DEV) return null;
   if (typeof window === 'undefined') return null;
@@ -607,7 +621,17 @@ export class GameplayScene extends Phaser.Scene {
     // unported UI and make any failure ambiguous between weapon and menu;
     // constructing a save blind means guessing the `SaveField` encoding, and a
     // wrong guess produces exactly the silent false result this is for finding.
-    this.secondary = getSecondary(devSecondaryOverride() ?? this.profile.loadout.secondaryWeapon);
+    const devSecondary = devSecondaryOverride();
+    if (devSecondary) {
+      // Equipping without owning produces a silent no-weapon: eleven of the
+      // twelve start at level 0, `resolveSecondaryStats` returns null, and the
+      // gate in `updateSecondary` never runs — so the weapon photographs as
+      // "does not fire" for a reason that has nothing to do with the weapon.
+      // That false result is precisely what this aid exists to detect, so the
+      // aid grants ownership rather than being able to produce it.
+      this.upgrades = withOwnedSecondary(this.upgrades, devSecondary);
+    }
+    this.secondary = getSecondary(devSecondary ?? this.profile.loadout.secondaryWeapon);
     this.secondaryStats = this.secondary
       ? resolveSecondaryStats(this.secondary, this.upgrades)
       : null;
