@@ -1,5 +1,5 @@
 /**
- * Dev-only levels for manual QA of enemy behaviour.
+ * DEV-AID: levels for manual QA of enemy behaviour.
  *
  * ── Why these exist ───────────────────────────────────────────────────────
  * Enemy variety is concentrated in worlds the player cannot currently reach.

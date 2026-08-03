@@ -260,7 +260,7 @@ export interface GameEventMap {
   'ui:equip-primary': { slot: 1 | 2; id: string };
   /** Equip an owned secondary — `ButtonEquip`. One slot, always occupied. */
   'ui:equip-secondary': { id: string };
-  /** Dev-only: top up the balance and persist it immediately. */
+  /** DEV-AID: top up the balance and persist it immediately. */
   'ui:dev-grant-money': { amount: number };
   /**
    * The shop catalogue, published by UpgradesScene after reading the profile.

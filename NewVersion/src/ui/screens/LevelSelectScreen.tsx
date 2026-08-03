@@ -17,7 +17,7 @@ import { Difficulties as DIFFICULTIES, Worlds } from '../../game/config/constant
 import { MAX_LEVEL_VALUE } from '../../game/levels/levelProgress';
 
 /**
- * Dev-only jump to any level in any world.
+ * DEV-AID: jump to any level in any world.
  *
  * `LevelSelectScene` publishes world 1 only (`SELECTED_WORLD`) and gates each
  * level on the previous one being cleared, which is faithful but makes most of

@@ -143,7 +143,7 @@ export class UpgradesScene extends Phaser.Scene {
   }
 
   /**
-   * Dev-only: adds money and persists it straight away.
+   * DEV-AID: adds money and persists it straight away.
    *
    * Deliberately bypasses the "takings bank only when a level finishes" rule.
    * That rule exists so quitting mid-level forfeits its earnings; a dev grant

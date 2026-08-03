@@ -1,5 +1,5 @@
 /**
- * Dev-only diagnostics: the pipeline's own report card.
+ * DEV-AID: diagnostics panel — the pipeline's own report card.
  *
  * This is where "the skeleton works" stops being a claim and becomes
  * something you can read on the device you are holding — viewport and DPR,

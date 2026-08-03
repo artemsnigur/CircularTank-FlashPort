@@ -32,13 +32,20 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000 };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
+    if (argv[i] === '--secondaries') args.secondaries = true;
   }
   return args;
 }
+
+/** All twelve, driven one per page load via the `?secondary=` dev aid. */
+const SECONDARIES = [
+  'Mine', 'Shield', 'Grenade', 'Ice Grenade', 'Poison Grenade', 'Icicles',
+  'Poison Spikes', 'Magic Bunny', 'Rockets', 'Ice Ball', 'Lava Ball', 'Crazy Cheese',
+];
 
 async function serverUp(url, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
@@ -93,6 +100,50 @@ const shot = (name) => page.screenshot({ path: `${args.out}/${name}.png` });
 /** The HUD strip, where the weapon and secondary readouts live. */
 const hud = (name) =>
   page.screenshot({ path: `${args.out}/${name}.png`, clip: { x: 0, y: 720, width: 1280, height: 80 } });
+
+/**
+ * One weapon, one page load: equip via `?secondary=`, reach gameplay, fire it
+ * held, then move off the spot before capturing.
+ *
+ * Both steps matter. A tap can fall between frames and be lost entirely, and a
+ * secondary that drops at the tank's own centre is hidden under the sprite — so
+ * a naive press-and-screenshot reports "does not fire" for weapons that do.
+ */
+async function driveSecondary(name) {
+  const slug = name.toLowerCase().replace(/ /g, '-');
+  await page.goto(`${URL}?secondary=${encodeURIComponent(name)}`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await delay(2500);
+
+  await page.locator('canvas').hover({ position: { x: 900, y: 260 } });
+  await page.mouse.move(900, 260);
+  await shot(`s-${slug}-0-before`);
+
+  await page.keyboard.down('Space');
+  await delay(350);
+  await page.keyboard.up('Space');
+  await delay(500);
+  await shot(`s-${slug}-1-fired`);
+
+  await page.keyboard.down('a');
+  await delay(1500);
+  await page.keyboard.up('a');
+  await delay(400);
+  await shot(`s-${slug}-2-moved`);
+}
+
+if (args.secondaries) {
+  for (const name of SECONDARIES) {
+    await driveSecondary(name);
+    console.log(`[look] ${name}`);
+  }
+  console.log(`[look] frames -> ${args.out}`);
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
 
 await page.goto(URL, { waitUntil: 'domcontentloaded' });
 await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });

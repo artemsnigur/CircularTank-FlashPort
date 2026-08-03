@@ -21,7 +21,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 /** Display order — weapons first, since they are what money is usually for. */
 const CATEGORY_ORDER = ['primary', 'secondary', 'misc'];
 
-/** Dev-only top-up, so the 28-upgrade catalogue can be exercised. */
+/** DEV-AID: top-up, so the 28-upgrade catalogue can be exercised. */
 const DEV_GRANT = 200_000;
 
 type ShopRow = NonNullable<ReturnType<typeof useShop>>['upgrades'][number];

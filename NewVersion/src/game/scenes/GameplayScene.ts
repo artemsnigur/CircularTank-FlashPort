@@ -279,7 +279,23 @@ const FIRE_THAW_FRAMES = 15;
  */
 const FALLBACK_DIFFICULTY: Difficulty = DEFAULT_DIFFICULTY;
 
-/** Dev-only top-up, so the shop can be exercised without grinding levels. */
+/**
+ * DEV-AID: the equipped secondary, from `?secondary=<name>`.
+ *
+ * Guarded by the same `import.meta.env.DEV` gate as every other dev affordance,
+ * so production builds strip it with the rest. Returns null in production, on a
+ * missing parameter, and on a name no spec claims — an unrecognised name falls
+ * through to the loadout rather than disabling the secondary, because a silent
+ * "no weapon" is the failure mode this exists to detect.
+ */
+function devSecondaryOverride(): string | null {
+  if (!import.meta.env.DEV) return null;
+  if (typeof window === 'undefined') return null;
+  const name = new URLSearchParams(window.location.search).get('secondary');
+  return name && getSecondary(name) ? name : null;
+}
+
+/** DEV-AID: top-up amount, so the shop can be exercised without grinding levels. */
 const DEV_MONEY_GRANT = 5000;
 
 /** Stand-in size for the flag; the extracted art is not among the assets. */
@@ -578,7 +594,20 @@ export class GameplayScene extends Phaser.Scene {
     this.mines = [];
     this.secondaryFiring = createFiringState();
     // From the loadout — `ScreenGame.secondaryWeapon`, which defaults to Mine.
-    this.secondary = getSecondary(this.profile.loadout.secondaryWeapon);
+    //
+    // `?secondary=<name>` overrides it — see `devSecondaryOverride`, which
+    // carries the tag. It exists so `npm run look` can drive all twelve without
+    // going through the equip screen, because nothing else
+    // reaches the equipped secondary: `equipped: true` maxes *upgrades* (making
+    // every secondary owned) but never touches the loadout, no key cycles it,
+    // and the save is not written until a level banks — so an observer had no
+    // route to weapon 2 through 12 at all.
+    //
+    // Driving the equip screen instead would entangle the observation with
+    // unported UI and make any failure ambiguous between weapon and menu;
+    // constructing a save blind means guessing the `SaveField` encoding, and a
+    // wrong guess produces exactly the silent false result this is for finding.
+    this.secondary = getSecondary(devSecondaryOverride() ?? this.profile.loadout.secondaryWeapon);
     this.secondaryStats = this.secondary
       ? resolveSecondaryStats(this.secondary, this.upgrades)
       : null;
@@ -977,7 +1006,7 @@ export class GameplayScene extends Phaser.Scene {
     if (import.meta.env.DEV) {
       // Cycles the margin treatment in place, so the three can be judged
       // against each other on one screen rather than by rebuilding between
-      // them. Remove with the other dev aids before release.
+      // them. DEV-AID: margin-style cycle (G).
       keyboard.on('keydown-G', () => {
         const next = (MARGIN_STYLES.indexOf(this.marginStyle) + 1) % MARGIN_STYLES.length;
         this.marginStyle = MARGIN_STYLES[next];
@@ -987,12 +1016,12 @@ export class GameplayScene extends Phaser.Scene {
     }
 
     if (import.meta.env.DEV) {
-      // Dev-only: destroy the tank, so the defeat path is reachable at all.
+      // DEV-AID: kill the tank (K), so the defeat path is reachable at all.
       // Contact is the only ported damage source and it is capped by enemy
       // count — level 1-1 is 10 enemies at 5 damage against 100 HP, so losing
       // is arithmetically impossible until shooting enemies are ported.
       // Delete this with the rest of the dev aids.
-      // Dev-only: fund the shop. Replaces the old "own every primary" grant —
+      // DEV-AID: fund the shop (M). Replaces the old "own every primary" grant —
       // buying weapons is the real path now, and grants made the shop a no-op.
       keyboard.on('keydown-M', () => {
         this.currency += DEV_MONEY_GRANT;
