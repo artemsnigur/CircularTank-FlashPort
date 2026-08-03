@@ -99,6 +99,7 @@ import { spawnFan } from '../weapons/radialFan';
 import { planBlastOn } from '../weapons/blastPlan';
 import { sweepHazards } from '../weapons/hazardSweep';
 import { displayFrame, layoutLevelProps } from '../levels/backgroundProps';
+import { propShape } from '../levels/propArt';
 import { applyKillReload, killReloadBonus } from '../upgrades/killReload';
 import {
   createHazard,
@@ -1938,17 +1939,23 @@ export class GameplayScene extends Phaser.Scene {
       // the clip, so `displayFrame` caps it at what the art actually has. The
       // arithmetic keeps the AS3's number — see `RedBloodCell`.
       const frame = displayFrame(prop.type, spec.theme, prop.frame);
-      const available = displayFrame(prop.type, spec.theme, Number.MAX_SAFE_INTEGER);
+      const shape = propShape(prop.type, spec.theme, frame);
+      const key = shape === undefined ? undefined : `prop-${shape}`;
 
-      this.add
-        .image(prop.x, prop.y, 'particle-dot')
-        .setDisplaySize(24 * prop.scale, 24 * prop.scale)
+      const image = this.add
+        .image(prop.x, prop.y, key && this.textures.exists(key) ? key : 'particle-dot')
         .setRotation(Phaser.Math.DegToRad(prop.rotation))
-        // Placeholder variant cue: the chosen frame as a brightness step, so a
-        // frame that never varies is visible rather than invisible.
-        .setAlpha(0.25 + 0.5 * (frame / available))
-        .setTint(0x6b5a44)
         .setDepth(PROP_DEPTH);
+
+      if (key && this.textures.exists(key)) {
+        // Real art: the draw's `scale` is a scale, as the AS3 uses it.
+        image.setScale(prop.scale);
+      } else {
+        // No clip for this type/theme pair — an obvious dot rather than a
+        // plausible-looking wrong prop. Nothing hits this today; it exists so a
+        // future theme without art fails visibly instead of silently.
+        image.setDisplaySize(24 * prop.scale, 24 * prop.scale).setTint(0x6b5a44).setAlpha(0.5);
+      }
     }
   }
 

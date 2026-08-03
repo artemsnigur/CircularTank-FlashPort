@@ -11,6 +11,7 @@ import {
   SAMPLE_AUDIO,
   SAMPLE_IMAGES,
   SAMPLE_SHAPES,
+  PROP_SHAPES,
 } from '../../assets/manifest';
 import { SceneKeys } from '../config/constants';
 import { GameEvents } from '../events/GameEvents';
@@ -69,6 +70,10 @@ export class PreloadScene extends Phaser.Scene {
 
     for (const asset of SAMPLE_IMAGES) {
       this.load.image(asset.key, asset.url);
+    }
+
+    for (const asset of PROP_SHAPES) {
+      this.load.svg(asset.key, asset.url, { width: asset.width, height: asset.height });
     }
 
     for (const asset of SAMPLE_SHAPES) {
