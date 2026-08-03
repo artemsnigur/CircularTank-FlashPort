@@ -19,7 +19,6 @@ import type { Difficulty } from '../config/constants';
 import { GameEvents } from '../events/GameEvents';
 import { PlayerTank } from '../entities/PlayerTank';
 import type { PlayerInput } from '../entities/PlayerTank';
-import { Pickup } from '../entities/Pickup';
 import { Enemy } from '../entities/Enemy';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { getLevel } from '../levels/levelData';
@@ -247,8 +246,6 @@ function roomFillEnabled(world: number, level: number): boolean {
   return import.meta.env.DEV && ROOM_FILL_PROTOTYPE_LEVELS.has(`${world}-${level}`);
 }
 
-const PICKUP_COUNT = 8;
-const PICKUP_VALUE = 5;
 
 /**
  * Placeholder magazine size for the HUD's ammo readout.
@@ -308,7 +305,6 @@ export class GameplayScene extends Phaser.Scene {
   private outOfBounds!: Phaser.GameObjects.Graphics;
   /** Which treatment the margin is drawn with. Cycled by G in DEV. */
   private marginStyle: MarginStyle = 'gradient';
-  private pickups!: Phaser.Physics.Arcade.Group;
   private hudText!: Phaser.GameObjects.Text;
   private crosshair!: Phaser.GameObjects.Image;
 
@@ -650,9 +646,6 @@ export class GameplayScene extends Phaser.Scene {
       this.upgrades,
     );
 
-    this.pickups = this.physics.add.group();
-    this.spawnPickups();
-
     this.startWave();
 
     // `ScreenGame.as:378` — `SoundManager.changeMusic = ScreenLevelSelect.levelMode`.
@@ -797,8 +790,6 @@ export class GameplayScene extends Phaser.Scene {
       this.updateSecondary(delta);
       this.updateContactDamage(delta);
     }
-
-    this.collectPickups();
 
     // Parallax: the ground scrolls slightly slower than the camera, which is
     // enough to read as depth without a second art layer.
@@ -2838,11 +2829,12 @@ export class GameplayScene extends Phaser.Scene {
         // drops: `removeEnemy` pays out directly on death. So there is never
         // anything to wait for.
         //
-        // This previously read `this.pickups.countActive(true)`, which counts
-        // the eight decorative placeholder coins scattered at level start.
-        // Those are scaffolding, not drops, and a player has no reason to
-        // collect them — so the handover was gated forever and no level could
-        // ever finish. Restore the real count when ItemMoney is ported.
+        // This once read a count of eight decorative placeholder coins laid at
+        // level start — scaffolding, not drops, which a player had no reason to
+        // collect, so the handover was gated forever and no level could finish.
+        // That board has since been deleted outright; this zero survives it,
+        // because the reason for the zero is that `ItemMoney` is unported.
+        // Restore the real count when drops become collectable objects.
         moneyOnFloor: 0,
       },
       deltaMs,
@@ -2934,27 +2926,6 @@ export class GameplayScene extends Phaser.Scene {
       });
       // Stop simulating; the result overlay owns the screen from here.
       this.scene.pause();
-    }
-  }
-
-  /**
-   * Distance-based pickup collection.
-   *
-   * The tank is no longer an arcade sprite — it moves through the ported
-   * `Tank.as` integration — so this replaces the physics overlap with the same
-   * circle test the bullet hits use.
-   */
-  private collectPickups(): void {
-    for (const child of this.pickups.getChildren()) {
-      const pickup = child as Pickup;
-      if (!pickup.active) continue;
-      const distance = Phaser.Math.Distance.Between(
-        this.player.x,
-        this.player.y,
-        pickup.x,
-        pickup.y,
-      );
-      if (distance <= this.player.radius + pickup.displayWidth / 2) this.collect(pickup);
     }
   }
 
@@ -3316,44 +3287,6 @@ export class GameplayScene extends Phaser.Scene {
       counts[warning.type] = (counts[warning.type] ?? 0) + 1;
     }
     return counts;
-  }
-
-  private spawnPickups(): void {
-    // Deterministic layout: the same seed gives the same board, which makes a
-    // "did my change break collection?" check reproducible.
-    const rng = new Phaser.Math.RandomDataGenerator([`level-${this.world}-${this.level}`]);
-    for (let i = 0; i < PICKUP_COUNT; i += 1) {
-      const x = rng.between(60, this.roomWidth - 60);
-      const y = rng.between(60, this.roomHeight - 60);
-      this.pickups.add(new Pickup(this, x, y, PICKUP_VALUE));
-    }
-  }
-
-  /* ── runtime ───────────────────────────────────────────────────────────── */
-
-  private collect(pickup: Pickup): void {
-    if (!pickup.active) return;
-    pickup.destroy();
-
-    this.currency += pickup.value;
-    // "Coin" has three variants in the manifest, picked by a single random
-    // draw exactly as playSound() does.
-    getSoundManager(this)?.queue('Coin');
-
-    // The one event the brief asks to demonstrate: React's currency counter
-    // updates from this, with no polling and no shared mutable object.
-    GameEvents.emit('currency:earned', { amount: pickup.value, total: this.currency });
-
-    // Two invented achievements used to fire from here — `first-coins`
-    // ("Pocket Change") and `clear-board` ("Swept the Field") — keyed off the
-    // decorative placeholder coins. Neither is one of the 36 in
-    // `achievementData.ts`; they were demo scaffolding for the toast channel,
-    // and the toast has shown fabricated achievements ever since. Same
-    // treatment as the five invented `SPECIAL_MECHANICS` entries: removed
-    // rather than renamed, because there is nothing behind them to keep.
-    //
-    // Real achievements are evaluated once at level end and announced from
-    // `level:ended`.
   }
 
   private updateHud(delta: number): void {
