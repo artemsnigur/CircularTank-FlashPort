@@ -33,6 +33,7 @@
  */
 import type { LevelSpec } from './levelData';
 import { PM_PRNG } from '../core/PM_PRNG';
+import { propShape, shapeSize } from './propArt';
 
 /** `:1134`. */
 const IMAGE_SIZE = 256;
@@ -424,10 +425,69 @@ export const PLACEHOLDER_SIZE: Readonly<Record<string, number>> = {
   FuturisticSquare: 44,
 };
 
+
+/**
+ * The AS3's per-type scale mapping — `addBackgroundObject`, `:3526-3700`.
+ *
+ * **`scale` is never used raw.** The draw is 0-1 and every type maps it through
+ * its own affine transform, so the actual range is per-prop and mostly *near
+ * one*, not near zero:
+ *
+ *   Rock             0.6 + s/2      -> 0.60 .. 1.10
+ *   Crack            0.8 + s/4      -> 0.80 .. 1.05
+ *   Flowers          0.7 + s/8      -> 0.70 .. 0.825
+ *   Seastuff         0.2 + s/8      -> 0.20 .. 0.325
+ *   Trash            0.8 + s*0.2    -> 0.80 .. 1.00
+ *   Diamond          0.8 + s/5      -> 0.80 .. 1.00
+ *   Skeleton         0.9 + s*0.3    -> 0.90 .. 1.20
+ *   Dirt             1.2 + s*0.2    -> 1.20 .. 1.40
+ *   Blood/Bacteria   0.5 + s*0.4    -> 0.50 .. 0.90
+ *   FuturisticSquare 0.4 + s*0.5    -> 0.40 .. 0.90
+ *   FuturisticLines  4 + s*0        -> a constant 4
+ *
+ * `FuturisticLines` multiplies the draw by **zero** — dead arithmetic, like the
+ * Laser Cannon's spread. The draw is still consumed; only the result is
+ * discarded. Ported as written.
+ *
+ * The first render applied the raw draw instead, which is wrong in both
+ * directions: it put every prop in 0-1 when most belong near 1, and it flattened
+ * eleven different curves into one.
+ */
+const SCALE_MAP: Readonly<Record<string, readonly [number, number]>> = {
+  Rock: [0.6, 0.5],
+  Crack: [0.8, 0.25],
+  FlowerWhite: [0.7, 0.125],
+  FlowerRed: [0.7, 0.125],
+  FlowerPurple: [0.7, 0.125],
+  Seastuff: [0.2, 0.125],
+  Trash: [0.8, 0.2],
+  Diamond: [0.8, 0.2],
+  Skeleton: [0.9, 0.3],
+  Dirt: [1.2, 0.2],
+  RedBloodCell: [0.5, 0.4],
+  WhiteBloodCell: [0.5, 0.4],
+  Bacteria: [0.5, 0.4],
+  FuturisticSquare: [0.4, 0.5],
+  FuturisticLines: [4, 0],
+};
+
+/** The rendered scale for a prop, from its raw `scale` draw. */
+export function propScale(type: string, draw: number): number {
+  const entry = SCALE_MAP[type];
+  if (!entry) return draw;
+  return entry[0] + draw * entry[1];
+}
+
 /** `:2617` — width and height are the *scaled* display size. */
-export function propRadius(prop: PlacedProp): number {
-  const base = (PLACEHOLDER_SIZE[prop.type] ?? 32) * prop.scale;
-  return (base + base) * 0.2;
+export function propRadius(prop: PlacedProp, theme = 'Desert'): number {
+  // `(height + width) * 0.2` off the **rendered** sprite. Both operands were
+  // wrong in the first render: an invented placeholder size, and the raw scale
+  // draw instead of the type's mapping. The pass ran and under-removed, which
+  // is what the visible overlap was.
+  const shape = propShape(prop.type, theme, prop.frame);
+  const [w, h] = shapeSize(shape);
+  const scale = propScale(prop.type, prop.scale);
+  return (w * scale + h * scale) * 0.2;
 }
 
 /**
@@ -476,13 +536,13 @@ export interface CollisionResult {
  * `else` branch at `:2660` is unreachable and `FuturisticLines`' only surviving
  * difference is its tolerance of six.
  */
-export function resolveCollisions(input: PlacedProp[], rng: PM_PRNG): CollisionResult {
+export function resolveCollisions(input: PlacedProp[], rng: PM_PRNG, theme = 'Desert'): CollisionResult {
   const props = [...input];
   let draws = 0;
 
   for (let i = 0; i < props.length; i += 1) {
     const object = props[i];
-    const radius = propRadius(object);
+    const radius = propRadius(object, theme);
     const die = collisionCountDie(object.type);
     let collisions = 0;
 
@@ -492,7 +552,7 @@ export function resolveCollisions(input: PlacedProp[], rng: PM_PRNG): CollisionR
 
       if (
         canCollide(object.type, other.type) &&
-        Math.hypot(object.x - other.x, object.y - other.y) < radius + propRadius(other)
+        Math.hypot(object.x - other.x, object.y - other.y) < radius + propRadius(other, theme)
       ) {
         collisions += 1;
       }
@@ -518,7 +578,7 @@ export function resolveCollisions(input: PlacedProp[], rng: PM_PRNG): CollisionR
 export function layoutLevelProps(input: PropLayoutInput): CollisionResult {
   const rng = new PM_PRNG(input.seed);
   const placed = placeProps(rng, input);
-  return resolveCollisions(placed, rng);
+  return resolveCollisions(placed, rng, input.theme);
 }
 
 /** Convenience wrapper for a level row. */

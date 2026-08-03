@@ -98,8 +98,8 @@ import type { GrenadeState } from '../weapons/grenade';
 import { spawnFan } from '../weapons/radialFan';
 import { planBlastOn } from '../weapons/blastPlan';
 import { sweepHazards } from '../weapons/hazardSweep';
-import { displayFrame, layoutLevelProps } from '../levels/backgroundProps';
-import { propShape } from '../levels/propArt';
+import { displayFrame, layoutLevelProps, propScale } from '../levels/backgroundProps';
+import { propShape, shapeSize } from '../levels/propArt';
 import { applyKillReload, killReloadBonus } from '../upgrades/killReload';
 import {
   createHazard,
@@ -794,12 +794,15 @@ export class GameplayScene extends Phaser.Scene {
       this.updateContactDamage(delta);
     }
 
-    // Parallax: the ground scrolls slightly slower than the camera, which is
-    // enough to read as depth without a second art layer.
-    this.ground.setTilePosition(
-      this.groundOffset.x + this.cameras.main.scrollX * 0.06,
-      this.groundOffset.y + this.cameras.main.scrollY * 0.06,
-    );
+    // No parallax. `createBackground` puts the ground tiles and every prop in
+    // the same `bg` container (`:1145`, `:3551`), so they scroll as one and
+    // nothing in the original moves at a different rate.
+    //
+    // This used to offset the tile position by `scrollX * 0.06` — an invented
+    // depth cue. It made the ground pattern slide 6% against world space while
+    // props stayed put, so props visibly drifted over the terrain. That was the
+    // first bug in this port found by looking at it rather than by testing.
+    this.ground.setTilePosition(this.groundOffset.x, this.groundOffset.y);
 
     this.updateWave(delta);
 
@@ -1941,20 +1944,26 @@ export class GameplayScene extends Phaser.Scene {
       const frame = displayFrame(prop.type, spec.theme, prop.frame);
       const shape = propShape(prop.type, spec.theme, frame);
       const key = shape === undefined ? undefined : `prop-${shape}`;
+      const known = key !== undefined && this.textures.exists(key);
+
+      // `:3529` — the draw is mapped per type, never used raw, and the sprite
+      // is drawn at its own authored size. Getting either wrong makes props
+      // both the wrong size and the wrong shape, and under-removes in the
+      // collision pass, which reads the rendered dimensions.
+      const scale = propScale(prop.type, prop.scale);
+      const [w, h] = shapeSize(shape);
 
       const image = this.add
-        .image(prop.x, prop.y, key && this.textures.exists(key) ? key : 'particle-dot')
+        .image(prop.x, prop.y, known && key ? key : 'particle-dot')
         .setRotation(Phaser.Math.DegToRad(prop.rotation))
         .setDepth(PROP_DEPTH);
 
-      if (key && this.textures.exists(key)) {
-        // Real art: the draw's `scale` is a scale, as the AS3 uses it.
-        image.setScale(prop.scale);
+      if (known) {
+        image.setDisplaySize(w * scale, h * scale);
       } else {
-        // No clip for this type/theme pair — an obvious dot rather than a
-        // plausible-looking wrong prop. Nothing hits this today; it exists so a
-        // future theme without art fails visibly instead of silently.
-        image.setDisplaySize(24 * prop.scale, 24 * prop.scale).setTint(0x6b5a44).setAlpha(0.5);
+        // No clip for this type/theme — an obvious dot rather than a plausible
+        // wrong prop. Nothing reaches this today.
+        image.setDisplaySize(24 * scale, 24 * scale).setTint(0x6b5a44).setAlpha(0.5);
       }
     }
   }
