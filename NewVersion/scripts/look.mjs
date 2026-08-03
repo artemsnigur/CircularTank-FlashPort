@@ -32,11 +32,12 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
     if (argv[i] === '--secondaries') args.secondaries = true;
+    if (argv[i] === '--save') args.save = true;
   }
   return args;
 }
@@ -149,6 +150,58 @@ async function driveSecondary(name) {
   await page.keyboard.up('a');
   await delay(400);
   await shot(`s-${slug}-2-moved`);
+}
+
+
+/**
+ * The save round trip, driven end to end: win a level, reload, check it stuck.
+ *
+ * Reported here rather than asserted, like everything else in this file. The
+ * unit tests cover encode/decode; what they cannot see is whether banking is
+ * reached and whether the write lands in real storage — which is the seam, and
+ * the thing a pass once got wrong in both directions.
+ *
+ * **Read storage only after the level has finished.** `finished` waits on a
+ * post-win delay timer, so a dump taken the moment the last enemy dies shows an
+ * empty store and reads as "nothing saves". That is exactly what happened.
+ */
+async function saveRoundTrip() {
+  const keys = () => page.evaluate(() => Object.keys(localStorage));
+
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  console.log('[look] storage before:', (await keys()).join(', ') || '(empty)');
+
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await delay(2200);
+
+  await page.mouse.down();
+  for (let i = 0; i < 30; i += 1) {
+    const a = (i / 30) * Math.PI * 2;
+    await page.mouse.move(640 + Math.cos(a) * 280, 400 + Math.sin(a) * 280);
+    await delay(650);
+  }
+  await page.mouse.up();
+
+  // Past the hand-over delay, then look.
+  await delay(5000);
+  await shot('save-1-after-win');
+  console.log('[look] storage after win:', (await keys()).join(', ') || '(empty)');
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await delay(3000);
+  await shot('save-2-after-reload');
+  console.log('[look] storage after reload:', (await keys()).join(', ') || '(empty)');
+  const labels = (await page.locator('button:visible').allTextContents()).map((t) => t.trim());
+  console.log('[look] menu after reload:', labels.filter(Boolean).join(' | '));
+}
+
+if (args.save) {
+  await saveRoundTrip();
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
 }
 
 if (args.secondaries) {

@@ -391,9 +391,27 @@ which two owned weapons are actually in the tank. The secondary has one slot.
       saying the rest changes nothing once a select screen passes a different
       index. That claim looks right: `ACTIVE_SLOT` appears in exactly two places
       (`load`, `save`) plus the store name.
-- [ ] Missing: a slot-select screen showing each slot's world and date stamp
-      (`setDateAndTime`, `SaveManager.as:503`), and a "slot has data" probe.
+- [x] The **"slot has data" probe** is ported — `slotHasData` in `save/saveSlot.ts`,
+      from `SaveManager.checkIfSlotHasData` (`:56`). Built on `partOfSaveString` so it
+      and `readSaveSlot` cannot disagree about where a slot begins.
+- [ ] Missing: the slot-select screen itself, showing each slot's world and date stamp.
       *Lift: small–medium, and genuinely independent of everything else here.*
+
+**Three corrections to the description above, found while porting the probe:**
+
+1. **The metadata readers already exist.** `readWorldAndLevel` and `readSaveDateTime`
+   (`saveSlot.ts:161`, `:166`) return the `wl` and `dt` fields. The screen needs a way to
+   read them *per slot*, not the readers themselves.
+2. **The port already stores slots separately, and that is faithful.** `playerProfile.ts`
+   builds its store as `saveSlotStoreName(ACTIVE_SLOT)`, giving `CircularTankSave1` — and
+   the AS3 does the same, `SharedObject.getLocal("CircularTankSave1"/"2"/"3")` at
+   `SaveManager.as:540-548`. So a slot-select screen must probe **three stores**, not
+   three slots of one string. `slotHasData` answers the within-string question; the
+   screen needs a store-level probe on top of it.
+3. **A failed save is silent in the original too.** `gameSave.flush()` (`:617`, `:748`)
+   has no try/catch and ignores the return value. The port's `console.warn` already
+   exceeds it, so there is no AS3 handling path to port — adding one would be a
+   divergence, and should be recorded as such if it is ever wanted.
 
 ---
 

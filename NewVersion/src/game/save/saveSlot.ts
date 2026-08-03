@@ -18,11 +18,7 @@
  */
 
 import { SAVE_SLOT_FIELDS } from './saveSchema';
-import {
-  buildSlotBody,
-  parseSlotFields,
-  writeSlot,
-} from './saveString';
+import { buildSlotBody, parseSlotFields, partOfSaveString, writeSlot } from './saveString';
 import type { SaveField } from './saveString';
 import { formatSaveDateTime } from './saveCodec';
 
@@ -184,6 +180,28 @@ export function writeSaveSlot(
 /** Reads a slot out of a save string. */
 export function readSaveSlot(saveString: string, slot: number): SaveSlotData {
   return decodeSaveSlot(parseSlotFields(saveString, slot));
+}
+
+/**
+ * Whether a slot has ever been written — `SaveManager.checkIfSlotHasData` (`:56`).
+ *
+ * The AS3 walks the string counting `(`, and when it reaches the slot's opening
+ * parenthesis asks whether the very next character is `)`. An empty slot is
+ * exactly `()`; anything else is data. Reproduced through `partOfSaveString` so
+ * the two share one notion of where a slot starts and ends, rather than a second
+ * hand-rolled scanner that could disagree about a malformed string.
+ *
+ * **Emptiness is structural, not semantic.** A slot holding only default values
+ * still counts as having data, because it was written. That matches the AS3 —
+ * the check is for a *saved game*, not for progress — and it is what a
+ * slot-select screen needs: "slot 2 is in use" rather than "slot 2 is
+ * interesting".
+ */
+export function slotHasData(saveString: string, slot: number): boolean {
+  const body = partOfSaveString(saveString, slot);
+  // `partOfSaveString` returns '' for a slot that is not there at all, which is
+  // the same answer as an empty one for this question.
+  return body.length > 2;
 }
 
 /**
