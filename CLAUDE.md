@@ -54,6 +54,44 @@ npm run progress:check    # CI-style: fails if PROGRESS.md is stale
 `src/assets/` is gitignored with `../SWFimported/` as the source of truth, so a fresh
 clone has no assets and both `dev` and `test` fail until `assets:sync` has run.
 
+## How work lands
+
+**Work happens on `main`.** There is no staging branch, no feature branches and no
+merge pass. This replaced a `develop` → fast-forward routine; the branch names have
+been the other way round in this repo's history, so do not infer the workflow from an
+old commit message.
+
+- **Push at the end of each task**, without waiting to be told. Landing the work and
+  publishing it are one step. A commit sitting unpushed is the failure the branch guard
+  exists to prevent, one level up.
+- **The full gate passes *before* the commit** — `typecheck`, `lint`, `data:check`,
+  `smoke`, and the whole suite. There is no buffer branch to park a half-finished state
+  on, so the green bar sits on the commit itself. **Work that cannot land green does not
+  get committed** — stop and report instead. This is the one rule where the right answer
+  is often "no commit this pass".
+- **One commit per task.** Do not batch several tasks because no merge boundary forces
+  the split any more. The boundaries are deliberate: a defect that appears after a
+  multi-weapon commit bisects to "one of these four things", which is most of the value
+  of having bisected at all.
+- **Scoping and planning passes produce a report, not a commit.** A plan is not a change.
+- **`develop` is frozen at `bda573b`**, the marker for where the T1–T7 arc finished. Do
+  not commit to it, push to it, or branch from it.
+
+### The branch guard, and where to edit it
+
+`.husky/pre-commit` refuses any commit on a branch that is not `main` — an allow-list,
+because under this workflow no other branch has a legitimate case, and a deny-list would
+only catch the branch names someone thought of. It also catches a detached HEAD.
+
+It is not decoration: it caught a stray commit on the wrong branch once already. The
+failure it guards is **work stranded on a branch nobody pushes, which looks landed and
+never reaches the remote anyone reads.**
+
+**Edit it at `NewVersion/.husky/pre-commit` and re-run `npm run prepare` — never in
+`.git/hooks/`.** The installed copy is hash-compared against the tracked source on every
+run and refuses to execute a stale gate, so a local-only edit fails on the next commit
+rather than silently diverging.
+
 ## Architecture
 
 ### The React ↔ Phaser boundary
@@ -181,6 +219,37 @@ Two non-obvious pieces of setup in `vite.config.ts` / `src/test/`:
   on its output.
 
 ## Porting workflow
+
+### The discipline, in four rules
+
+These survived seven consecutive porting tasks because they were restated every
+session. That is exactly the kind of thing that dies on the first cold start, so:
+
+1. **The AS3 source is the spec — not the running port, and not its tests.** Verify
+   against the line before porting, and re-verify rather than leaning on an earlier
+   read: several scoping passes in a row corrected something the previous one got
+   wrong. Where a behaviour is genuinely ambiguous in the source, say so and record
+   both readings; do not resolve it by observing what the port currently does.
+2. **Pin an assertion against its counterpart, not alone.** Ice against lava, kill
+   reload against the ordinary reload, a bear's bounce against a cheese's. A rule
+   asserted in isolation reads as arbitrary and survives a change that blurs it into
+   its neighbour; the same rule asserted beside the thing it is *not* fails loudly.
+   Where two rules share a mechanism, drive both through it and require them to agree.
+3. **A check that only proves a spelling gets flagged inline, at the assertion.** Say
+   what it does and does not prove. A `readFileSync` over a scene proves a guard is
+   *written*, never that it is *reached* — see the section on source-shape tests below.
+   Prefer extracting the rule so it can be driven; where that is genuinely impossible,
+   narrow the claim and label it.
+4. **Document a gap at the call site, not in a report.** An unported condition, an
+   argument that is a placeholder, a branch nothing reaches yet — write it where
+   someone will be standing when it matters, and say what is owed and what would
+   unblock it. A gap recorded only in a commit message is invisible six months out.
+
+**`docs/AUDIT-2026-07.md` is the home for divergences.** Anything where the port
+deliberately differs from the AS3, or where AS3 ambiguity was settled by judgment, goes
+there rather than into a commit message — it aggregates viewport-dependent differences,
+frame-order differences, and a list of faithful behaviours that *look* like defects, so
+a reviewer has one place to check before "fixing" one of them.
 
 `NewVersion/PROGRESS.md` tracks all 643 AS3 classes across 13 categories. Statuses are the
 four literals `not started` / `ported` / `tested` / `not applicable`; anything else is

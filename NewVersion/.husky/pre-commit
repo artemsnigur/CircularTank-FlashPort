@@ -40,19 +40,22 @@ if [ -f "$hook_source" ]; then
   fi
 fi
 
-# ── 1. Never commit on develop ───────────────────────────────────────────
-# Inverted from "never commit on main" when the staging branch was retired.
-# Work lands on main directly now; develop is kept only as a marker of where the
-# T1-T7 arc finished and must not move again, because a commit stranded there
-# would look landed and never reach the remote anyone reads.
+# ── 1. Only main ─────────────────────────────────────────────────────────
+# An allow-list, not a deny-list. Every commit belongs on main now: there is no
+# staging branch and no feature branches, so there is no legitimate case to
+# permit. Naming a forbidden branch would only catch the one branch we happen to
+# know about — this also catches a detached HEAD, a branch cut mid-session, and
+# any future rename.
 #
-# The guard is inverted rather than deleted on purpose: it caught a real
-# accidental commit on the wrong branch once already, and the failure it
-# protects against did not go away when the branch names swapped.
+# It is a guard rather than nothing because it has already earned its keep: it
+# caught a stray commit on the wrong branch during the T1 session. The failure
+# it protects against is work stranded on a branch nobody pushes, which looks
+# landed and never reaches the remote anyone reads.
 branch="$(git rev-parse --abbrev-ref HEAD)"
-if [ "$branch" = "develop" ]; then
-  echo "pre-commit: refusing to commit on develop. Work happens on main now."
-  echo "            git switch main   (develop is a historical marker)"
+if [ "$branch" != "main" ]; then
+  echo "pre-commit: refusing to commit on '$branch'. Work happens on main."
+  echo "            git switch main"
+  echo "            (develop is frozen at the T1-T7 marker; do not commit there)"
   exit 1
 fi
 
