@@ -7,15 +7,14 @@
  * per-weapon branch without failing here. Same pattern as the ice/lava pinning
  * in `ball.test.ts` — the contrast is asserted, not described.
  *
- * ── One assertion here proves shape, not behaviour ────────────────────────
- * `bounces against the camera rect, not the room` reads `GameplayScene.ts` as
- * text to confirm the call site passes a camera rect. It cannot see whether the
- * rect it passes is the *live* one — a stale or default camera would satisfy it.
- * First in line for replacement once a scene-level harness exists, alongside the
- * two flagged in `ball.test.ts`.
+ * ── Geometry only; liveness is proved elsewhere ───────────────────────────
+ * Everything here is a single call on a fixed rect. That the rect the game
+ * supplies is the *live* one — re-read every frame rather than captured at
+ * spawn — is a different claim and is now driven in
+ * `src/test/sceneHarness.test.ts`, which scrolls the view mid-flight. The
+ * source-text checks that used to stand in for it are retired.
  */
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { bounceAgainstCamera, reflect } from './bulletBounce';
 import type { BounceCandidate, CameraBounds } from './bulletBounce';
 import type { CheeseBounceState } from './foodRounds';
@@ -27,8 +26,6 @@ import {
   cheeseIsSpent,
   gummyIsSpent,
 } from './foodRounds';
-
-const SCENE = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
 
 /** A 640x400 window scrolled 200 right and 100 down — deliberately not at 0,0. */
 const CAMERA: CameraBounds = { left: 200, top: 100, width: 640, height: 400 };
@@ -240,29 +237,16 @@ describe('a bounce re-arms a Crazy Cheese rather than strengthening it', () => {
   });
 });
 
-describe('the wiring bounces against the camera, not the room', () => {
-  it('reads the rect from the live camera every frame', () => {
-    // Shape only — see the header. It proves the scene reads `worldView` inside
-    // the per-frame bullet loop rather than caching a rect at spawn, which is
-    // the difference that matters on a scrolling room. It cannot prove the
-    // value reaching `bounceAgainstCamera` is that one.
-    const start = SCENE.indexOf('private advanceBullets');
-    expect(start).toBeGreaterThan(-1);
-
-    const body = SCENE.slice(start, SCENE.indexOf('\n  private ', start + 10));
-    expect(body).toContain('cameras.main.worldView');
-    expect(body).toContain('advance(deltaMs, camera)');
-  });
-
-  it('bounces inside the bullet, off the camera rect and not the room bounds', () => {
-    // `Bullet.advance` owns the call. The room bounds still exist there for the
-    // cull path, so this checks the *bounce* branch specifically.
-    const bullet = readFileSync('src/game/entities/Bullet.ts', 'utf8');
-    const start = bullet.indexOf('bounceAgainstCamera(');
-    expect(start).toBeGreaterThan(-1);
-
-    const call = bullet.slice(start, bullet.indexOf(';', start));
-    expect(call).toContain('camera');
-    expect(call).not.toContain('roomWidth');
-  });
-});
+/*
+ * The two source-text checks that stood here are gone.
+ *
+ * They asserted that the scene passed *a* camera rect and that `Bullet` did not
+ * pass room bounds — neither of which could tell a live rect from one captured
+ * at spawn, which was the actual risk. `src/test/sceneHarness.test.ts` now flies
+ * a round while scrolling the view between frames and requires the bounce to
+ * follow, plus a control with the camera held still.
+ *
+ * The single line that remains unreachable without Phaser — that the scene reads
+ * `worldView` inside its per-frame loop — is checked there, next to the
+ * behaviour it supports.
+ */

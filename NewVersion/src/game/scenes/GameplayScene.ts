@@ -60,7 +60,6 @@ import { healedTo, isInHealRange } from '../enemies/enemyHealing';
 import { canFireHook } from '../enemies/enemyGrapple';
 import { impactFeedback } from '../enemies/damageTypes';
 import {
-  blastDamage,
   createExplosion,
   explosionSound,
   findEnemiesInBlast,
@@ -98,11 +97,11 @@ import {
 } from '../weapons/grenade';
 import type { GrenadeState } from '../weapons/grenade';
 import { spawnFan } from '../weapons/radialFan';
+import { planBlastOn } from '../weapons/blastPlan';
 import {
   createHazard,
   hazardAlpha,
   hazardTouches,
-  iceBlastApplies,
   iceFreezes,
   isBiting,
   lavaAffects,
@@ -1942,12 +1941,17 @@ export class GameplayScene extends Phaser.Scene {
             this.iceTrailId,
             // `:6208`'s third condition. Implemented rather than left as a TODO
             // because a missing condition looks finished and is not — but
-            // nothing in the port drives a laser across a trail yet, so this
-            // argument is always `false` and the branch is unreachable.
+            // nothing computes beam-vs-hazard overlap, so this is always
+            // `false` and the branch is unreachable.
             //
-            // A real test is owed here, and is not possible until the Laser
-            // Cannon's beam reports what it overlaps. Whoever wires that: this
-            // is the site, and reviewing existing behaviour will not cover it.
+            // The scene harness (`src/test/sceneHarness.ts`) does **not**
+            // unblock this, which is worth stating because it unblocked the
+            // other three gaps flagged alongside it. What is missing here is an
+            // input, not a way to drive one: `findBeamHits` reports enemies on
+            // the beam and nothing reports *patches*. Supplying it is a feature
+            // — the laser also destroys ice outright (`:7085`, `extinguishIce`,
+            // ported and likewise unwired) — so it needs its own scoping pass
+            // against the source, not a test written against today's behaviour.
             false,
           )
         ) {
@@ -3031,27 +3035,29 @@ export class GameplayScene extends Phaser.Scene {
       .filter((enemy) => enemy.targetable);
 
     for (const enemy of caught) {
-      // `:6484` — an `ExplosionIce` is behind the *same* generation gate as the
-      // ice trail, and the `hp -=` sits inside that branch. So an enemy already
-      // frozen by this throw's trail takes neither damage nor freeze from that
-      // throw's blast: the trail and the blast are one budget, not two.
-      //
-      // This gates *every* Ice explosion, the Ice Grenade's included — a
-      // grenade thrown while an Ice Ball's stamp is current is refused too.
-      if (explosion.type === 'Ice' && !iceBlastApplies(
-        { trailId: enemy.status.trailId, iceMultiplier: enemy.damageMultipliers.Ice },
-        this.iceTrailId,
-      )) {
-        continue;
-      }
+      // The gate and the stamp live in `planBlastOn` so they can be driven with
+      // real state — see `sceneHarness.test.ts`. This loop applies the answer.
+      const plan = planBlastOn(
+        explosion,
+        {
+          targetable: true,
+          trailId: enemy.status.trailId,
+          multipliers: enemy.damageMultipliers,
+        },
+        { iceTrailId: this.iceTrailId, equippedSecondary: this.secondary?.name },
+      );
+
+      // `:6484` — the refusal covers the damage as well as the status, because
+      // the `hp -=` sits inside that branch.
+      if (!plan.applies) continue;
 
       // `:6607` — the status lands *before* the damage, so an enemy killed by
       // the blast still spent a frame frozen or poisoned in the AS3's ordering,
       // and a survivor carries the effect either way.
+      if (plan.stampGeneration) enemy.status.trailId = this.iceTrailId;
       this.applyBlastStatus(explosion, enemy);
 
-      const damage = blastDamage(explosion, enemy.damageMultipliers);
-      enemy.takeDamage(damage);
+      enemy.takeDamage(plan.damage);
 
       if (enemy.health <= 0) {
         this.removeEnemy(enemy, true);
@@ -3074,20 +3080,8 @@ export class GameplayScene extends Phaser.Scene {
     if (explosion.effectTime === undefined || explosion.effectTime <= 0) return;
 
     if (explosion.type === 'Ice') {
-      // `:6554` — the stamp is written only when the *equipped* secondary is the
-      // Ice Ball, and that is not the redundancy it looks like. `ExplosionIce`
-      // is one class with two producers: the Ice Ball, whose blast shares a
-      // generation budget with its own trail, and the Ice Grenade, which has no
-      // trail and no generation of its own. Both are *gated* by the counter at
-      // `:6484`, but only the ball may *consume* a generation — stamping on a
-      // grenade would spend the ball's budget on a weapon that never earned it,
-      // silently disarming the next Ice Ball trail to touch that enemy.
-      //
-      // Ported literally, including reading the equipped weapon rather than the
-      // explosion's source: that is what the AS3 tests, and the two differ only
-      // if a blast outlives a weapon switch.
-      if (this.secondary?.name === 'Ice Ball') enemy.status.trailId = this.iceTrailId;
-
+      // The `:6554` stamp moved to `planBlastOn`, which decides it alongside
+      // the gate it is coupled to. This applies only the freeze.
       enemy.freeze(explosion.effectTime, this.levelSpec?.mode === 'Tower');
       // `:6324` — freezing a raged Temperamental. Unreachable until the Ice
       // Grenade landed, because nothing dealt Ice damage: the achievement was

@@ -139,10 +139,16 @@ describe('the blast carries the payload', () => {
     expect(body).toContain('enemy.freeze(');
     expect(body).toContain('applyPoison(');
 
+    // The damage now comes from `planBlastOn`'s answer rather than being
+    // computed inline, so the anchor moved with T5's extraction. The ordering
+    // claim is unchanged.
     const loop = SCENE.slice(SCENE.indexOf('for (const enemy of caught) {'));
-    expect(loop.indexOf('this.applyBlastStatus(')).toBeLessThan(
-      loop.indexOf('const damage = blastDamage('),
-    );
+    const status = loop.indexOf('this.applyBlastStatus(');
+    const damage = loop.indexOf('enemy.takeDamage(plan.damage)');
+
+    expect(status).toBeGreaterThan(-1);
+    expect(damage).toBeGreaterThan(-1);
+    expect(status).toBeLessThan(damage);
   });
 
   it('a Normal blast applies nothing', () => {

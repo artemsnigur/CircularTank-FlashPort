@@ -5,8 +5,7 @@
  * deliberately omits (homing, reflection, and the status effects).
  */
 import Phaser from 'phaser';
-import { advanceBullet } from '../weapons/bullets';
-import { bounceAgainstCamera } from '../weapons/bulletBounce';
+import { stepBullet } from '../weapons/bulletStep';
 import type { BounceEdge, CameraBounds } from '../weapons/bulletBounce';
 import {
   CHEESE_BOUNCES,
@@ -281,43 +280,26 @@ export class Bullet extends Phaser.GameObjects.Sprite {
    * bounce off where the view is *now*.
    */
   advance(deltaMs: number, camera: CameraBounds | null = null): boolean {
-    // `:1810` moves first, then `:1812` decides between culling and bouncing —
-    // a spent round takes the cull branch, so the order matters.
-    if (camera && this.bounceState && !this.bounceSpent()) {
-      const frames = (deltaMs / 1000) * 30;
-      const moved = {
-        ...this.motion,
-        x: this.motion.x + this.motion.xVel * frames,
-        y: this.motion.y + this.motion.yVel * frames,
-      };
-
-      const bounced = bounceAgainstCamera(
-        { ...moved, rotation: this.motion.rotation },
-        camera,
-      );
-
-      if (bounced) {
-        this.applyBounceCost(bounced.edge);
-        this.motion = { ...moved, ...bounced.state, radius: this.radius };
-        this.setPosition(this.motion.x, this.motion.y);
-        return true;
-      }
-
-      this.motion = { ...moved, radius: this.radius };
-      this.setPosition(moved.x, moved.y);
-      return true;
-    }
-
-    const next = advanceBullet(
+    // The whole step — move, then bounce or leave — lives in `stepBullet` so it
+    // can be driven across frames with a moving camera. This method's job is to
+    // hold the state and paint the sprite.
+    const step = stepBullet(
       this.motion,
-      { roomWidth: this.roomWidth, roomHeight: this.roomHeight },
+      {
+        roomWidth: this.roomWidth,
+        roomHeight: this.roomHeight,
+        camera,
+        canBounce: this.bounceState !== null && !this.bounceSpent(),
+      },
       deltaMs,
     );
-    if (!next) return false;
+    if (!step) return false;
+
+    if (step.bounced) this.applyBounceCost(step.bounced);
 
     // Keep the live (possibly grown) radius rather than the spawn value.
-    this.motion = { ...next, radius: this.radius };
-    this.setPosition(next.x, next.y);
+    this.motion = { ...step.state, radius: this.radius };
+    this.setPosition(this.motion.x, this.motion.y);
     return true;
   }
 

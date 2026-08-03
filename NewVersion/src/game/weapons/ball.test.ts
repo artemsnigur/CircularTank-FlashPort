@@ -7,18 +7,15 @@
  * generation budget, and that the Ice Grenade reads that budget without
  * spending it.
  *
- * ── Two checks here read source text, and should not stay that way ────────
+ * ── The two source-text checks that were here are gone ────────────────────
  * `gates the blast in the scene, ahead of the damage` and `stamps behind an
- * equipped-weapon check` assert on `GameplayScene.ts` as a string, because
- * `spawnExplosion`'s loop cannot be driven without booting a scene. Both state
- * their limits inline, but the honest summary is that they prove a *spelling*,
- * not a behaviour — a guard present and never reached would satisfy either.
+ * equipped-weapon check` proved a spelling rather than a behaviour — a guard
+ * present and never reached satisfied either. Both are now driven against real
+ * state in `src/test/sceneHarness.test.ts`.
  *
- * They are the first candidates for replacement once a scene-level harness
- * exists. Recording that here so the gap stays a known shortcut rather than
- * settling into "that is just how this is tested" — the failure mode
- * `CLAUDE.md` describes under source-shape tests being mistaken for seam
- * coverage.
+ * What remains here reads source text only where the claim is genuinely about
+ * source shape: that `detonateBall` never calls `takeDamage`, which is an
+ * assertion about what a method does *not* contain and has no behavioural form.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -125,41 +122,21 @@ describe('one throw is one budget across the trail and the blast', () => {
     expect(iceFreezes(patch, enemy, 2, false)).toBe(true);
   });
 
-  it('gates the blast in the scene, ahead of the damage', () => {
-    // The refusal must `continue` past `takeDamage`, not merely skip the
-    // freeze: `:6484` puts the `hp -=` inside the same branch. A gate placed
-    // after the damage would look identical in every freeze assertion above.
-    //
-    // A source-shape check, and worth being honest about its limits: it proves
-    // the refusal is spelled `continue` ahead of the damage in this loop, not
-    // that the loop runs. The behavioural half is the predicate tests above.
-    const start = SCENE.indexOf("explosion.type === 'Ice' && !iceBlastApplies");
-    expect(start).toBeGreaterThan(-1);
-
-    const body = SCENE.slice(start, SCENE.indexOf('enemy.takeDamage', start));
-    expect(body).toContain('continue');
-  });
+  // The behavioural version of this lives in `src/test/sceneHarness.test.ts`,
+  // which detonates a blast on a stamped enemy and asserts its health is
+  // untouched. The source check that stood here proved only that a `continue`
+  // appeared before `takeDamage`; a guard present and never reached satisfied
+  // it. Retired rather than kept alongside.
 });
 
 /**
  * `:6554` — the landmine, and the reason it is not the redundancy it looks like.
  */
 describe('only the Ice Ball consumes a generation', () => {
-  it('stamps behind an equipped-weapon check', () => {
-    // Both producers of `ExplosionIce` are gated by the counter; only the ball
-    // may spend it. Stamping on a grenade would disarm the next Ice Ball trail
-    // to touch that enemy — a cross-weapon bug with no local symptom.
-    // Anchored inside `applyBlastStatus`, because the trail path stamps too and
-    // appears earlier in the file — the two stamps have different guards and
-    // matching the wrong one would assert nothing.
-    const scope = SCENE.indexOf('private applyBlastStatus');
-    expect(scope).toBeGreaterThan(-1);
-
-    const body = SCENE.slice(scope, SCENE.indexOf('private burnEnemy', scope));
-    const stamp = body.indexOf('status.trailId = this.iceTrailId');
-    expect(stamp).toBeGreaterThan(-1);
-    expect(body.slice(Math.max(0, stamp - 120), stamp)).toContain("secondary?.name === 'Ice Ball'");
-  });
+  // Likewise replaced by `sceneHarness.test.ts`, which runs the same blast with
+  // Ice Grenade and Ice Ball equipped and shows a later trail still bites in one
+  // case and not the other. The retained one-line check that the scene passes
+  // the equipped weapon lives there, beside the behaviour it guards.
 
   it('leaves an enemy the grenade froze still open to a ball trail', () => {
     // The behaviour that check buys. The grenade freezes without stamping, so
