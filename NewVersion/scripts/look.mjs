@@ -97,6 +97,23 @@ page.on('console', (m) => {
 
 const shot = (name) => page.screenshot({ path: `${args.out}/${name}.png` });
 
+/**
+ * A short burst instead of one frame at a fixed delay.
+ *
+ * Three of the six instrument traps so far were timing or framing: a tap lost
+ * between frames, and a radial burst photographed 500 ms after release, by
+ * which point it had left the frame entirely and read as "the weapon does not
+ * fire". A single screenshot answers "what did it look like at exactly T", which
+ * is almost never the question. Six frames over ~600 ms answers "what happened",
+ * and costs one extra second.
+ */
+async function burst(name, frames = 6, everyMs = 100) {
+  for (let i = 0; i < frames; i += 1) {
+    await shot(`${name}-${String(i).padStart(2, '0')}`);
+    if (i < frames - 1) await delay(everyMs);
+  }
+}
+
 /** The HUD strip, where the weapon and secondary readouts live. */
 const hud = (name) =>
   page.screenshot({ path: `${args.out}/${name}.png`, clip: { x: 0, y: 720, width: 1280, height: 80 } });
@@ -121,10 +138,11 @@ async function driveSecondary(name) {
   await shot(`s-${slug}-0-before`);
 
   await page.keyboard.down('Space');
-  await delay(350);
+  await delay(120);
+  // Burst from the moment of fire: a fan at speed 20 clears the frame in under
+  // half a second, so a single late frame shows an empty screen.
+  await burst(`s-${slug}-1-fired`);
   await page.keyboard.up('Space');
-  await delay(500);
-  await shot(`s-${slug}-1-fired`);
 
   await page.keyboard.down('a');
   await delay(1500);

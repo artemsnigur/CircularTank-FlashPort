@@ -301,6 +301,14 @@ export const CRAZY_CHEESE: SecondarySpec = {
   upgradeId: 'CrazyCheese',
   reloadTrack: 0,
   damageTrack: 1,
+  // `:4222` — `upgradeArrayCrazyCheese[3]`, the arc: 40 degrees at level 1 to
+  // 62.5 at level 10. AS3 index 3 is port track 2, the price column dropped.
+  //
+  // This was missing for two commits and the weapon fired **nine rounds on one
+  // bearing**, stacked exactly and rendering as a single round. The arc was
+  // written into the docstring above at the same time the field was left unset,
+  // so the documentation described behaviour no code produced.
+  spreadTrack: 2,
   countTrack: 3,
   kind: 'fan',
   sound: 'CrazyCheese',
