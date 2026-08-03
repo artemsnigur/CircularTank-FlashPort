@@ -35,6 +35,8 @@ import {
   lavaDamagePerFrame,
 } from './groundHazard';
 import { SECONDARY_WEAPONS, resolveSecondaryStats } from './secondaries';
+import { sweepHazards } from './hazardSweep';
+import type { SweepEnemy } from './hazardSweep';
 import { createInitialUpgradeState, findUpgradeById } from '../upgrades/upgradeState';
 
 /** An upgrade state with one secondary owned at `level`. */
@@ -295,15 +297,32 @@ describe('the two trails dedup on opposite shapes, end to end', () => {
     expect(charges).toBe(3);
   });
 
-  it('clears the lava set per sweep in the scene, not per patch', () => {
-    // A `Set` built inside the patch loop would dedup nothing; built outside
-    // the frame loop it would charge once ever. It belongs to one sweep.
-    const start = SCENE.indexOf('private updateHazards');
-    const body = SCENE.slice(start, SCENE.indexOf('private applyHazard', start));
+  it('charges once per frame across overlapping patches, and again next frame', () => {
+    // Was a source check for where the dedup `Set` was declared; the sweep is
+    // extracted now, so this drives it instead. A set built inside the patch
+    // loop would charge four times in one frame; one built outside the frame
+    // loop would charge once ever.
+    const enemy: SweepEnemy = {
+      targetable: true,
+      x: 100,
+      y: 0,
+      radius: 13,
+      trailId: null,
+      isBoss: false,
+      enemyType: 'Normal',
+      iceMultiplier: 1,
+      fireLavaMultiplier: 1,
+    };
 
-    expect(body).toContain('new Set<Enemy>()');
-    // Declared before the patch loop it guards.
-    expect(body.indexOf('new Set<Enemy>()')).toBeLessThan(body.indexOf('for (const entry'));
+    const overlapping = Array.from({ length: 4 }, () =>
+      createHazard({ type: 'Lava', x: 100, y: 0, trailLife: 280, payload: 15 }),
+    );
+
+    const first = sweepHazards(overlapping, [enemy], { frames: 1, iceTrailId: 1 });
+    expect(first.effects.filter((e) => e.kind === 'lava')).toHaveLength(1);
+
+    const second = sweepHazards(first.hazards, [enemy], { frames: 1, iceTrailId: 1 });
+    expect(second.effects.filter((e) => e.kind === 'lava')).toHaveLength(1);
   });
 });
 

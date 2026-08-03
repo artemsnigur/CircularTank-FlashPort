@@ -281,6 +281,68 @@ describe('only the Ice Ball consumes a generation', () => {
     expect(h.enemies[0].health).toBe(100);
   });
 
+  /**
+   * The laser gate, placed here rather than beside the laser wiring.
+   *
+   * `:6208` has three refusals and this is the only one that does **not**
+   * consume the generation. The boss gate and the generation gate both leave
+   * the enemy unstamped too, but they are permanent for that throw — a boss is
+   * never freezable by a trail, and a stamped enemy is done until the next
+   * throw. The laser refusal is *temporary*: the same trail, same generation,
+   * freezes the enemy the moment the beam stops.
+   *
+   * That is the one place the laser wiring touches what T5 pinned above, which
+   * is why it sits next to those rules and not in a laser test file.
+   */
+  it('the laser refuses a freeze without consuming the generation', () => {
+    const h = new SceneHarness();
+    h.throwIceBall(); // generation 1
+    h.enemies = [harnessEnemy({ x: 200, y: 0, trailId: null })];
+    h.hazards = [createHazard({ type: 'Ice', x: 200, y: 0, trailLife: 400, payload: 175 })];
+
+    // Beam laid along the x axis, through the enemy.
+    h.fireLaser(0, 0, 0);
+    expect(h.laserTouched.has(0)).toBe(true);
+
+    h.sweep();
+    expect(h.enemies[0].frozenFor).toBe(0);
+    // The refusal did NOT stamp — this is what separates it from the other two.
+    expect(h.enemies[0].trailId).toBeNull();
+  });
+
+  it('and the same trail freezes it once the beam stops', () => {
+    const h = new SceneHarness();
+    h.throwIceBall();
+    h.enemies = [harnessEnemy({ x: 200, y: 0, trailId: null })];
+    h.hazards = [createHazard({ type: 'Ice', x: 200, y: 0, trailLife: 400, payload: 175 })];
+
+    h.fireLaser(0, 0, 0);
+    h.sweep();
+    expect(h.enemies[0].frozenFor).toBe(0);
+
+    // Same generation, same patch. Only the beam is gone.
+    h.holdFire();
+    h.hazards = [createHazard({ type: 'Ice', x: 200, y: 0, trailLife: 400, payload: 175 })];
+    h.sweep();
+
+    expect(h.enemies[0].frozenFor).toBe(175);
+    expect(h.enemies[0].trailId).toBe(1);
+  });
+
+  it('unlike the boss and generation refusals, which outlast the frame', () => {
+    // The contrast that makes the point. A boss is refused now and still
+    // refused after any number of frames, because nothing about it changes.
+    const boss = new SceneHarness();
+    boss.throwIceBall();
+    boss.enemies = [harnessEnemy({ x: 200, y: 0, isBoss: true, trailId: null })];
+    boss.hazards = [createHazard({ type: 'Ice', x: 200, y: 0, trailLife: 400, payload: 175 })];
+
+    boss.sweep();
+    expect(boss.enemies[0].frozenFor).toBe(0);
+    boss.sweep();
+    expect(boss.enemies[0].frozenFor).toBe(0);
+  });
+
   // The one line the harness cannot reach.
   it('and the scene passes the equipped secondary, not the blast source', () => {
     // `:6554` reads `ScreenGame.secondaryWeapon`. The harness proves what the

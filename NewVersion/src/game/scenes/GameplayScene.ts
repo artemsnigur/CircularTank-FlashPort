@@ -98,15 +98,10 @@ import {
 import type { GrenadeState } from '../weapons/grenade';
 import { spawnFan } from '../weapons/radialFan';
 import { planBlastOn } from '../weapons/blastPlan';
+import { sweepHazards } from '../weapons/hazardSweep';
 import {
   createHazard,
   hazardAlpha,
-  hazardTouches,
-  iceFreezes,
-  isBiting,
-  lavaAffects,
-  lavaDamagePerFrame,
-  tickHazard,
 } from '../weapons/groundHazard';
 import type { GroundHazard, HazardType } from '../weapons/groundHazard';
 import { advanceBall, ballIsOutOfBounds, throwBall } from '../weapons/ball';
@@ -363,6 +358,17 @@ export class GameplayScene extends Phaser.Scene {
    * on it being read live. `groundHazard.ts` explains why at length.
    */
   private iceTrailId = 0;
+  /**
+   * Enemies the beam is on this frame — `collidingWithLaser` (`:4507`, `:5574`).
+   *
+   * Rebuilt by `fireLaser` and cleared each frame, because the AS3 resets it per
+   * enemy inside the loop that sets it. Storing it on the enemy would make a
+   * same-frame flag look like a status effect, which is the mistake `onLava`
+   * and `onFire` are documented against.
+   */
+  private laserTouched: Set<number> = new Set();
+  /** The beam laid this frame, for the patch sweep at `:7083`; null otherwise. */
+  private activeBeam: ReturnType<typeof createBeam> | null = null;
   /** What the last banked level earned — newly won achievements and enemies. */
   private banking: LevelBankingResult | null = null;
   /** Which level is being played — set from LevelSelect via scene data. */
@@ -1286,6 +1292,12 @@ export class GameplayScene extends Phaser.Scene {
     getSoundManager(this)?.queue('WeaponLaser');
     this.drawBeam(beam);
 
+    // Held for this frame's hazard sweep: the patch query at `:7083` and the
+    // per-enemy `collidingWithLaser` flag at `:5574` are two different reads of
+    // the same shot, and both are cleared again next frame.
+    this.activeBeam = beam;
+    this.laserTouched = new Set();
+
     const targets = this.enemies.map((enemy) => ({
       x: enemy.x,
       y: enemy.y,
@@ -1304,8 +1316,11 @@ export class GameplayScene extends Phaser.Scene {
 
     for (const enemy of caught) {
       // Immune enemies take nothing at all — the AS3 gates the whole block on
-      // `laserDamageMultiplier > 0`.
+      // `laserDamageMultiplier > 0`, and `collidingWithLaser` is set *inside*
+      // that gate (`:5572`), so an immune enemy standing in ice still freezes.
       if (enemy.damageMultipliers.Laser <= 0) continue;
+
+      this.laserTouched.add(this.enemies.indexOf(enemy));
 
       // Unlike fire, the laser thaws *and* damages.
       if (enemy.status.frozen) {
@@ -1897,89 +1912,104 @@ export class GameplayScene extends Phaser.Scene {
    * correct for the other weapon.
    */
   private updateHazards(deltaMs: number): void {
-    if (this.hazards.length === 0) return;
-
-    const frames = (deltaMs / 1000) * 30;
-    const surviving: typeof this.hazards = [];
-    // `:6250` — per source, per frame, so overlapping lava costs one patch.
-    const burnedThisFrame = new Set<Enemy>();
-
-    for (const entry of this.hazards) {
-      const ticked = tickHazard(entry.hazard, frames);
-      if (!ticked) {
-        entry.sprite.destroy();
-        continue;
-      }
-
-      entry.hazard = ticked;
-      entry.sprite
-        .setDisplaySize(ticked.radius * 2, ticked.radius * 2)
-        .setAlpha(hazardAlpha(ticked));
-
-      if (isBiting(ticked)) this.applyHazard(ticked, burnedThisFrame, frames);
-      surviving.push(entry);
+    if (this.hazards.length === 0) {
+      // Still clear the shot, or a beam fired on a hazard-free frame would be
+      // held over and burn the first patch laid after it.
+      this.activeBeam = null;
+      this.laserTouched = new Set();
+      return;
     }
 
-    this.hazards = surviving;
-  }
+    const frames = (deltaMs / 1000) * 30;
 
-  /** One patch against every enemy standing in it. */
-  private applyHazard(hazard: GroundHazard, burned: Set<Enemy>, frames: number): void {
-    for (const enemy of this.enemies) {
-      if (!enemy.targetable) continue;
-      if (!hazardTouches(hazard, enemy)) continue;
+    const result = sweepHazards(
+      this.hazards.map((h) => h.hazard),
+      this.enemies.map((enemy) => ({
+        targetable: enemy.targetable,
+        x: enemy.x,
+        y: enemy.y,
+        radius: enemy.radius,
+        trailId: enemy.status.trailId,
+        isBoss: enemy.enemyLevel === 'B',
+        enemyType: enemy.enemyType,
+        iceMultiplier: enemy.damageMultipliers.Ice,
+        fireLavaMultiplier: enemy.damageMultipliers.FireLava,
+      })),
+      {
+        frames,
+        iceTrailId: this.iceTrailId,
+        // `:5574` — enemies the beam is on this frame. Same-frame and
+        // per-enemy, which is why it is a set rebuilt each shot rather than
+        // anything stored on the enemy.
+        laserTouched: this.laserTouched,
+        // `:7083` — the beam the patch sweep tests against.
+        //
+        // AMBIGUITY, recorded rather than resolved. The AS3 gates that branch
+        // on `currentFrame == 1`, and `handleGround` runs *before* `tankAttack`
+        // spawns the beam (`:2815` against `:2821`), so it only ever sees beams
+        // from previous frames. `BulletLaser` is a 4-frame auto-playing
+        // MovieClip (verified against `assets.swf`: character 259, frameCount
+        // 4), so if Flash advances the playhead before `enterFrame` then that
+        // gate never passes and the branch is dead in the original.
+        //
+        // That could not be settled from the extraction — JPEXS exported no
+        // sprite timelines — and `:7083`'s omission of `canDamage`, which
+        // `:5560` does check, is consistent with either reading: it looks
+        // deliberate for lingering beams, and it settles nothing on its own.
+        // Wired as intended rather than guessed away, because a wrong guess
+        // here ships as a silent behaviour difference rather than a test gap.
+        beam: this.activeBeam,
+        // `:7078` — flames erode ice at 3 frames per frame.
+        flames: this.bullets
+          .filter((b) => b.isFlame)
+          .map((b) => ({ x: b.x, y: b.y, radius: b.radius })),
+      },
+    );
 
-      if (hazard.type === 'Ice') {
-        if (
-          !iceFreezes(
-            hazard,
-            {
-              trailId: enemy.status.trailId,
-              isBoss: enemy.enemyLevel === 'B',
-              iceMultiplier: enemy.damageMultipliers.Ice,
-            },
-            this.iceTrailId,
-            // `:6208`'s third condition. Implemented rather than left as a TODO
-            // because a missing condition looks finished and is not — but
-            // nothing computes beam-vs-hazard overlap, so this is always
-            // `false` and the branch is unreachable.
-            //
-            // The scene harness (`src/test/sceneHarness.ts`) does **not**
-            // unblock this, which is worth stating because it unblocked the
-            // other three gaps flagged alongside it. What is missing here is an
-            // input, not a way to drive one: `findBeamHits` reports enemies on
-            // the beam and nothing reports *patches*. Supplying it is a feature
-            // — the laser also destroys ice outright (`:7085`, `extinguishIce`,
-            // ported and likewise unwired) — so it needs its own scoping pass
-            // against the source, not a test written against today's behaviour.
-            false,
-          )
-        ) {
-          continue;
-        }
+    for (const index of result.removed) this.hazards[index].sprite.destroy();
 
-        enemy.status.trailId = this.iceTrailId;
+    const kept = this.hazards.filter((_, i) => !result.removed.includes(i));
+    kept.forEach((entry, i) => {
+      entry.hazard = result.hazards[i];
+      entry.sprite
+        .setDisplaySize(entry.hazard.radius * 2, entry.hazard.radius * 2)
+        .setAlpha(hazardAlpha(entry.hazard));
+    });
+    this.hazards = kept;
+
+    for (const index of result.stamped) {
+      this.enemies[index].status.trailId = this.iceTrailId;
+    }
+
+    for (const effect of result.effects) {
+      const enemy = this.enemies[effect.enemy];
+      if (!enemy) continue;
+
+      if (effect.kind === 'freeze') {
         // `:6221` has no boss divisor where the blast does, but `iceFreezes`
         // has already refused every boss, so `freeze`'s divisor is unreachable
         // here and the two spellings agree.
-        enemy.freeze(hazard.payload, this.levelSpec?.mode === 'Tower');
-        if (enemy.enemyType === 'Temperamental') this.levelFlags.temperamentalFrozen = true;
+        enemy.freeze(effect.frames, this.levelSpec?.mode === 'Tower');
+        if (effect.enemyType === 'Temperamental') this.levelFlags.temperamentalFrozen = true;
         continue;
       }
 
-      if (burned.has(enemy)) continue;
-      if (!lavaAffects(enemy.enemyType, enemy.damageMultipliers.FireLava)) continue;
-      burned.add(enemy);
-
-      const damage = lavaDamagePerFrame(
-        hazard.payload,
-        enemy.damageMultipliers.FireLava,
-        enemy.enemyLevel === 'B',
-        frames,
-      );
-      enemy.takeDamage(damage);
+      enemy.takeDamage(effect.damage);
       if (enemy.health <= 0) this.removeEnemy(enemy, true);
     }
+
+    // One shot, one sweep. The AS3 keeps the beam sprite alive for four frames
+    // but `canDamage` lasts one (`:1701`), and `collidingWithLaser` is reset per
+    // enemy every frame (`:4507`) — so nothing here should persist either.
+    //
+    // Where this differs from the original, stated rather than hidden: there,
+    // `handleGround` runs before the beam is spawned, so the patch sweep sees
+    // last frame's beam and the freeze gate sees this frame's. Here both see
+    // the same one. The half-frame skew only shows up on the single frame a
+    // beam is fired, and reproducing it would mean carrying a beam across
+    // frames purely to be one frame stale.
+    this.activeBeam = null;
+    this.laserTouched = new Set();
   }
 
   /**

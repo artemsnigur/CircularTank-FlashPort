@@ -31,6 +31,11 @@ import type { BounceEdge } from '../game/weapons/bulletBounce';
 import { bounceCheese, bounceGummy, cheeseIsSpent, gummyIsSpent } from '../game/weapons/foodRounds';
 import type { CheeseBounceState, GummyBounceState } from '../game/weapons/foodRounds';
 import { planBlastOn } from '../game/weapons/blastPlan';
+import { sweepHazards } from '../game/weapons/hazardSweep';
+import type { SweepEffect } from '../game/weapons/hazardSweep';
+import { createBeam, findBeamHits } from '../game/weapons/laser';
+import type { LaserBeam } from '../game/weapons/laser';
+import type { GroundHazard } from '../game/weapons/groundHazard';
 import type { BlastOutcome } from '../game/weapons/blastPlan';
 import type { ExplosionState } from '../game/weapons/explosions';
 import type { DamageMultipliers } from '../game/enemies/damageTypes';
@@ -47,6 +52,11 @@ export interface HarnessEnemy {
   health: number;
   frozenFor: number;
   multipliers: DamageMultipliers;
+  x: number;
+  y: number;
+  radius: number;
+  isBoss: boolean;
+  enemyType: string;
 }
 
 export function harnessEnemy(over: Partial<HarnessEnemy> = {}): HarnessEnemy {
@@ -56,6 +66,11 @@ export function harnessEnemy(over: Partial<HarnessEnemy> = {}): HarnessEnemy {
     trailId: null,
     health: 100,
     frozenFor: 0,
+    x: 0,
+    y: 0,
+    radius: 13,
+    isBoss: false,
+    enemyType: 'Normal',
     // Real table data rather than an invented neutral row.
     multipliers: resolveDamageMultipliers('Normal'),
     ...over,
@@ -78,6 +93,75 @@ export class SceneHarness {
   /** `ScreenGame.secondaryWeapon` — what `:6554` actually reads. */
   equippedSecondary: string | undefined = undefined;
   enemies: HarnessEnemy[] = [];
+  hazards: GroundHazard[] = [];
+  /** The beam laid this frame, or null — `:7083`'s operand. */
+  beam: LaserBeam | null = null;
+  /** Enemies the beam is on — `collidingWithLaser` (`:5574`). */
+  laserTouched: Set<number> = new Set();
+
+  /**
+   * Fires the laser from `(x, y)` along `rotation`, as `fireLaser` does.
+   *
+   * Populates both reads of the one shot: the beam the patch sweep tests
+   * against, and the per-enemy flag the freeze gate consults. Enemies immune to
+   * Laser are excluded, because `:5572` sets the flag inside that gate.
+   */
+  fireLaser(x: number, y: number, rotation: number): void {
+    this.beam = createBeam(x, y, rotation);
+    this.laserTouched = new Set();
+
+    const hits = findBeamHits(this.beam, this.enemies.map((e) => ({ x: e.x, y: e.y, radius: e.radius })));
+    for (const index of hits) {
+      if (this.enemies[index].multipliers.Laser <= 0) continue;
+      this.laserTouched.add(index);
+    }
+  }
+
+  /** Stops firing, so the next sweep sees no beam. */
+  holdFire(): void {
+    this.beam = null;
+    this.laserTouched = new Set();
+  }
+
+  /**
+   * One frame of the hazard sweep, applying its effects to the enemies.
+   *
+   * Mutates, so a test can assert an enemy was *not* frozen rather than that a
+   * predicate returned false.
+   */
+  sweep(frames = 1): SweepEffect[] {
+    const result = sweepHazards(this.hazards, this.enemies.map((e) => ({
+      targetable: e.targetable,
+      x: e.x,
+      y: e.y,
+      radius: e.radius,
+      trailId: e.trailId,
+      isBoss: e.isBoss,
+      enemyType: e.enemyType,
+      iceMultiplier: e.multipliers.Ice,
+      fireLavaMultiplier: e.multipliers.FireLava,
+    })), {
+      frames,
+      iceTrailId: this.iceTrailId,
+      laserTouched: this.laserTouched,
+      beam: this.beam,
+      flames: this.flames,
+    });
+
+    this.hazards = result.hazards;
+    for (const index of result.stamped) this.enemies[index].trailId = this.iceTrailId;
+
+    for (const effect of result.effects) {
+      const enemy = this.enemies[effect.enemy];
+      if (effect.kind === 'freeze') enemy.frozenFor = effect.frames;
+      else enemy.health -= effect.damage;
+    }
+
+    return result.effects;
+  }
+
+  /** Live flames, for the ice drain at `:7078`. */
+  flames: Array<{ x: number; y: number; radius: number }> = [];
 
   /** Moves the view, as scrolling after the tank would. */
   scrollTo(left: number, top = this.camera.top): void {
