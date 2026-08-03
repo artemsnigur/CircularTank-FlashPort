@@ -77,6 +77,28 @@ old commit message.
 - **`develop` is frozen at `bda573b`**, the marker for where the T1–T7 arc finished. Do
   not commit to it, push to it, or branch from it.
 
+### Look at the running game — `npm run look`
+
+**`npm run look` boots the game, drives a scripted sequence and dumps frames to
+`.look/` (gitignored). It is a tool, not a test: it asserts nothing and never fails on
+what it sees.** Run it when a subsystem lands, then actually open the frames.
+
+This exists because unit tests cannot see either half of what goes wrong here. A survey
+found **eight subsystems where a broken call goes completely unnoticed** by the suite,
+and one look at the running game found **seven visual faults**, four of them real bugs in
+a subsystem that was fully pinned and fully green. Both classes are invisible to
+`npm test` and obvious in a frame.
+
+Two things the harness itself taught, both worth knowing before reading any frame:
+
+- **Hold keys, do not tap them.** Input flags like `secondaryPressed` are read once per
+  frame, so a `keyboard.press()` (down+up in ~10 ms) can fall entirely between frames and
+  be missed. A lost tap looks exactly like a weapon that does not fire — that misreading
+  cost a full diagnosis pass.
+- **Move off the spot before judging a secondary.** Mine drops at the tank's own centre
+  and is completely hidden under the tank sprite. A frame taken on the press cannot tell
+  "did not fire" from "fired underneath".
+
 ### Never edit a doc with an unchecked string replace
 
 **Partly enforceable, and the enforcing part is available: use the `Edit` tool, which

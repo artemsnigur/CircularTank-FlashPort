@@ -36,7 +36,8 @@
     "progress:check": "node scripts/gen-progress.mjs --check",
     "cap:sync": "cap sync",
     "prepare": "node scripts/install-hooks.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "look": "node scripts/look.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0",

@@ -35,3 +35,6 @@ npm-debug.log*
 .idea/workspace.xml
 .vscode/*
 !.vscode/extensions.json
+
+# Frames from `npm run look` — a tool, not a test; never committed.
+.look/
