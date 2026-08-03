@@ -11,6 +11,7 @@
  * sources behave differently from each other.
  */
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { sweepHazards } from './hazardSweep';
 import type { SweepEnemy } from './hazardSweep';
 import { createHazard } from './groundHazard';
@@ -181,5 +182,37 @@ describe('erosion runs before contact, as the two AS3 functions do', () => {
 
     expect(result.effects).toEqual([{ kind: 'freeze', enemy: 0, frames: 175, enemyType: 'Normal' }]);
     expect(result.stamped).toEqual([0]);
+  });
+});
+
+/**
+ * The gap the B1 change exposed.
+ *
+ * Unwiring `:7083` — a real behaviour change, removing patch destruction from
+ * the game — moved **no test at all**. `sweepHazards` was thoroughly pinned and
+ * nothing pinned whether the scene ever *fed* it a beam, which is the same
+ * seam-vs-unit gap this project keeps rediscovering. The assertion below is
+ * narrow and reads source text, and it is the honest shape for the claim: what
+ * the scene passes is a wiring fact, not a behaviour the module can be asked
+ * about.
+ */
+describe('the scene does not feed the patch sweep a beam', () => {
+  it('passes beam: null, so the laser never destroys ice', () => {
+    // B1, resolved against the original's actual behaviour. If this ever flips
+    // back, `docs/AUDIT-2026-07.md` says what evidence would justify it.
+    const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
+    const start = scene.indexOf('private updateHazards');
+    const body = scene.slice(start, scene.indexOf('private useSecondary', start));
+
+    expect(body).toContain('beam: null');
+    expect(body).not.toContain('beam: this.activeBeam');
+  });
+
+  it('but the rule itself is still implemented and still correct', () => {
+    // Unwired, not deleted. Feeding it a beam still destroys the patch, so
+    // re-wiring is a one-line change rather than a re-port.
+    const beam = createBeam(0, 0, 0);
+    const result = sweepHazards([ice(100, 0)], noEnemies, { ...base, beam });
+    expect(result.hazards).toHaveLength(0);
   });
 });

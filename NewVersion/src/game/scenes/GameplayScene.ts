@@ -367,8 +367,6 @@ export class GameplayScene extends Phaser.Scene {
    * and `onFire` are documented against.
    */
   private laserTouched: Set<number> = new Set();
-  /** The beam laid this frame, for the patch sweep at `:7083`; null otherwise. */
-  private activeBeam: ReturnType<typeof createBeam> | null = null;
   /** What the last banked level earned — newly won achievements and enemies. */
   private banking: LevelBankingResult | null = null;
   /** Which level is being played — set from LevelSelect via scene data. */
@@ -1288,10 +1286,12 @@ export class GameplayScene extends Phaser.Scene {
     getSoundManager(this)?.queue('WeaponLaser');
     this.drawBeam(beam);
 
-    // Held for this frame's hazard sweep: the patch query at `:7083` and the
-    // per-enemy `collidingWithLaser` flag at `:5574` are two different reads of
-    // the same shot, and both are cleared again next frame.
-    this.activeBeam = beam;
+    // Held for this frame's hazard sweep — the `collidingWithLaser` flag at
+    // `:5574`, cleared again next frame.
+    //
+    // There is no companion beam field: `:7083`'s patch sweep is not fed (B1),
+    // so the shot has only one read now rather than two. Re-wiring it means
+    // restoring a `activeBeam` field here and at both clear sites.
     this.laserTouched = new Set();
 
     const targets = this.enemies.map((enemy) => ({
@@ -1954,9 +1954,7 @@ export class GameplayScene extends Phaser.Scene {
 
   private updateHazards(deltaMs: number): void {
     if (this.hazards.length === 0) {
-      // Still clear the shot, or a beam fired on a hazard-free frame would be
-      // held over and burn the first patch laid after it.
-      this.activeBeam = null;
+      // Still clear the shot: the freeze gate is per-frame.
       this.laserTouched = new Set();
       return;
     }
@@ -1983,23 +1981,27 @@ export class GameplayScene extends Phaser.Scene {
         // per-enemy, which is why it is a set rebuilt each shot rather than
         // anything stored on the enemy.
         laserTouched: this.laserTouched,
-        // `:7083` — the beam the patch sweep tests against.
+        // `:7083` — the patch sweep is deliberately **not** fed the beam.
         //
-        // AMBIGUITY, recorded rather than resolved. The AS3 gates that branch
-        // on `currentFrame == 1`, and `handleGround` runs *before* `tankAttack`
-        // spawns the beam (`:2815` against `:2821`), so it only ever sees beams
-        // from previous frames. `BulletLaser` is a 4-frame auto-playing
-        // MovieClip (verified against `assets.swf`: character 259, frameCount
-        // 4), so if Flash advances the playhead before `enterFrame` then that
-        // gate never passes and the branch is dead in the original.
+        // The laser does not destroy ice patches. That is settled by the
+        // player's direct recollection of the original, not by measurement —
+        // see B1 in `docs/AUDIT-2026-07.md`, which keeps the experiment that
+        // would confirm it and says what to change if it ever comes back the
+        // other way.
         //
-        // That could not be settled from the extraction — JPEXS exported no
-        // sprite timelines — and `:7083`'s omission of `canDamage`, which
-        // `:5560` does check, is consistent with either reading: it looks
-        // deliberate for lingering beams, and it settles nothing on its own.
-        // Wired as intended rather than guessed away, because a wrong guess
-        // here ships as a silent behaviour difference rather than a test gap.
-        beam: this.activeBeam,
+        // The reading that put a beam here is worth knowing, because it is what
+        // a future reader will rediscover: `:7083` gates only on
+        // `currentFrame == 1` where the enemy site at `:5560` also checks
+        // `canDamage`, and `canDamage` is cleared before `handleGround` runs —
+        // so including it there would guarantee the branch never fired, and
+        // omitting it looks like an author writing a branch he expected to
+        // fire. That was known, and it is outweighed by someone having played
+        // the game. **Do not re-wire this on the strength of that argument
+        // alone.**
+        //
+        // `sweepHazards` still implements the rule and is still tested; it is
+        // simply never given a beam.
+        beam: null,
         // `:7078` — flames erode ice at 3 frames per frame.
         flames: this.bullets
           .filter((b) => b.isFlame)
@@ -2043,13 +2045,14 @@ export class GameplayScene extends Phaser.Scene {
     // but `canDamage` lasts one (`:1701`), and `collidingWithLaser` is reset per
     // enemy every frame (`:4507`) — so nothing here should persist either.
     //
-    // Where this differs from the original, stated rather than hidden: there,
-    // `handleGround` runs before the beam is spawned, so the patch sweep sees
-    // last frame's beam and the freeze gate sees this frame's. Here both see
-    // the same one. The half-frame skew only shows up on the single frame a
-    // beam is fired, and reproducing it would mean carrying a beam across
-    // frames purely to be one frame stale.
-    this.activeBeam = null;
+    // One shot, one sweep. `canDamage` lasts one frame (`:1701`) and
+    // `collidingWithLaser` is reset per enemy every frame (`:4507`), so nothing
+    // here persists.
+    //
+    // The half-frame skew recorded as A1 is moot while `:7083` is unwired: it
+    // described the patch sweep and the freeze gate seeing beams from different
+    // frames, and there is only one read now. A1 becomes live again if `:7083`
+    // is ever re-wired.
     this.laserTouched = new Set();
   }
 
