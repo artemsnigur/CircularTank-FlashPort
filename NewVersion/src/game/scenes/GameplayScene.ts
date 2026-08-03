@@ -99,6 +99,7 @@ import type { GrenadeState } from '../weapons/grenade';
 import { spawnFan } from '../weapons/radialFan';
 import { planBlastOn } from '../weapons/blastPlan';
 import { sweepHazards } from '../weapons/hazardSweep';
+import { applyKillReload, killReloadBonus } from '../upgrades/killReload';
 import {
   createHazard,
   hazardAlpha,
@@ -3232,6 +3233,19 @@ export class GameplayScene extends Phaser.Scene {
         total: this.currency,
       });
     }
+
+    // `:6849` — Kill Reload, and note where it sits: **outside** the `noMoney`
+    // gate the payout above is inside (`:6842`). So a contact suicide, which
+    // pays nothing and is not counted as a kill, still shortens the secondary
+    // cooldown. Same placement here, for the same reason.
+    //
+    // It also fires for a lava-trail kill, because the hazard sweep resolves
+    // deaths through this method and `:6282` sets the same `dead` flag a bullet
+    // does. That is the case this rule is easiest to get wrong on.
+    this.secondaryFiring.reloadTime = applyKillReload(
+      this.secondaryFiring.reloadTime,
+      killReloadBonus(this.upgrades),
+    );
 
     // Queued, not spawned — see pendingDeathBlasts. Fires on any death,
     // including a contact suicide, which is what `:5301` does by setting

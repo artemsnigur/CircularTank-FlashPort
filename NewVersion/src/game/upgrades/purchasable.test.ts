@@ -26,9 +26,13 @@ import { SECONDARY_WEAPONS } from '../weapons/secondaries';
 import { PRIMARY_WEAPONS } from '../weapons/firing';
 
 describe('the money sinks', () => {
-  it('KillReload is still not purchasable', () => {
-    expect(isPurchasable(findUpgradeById('KillReload')!)).toBe(false);
-    expect(purchasableUpgrades().map((u) => u.id)).not.toContain('KillReload');
+  it('KillReload is sold now that the rule is ported', () => {
+    // Was the mirror of this assertion — "still not purchasable" — which
+    // described a gap rather than a rule, and was written to be deleted when
+    // `upgrades/killReload.ts` landed. The exclusion was discharged by porting
+    // the reader, not by relaxing the check.
+    expect(isPurchasable(findUpgradeById('KillReload')!)).toBe(true);
+    expect(purchasableUpgrades().map((u) => u.id)).toContain('KillReload');
   });
 
   it('BulletReflect is sold now that it has a reader', () => {
@@ -110,6 +114,7 @@ describe('every misc upgrade sold has a real reader', () => {
     Speed: 'src/game/player/tankMovement.ts',
     EnemyAbsorb: 'src/game/player/tankDamage.ts',
     BulletReflect: 'src/game/weapons/shield.ts',
+    KillReload: 'src/game/upgrades/killReload.ts',
   };
 
   it.each(Object.keys(MISC_WITH_EFFECT))('%s is read at runtime', (id) => {
@@ -125,7 +130,9 @@ describe('every misc upgrade sold has a real reader', () => {
   it('withheld misc upgrades are absent from those files', () => {
     // The inverse, which is the half that caught this for real: BulletReflect
     // gained a reader when Shield landed, this failed, and it was sold rather
-    // than left shelved. KillReload is the one still waiting.
+    // than left shelved. KillReload went the same way and was the last one;
+    // `MISC_WITHOUT_EFFECT` is empty now, so this loop has nothing to iterate
+    // and is kept for the next upgrade that arrives unwired.
     const sources = Object.values(readSites).map((p) => readFileSync(p, 'utf8'));
     for (const id of Object.keys(MISC_WITHOUT_EFFECT)) {
       for (const source of sources) {
@@ -157,15 +164,15 @@ describe('the catalogue and the withheld list partition the table', () => {
     for (const spec of withheldUpgrades()) expect(sold.has(spec.id)).toBe(false);
   });
 
-  it('withholds 1 of 28 today — no secondaries, 1 misc', () => {
+  it('withholds nothing today — every upgrade in the table does something', () => {
     // The exact figure, so a change to what the shop sells is visible in a diff
     // rather than discovered in play. Was 13: Shield came off when it landed,
     // BulletReflect came off with it, and the three grenades came off on their
     // own as each was registered, then the two spike weapons, Magic Bunny, and
-    // both balls, and finally Crazy Cheese. KillReload is the only one left,
-    // and it is withheld because nothing reads it rather than because it is
-    // unported.
-    expect(withheldUpgrades()).toHaveLength(1);
-    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 1);
+    // both balls, then Crazy Cheese, and finally KillReload. Was 13. The
+    // partition is kept rather than retired: an upgrade added to the table and
+    // listed in neither map still fails the completeness test below.
+    expect(withheldUpgrades()).toHaveLength(0);
+    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length);
   });
 });

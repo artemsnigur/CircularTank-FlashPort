@@ -47,6 +47,10 @@ export const MISC_WITH_EFFECT: Readonly<Record<string, string>> = {
   // tank. Shipped with the Shield secondary: `:1557` is one condition covering
   // both, so porting Shield ported this upgrade's only reader too.
   BulletReflect: 'weapons/shield.ts bulletReflectChance, the no-shield roll',
+  // `killReloadBonus` reads track 0 at the single kill site, and the rule fires
+  // on anything that resolves a death — bullets, blasts, contact suicides and
+  // lava-trail kills alike (`:6849`, outside the `noMoney` gate).
+  KillReload: 'upgrades/killReload.ts, applied in GameplayScene.removeEnemy',
 };
 
 /**
@@ -57,7 +61,10 @@ export const MISC_WITH_EFFECT: Readonly<Record<string, string>> = {
  * test instead of silently defaulting to hidden.
  */
 export const MISC_WITHOUT_EFFECT: Readonly<Record<string, string>> = {
-  KillReload: 'no reader; the reload-on-kill rule is unported',
+  // Empty as of the Kill Reload port. Deliberately kept rather than deleted:
+  // the partition against `MISC_WITH_EFFECT` is what makes a newly added misc
+  // upgrade fail the completeness test instead of defaulting to hidden, and
+  // that guarantee does not depend on this list having members.
 };
 
 /** A weapon upgrade is sellable when some spec claims its id. */

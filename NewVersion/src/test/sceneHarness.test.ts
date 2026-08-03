@@ -367,3 +367,117 @@ describe('one frame is one frame', () => {
     expect(FRAME_MS).toBeCloseTo(1000 / 30, 10);
   });
 });
+
+/* ────────────────────────────────────────────────────────────────────────
+ * T7 — Kill Reload, and the hazard-kill attribution it depends on
+ * ──────────────────────────────────────────────────────────────────────── */
+describe('a lava-trail kill credits the secondary cooldown', () => {
+  /** A lava patch under an enemy weak enough for it to finish. */
+  const setup = (level: number) => {
+    const h = new SceneHarness();
+    h.buyKillReload(level);
+    h.secondaryReload = 700;
+    // 60 a second is 2 a frame, so 20 health is ten frames of standing in it —
+    // comfortably after the throw rather than on the same tick.
+    h.enemies = [harnessEnemy({ x: 100, y: 0, health: 20 })];
+    h.hazards = [createHazard({ type: 'Lava', x: 100, y: 0, trailLife: 280, payload: 60 })];
+    return h;
+  };
+
+  it('pays out several frames after the throw, not at throw time', () => {
+    // The case the whole T1-T6 arc made observable. The ball is long gone; the
+    // enemy walks into a patch it left and dies to it. `:6282` sets the same
+    // `dead` flag a bullet does, so the kill site runs and Kill Reload fires.
+    const h = setup(10);
+
+    let frames = 0;
+    while (h.enemies.length > 0 && frames < 200) {
+      h.sweep();
+      if (h.enemies[0] && h.enemies[0].health <= 0) h.killEnemy(0);
+      frames += 1;
+    }
+
+    expect(h.killLog).toEqual(['Normal']);
+    expect(frames).toBe(10); // genuinely later than the throw, and exactly when
+    expect(h.secondaryReload).toBe(689); // 700 - 11
+  });
+
+  it('pays nothing when the upgrade is unowned', () => {
+    // The control, so the drop above is attributable to the upgrade and not to
+    // anything else the sweep does.
+    const h = setup(0);
+
+    let frames = 0;
+    while (h.enemies.length > 0 && frames < 200) {
+      h.sweep();
+      if (h.enemies[0] && h.enemies[0].health <= 0) h.killEnemy(0);
+      frames += 1;
+    }
+
+    expect(h.killLog).toEqual(['Normal']);
+    expect(h.secondaryReload).toBe(700);
+  });
+
+  it('an ice trail never pays, because it never kills', () => {
+    // Ice freezes and deals no damage, and the fire drain erodes the patch
+    // rather than the enemy. Lava is the only hazard that can trigger this,
+    // which is worth pinning so a future "ice should do chip damage" change
+    // fails here rather than quietly paying out.
+    const h = new SceneHarness();
+    h.buyKillReload(10);
+    h.secondaryReload = 700;
+    h.throwIceBall();
+    h.enemies = [harnessEnemy({ x: 100, y: 0, health: 2 })];
+    h.hazards = [createHazard({ type: 'Ice', x: 100, y: 0, trailLife: 400, payload: 175 })];
+
+    for (let i = 0; i < 50; i += 1) h.sweep();
+
+    expect(h.enemies).toHaveLength(1);
+    expect(h.enemies[0].health).toBe(2);
+    expect(h.secondaryReload).toBe(700);
+  });
+});
+
+describe('Kill Reload is not gated the way the payout is', () => {
+  it('a contact suicide pays no money but still shortens the cooldown', () => {
+    // `:6849` sits *outside* the `noMoney` gate at `:6842`. So the one death
+    // that deliberately pays nothing still buys cooldown — which reads like a
+    // bug and is not.
+    const h = new SceneHarness();
+    h.buyKillReload(10);
+    h.secondaryReload = 700;
+    h.enemies = [harnessEnemy()];
+
+    h.killEnemy(0, false);
+
+    expect(h.money).toBe(0);
+    expect(h.secondaryReload).toBe(689);
+  });
+
+  it('where an ordinary kill does both', () => {
+    const h = new SceneHarness();
+    h.buyKillReload(10);
+    h.secondaryReload = 700;
+    h.enemies = [harnessEnemy()];
+
+    h.killEnemy(0, true);
+
+    expect(h.money).toBe(1);
+    expect(h.secondaryReload).toBe(689);
+  });
+
+  it('and a boss is not gated either, unlike lava damage', () => {
+    // T3's lava rule quarters a boss; this one does not care. `:6849` has no
+    // enemy-type branch at all, and the `enemyLevel == "B"` test two lines above
+    // it only touches the boss tally. Asserted beside the lava contrast because
+    // "hazard rules gate on boss" is a reasonable and wrong generalisation.
+    const h = new SceneHarness();
+    h.buyKillReload(10);
+    h.secondaryReload = 700;
+    h.enemies = [harnessEnemy({ isBoss: true })];
+
+    h.killEnemy(0);
+
+    expect(h.secondaryReload).toBe(689);
+  });
+});

@@ -32,6 +32,9 @@ import { bounceCheese, bounceGummy, cheeseIsSpent, gummyIsSpent } from '../game/
 import type { CheeseBounceState, GummyBounceState } from '../game/weapons/foodRounds';
 import { planBlastOn } from '../game/weapons/blastPlan';
 import { sweepHazards } from '../game/weapons/hazardSweep';
+import { applyKillReload, killReloadBonus } from '../game/upgrades/killReload';
+import { createInitialUpgradeState, findUpgradeById } from '../game/upgrades/upgradeState';
+import type { UpgradeState } from '../game/upgrades/upgradeState';
 import type { SweepEffect } from '../game/weapons/hazardSweep';
 import { createBeam, findBeamHits } from '../game/weapons/laser';
 import type { LaserBeam } from '../game/weapons/laser';
@@ -162,6 +165,40 @@ export class SceneHarness {
 
   /** Live flames, for the ice drain at `:7078`. */
   flames: Array<{ x: number; y: number; radius: number }> = [];
+
+  /** The player's upgrades, for rules that read them — Kill Reload so far. */
+  upgrades: UpgradeState = createInitialUpgradeState();
+  /** `ScreenGame.reloadTimeSecondary`. */
+  secondaryReload = 0;
+  /** Kills resolved this run, in order, for attribution assertions. */
+  killLog: string[] = [];
+
+  /** Buys Kill Reload to `level`. */
+  buyKillReload(level: number): void {
+    const misc = [...this.upgrades.misc];
+    misc[findUpgradeById('KillReload')!.index] = level;
+    this.upgrades = { ...this.upgrades, misc };
+  }
+
+  /**
+   * Resolves a death, as `GameplayScene.removeEnemy` does.
+   *
+   * Kill Reload is applied here and **not** gated on `payMoney`, matching
+   * `:6849` sitting outside the `noMoney` gate at `:6842`.
+   */
+  killEnemy(index: number, payMoney = true): void {
+    const enemy = this.enemies[index];
+    if (!enemy) return;
+
+    this.killLog.push(enemy.enemyType);
+    this.secondaryReload = applyKillReload(this.secondaryReload, killReloadBonus(this.upgrades));
+    // Stands for the payout, which is gated on `payMoney` where Kill Reload
+    // deliberately is not — the asymmetry is the thing under test.
+    if (payMoney) this.money += 1;
+    this.enemies.splice(index, 1);
+  }
+
+  money = 0;
 
   /** Moves the view, as scrolling after the tank would. */
   scrollTo(left: number, top = this.camera.top): void {
