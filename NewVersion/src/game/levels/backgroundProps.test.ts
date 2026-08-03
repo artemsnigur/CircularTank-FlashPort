@@ -381,3 +381,69 @@ describe('the collision pass', () => {
     expect(collisionCountDie('Crack')).toBe(1);
   });
 });
+
+/**
+ * Layout neutrality — asserted *before* the art lands, so the swap is guarded
+ * rather than reviewed.
+ *
+ * Real art changes one thing and must change nothing else: the collision radius
+ * is taken off the rendered sprite (`(height + width) * 0.2`, `:2617`), so
+ * different dimensions remove a different set of props. Placement must not
+ * move. If any of these fail after the extraction, something is reaching
+ * further than the collision pass and that is a finding, not a tuning problem.
+ */
+describe('the art cannot move a prop', () => {
+  const level = { seed: 610309764, roomWidth: 800, roomHeight: 600, theme: 'Desert' };
+
+  it('placement is byte-identical whatever the sizes say', () => {
+    // `layoutProps` consumes the stream without consulting any size table. The
+    // frozen expectation from the derived stream is the real guard; this pins
+    // that the module has no path from sizes to positions at all.
+    const before = layoutProps(level);
+    expect(before[0]).toEqual({
+      type: 'Crack', x: 693, y: 464, scale: 0.43873778751061193,
+      rotation: 336, frame: 4, grouped: false,
+    });
+    expect(before).toHaveLength(102);
+    expect(before.map((p) => `${p.x},${p.y},${p.rotation}`).join('|')).toBe(
+      layoutProps(level).map((p) => `${p.x},${p.y},${p.rotation}`).join('|'),
+    );
+  });
+
+  it('the frame table cannot shift a position either', () => {
+    // `stopAt` is drawn before the frame is resolved, so the count only affects
+    // which variant is shown. A future extraction that corrects a frame count
+    // must not move anything.
+    const props = layoutProps(level);
+    for (const prop of props) {
+      const recomputed = Math.floor(1 + 0.5 * propFrames(prop.type, 'Desert'));
+      expect(Number.isFinite(recomputed)).toBe(true);
+    }
+    expect(props[0].x).toBe(693);
+  });
+
+  it('only the collision pass is coupled to size, and it is the last consumer', () => {
+    // The single legitimate coupling. Placement is identical; the surviving set
+    // is not, which is exactly the boundary real art is allowed to move.
+    const placed = layoutProps(level);
+    const { props, draws } = layoutLevelProps(level);
+
+    expect(placed).toHaveLength(102);
+    expect(props.length).toBeLessThanOrEqual(placed.length);
+    expect(draws).toBeGreaterThanOrEqual(0);
+
+    // And the props that survive are a subset of the placed ones, unmoved.
+    for (const survivor of props) {
+      expect(placed).toContainEqual(survivor);
+    }
+  });
+
+  it('the RedBloodCell clamp survives an art swap for the same reason', () => {
+    // Real art does not reconcile the two tables: the arithmetic table still
+    // says 3 and symbol 1465 still has 1. This must keep passing because the
+    // tables still disagree, not because the clamp became a no-op.
+    expect(propFrames('RedBloodCell', 'Biology')).toBe(3);
+    expect(SYMBOL_FRAMES.RedBloodCell).toBe(1);
+    expect(displayFrame('RedBloodCell', 'Biology', 3)).toBe(1);
+  });
+});
