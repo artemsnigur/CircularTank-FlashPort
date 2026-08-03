@@ -77,6 +77,34 @@ old commit message.
 - **`develop` is frozen at `bda573b`**, the marker for where the T1–T7 arc finished. Do
   not commit to it, push to it, or branch from it.
 
+### Never edit a doc with an unchecked string replace
+
+**Partly enforceable, and the enforcing part is available: use the `Edit` tool, which
+fails when its anchor does not match.** A scripted `str.replace` returns the original
+string on a miss and reports success, so the edit silently does not happen. That has
+already cost one record: an audit entry describing a blocked task was "written" by a
+script whose anchor had drifted, the script printed its success line, and the finding
+was reported as recorded while the file was unchanged. It was found a pass later only
+because the follow-up went looking for the section.
+
+The convention is choosing the tool; the mechanism is the tool's own failure. Nothing
+stops a future session reaching for a script instead, so:
+
+- **Prefer `Edit`** for any change to `CLAUDE.md`, `docs/AUDIT-2026-07.md` or any other
+  record. A missed anchor is then a hard error, not a silent no-op.
+- **If a script is genuinely needed** — several edits at once, or generated content —
+  `assert` the anchor is present *before* replacing, and verify the new content is
+  present *after* writing. An unasserted `str.replace` in a doc script is a bug.
+- **`docs/AUDIT-2026-07.md` is where every finding in this project lives.** A silent
+  no-op there destroys the record of the thing it was recording, which is strictly worse
+  than never having tried.
+
+This is one instance of a wider tell, worth carrying: **a tool that reports success
+without being asked what changed has not been checked.** The sibling case was a shell
+loop that reported all 108 inputs missing because the id list carried CRLF line endings
+and every test was for `1483\r.svg` — a clean, decisive, entirely wrong negative. When a
+check returns the same answer for every input, suspect the check.
+
 ### The branch guard, and where to edit it
 
 `.husky/pre-commit` refuses any commit on a branch that is not `main` — an allow-list,
