@@ -6,6 +6,16 @@
  */
 import Phaser from 'phaser';
 import { advanceBullet } from '../weapons/bullets';
+import { bounceAgainstCamera } from '../weapons/bulletBounce';
+import type { BounceEdge, CameraBounds } from '../weapons/bulletBounce';
+import {
+  CHEESE_BOUNCES,
+  bounceCheese,
+  bounceGummy,
+  cheeseIsSpent,
+  gummyIsSpent,
+} from '../weapons/foodRounds';
+import type { CheeseBounceState, GummyBounceState } from '../weapons/foodRounds';
 import { advanceFlame, createFlame } from '../weapons/flames';
 import type { FlameState } from '../weapons/flames';
 import { createMagicState, isFinalTarget, isHoming, registerMagicHit } from '../weapons/magic';
@@ -39,6 +49,20 @@ export class Bullet extends Phaser.GameObjects.Sprite {
    * target, and the bullet is short-lived, so there is nothing to prune.
    */
   private readonly hitEnemies = new Set<object>();
+
+  /**
+   * Border-bounce state, or null for the rounds that simply leave.
+   *
+   * Keyed off the AS3 class name because that is what `:1903` dispatches on,
+   * and because these are the only two projectiles in the game that bounce.
+   * The geometry is shared (`bulletBounce.ts`); what a bounce *costs* is not
+   * (`foodRounds.ts`), which is why the state is a discriminated pair rather
+   * than one counter.
+   */
+  private bounceState:
+    | { kind: 'gummy'; state: GummyBounceState }
+    | { kind: 'cheese'; state: CheeseBounceState }
+    | null = null;
 
   /**
    * Flame lifetime/growth state, or null for an ordinary projectile.
@@ -90,6 +114,14 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     }
     if ((spec.targets ?? 0) > 0) this.magic = createMagicState(spec.targets);
     this.isLocked = spec.seeking === true;
+
+    // `:1903` — the only two projectiles that bounce, dispatched on the same
+    // class names the AS3 tests.
+    if (bulletClass === 'BulletGummyBear') {
+      this.bounceState = { kind: 'gummy', state: { stage: 1, damage: spec.damage } };
+    } else if (bulletClass === 'BulletCrazyCheese') {
+      this.bounceState = { kind: 'cheese', state: { bounces: CHEESE_BOUNCES, hits: new Set() } };
+    }
     this.roomWidth = roomWidth;
     this.roomHeight = roomHeight;
 
@@ -239,8 +271,43 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     return true;
   }
 
-  /** Advances flight. Returns false once the bullet has left the room. */
-  advance(deltaMs: number): boolean {
+  /**
+   * Advances flight. Returns false once the bullet has left the room.
+   *
+   * `camera` is the live visible rect, and only the two food rounds read it —
+   * they bounce off the camera's edges rather than the room's walls (`:1906`).
+   * Passing it every frame rather than caching at spawn is the point: the rect
+   * moves with the player, and a bear fired on one side of a large room must
+   * bounce off where the view is *now*.
+   */
+  advance(deltaMs: number, camera: CameraBounds | null = null): boolean {
+    // `:1810` moves first, then `:1812` decides between culling and bouncing —
+    // a spent round takes the cull branch, so the order matters.
+    if (camera && this.bounceState && !this.bounceSpent()) {
+      const frames = (deltaMs / 1000) * 30;
+      const moved = {
+        ...this.motion,
+        x: this.motion.x + this.motion.xVel * frames,
+        y: this.motion.y + this.motion.yVel * frames,
+      };
+
+      const bounced = bounceAgainstCamera(
+        { ...moved, rotation: this.motion.rotation },
+        camera,
+      );
+
+      if (bounced) {
+        this.applyBounceCost(bounced.edge);
+        this.motion = { ...moved, ...bounced.state, radius: this.radius };
+        this.setPosition(this.motion.x, this.motion.y);
+        return true;
+      }
+
+      this.motion = { ...moved, radius: this.radius };
+      this.setPosition(moved.x, moved.y);
+      return true;
+    }
+
     const next = advanceBullet(
       this.motion,
       { roomWidth: this.roomWidth, roomHeight: this.roomHeight },
@@ -252,5 +319,36 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     this.motion = { ...next, radius: this.radius };
     this.setPosition(next.x, next.y);
     return true;
+  }
+
+  /** Whether this round has used up its bounces — `:1812`. */
+  private bounceSpent(): boolean {
+    if (!this.bounceState) return true;
+    return this.bounceState.kind === 'gummy'
+      ? gummyIsSpent(this.bounceState.state)
+      : cheeseIsSpent(this.bounceState.state);
+  }
+
+  /**
+   * What the bounce costs this round — the half the two weapons do not share.
+   *
+   * A bear gets stronger, so the escalated damage is written back onto
+   * `motion`; a cheese gets re-armed, so its hit list is emptied and the same
+   * enemies become hittable again (`:1966`).
+   */
+  private applyBounceCost(edge: BounceEdge): void {
+    if (!this.bounceState) return;
+
+    if (this.bounceState.kind === 'gummy') {
+      const state = bounceGummy(this.bounceState.state, edge);
+      this.bounceState = { kind: 'gummy', state };
+      this.motion = { ...this.motion, damage: state.damage };
+      return;
+    }
+
+    this.bounceState = { kind: 'cheese', state: bounceCheese(this.bounceState.state, edge) };
+    // `:1966` — the AS3 clears `enemiesArray` here, which is what lets a
+    // penetrating cheese cross the same crowd twice.
+    this.hitEnemies.clear();
   }
 }

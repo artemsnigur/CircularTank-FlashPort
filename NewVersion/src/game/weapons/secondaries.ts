@@ -22,10 +22,9 @@
  * The other eleven each need work this file does not do:
  *
 
- *   Lava Ball               a rolling projectile laying a damaging trail
- *   Magic Bunny             homing pet with its own steering loop
- *   Crazy Cheese            spawns a temporary allied entity
- *   (Shield is ported — see weapons/shield.ts)
+ * All twelve are ported. Shield lives in `weapons/shield.ts`, the balls in
+ * `weapons/ball.ts`, and the two bouncing food rounds share
+ * `weapons/bulletBounce.ts` with the Gummy Bear Cannon.
  *
  * ── The 20-second cooldown is not a typo ──────────────────────────────────
  * `upgradeArrayMine[1]` is a flat `[600 … 600]` — 600 frames at 30 fps, so 20
@@ -80,6 +79,16 @@ export interface SecondarySpec {
    * than the presence of the track alone.
    */
   countTrack?: number;
+  /**
+   * Total arc a fan is spread across, in degrees.
+   *
+   * Only Crazy Cheese has one: the spike fans are radial, covering the full
+   * 360 with no stat to read, so before this the `fan` kind never needed an
+   * arc. Absent means radial — which is why this is optional rather than
+   * defaulted to 360, since a 0 would silently collapse a fan to a single
+   * bearing and look like a stat that had not been wired.
+   */
+  spreadTrack?: number;
   /**
    * What this secondary *does*, and therefore which spawn path runs.
    *
@@ -264,6 +273,40 @@ export const LAVA_BALL: SecondarySpec = {
 };
 
 /**
+ * Crazy Cheese — `PartGameArea.as:4208-4231`.
+ *
+ * A fan of bouncing, penetrating rounds on the **Food** channel. Its spawn is
+ * the Shotgun's deterministic fan exactly — `tower - arc/2 + arc/(count-1)*i`,
+ * the same `count - 1` denominator, so the outermost rounds sit *on* the arc's
+ * edges rather than inside it. That is why the kind is `fan` and not something
+ * new: what makes this weapon unusual is what its bullets do after they leave,
+ * not how they leave.
+ *
+ * Three bullet behaviours, none of them new to the port on their own:
+ *
+ *  - **Penetrates** (`:5822` keeps it off the `dead = true` list), tracking
+ *    what it has already hit in `enemiesArray` — the mechanism Penetration
+ *    Cannon and Magic already use.
+ *  - **Bounces three times** off the camera's edges (`:4216`, `:1903`), sharing
+ *    that geometry with the Gummy Bear Cannon. A bounce empties its hit list,
+ *    so it can cross the same crowd again.
+ *  - **A boss takes a fifth** (`:6051`), the same 0.2 divisor Lava Ball uses.
+ *
+ * `countTrack` is a projectile count here, as with the spikes — not a chain
+ * length. Magic Bunny is the weapon that made that ambiguity worth a
+ * discriminator.
+ */
+export const CRAZY_CHEESE: SecondarySpec = {
+  name: 'Crazy Cheese',
+  upgradeId: 'CrazyCheese',
+  reloadTrack: 0,
+  damageTrack: 1,
+  countTrack: 3,
+  kind: 'fan',
+  sound: 'CrazyCheese',
+};
+
+/**
  * Poison Grenade — `PartGameArea.as:4018`.
  *
  * The lowest direct damage of the three (4-6) because the poison does the work
@@ -385,6 +428,7 @@ export const SECONDARY_WEAPONS: Readonly<Record<string, SecondarySpec>> = {
   // Appended as ported, which is why this list is not the upgrade table's order.
   'Ice Ball': ICE_BALL,
   'Lava Ball': LAVA_BALL,
+  'Crazy Cheese': CRAZY_CHEESE,
 };
 
 export function getSecondary(name: string): SecondarySpec | undefined {
@@ -406,6 +450,8 @@ export interface SecondaryStats {
   effectDamage: number;
   /** Projectiles one use fires. Zero where the weapon fires a single thing. */
   count: number;
+  /** Total fan arc in degrees. Zero for a radial fan, which has no arc stat. */
+  spread: number;
 }
 
 /**
@@ -441,13 +487,15 @@ export function resolveSecondaryStats(
   const effectTime = optional(spec.effectTimeTrack);
   const effectDamage = optional(spec.effectDamageTrack);
   const count = optional(spec.countTrack);
+  const spread = optional(spec.spreadTrack);
   if (
     damage === null ||
     explosionRadius === null ||
     duration === null ||
     effectTime === null ||
     effectDamage === null ||
-    count === null
+    count === null ||
+    spread === null
   ) {
     return null;
   }
@@ -460,6 +508,7 @@ export function resolveSecondaryStats(
     effectTime,
     effectDamage,
     count,
+    spread,
   };
 }
 

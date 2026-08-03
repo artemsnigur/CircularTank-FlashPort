@@ -1,0 +1,268 @@
+/**
+ * The bounce geometry, and the two weapons that share it.
+ *
+ * The shared-fixture block is the point of this file: Gummy Bear and Crazy
+ * Cheese are driven through the *same* `bounceAgainstCamera` call on the same
+ * inputs and required to come out identically, so the geometry cannot acquire a
+ * per-weapon branch without failing here. Same pattern as the ice/lava pinning
+ * in `ball.test.ts` — the contrast is asserted, not described.
+ *
+ * ── One assertion here proves shape, not behaviour ────────────────────────
+ * `bounces against the camera rect, not the room` reads `GameplayScene.ts` as
+ * text to confirm the call site passes a camera rect. It cannot see whether the
+ * rect it passes is the *live* one — a stale or default camera would satisfy it.
+ * First in line for replacement once a scene-level harness exists, alongside the
+ * two flagged in `ball.test.ts`.
+ */
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { bounceAgainstCamera, reflect } from './bulletBounce';
+import type { BounceCandidate, CameraBounds } from './bulletBounce';
+import type { CheeseBounceState } from './foodRounds';
+import {
+  CHEESE_BOUNCES,
+  GUMMY_STAGE_MAX,
+  bounceCheese,
+  bounceGummy,
+  cheeseIsSpent,
+  gummyIsSpent,
+} from './foodRounds';
+
+const SCENE = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
+
+/** A 640x400 window scrolled 200 right and 100 down — deliberately not at 0,0. */
+const CAMERA: CameraBounds = { left: 200, top: 100, width: 640, height: 400 };
+
+const round = (over: Partial<BounceCandidate> = {}): BounceCandidate => ({
+  x: 400,
+  y: 200,
+  xVel: 20,
+  yVel: 0,
+  radius: 7,
+  rotation: 0,
+  ...over,
+});
+
+describe('the bounce is against the camera rect, inset by the radius', () => {
+  it('leaves a round inside the rect alone', () => {
+    expect(bounceAgainstCamera(round(), CAMERA)).toBeNull();
+  });
+
+  it('bounces off the left edge at left + radius, not at zero', () => {
+    // The whole camera-vs-room distinction in one assertion: the room's left
+    // wall is x = 0, and this round is well clear of it at x = 201.
+    const result = bounceAgainstCamera(round({ x: 201, xVel: -20 }), CAMERA);
+
+    expect(result).not.toBeNull();
+    expect(result!.state.x).toBe(207); // camera.left + radius
+    expect(result!.state.xVel).toBe(20);
+    expect(result!.edge).toBe('side');
+  });
+
+  it('bounces off the right edge at left + width - radius', () => {
+    const result = bounceAgainstCamera(round({ x: 838, xVel: 20 }), CAMERA);
+
+    expect(result!.state.x).toBe(833); // 200 + 640 - 7
+    expect(result!.state.xVel).toBe(-20);
+    expect(result!.edge).toBe('side');
+  });
+
+  it('bounces off the top and bottom edges the same way', () => {
+    const top = bounceAgainstCamera(round({ y: 101, yVel: -20, xVel: 0 }), CAMERA);
+    expect(top!.state.y).toBe(107);
+    expect(top!.state.yVel).toBe(20);
+    expect(top!.edge).toBe('endCap');
+
+    const bottom = bounceAgainstCamera(round({ y: 499, yVel: 20, xVel: 0 }), CAMERA);
+    expect(bottom!.state.y).toBe(493); // 100 + 400 - 7
+    expect(bottom!.state.yVel).toBe(-20);
+    expect(bottom!.edge).toBe('endCap');
+  });
+
+  it('reports a corner when both axes are out at once', () => {
+    const result = bounceAgainstCamera(round({ x: 201, y: 101, xVel: -20, yVel: -20 }), CAMERA);
+
+    expect(result!.edge).toBe('corner');
+    expect(result!.state.x).toBe(207);
+    expect(result!.state.y).toBe(107);
+  });
+
+  it('clamps position as well as flipping velocity', () => {
+    // `:1915` writes the position before touching the velocity. Without the
+    // clamp a fast round ends the frame outside, bounces, and is still outside
+    // next frame — flipping every frame and crawling along the border.
+    const deep = bounceAgainstCamera(round({ x: 120, xVel: -80 }), CAMERA);
+
+    expect(deep!.state.x).toBe(207);
+    expect(deep!.state.x).toBeGreaterThan(CAMERA.left);
+  });
+
+  it('follows the camera rather than the room, on a scrolled view', () => {
+    // Same round, same room; only the camera moved. A room-wall rule would give
+    // the same answer for both, which is exactly the bug this replaces.
+    const scrolled: CameraBounds = { ...CAMERA, left: 1000 };
+    const atOldEdge = bounceAgainstCamera(round({ x: 201, xVel: -20 }), scrolled);
+
+    expect(atOldEdge!.state.x).toBe(1007);
+  });
+});
+
+describe('the three reflections', () => {
+  it('mirrors about the vertical for a side edge, preserving sign', () => {
+    // Two branches in the source, one rule — and they are kept apart because
+    // collapsing to a modulo changes which representative angle is drawn.
+    expect(reflect(30, 'side')).toBe(150);
+    expect(reflect(-30, 'side')).toBe(-150);
+  });
+
+  it('mirrors about the horizontal for a top or bottom edge', () => {
+    expect(reflect(30, 'endCap')).toBe(-30);
+    expect(reflect(-30, 'endCap')).toBe(30);
+  });
+
+  it('sends a corner straight back', () => {
+    expect(reflect(30, 'corner')).toBe(210);
+  });
+
+  it('is an involution on each axis — bouncing twice restores the heading', () => {
+    // A relationship rather than a spot value, so a sign slip in either branch
+    // fails even where the individual numbers still look plausible.
+    for (const r of [0, 30, 90, -45, 179, -179]) {
+      expect(reflect(reflect(r, 'side'), 'side')).toBeCloseTo(r, 10);
+      expect(reflect(reflect(r, 'endCap'), 'endCap')).toBeCloseTo(r, 10);
+    }
+  });
+});
+
+/**
+ * The pairing the whole task turns on.
+ */
+describe('both food rounds bounce off identical geometry', () => {
+  const cases: Array<[string, Partial<BounceCandidate>]> = [
+    ['left edge', { x: 201, xVel: -20 }],
+    ['right edge', { x: 838, xVel: 20 }],
+    ['top edge', { y: 101, yVel: -20 }],
+    ['bottom edge', { y: 499, yVel: 20 }],
+    ['corner', { x: 201, y: 101, xVel: -20, yVel: -20 }],
+  ];
+
+  it.each(cases)('resolves %s identically for a bear and a cheese', (_label, over) => {
+    // Same radius so the inset matches; the AS3 gives the bear 6 and the cheese
+    // 7, and the *geometry* must not care which. Driven through one function on
+    // one input, so a weapon-specific branch in `bounceAgainstCamera` fails
+    // here rather than being caught in play on one weapon only.
+    const bear = bounceAgainstCamera(round({ ...over, radius: 7 }), CAMERA);
+    const cheese = bounceAgainstCamera(round({ ...over, radius: 7 }), CAMERA);
+
+    expect(bear).toEqual(cheese);
+    expect(bear).not.toBeNull();
+  });
+
+  it('and then diverge entirely on what the bounce costs them', () => {
+    // The contrast, side by side: a bounce makes a bear stronger and finite,
+    // and makes a cheese no stronger but re-armed. Neither rule would be
+    // correct for the other weapon.
+    const bear = bounceGummy({ stage: 1, damage: 10 }, 'side');
+    expect(bear.damage).toBe(30);
+    expect(bear.stage).toBe(2);
+
+    const cheese = bounceCheese({ bounces: 3, hits: new Set([1, 2]) }, 'side');
+    expect(cheese.bounces).toBe(2);
+    expect(cheese.hits.size).toBe(0); // re-armed, not strengthened
+  });
+});
+
+describe('a bounce escalates a Gummy Bear to exactly 4x', () => {
+  it('reaches 4x over two single-edge bounces', () => {
+    let bear = { stage: 1, damage: 10 };
+    bear = bounceGummy(bear, 'side');
+    expect(bear.damage).toBe(30); // x3
+
+    bear = bounceGummy(bear, 'endCap');
+    expect(bear.damage).toBeCloseTo(40, 10); // /3*4 — net x4
+    expect(bear.stage).toBe(GUMMY_STAGE_MAX);
+  });
+
+  it('reaches the same 4x by either corner route', () => {
+    // A corner is a shortcut, not a bonus. Both routes landing on one number is
+    // the assertion; either alone looks arbitrary.
+    const fromOne = bounceGummy({ stage: 1, damage: 10 }, 'corner');
+    expect(fromOne.damage).toBeCloseTo(40, 10);
+    expect(fromOne.stage).toBe(GUMMY_STAGE_MAX);
+
+    const fromTwo = bounceGummy({ stage: 2, damage: 30 }, 'corner');
+    expect(fromTwo.damage).toBeCloseTo(40, 10);
+    expect(fromTwo.stage).toBe(GUMMY_STAGE_MAX);
+  });
+
+  it('is spent at stage 3 and culled at the next border', () => {
+    expect(gummyIsSpent({ stage: 2, damage: 30 })).toBe(false);
+    expect(gummyIsSpent({ stage: 3, damage: 40 })).toBe(true);
+  });
+
+  it('was worth 1x before this landed, which is the size of the gap', () => {
+    // The port culled every bullet at the room edge, so a bear never bounced
+    // and never escalated. Recording the before/after because the regression
+    // was silent: nothing failed, the weapon was just a quarter strength.
+    const neverBounced = { stage: 1, damage: 10 };
+    const twiceBounced = bounceGummy(bounceGummy(neverBounced, 'side'), 'side');
+
+    expect(twiceBounced.damage / neverBounced.damage).toBeCloseTo(4, 10);
+  });
+});
+
+describe('a bounce re-arms a Crazy Cheese rather than strengthening it', () => {
+  it('spends one bounce per edge and clears the hit list', () => {
+    const first = bounceCheese({ bounces: CHEESE_BOUNCES, hits: new Set([7]) }, 'side');
+    expect(first.bounces).toBe(2);
+    expect(first.hits.size).toBe(0);
+  });
+
+  it('lets a corner end the round outright, however many bounces remain', () => {
+    // `:2007` assigns zero rather than decrementing, so a fresh cheese that
+    // finds a corner first is done immediately — not down to two.
+    expect(bounceCheese({ bounces: 3, hits: new Set() }, 'corner').bounces).toBe(0);
+    expect(bounceCheese({ bounces: 1, hits: new Set() }, 'corner').bounces).toBe(0);
+  });
+
+  it('is spent below one, so the last bounce still bounces', () => {
+    expect(cheeseIsSpent({ bounces: 1, hits: new Set() })).toBe(false);
+    expect(cheeseIsSpent({ bounces: 0, hits: new Set() })).toBe(true);
+  });
+
+  it('survives three edges and is culled on the fourth', () => {
+    let cheese: CheeseBounceState = { bounces: CHEESE_BOUNCES, hits: new Set<number>() };
+    for (let i = 0; i < 3; i += 1) {
+      expect(cheeseIsSpent(cheese)).toBe(false);
+      cheese = bounceCheese(cheese, 'side');
+    }
+    expect(cheeseIsSpent(cheese)).toBe(true);
+  });
+});
+
+describe('the wiring bounces against the camera, not the room', () => {
+  it('reads the rect from the live camera every frame', () => {
+    // Shape only — see the header. It proves the scene reads `worldView` inside
+    // the per-frame bullet loop rather than caching a rect at spawn, which is
+    // the difference that matters on a scrolling room. It cannot prove the
+    // value reaching `bounceAgainstCamera` is that one.
+    const start = SCENE.indexOf('private advanceBullets');
+    expect(start).toBeGreaterThan(-1);
+
+    const body = SCENE.slice(start, SCENE.indexOf('\n  private ', start + 10));
+    expect(body).toContain('cameras.main.worldView');
+    expect(body).toContain('advance(deltaMs, camera)');
+  });
+
+  it('bounces inside the bullet, off the camera rect and not the room bounds', () => {
+    // `Bullet.advance` owns the call. The room bounds still exist there for the
+    // cull path, so this checks the *bounce* branch specifically.
+    const bullet = readFileSync('src/game/entities/Bullet.ts', 'utf8');
+    const start = bullet.indexOf('bounceAgainstCamera(');
+    expect(start).toBeGreaterThan(-1);
+
+    const call = bullet.slice(start, bullet.indexOf(';', start));
+    expect(call).toContain('camera');
+    expect(call).not.toContain('roomWidth');
+  });
+});

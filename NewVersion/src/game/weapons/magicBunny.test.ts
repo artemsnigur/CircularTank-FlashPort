@@ -156,13 +156,18 @@ describe('secondaries dispatch on a declared kind', () => {
     const kinds = Object.values(SECONDARY_WEAPONS).map((s) => s.kind);
     const unique = new Set<SecondaryKind>(kinds);
 
-    // Eleven weapons, seven shapes: three grenades share `thrown`, two spike
-    // weapons share `fan`, and both balls share `trail` — the third shared
-    // shape, which is the whole argument for grouping by shape at all.
-    expect(kinds).toHaveLength(11);
+    // Twelve weapons, seven shapes — every secondary is now registered and no
+    // new kind was needed for the last one. Crazy Cheese joined `fan`: its
+    // spawn is the Shotgun's arc formula, and what makes it unusual (bouncing,
+    // penetrating rounds) is bullet behaviour rather than a spawn shape.
+    //
+    // Border bounce is deliberately *not* a kind. It is shared with the Gummy
+    // Bear Cannon, a primary, so it cannot be a secondary discriminant at all —
+    // it lives in `bulletBounce.ts` as a bullet behaviour instead.
+    expect(kinds).toHaveLength(12);
     expect(unique.size).toBe(7);
     expect(kinds.filter((k) => k === 'thrown')).toHaveLength(3);
-    expect(kinds.filter((k) => k === 'fan')).toHaveLength(2);
+    expect(kinds.filter((k) => k === 'fan')).toHaveLength(3);
     expect(kinds.filter((k) => k === 'trail')).toHaveLength(2);
   });
 

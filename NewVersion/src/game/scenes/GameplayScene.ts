@@ -202,6 +202,11 @@ const SHIELD_DEPTH = 9.5;
 const GRENADE_DEPTH = 1;
 /** Below everything — the AS3 keeps trails in their own `groundLayer`. */
 const HAZARD_DEPTH = 0;
+
+/** Crazy Cheese — `:4215`, `:4217`, `:4225`. None of the three scale with level. */
+const CHEESE_RADIUS = 7;
+const CHEESE_SPEED = 20;
+const CHEESE_MUZZLE_OFFSET = 16;
 /** `grenade.radius = 3` — `PartGameArea.as:4041`, fixed at every level. */
 const GRENADE_RADIUS = 3;
 /**
@@ -1422,8 +1427,14 @@ export class GameplayScene extends Phaser.Scene {
     // Flame positions for the density rule; every bullet counts, as in the AS3.
     const flamePoints = this.bullets.map((b) => ({ x: b.x, y: b.y }));
 
+    // `:1906` — the two food rounds bounce off the camera's edges, not the
+    // room's walls, so this must be the *live* rect and is read every frame.
+    // `worldView` is Phaser's equivalent of `-cameraPosX`/`cameraWidth`.
+    const view = this.cameras.main.worldView;
+    const camera = { left: view.x, top: view.y, width: view.width, height: view.height };
+
     for (const bullet of this.bullets) {
-      if (!bullet.advance(deltaMs)) {
+      if (!bullet.advance(deltaMs, camera)) {
         bullet.destroy();
         continue;
       }
@@ -2144,8 +2155,71 @@ export class GameplayScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Crazy Cheese — `:4208-4231`.
+   *
+   * A `fan` like the spikes, but an *arc* fan rather than a radial one: the
+   * Shotgun's `tower - arc/2 + arc/(count - 1) * i`, with the same `count - 1`
+   * denominator, so the outermost rounds sit on the arc's edges. Dispatched by
+   * name here, exactly as `:4208` dispatches on `secondaryWeapon`, rather than
+   * by sniffing which tracks the spec happens to declare.
+   */
+  private fireCheese(): boolean {
+    if (!this.secondaryStats) return false;
+
+    const stats = this.secondaryStats;
+    const count = stats.count;
+    if (count < 1) return false;
+
+    // `arc / (count - 1)` divides by zero at a single round. The AS3 has the
+    // same hole and never falls in it — the count track is [6…9] — but the
+    // Shotgun's port guards it, so this does too.
+    const step = count > 1 ? stats.spread / (count - 1) : 0;
+    const offset = CHEESE_MUZZLE_OFFSET + CHEESE_RADIUS;
+
+    for (let i = 0; i < count; i += 1) {
+      const rotation = this.player.towerRotationDegrees - stats.spread / 2 + step * i;
+      const radians = (rotation * Math.PI) / 180;
+
+      this.bullets.push(
+        new Bullet(
+          this,
+          {
+            x: this.player.x + Math.cos(radians) * offset,
+            y: this.player.y + Math.sin(radians) * offset,
+            xVel: Math.cos(radians) * CHEESE_SPEED,
+            yVel: Math.sin(radians) * CHEESE_SPEED,
+            rotation,
+            speed: CHEESE_SPEED,
+            radius: CHEESE_RADIUS,
+            damage: stats.damage,
+            // `:4219` — no blast; `:5822` keeps it off the `dead = true` list,
+            // so it passes through and tracks what it has already hit.
+            explosion: false,
+            explosionRadius: 0,
+            penetrates: true,
+            bombTimer: 0,
+            freezeTime: 0,
+            poisonTime: 0,
+            poisonDamage: 0,
+            cakePieces: 0,
+            targets: 0,
+          },
+          this.roomWidth,
+          this.roomHeight,
+          'BulletCrazyCheese',
+        ),
+      );
+    }
+    return true;
+  }
+
   private fireSpikes(): boolean {
     if (!this.secondaryStats) return false;
+
+    // `:4208` — Crazy Cheese is a fan too, and an arc one. Split by name rather
+    // than by spec shape, which is what the discriminator exists to avoid.
+    if (this.secondary?.upgradeId === 'CrazyCheese') return this.fireCheese();
 
     const stats = this.secondaryStats;
     // Icicles carry a freeze, Poison Spikes a poison; the spec's tracks decide

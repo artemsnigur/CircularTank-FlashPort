@@ -55,7 +55,7 @@ describe('only ported secondaries are sold', () => {
     expect(isPurchasable(findUpgradeById('Mine')!)).toBe(true);
   });
 
-  it('Crazy Cheese is the last one that is not', () => {
+  it('all twelve are sold now', () => {
     const sold = SECONDARY_UPGRADES.filter(isPurchasable).map((u) => u.id);
     expect(sold).toEqual([
       'Mine',
@@ -68,6 +68,7 @@ describe('only ported secondaries are sold', () => {
       'Rockets',
       'Iceball',
       'Lavaball',
+      'CrazyCheese',
       'MagicBunny',
     ]);
     expect(SECONDARY_UPGRADES).toHaveLength(12);
@@ -156,14 +157,15 @@ describe('the catalogue and the withheld list partition the table', () => {
     for (const spec of withheldUpgrades()) expect(sold.has(spec.id)).toBe(false);
   });
 
-  it('withholds 2 of 28 today — 1 secondary and 1 misc', () => {
+  it('withholds 1 of 28 today — no secondaries, 1 misc', () => {
     // The exact figure, so a change to what the shop sells is visible in a diff
     // rather than discovered in play. Was 13: Shield came off when it landed,
     // BulletReflect came off with it, and the three grenades came off on their
     // own as each was registered, then the two spike weapons, Magic Bunny, and
-    // both balls. Crazy Cheese is the last secondary left, alongside
-    // KillReload, which has no reader.
-    expect(withheldUpgrades()).toHaveLength(2);
-    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 2);
+    // both balls, and finally Crazy Cheese. KillReload is the only one left,
+    // and it is withheld because nothing reads it rather than because it is
+    // unported.
+    expect(withheldUpgrades()).toHaveLength(1);
+    expect(purchasableUpgrades()).toHaveLength(ALL_UPGRADES.length - 1);
   });
 });

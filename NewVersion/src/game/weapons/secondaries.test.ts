@@ -39,14 +39,18 @@ describe('registration', () => {
       'Rockets',
       'Ice Ball',
       'Lava Ball',
+      'Crazy Cheese',
     ]);
   });
 
-  it('leaves Crazy Cheese as the last unported secondary', () => {
-    for (const name of [
-      'Crazy Cheese',
-    ]) {
-      expect(getSecondary(name), name).toBeUndefined();
+  it('leaves none unported', () => {
+    // All twelve are registered as of Crazy Cheese. Kept as an assertion rather
+    // than deleted: a thirteenth appearing in the table unregistered would
+    // otherwise be invisible here.
+    const registered = Object.keys(SECONDARY_WEAPONS);
+    expect(registered).toHaveLength(SECONDARY_UPGRADES.length);
+    for (const upgrade of SECONDARY_UPGRADES) {
+      expect(getSecondary(upgrade.name), upgrade.name).toBeDefined();
     }
   });
 
@@ -70,7 +74,7 @@ describe('stats from the upgrade table', () => {
       duration: 0,
       effectTime: 0,
       effectDamage: 0,
-      count: 0,
+      count: 0, spread: 0,
     });
   });
 
@@ -108,7 +112,16 @@ describe('stats from the upgrade table', () => {
 });
 
 describe('placement', () => {
-  const stats = { reloadTimeMax: 600, damage: 26, explosionRadius: 195, duration: 0, effectTime: 0, effectDamage: 0, count: 0 };
+  const stats = {
+    reloadTimeMax: 600,
+    damage: 26,
+    explosionRadius: 195,
+    duration: 0,
+    effectTime: 0,
+    effectDamage: 0,
+    count: 0,
+    spread: 0,
+  };
 
   it('drops the mine at the tank position', () => {
     const mine = placeMine(stats, { x: 320, y: 480 });
