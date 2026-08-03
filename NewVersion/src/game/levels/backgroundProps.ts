@@ -80,6 +80,52 @@ export function propFrames(type: string, theme: string): number {
   return FRAME_OVERRIDES[type]?.[theme] ?? PROP_FRAMES[type] ?? 1;
 }
 
+/**
+ * Frames the **art** actually has, read from the sprite definitions in
+ * `assets.swf` rather than from `addBackgroundObject`'s table.
+ *
+ * These are not always the same number, and where they differ the AS3's table
+ * is the one the *arithmetic* uses while the art is what Flash could *show* —
+ * `gotoAndStop` past the end of a clip is a no-op, so the display clamps.
+ *
+ * `RedBloodCell` is the live case: declared 3, has 1. One number meaning two
+ * things, the same shape as the `+15` that means opposite things for ice and
+ * lava. Keep both tables; do not reconcile them.
+ */
+export const SYMBOL_FRAMES: Readonly<Record<string, number>> = {
+  Rock: 3,
+  Crack: 10,
+  FlowerWhite: 1,
+  FlowerRed: 1,
+  FlowerPurple: 1,
+  Seastuff: 5,
+  Trash: 15,
+  Diamond: 3,
+  Skeleton: 16,
+  Dirt: 5,
+  RedBloodCell: 1,
+  WhiteBloodCell: 3,
+  Bacteria: 2,
+  FuturisticLines: 10,
+  FuturisticSquare: 2,
+};
+
+const SYMBOL_OVERRIDES: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+  Rock: { Beach: 9 },
+};
+
+/**
+ * The frame actually shown — `:3551` through Flash's clamp.
+ *
+ * The draw and the arithmetic are unchanged; only the displayed frame is
+ * capped. Rendering must call this rather than trusting `propFrames`, or
+ * `RedBloodCell` asks for frame 3 of a one-frame clip.
+ */
+export function displayFrame(type: string, theme: string, frame: number): number {
+  const available = SYMBOL_OVERRIDES[type]?.[theme] ?? SYMBOL_FRAMES[type] ?? 1;
+  return Math.min(frame, available);
+}
+
 /** One theme's table — `:1190-1243`. Weights are proportions, not counts. */
 export interface ThemeProps {
   /** `[name, weight]` pairs, in the AS3's declared order. Order is load-bearing. */
@@ -236,10 +282,13 @@ export interface PropLayoutInput {
  * scene.
  */
 export function layoutProps(input: PropLayoutInput): PlacedProp[] {
+  return placeProps(new PM_PRNG(input.seed), input);
+}
+
+function placeProps(rng: PM_PRNG, input: PropLayoutInput): PlacedProp[] {
   const table = THEME_PROPS[input.theme];
   if (!table) return [];
 
-  const rng = new PM_PRNG(input.seed);
   const tiles = tileCounts(input.roomWidth, input.roomHeight);
   const scaleBy = tiles.x * tiles.y;
   const minAmount = Math.round(table.minPerTile * scaleBy);
@@ -274,6 +323,15 @@ export function layoutProps(input: PropLayoutInput): PlacedProp[] {
     const groupChance = rule ? rule.chance * (1 / ((rule.maxCount - rule.minCount) / 2)) : NaN;
 
     // Draw 7 — consumed whether or not the type can group.
+    //
+    // DELIBERATELY UN-TIDY. The obvious cleanup is to roll only when `rule`
+    // exists, since a ruleless type can never cluster anyway. That keeps the
+    // behaviour and breaks the layout: the roll is one draw, and dropping it
+    // shifts every position after the first ruleless prop. The NaN above is
+    // load-bearing — it produces the right answer (never clusters) *and*
+    // consumes the right draw. Pinned in `backgroundProps.test.ts` under
+    // "a ruleless type consumes its group draw and never clusters", which was
+    // verified to fail when the roll is hoisted.
     const groupRoll = rng.nextDouble();
     const addAsGroup = groupRoll <= groupChance;
 
@@ -330,6 +388,137 @@ export function layoutProps(input: PropLayoutInput): PlacedProp[] {
   }
 
   return placed;
+}
+
+
+/**
+ * Placeholder art dimensions, per type.
+ *
+ * The AS3 takes the collision radius off the **rendered sprite**:
+ * `(object.height + object.width) * 0.2` (`:2617`), so it depends on the art
+ * and on the prop's own scale. With placeholders these are invented, which
+ * means **the collision pass removes a different set of props than the original
+ * did, and consumes a different number of draws.**
+ *
+ * That is contained rather than corrosive: the pass is the *last* consumer of
+ * the generator (`:1418`, and nothing after it draws), so a different draw
+ * count here shifts nothing else. It is the one part of this subsystem whose
+ * output real art will change, and the reason the placement stream is pinned
+ * separately from the collision result.
+ */
+export const PLACEHOLDER_SIZE: Readonly<Record<string, number>> = {
+  Rock: 40,
+  Crack: 60,
+  FlowerWhite: 24,
+  FlowerRed: 24,
+  FlowerPurple: 24,
+  Seastuff: 32,
+  Trash: 36,
+  Diamond: 28,
+  Skeleton: 48,
+  Dirt: 40,
+  RedBloodCell: 30,
+  WhiteBloodCell: 34,
+  Bacteria: 26,
+  FuturisticLines: 64,
+  FuturisticSquare: 44,
+};
+
+/** `:2617` — width and height are the *scaled* display size. */
+export function propRadius(prop: PlacedProp): number {
+  const base = (PLACEHOLDER_SIZE[prop.type] ?? 32) * prop.scale;
+  return (base + base) * 0.2;
+}
+
+/**
+ * Collisions a prop must accumulate before one of the pair is removed.
+ *
+ * `:2621` — `FuturisticLines` tolerates six; everything else dies on the first.
+ */
+export function collisionCountDie(type: string): number {
+  return type === 'FuturisticLines' ? 6 : 1;
+}
+
+/**
+ * Whether two props are allowed to collide at all — `:2633`.
+ *
+ * **`FuturisticSquare` never collides**, on either side of the pair. That is the
+ * only live exclusion.
+ *
+ * The source also excludes `BGObjectCrack` against non-Crack in both
+ * directions, and that branch is **dead**: no class of that name exists. The
+ * three Crack clips are `BGObjectCrackDesert`, `BGObjectCrackBlueDirt` and
+ * `BGObjectCrackConcrete`, so `object == "[object BGObjectCrack]"` never
+ * matches and cracks collide with everything. Reproduced as written — cracks
+ * collide — rather than as apparently intended.
+ */
+export function canCollide(a: string, b: string): boolean {
+  return a !== 'FuturisticSquare' && b !== 'FuturisticSquare';
+}
+
+export interface CollisionResult {
+  props: PlacedProp[];
+  /** Draws consumed — one per collision resolved. Data-dependent by nature. */
+  draws: number;
+}
+
+/**
+ * Removes overlapping props — `:2603-2664`.
+ *
+ * One `nextDouble()` per collision **resolved**, and the roll decides *which*
+ * of the pair goes, not *whether* one goes: below 0.5 removes the outer prop,
+ * at or above removes the inner one (`:2645-2653`). Removal is unconditional
+ * once the count is reached.
+ *
+ * `removeMethod` is dead. `:2622` sets it to `"Object"` for `FuturisticLines`,
+ * then `:2640` unconditionally reassigns `"Random"` before any read, and
+ * `if(removeMethod)` is a truthy-string test that always passes — so the
+ * `else` branch at `:2660` is unreachable and `FuturisticLines`' only surviving
+ * difference is its tolerance of six.
+ */
+export function resolveCollisions(input: PlacedProp[], rng: PM_PRNG): CollisionResult {
+  const props = [...input];
+  let draws = 0;
+
+  for (let i = 0; i < props.length; i += 1) {
+    const object = props[i];
+    const radius = propRadius(object);
+    const die = collisionCountDie(object.type);
+    let collisions = 0;
+
+    for (let ii = 0; ii < props.length; ii += 1) {
+      if (i === ii) continue;
+      const other = props[ii];
+
+      if (
+        canCollide(object.type, other.type) &&
+        Math.hypot(object.x - other.x, object.y - other.y) < radius + propRadius(other)
+      ) {
+        collisions += 1;
+      }
+
+      if (collisions >= die) {
+        draws += 1;
+        // Which one, not whether.
+        if (rng.nextDouble() < 0.5) props.splice(i, 1);
+        else props.splice(ii, 1);
+        i -= 1;
+        break;
+      }
+    }
+  }
+
+  return { props, draws };
+}
+
+/**
+ * A level's finished prop layout — placement then collision removal, on one
+ * generator, in the AS3's order (`:1279-1418`).
+ */
+export function layoutLevelProps(input: PropLayoutInput): CollisionResult {
+  const rng = new PM_PRNG(input.seed);
+  const placed = placeProps(rng, input);
+  return resolveCollisions(placed, rng);
 }
 
 /** Convenience wrapper for a level row. */

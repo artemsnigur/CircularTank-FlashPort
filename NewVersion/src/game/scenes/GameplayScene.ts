@@ -98,6 +98,7 @@ import type { GrenadeState } from '../weapons/grenade';
 import { spawnFan } from '../weapons/radialFan';
 import { planBlastOn } from '../weapons/blastPlan';
 import { sweepHazards } from '../weapons/hazardSweep';
+import { displayFrame, layoutLevelProps } from '../levels/backgroundProps';
 import { applyKillReload, killReloadBonus } from '../upgrades/killReload';
 import {
   createHazard,
@@ -196,6 +197,8 @@ const SHIELD_DEPTH = 9.5;
 const GRENADE_DEPTH = 1;
 /** Below everything — the AS3 keeps trails in their own `groundLayer`. */
 const HAZARD_DEPTH = 0;
+/** Just above the ground tile, below anything that moves. */
+const PROP_DEPTH = 0.5;
 
 /** Crazy Cheese — `:4215`, `:4217`, `:4225`. None of the three scale with level. */
 const CHEESE_RADIUS = 7;
@@ -625,6 +628,7 @@ export class GameplayScene extends Phaser.Scene {
     // setTileScale, not setScale: the sprite still spans the room, and this
     // changes how many design units one texture repeat covers.
     this.ground.setTileScale(ground.tileScale, ground.tileScale);
+    this.spawnBackgroundProps();
 
     // Above the ground, below everything that moves. The margin is real world
     // the player cannot enter, so it is dimmed rather than left bright: with no
@@ -1903,6 +1907,51 @@ export class GameplayScene extends Phaser.Scene {
    * the enemy's stamp against the live generation counter. Neither rule would be
    * correct for the other weapon.
    */
+
+  /**
+   * Scatters the level's background props — `createBackground` (`:1102`).
+   *
+   * Everything about *where* they go comes from `backgroundProps.ts`, driven by
+   * `PM_PRNG` seeded from `LevelSpec.seed`. This method only draws the answer.
+   *
+   * The art is a placeholder: the 21 `BGObject*` clips are embedded in
+   * `assets.swf` and have not been extracted, so each prop is a tinted dot
+   * sized by its own scale draw. **What is real is the frame count** — the
+   * variant `stopAt` picked is resolved and rendered as opacity, so the draw is
+   * exercised rather than silently discarded. Owed: the real clips, ~100 frames
+   * across them, which is a scoped-but-unbuilt extraction step. When they land,
+   * `displayFrame` is the only thing that needs to change here.
+   */
+  private spawnBackgroundProps(): void {
+    const spec = this.levelSpec;
+    if (!spec) return;
+
+    const { props } = layoutLevelProps({
+      seed: spec.seed,
+      roomWidth: this.roomWidth,
+      roomHeight: this.roomHeight,
+      theme: spec.theme,
+    });
+
+    for (const prop of props) {
+      // `:3551` picks the variant; Flash clamps a `gotoAndStop` past the end of
+      // the clip, so `displayFrame` caps it at what the art actually has. The
+      // arithmetic keeps the AS3's number — see `RedBloodCell`.
+      const frame = displayFrame(prop.type, spec.theme, prop.frame);
+      const available = displayFrame(prop.type, spec.theme, Number.MAX_SAFE_INTEGER);
+
+      this.add
+        .image(prop.x, prop.y, 'particle-dot')
+        .setDisplaySize(24 * prop.scale, 24 * prop.scale)
+        .setRotation(Phaser.Math.DegToRad(prop.rotation))
+        // Placeholder variant cue: the chosen frame as a brightness step, so a
+        // frame that never varies is visible rather than invisible.
+        .setAlpha(0.25 + 0.5 * (frame / available))
+        .setTint(0x6b5a44)
+        .setDepth(PROP_DEPTH);
+    }
+  }
+
   private updateHazards(deltaMs: number): void {
     if (this.hazards.length === 0) {
       // Still clear the shot, or a beam fired on a hazard-free frame would be

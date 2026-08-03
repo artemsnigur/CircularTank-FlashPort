@@ -23,12 +23,19 @@ import { describe, expect, it } from 'vitest';
 import {
   GROUP_RULES,
   PROP_FRAMES,
+  SYMBOL_FRAMES,
   THEME_PROPS,
   buildObjectList,
+  canCollide,
+  collisionCountDie,
+  displayFrame,
+  layoutLevelProps,
   layoutProps,
   propFrames,
+  resolveCollisions,
   tileCounts,
 } from './backgroundProps';
+import { PM_PRNG } from '../core/PM_PRNG';
 import { getLevel } from './levelData';
 
 /** Level 1-1 as the port ships it: Desert, 800x600 after the world-1 override. */
@@ -225,5 +232,152 @@ describe('the group roll is consumed even by types that cannot group', () => {
 
   it('and dropping the roll would move every prop after the first', () => {
     expect(props[1].scale).toBeCloseTo(0.139830558160241, 15);
+  });
+});
+/**
+ * One number meaning two things — the same shape as the `+15` that means the
+ * opposite for ice and lava.
+ */
+describe('the frame table and the art disagree, and both are kept', () => {
+  it('RedBloodCell: the arithmetic uses 3, the render shows 1', () => {
+    // `addBackgroundObject` declares `maxFrames = 3` (`:3596`), but symbol 1465
+    // has one frame and Flash clamps `gotoAndStop` past the end. Reconciling
+    // the two tables either changes the draw's meaning or shows a frame that
+    // does not exist.
+    expect(propFrames('RedBloodCell', 'Biology')).toBe(3);
+    expect(SYMBOL_FRAMES.RedBloodCell).toBe(1);
+
+    expect(displayFrame('RedBloodCell', 'Biology', 3)).toBe(1);
+    expect(displayFrame('RedBloodCell', 'Biology', 2)).toBe(1);
+  });
+
+  it('and where they agree the clamp is a no-op', () => {
+    // The counterpart: the clamp must not quietly alter every other prop.
+    for (const type of Object.keys(PROP_FRAMES)) {
+      if (type === 'RedBloodCell') continue;
+      const declared = propFrames(type, 'Desert');
+      expect(displayFrame(type, 'Desert', declared), type).toBe(declared);
+    }
+  });
+
+  it('the clamp never changes what the draw consumed', () => {
+    // Clamping is a display concern. The frame the arithmetic produced is still
+    // on the prop; only the rendered one is capped.
+    const props = layoutProps({ seed: 610309764, roomWidth: 800, roomHeight: 600, theme: 'Desert' });
+    expect(props[0].frame).toBe(4);
+    expect(displayFrame('Crack', 'Desert', props[0].frame)).toBe(4);
+  });
+});
+
+/**
+ * The NaN is load-bearing. Do not tidy it.
+ */
+describe('a ruleless type consumes its group draw and never clusters', () => {
+  const level = { seed: 610309764, roomWidth: 800, roomHeight: 600, theme: 'Desert' };
+
+  it('asserts both halves together, so hoisting the roll fails', () => {
+    // `groupChance *= 1 / ((max - min) / 2)` is `0 * (1 / 0)` = NaN for a type
+    // with no rule, so `nextDouble() <= NaN` is false — correct behaviour — and
+    // the draw happens anyway. Moving the roll inside the rule check keeps the
+    // behaviour and shortens the stream by one draw per ruleless prop, which
+    // moves every position after the first one.
+    //
+    // The two facts are asserted in one test on purpose: either alone survives
+    // the tidy-up.
+    const props = layoutProps(level);
+    const cracks = props.slice(0, 31);
+
+    // (a) it never clusters
+    expect(cracks.every((p) => !p.grouped)).toBe(true);
+    // (b) it consumed the draw — proven by where the *next* prop landed, which
+    // only holds if prop 0 took six draws rather than five.
+    expect(props[1]).toEqual({
+      type: 'Crack', x: 106, y: 440, scale: 0.139830558160241,
+      rotation: 146, frame: 5, grouped: false,
+    });
+  });
+
+  it('and the derived stream says six draws for prop 0, not five', () => {
+    // Independent of the module: five draws from the seed leaves the generator
+    // at a different state than six, and prop 1's x is 106 only in the latter.
+    // Draw 1 is `amount`; 2-6 are prop 0's placement; 7 is prop 0's group roll;
+    // 8 is prop 1's scale; 9 is prop 1's posX. Drop the roll and posX arrives
+    // one draw early, off a different value.
+    const withoutRoll = (() => {
+      const r = new PM_PRNG(610309764);
+      for (let i = 0; i < 7; i += 1) r.nextDouble(); // amount + 5 + prop1 scale
+      return Math.round(r.nextDouble() * 800);
+    })();
+
+    const withRoll = (() => {
+      const r = new PM_PRNG(610309764);
+      for (let i = 0; i < 8; i += 1) r.nextDouble(); // + the group roll
+      return Math.round(r.nextDouble() * 800);
+    })();
+
+    expect(withRoll).toBe(106);
+    expect(withoutRoll).not.toBe(106);
+  });
+});
+
+describe('the collision pass', () => {
+  const level = { seed: 610309764, roomWidth: 800, roomHeight: 600, theme: 'Desert' };
+
+  it('collides props against other props, and nothing else', () => {
+    // `:2612-2626` iterates `backgroundObjectArray` against itself. Walls,
+    // spawn points and the player are not consulted — a prop may sit anywhere.
+    const { props, draws } = layoutLevelProps(level);
+    expect(props.length).toBeLessThan(102);
+    expect(draws).toBeGreaterThan(0);
+  });
+
+  it('spends exactly one draw per collision resolved', () => {
+    // The pinning rule: a count, never a stream offset. The offset is
+    // data-dependent — it falls out of how many props happen to overlap, which
+    // depends on the positions the placement draws produced.
+    const rng = new PM_PRNG(1);
+    const overlapping = Array.from({ length: 4 }, () => ({
+      type: 'Rock', x: 100, y: 100, scale: 1, rotation: 0, frame: 1, grouped: false,
+    }));
+
+    const before = rng.seed;
+    const { props, draws } = resolveCollisions(overlapping, rng);
+
+    expect(props.length).toBe(4 - draws);
+    // One draw consumed per removal, verified against the generator's own
+    // advance rather than against the returned count alone.
+    const check = new PM_PRNG(before);
+    for (let i = 0; i < draws; i += 1) check.nextDouble();
+    expect(check.seed).toBe(rng.seed);
+  });
+
+  it('the roll picks which of the pair dies, not whether one does', () => {
+    // `:2645-2653` — both branches remove something. A reading where the roll
+    // gates removal would leave overlapping props on the floor half the time.
+    const stay = resolveCollisions(
+      [
+        { type: 'Rock', x: 0, y: 0, scale: 1, rotation: 0, frame: 1, grouped: false },
+        { type: 'Rock', x: 1, y: 0, scale: 1, rotation: 0, frame: 1, grouped: false },
+      ],
+      new PM_PRNG(1),
+    );
+    expect(stay.props).toHaveLength(1);
+    expect(stay.draws).toBe(1);
+  });
+
+  it('FuturisticSquare never collides, and that is the only live exclusion', () => {
+    // `:2633` also excludes Crack against non-Crack, and that branch is dead:
+    // no `BGObjectCrack` class exists, only the three theme variants, so the
+    // comparison never matches and cracks collide with everything.
+    expect(canCollide('FuturisticSquare', 'Rock')).toBe(false);
+    expect(canCollide('Rock', 'FuturisticSquare')).toBe(false);
+    expect(canCollide('Crack', 'Rock')).toBe(true);
+    expect(canCollide('Crack', 'Crack')).toBe(true);
+  });
+
+  it('FuturisticLines tolerates six overlaps where everything else dies on one', () => {
+    expect(collisionCountDie('FuturisticLines')).toBe(6);
+    expect(collisionCountDie('Rock')).toBe(1);
+    expect(collisionCountDie('Crack')).toBe(1);
   });
 });

@@ -22,9 +22,10 @@
  * knip's unused-exports report. If any stops appearing, either it was genuinely
  * wired (delete it from this list and celebrate) or knip has gone blind again.
  *
- * `PM_PRNG.ts` is checked separately as an unused *file*: it is the only module
- * in the project with no import path at all, so it exercises a different part of
- * knip's analysis from the export scan.
+ * `PM_PRNG.ts` was checked separately as an unused *file* — the only module in
+ * the project with no import path at all, exercising a different part of knip's
+ * analysis from the export scan. D1 wired it, so that assertion is now inverted:
+ * it must **not** appear.
  */
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
@@ -97,11 +98,16 @@ describe('knip can still see unwired exports', () => {
     ).toBe(true);
   });
 
-  it('still reports PM_PRNG.ts as an unreachable file', () => {
-    // A different analysis path from the export scan above: this one only fires
-    // when a module has no import path from any entry.
-    expect(report).toMatch(/Unused files/);
-    expect(report).toContain('PM_PRNG.ts');
+  it('no longer reports PM_PRNG.ts as unreachable — it was wired', () => {
+    // This asserted the opposite until D1 landed. `PM_PRNG.ts` was the only
+    // module in the project with no import path at all, and it exercised a
+    // different analysis path from the export scan above: unused *files*.
+    //
+    // `levels/backgroundProps.ts` imports it now, so the canary fired for the
+    // fifth time on a genuine wiring event rather than on knip going blind.
+    // Kept as the inverse rather than deleted — if the importer is ever removed
+    // the module goes back to unreachable, and this is where that shows up.
+    expect(report).not.toContain('PM_PRNG.ts');
   });
 
   it('finds far more than the broken configuration did', () => {
