@@ -763,6 +763,42 @@ not implement it" rather than a rule from the source. When writing one, say whic
 Before "fixing" a failing test that has always passed, check whether the assertion was
 ever a requirement. If it only ever described a gap, replace it rather than restore it.
 
+### An assertion must come from the source, not from the code
+
+**A test that copies a constant out of the code it tests cannot detect a wrong
+constant.** It passes for exactly as long as the bug exists and fails the moment
+someone fixes it — the same trap as a test that pins a gap as a specification, but
+harder to see, because the number looks like a real expected value.
+
+`tankMovement.test.ts` asserted the hull's per-frame turn was at most `10`, a literal
+copied from `TANK_ROT_SPEED_MAX`. That constant was wrong — `Tank.as:25` says 20 — and
+the test could not tell a halved step from a correct one. The fix has two parts, and
+both are needed: the test now **reads the constant** rather than restating it, and a
+separate assertion pins the constant **against the AS3 value**.
+
+So, when writing an assertion about a number:
+
+1. **Where did the expected value come from?** If the answer is "the module under
+   test", it is a tautology. Get it from the AS3 line, or derive it by hand.
+2. **A citation is not a check.** All three constants corrected in T34 carried
+   correct-looking references to the AS3 lines that contradict them.
+3. **Read the constant for the relationship, state the source value for the
+   magnitude.** `toBeLessThanOrEqual(TANK_ROT_SPEED_MAX)` keeps working when the
+   constant changes; `expect(TANK_ROT_SPEED_MAX).toBe(20)` is what makes the change
+   deliberate.
+
+The wider finding this comes from: **T34 changed every entity's collision radius, by up
+to 2.85x, across 112 consumers, and 2445 tests stayed green.** Subsystems can be pinned
+in behaviour and completely unpinned in magnitude. That is the third direction this
+project has found the same lesson from — after the seam survey (pinned at the unit,
+unpinned at the seam) and the visual survey (pinned in maths, unpinned in rendering).
+Full write-up in `docs/AUDIT-2026-07.md`.
+
+Related: **an inert export can be hiding a correct value, not just an unused
+subsystem.** `TANK_RADIUS = 14` sat ported, cited and tested while production used a
+locally derived 29. When knip reports an unused export, "not needed yet" and "the right
+answer, sitting beside the wrong one in use" look identical from the report.
+
 ### Test assertions
 
 Prefer the **computed value** over a comparative whenever the number is knowable when the

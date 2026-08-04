@@ -358,7 +358,16 @@ if (args.particles) {
   // destruction is still in the air when the results screen appears. Positions
   // changing across these frames is the pass condition; identical frames with
   // particles present is the failure.
-  await burst('p-06-after-level', 12, 100);
+  // The window is short by design: `levelDone` is set at once, and the results
+  // overlay follows a 15-frame timer (~500ms). Captured at 60ms so several
+  // frames land inside it — at 100ms this took two frames and one of them was
+  // usually already past the overlay.
+  //
+  // The pass condition is a PAIR of consecutive frames in that window where the
+  // particles have moved and the enemies have not. Either alone proves nothing:
+  // moving particles with moving enemies is the naive unpause, and frozen
+  // enemies with frozen particles is the old pause.
+  await burst('p-06-after-level', 14, 60);
   await page.mouse.up();
 
   console.log(`[look] frames -> ${args.out}`);

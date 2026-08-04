@@ -22,6 +22,7 @@ import type { PlayerInput } from '../entities/PlayerTank';
 import { Enemy } from '../entities/Enemy';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { getLevel } from '../levels/levelData';
+import { shouldRun } from '../waves/levelDoneGate';
 import { nextLevelAfter } from '../levels/levelProgress';
 import { groundFor } from '../levels/groundTexture';
 import type { LevelSpec } from '../levels/levelData';
@@ -854,7 +855,26 @@ export class GameplayScene extends Phaser.Scene {
     // be collected before the results screen.
     const destroyed = this.outcome.result === 'lost';
 
-    if (!destroyed) {
+    /**
+     * `PartGameArea.as:2806` — `levelDone`, true from the moment a level
+     * resolves until the screen changes.
+     *
+     * **Not the same thing as `outcome.finished`.** The AS3 has two stages and
+     * so does this port: `levelDone` is set the instant the last enemy dies or
+     * the tank is destroyed (`:2774`), and the screen changes only later —
+     * after the loose money has been collected and a 15-frame timer has run
+     * (`levelDoneFunction`, `:667`). The window between them is short, and it
+     * is the only time the AS3's split behaviour is visible.
+     *
+     * `this.scene.pause()` still fires at `finished`, which is the right
+     * place: it stands in for the AS3's `Main.changeScreen = "Status"`, and
+     * the original does not draw its results screen over a live scene at all.
+     * What was wrong was the window *before* that, where this port ran
+     * everything and the AS3 runs about half.
+     */
+    const levelDone = this.outcome.result !== null;
+
+    if (!destroyed && shouldRun('tankDrive', levelDone)) {
       // Tower fixes the tank in place — PartGameArea.as:2816 skips moveTank
       // and calls tankAttack on the next line, so aiming and firing continue.
       this.player.drive(input, aim, delta, this.levelSpec?.mode !== 'Tower');
@@ -875,7 +895,11 @@ export class GameplayScene extends Phaser.Scene {
     // first bug in this port found by looking at it rather than by testing.
     this.ground.setTilePosition(this.groundOffset.x, this.groundOffset.y);
 
-    this.updateWave(delta);
+    // `:2832` — `spawnWarnings` and `handleWarnings` are inside the gate, and
+    // `handleWarnings` is what calls `spawnEnemy` (`:2461`). So a resolved
+    // level spawns nothing further; the warnings already on screen do not
+    // resolve into enemies either.
+    if (shouldRun('enemySpawning', levelDone)) this.updateWave(delta);
 
     // `:2839` — placed outside the level-done gate, as the AS3 has it.
     //
@@ -883,18 +907,22 @@ export class GameplayScene extends Phaser.Scene {
     // `handleMoney`, and outside `if(!levelDone)`, so in the original debris
     // keeps moving and fading while the results screen dims over it.
     //
-    // **That is not observable in this port today, and it was checked.** A run
-    // through `npm run look -- --particles` resolved a level with debris in the
-    // air and captured twelve frames afterwards: they are pixel-identical, and
-    // so are the enemies. `:3121` calls `this.scene.pause()` the moment a level
-    // resolves, which stops `update` entirely — the AS3 has no equivalent and
-    // keeps simulating. So the placement here is currently a constraint on
-    // future work rather than something the running game demonstrates, and
-    // nothing enforces it. See `docs/AUDIT-2026-07.md` (frame-order divergences)
-    // for what unpausing would drag in with it.
+    // **Observable as of T35.** `npm run look -- --particles` resolves a level
+    // with debris in the air: the death blast's debris moves and expires while
+    // every enemy sits at pixel-identical coordinates in the frames either
+    // side. Before the `levelDone` gate landed this was unreachable, because
+    // the scene was paused outright the moment a level resolved — see
+    // `waves/levelDoneGate.ts` for the partition, and A0 in the audit.
     this.updateParticles();
 
-    this.updateStatusEffects(delta);
+    // `:2833` — `handleEnemies` is inside the gate, and it is the largest
+    // thing in there. Enemy movement, firing, contact damage, the status
+    // timers and the heal auras all live inside it (`:4380` onward, with the
+    // poison tick at `:6381`), so a resolved level freezes every enemy exactly
+    // where it stood. That is what makes removing the pause safe: nothing is
+    // left that can act on a tank the player no longer controls.
+    if (shouldRun('enemies', levelDone)) {
+      this.updateStatusEffects(delta);
 
     for (const enemy of [...this.enemies]) {
       // `:4519` — the Strength/Weakness cue's cooldown, counted per frame at
@@ -926,8 +954,14 @@ export class GameplayScene extends Phaser.Scene {
     this.resolveHealAuras();
 
     this.updateEnemyFire(delta);
+    }
+
+    // Outside the gate, matching `:2836-2842` exactly: the explosion handlers,
+    // the particle layer and the money. Death blasts are queued explosions, so
+    // an enemy killed by a bullet still in flight after the level resolved
+    // still detonates — `handleExplosionQueue` is outside too.
     this.flushDeathBlasts();
-    this.updateFlag(delta);
+    if (shouldRun('flag', levelDone)) this.updateFlag(delta);
     this.updateOutcome(delta);
     this.emitWaveState();
     this.updateHud(delta);
@@ -2903,16 +2937,30 @@ export class GameplayScene extends Phaser.Scene {
     };
   }
 
+  /**
+   * Advances rounds fired at the tank — `handleEnemyBullets` (`:1474`).
+   *
+   * Runs after a level resolves, but only halfway. `:1492` moves every round
+   * unconditionally and ages it; everything after that sits inside
+   * `else if(!levelDone)` at `:1520` — the homing, the shield reflect and the
+   * hit on the tank. So a resolved level leaves enemy fire flying and fading
+   * out harmlessly rather than freezing it mid-air or letting it strike a tank
+   * the player can no longer steer.
+   */
   private advanceEnemyBullets(deltaMs: number): void {
     if (this.enemyBullets.length === 0) return;
+
+    const levelDone = this.outcome.result !== null;
 
     const surviving: typeof this.enemyBullets = [];
     const tank = { x: this.player.x, y: this.player.y, radius: this.player.radius };
 
     for (const entry of this.enemyBullets) {
       // Homing runs before the move, as it does in the AS3 — the round turns,
-      // then travels along the new heading in the same frame.
-      if (entry.turnRate !== null) {
+      // then travels along the new heading in the same frame. Gated: `:1522`
+      // is inside the `!levelDone` branch, so a resolved level stops rounds
+      // seeking without stopping them travelling.
+      if (entry.turnRate !== null && shouldRun('enemyBulletSeeking', levelDone)) {
         entry.state = homeTowardTank(
           entry.state,
           this.player.active ? { x: this.player.x, y: this.player.y } : null,
@@ -2936,7 +2984,15 @@ export class GameplayScene extends Phaser.Scene {
       // `:1555` — a reflected round is invisible to the tank for the rest of
       // its short life, which is what stops it coming straight back.
       const reach = isReflectable(entry.bulletClass) ? shieldRadiusMultiplier(this.shield) : 1;
-      if (!next.reflected && hitsTank(next, tank, reach)) {
+      // `:1520` — no tank collision at all once the level is done. On defeat
+      // the AS3 has already removed the tank from the display list (`:2781`),
+      // so there is nothing to hit; on a win it is still there and this is
+      // what stops a round landing after the player has already won.
+      if (
+        shouldRun('enemyBulletHitsTank', levelDone) &&
+        !next.reflected &&
+        hitsTank(next, tank, reach)
+      ) {
         // `:1557` — one condition, two entrances. The Trap's mine is exempt
         // from both the doubled reach and the turn-away: it is not a projectile
         // that can be batted aside.
@@ -3171,14 +3227,17 @@ export class GameplayScene extends Phaser.Scene {
       });
       // Stop simulating; the result overlay owns the screen from here.
       //
-      // **A divergence, not a port.** The AS3 keeps its loop running and gates
-      // only the gameplay half on `levelDone` (`:2839`), which is why
-      // `handleParticles`, `handleExplosions` and `handleMoney` sit outside
-      // that gate — debris settles and loose coins can still be collected under
-      // the results screen. Pausing freezes all three. Recorded rather than
-      // fixed here because unpausing is not a particle change: enemies would
-      // keep moving and firing beneath the overlay, and `ui:goto` resumes
-      // before restarting on the assumption the scene is paused.
+      // **This is the right place, and it was checked rather than assumed.**
+      // It fires at `outcome.finished`, not at `outcome.result` — the AS3's two
+      // stages, and this is the later one. `levelDoneFunction` (`:667`) waits
+      // for the loose money and a 15-frame timer, then sets
+      // `Main.changeScreen = "Status"` and leaves the gameplay screen
+      // altogether. The original never draws its results screen over a live
+      // scene, so pausing here is the closest analogue available.
+      //
+      // The window this port used to get wrong is the one *before* this, where
+      // it ran everything and the AS3 runs about half. `waves/levelDoneGate.ts`
+      // now holds that partition.
       this.scene.pause();
     }
   }

@@ -71,7 +71,16 @@ describe('a reflected bullet cannot hit the tank again', () => {
 
     expect(turned.reflected).toBe(true);
     expect(hitsTank(turned, TANK, 2)).toBe(true);
-    expect(SCENE).toContain('if (!next.reflected && hitsTank(next, tank, reach))');
+
+    // Source-shape check: this proves the guard is *written*, never that it is
+    // reached. It broke when T35 added `!levelDone &&` to the same condition —
+    // a correct change that this could only report as a failure, which is the
+    // known cost of pinning a spelling. Matched on the two operands that carry
+    // the rule instead of on the whole line, so an unrelated condition joining
+    // the `&&` chain no longer trips it while a dropped `reflected` still does.
+    const guard = SCENE.slice(SCENE.indexOf('const reach = isReflectable('));
+    expect(guard).toContain('!next.reflected');
+    expect(guard).toContain('hitsTank(next, tank, reach)');
   });
 
   it('survives the frame rather than being destroyed', () => {
