@@ -34,16 +34,30 @@ describe('removeEnemy', () => {
 
     // Matched against calls, not prose — the comment above the guard names
     // `registerEnemyKilled` and would otherwise match first.
-    for (const marker of ['this.currency +=', 'this.kills += 1', 'registerEnemyKilled(this.']) {
+    // `this.currency +=` was on this list until T36. It is no longer a side
+    // effect of `removeEnemy`: the AS3 never credits money on a kill, it drops
+    // coins the player collects (`:6842`), so the payout moved to `updateCoins`
+    // and `this.dropCoins(` is the drop's side effect in its place.
+    for (const marker of ['this.dropCoins(', 'this.kills += 1', 'registerEnemyKilled(this.']) {
       const at = body.indexOf(marker);
       expect(at, `${marker} must sit after the guard`).toBeGreaterThan(guard);
     }
   });
 
-  it('counts the kill and pays out together', () => {
-    // Both are once-per-enemy and belong to the same branch; splitting them is
-    // how they drifted apart.
-    expect(body).toMatch(/if \(payMoney\)[\s\S]*this\.kills \+= 1[\s\S]*this\.currency \+=/);
+  it('counts the kill inside the payMoney branch and drops coins outside it', () => {
+    // **This assertion was replaced, not repaired.** It used to require
+    // `this.kills += 1` and `this.currency +=` in the same `if (payMoney)`
+    // branch, which described the port's placeholder — money credited straight
+    // to the balance on a kill. The AS3 has no such payout: `:6842` scatters
+    // coins and `handleMoney` banks them on pickup, which is also what the
+    // level-done wait exists for.
+    //
+    // The rule that survives is narrower and is genuinely the AS3's: the kill
+    // *count* sits inside the `noMoney` branch, and the drop is a separate
+    // call whose own conditions live in `dropAmount`. Source-shape check — it
+    // proves the calls are written in that order, never that either is reached.
+    expect(body).toMatch(/if \(payMoney\)[\s\S]*this\.kills \+= 1[\s\S]*this\.dropCoins\(/);
+    expect(body).not.toContain('this.currency +=');
   });
 });
 

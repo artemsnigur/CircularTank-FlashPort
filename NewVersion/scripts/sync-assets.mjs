@@ -170,6 +170,26 @@ const CURATED_SHAPES = new Set([
   '1411.svg',
   '1413.svg',
 
+  // Coin art (T36) — ItemMoney's fifteen frames, five bodies and ten numerals.
+  '941.svg',
+  '942.svg',
+  '943.svg',
+  '944.svg',
+  '945.svg',
+  '946.svg',
+  '947.svg',
+  '948.svg',
+  '949.svg',
+  '950.svg',
+  '951.svg',
+  '952.svg',
+  '953.svg',
+  '954.svg',
+  '955.svg',
+  '956.svg',
+  '957.svg',
+  '958.svg',
+
   // Background props — 21 BGObject clips, one shape per variant frame.
   // Generated from assets.swf: each DefineSprite frame places exactly one
   // DefineShape, and these are those shapes. See levels/propArt.ts.

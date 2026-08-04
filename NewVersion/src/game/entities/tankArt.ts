@@ -43,6 +43,16 @@ export const TANK_SYMBOLS = { body: 5, tower: 18, shield: 212 } as const;
  *
  * Frame 2 is Tower mode, where the tank is fixed in place and the AS3 swaps the
  * body art for it. Frame 1 is every other mode.
+ *
+ * **Frame 2 is a two-layer frame, and this array does not express that.** The
+ * sprite's display list on frame 2 is `[4, 3]` — shape 4 is added at a second
+ * depth while the frame-1 body stays underneath. Every other clip in this port
+ * replaces its single shape, which is why the flat array works everywhere else.
+ * Nothing is wrong today because only `TANK_BODY_FRAMES[0]` is read; the port
+ * has no Tower-mode body switch yet. **Whoever wires one must draw both shapes,
+ * not just shape 4.** Found in T36 while correcting the frame parser — the
+ * earlier one recorded "shapes placed on this frame" rather than the
+ * accumulated display list, which is not what a frame shows.
  */
 export const TANK_BODY_FRAMES: readonly number[] = [3, 4];
 

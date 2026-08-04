@@ -23,6 +23,9 @@ import { Enemy } from '../entities/Enemy';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
+import { dropAmount, spawnMoney, tickCoin } from '../items/money';
+import type { Coin } from '../items/money';
+import { MONEY_CLIPS, coinRadius } from '../items/moneyArt';
 import { nextLevelAfter } from '../levels/levelProgress';
 import { groundFor } from '../levels/groundTexture';
 import type { LevelSpec } from '../levels/levelData';
@@ -212,6 +215,8 @@ const GRENADE_DEPTH = 1;
 const HAZARD_DEPTH = 0;
 /** Above the tank and enemies — debris reads as being in front. */
 const PARTICLE_DEPTH = 14;
+/** Coins sit under the tank and particles, above the ground. */
+const MONEY_DEPTH = 6;
 /** `:3366` — `poisonParticleTimerMax`. */
 const POISON_PARTICLE_FRAMES = 3;
 /** Just above the ground tile, below anything that moves. */
@@ -472,6 +477,13 @@ export class GameplayScene extends Phaser.Scene {
    * bomb blasts use.
    */
   private pendingDeathBlasts: ExplosionSpec[] = [];
+  /**
+   * Loose coins — `moneyArray`. Read by `moneyOnFloor`, which is what
+   * `levelDoneFunction` (`:667`) waits on before the results screen.
+   */
+  private coins: Coin[] = [];
+  private coinSprites: Phaser.GameObjects.Container[] = [];
+
   /** Live particles, and a sprite pool indexed alongside them. */
   private particles: Particle[] = [];
   private particleSprites: Phaser.GameObjects.Image[] = [];
@@ -659,6 +671,8 @@ export class GameplayScene extends Phaser.Scene {
     this.pendingDeathBlasts = [];
     this.particles = [];
     this.particleSprites = [];
+    this.coins = [];
+    this.coinSprites = [];
     this.hp = TANK_MAX_HP;
     this.pushedFrames = 0;
     // `resetTempVariables("LevelStart")` — three of these start true.
@@ -914,6 +928,10 @@ export class GameplayScene extends Phaser.Scene {
     // the scene was paused outright the moment a level resolved — see
     // `waves/levelDoneGate.ts` for the partition, and A0 in the audit.
     this.updateParticles();
+
+    // `:2840` — outside the gate, next to the particles and for the same
+    // reason. Collection is what the handover is waiting on.
+    this.updateCoins(delta);
 
     // `:2833` — `handleEnemies` is inside the gate, and it is the largest
     // thing in there. Enemy movement, firing, contact damage, the status
@@ -2140,6 +2158,91 @@ export class GameplayScene extends Phaser.Scene {
    * Called unconditionally, including after the level has resolved. See the
    * call site for why that placement is the specification rather than a detail.
    */
+
+  /**
+   * Scatters a drop — `spawnMoney` (`:352`).
+   *
+   * A zero or negative amount is the ordinary case, not an error: contact
+   * kills, Flag levels and a drop taken on the frame the tank died all resolve
+   * to nothing.
+   */
+  private dropCoins(amount: number, x: number, y: number, distance: number): void {
+    if (amount <= 0) return;
+
+    const made = spawnMoney({
+      amount,
+      x,
+      y,
+      // `:626` — a kill drop launches; only the flag reward passes false.
+      move: true,
+      distance,
+      evenRing: this.levelSpec?.mode === 'Flag',
+      radiusFor: coinRadius,
+    });
+    this.coins = [...this.coins, ...made];
+
+    for (const coin of made) {
+      const clip = MONEY_CLIPS[coin.value];
+      const container = this.add.container(coin.x, coin.y).setDepth(MONEY_DEPTH);
+      if (clip) {
+        container.add(
+          this.add.image(0, 0, `unit-${clip.body}`).setDisplaySize(clip.size, clip.size),
+        );
+        // The numeral is a second shape on its own depth — see `moneyArt.ts`.
+        // Drawn at its own authored size rather than scaled to the body, which
+        // is what keeps 100 and 500 legible on the same disc.
+        if (clip.overlay !== null) {
+          container.add(this.add.image(0, 0, `unit-${clip.overlay}`));
+        }
+      }
+      this.coinSprites.push(container);
+    }
+  }
+
+  /**
+   * Moves and collects coins — `handleMoney` (`:2130`).
+   *
+   * Runs outside the level-done gate (`:2840`), which is the entire reason the
+   * handover wait works: after the last enemy dies the player can still drive
+   * around picking coins up, and the results screen holds until the floor is
+   * clear. See `waves/levelDoneGate.ts`.
+   */
+  private updateCoins(deltaMs: number): void {
+    if (this.coins.length === 0) return;
+
+    // 30, matching every other frame conversion in this scene.
+    const frames = (deltaMs / 1000) * 30;
+    const tank = { x: this.player.x, y: this.player.y, radius: this.player.radius };
+    const bounds = { roomWidth: this.roomWidth, roomHeight: this.roomHeight };
+
+    const surviving: Coin[] = [];
+    const survivingSprites: Phaser.GameObjects.Container[] = [];
+    let banked = 0;
+
+    for (let i = 0; i < this.coins.length; i += 1) {
+      const sprite = this.coinSprites[i];
+      const step = tickCoin(this.coins[i], tank, bounds, frames);
+
+      if (!step.coin) {
+        banked += step.collected;
+        sprite?.destroy();
+        continue;
+      }
+      sprite?.setPosition(step.coin.x, step.coin.y);
+      surviving.push(step.coin);
+      if (sprite) survivingSprites.push(sprite);
+    }
+
+    this.coins = surviving;
+    this.coinSprites = survivingSprites;
+
+    if (banked > 0) {
+      this.currency += banked;
+      getSoundManager(this)?.queue('Coin');
+      GameEvents.emit('currency:earned', { amount: banked, total: this.currency });
+    }
+  }
+
   private updateParticles(): void {
     this.particles = tickParticles(this.particles);
 
@@ -3136,7 +3239,10 @@ export class GameplayScene extends Phaser.Scene {
         // That board has since been deleted outright; this zero survives it,
         // because the reason for the zero is that `ItemMoney` is unported.
         // Restore the real count when drops become collectable objects.
-        moneyOnFloor: 0,
+        // A real reader at last. `:662` counts the loose `ItemMoney`, and the
+        // handover waits on it — so a level that has resolved holds the results
+        // screen while coins are still being hoovered up.
+        moneyOnFloor: this.coins.length,
       },
       deltaMs,
     );
@@ -3558,13 +3664,28 @@ export class GameplayScene extends Phaser.Scene {
       // false — a suicide attack pays nothing and is not a kill.
       this.kills += 1;
       getSoundManager(this)?.queue('EnemySquish');
-      // Money is the enemy's own reward value, already scaled by tier.
-      this.currency += enemy.stats.money;
-      GameEvents.emit('currency:earned', {
-        amount: enemy.stats.money,
-        total: this.currency,
-      });
     }
+
+    // `:6842` — the drop. Scattered as coins the player must collect, not
+    // credited outright: this used to add `enemy.stats.money` straight to the
+    // balance, which skipped the pickup entirely *and* made the level-done
+    // wait vacuous, since there was never anything on the floor to wait for.
+    //
+    // `dropAmount` carries the two AS3 branches — Flag levels pay nothing on a
+    // kill, and in Boss levels only the boss pays full — plus the `hp == 0`
+    // zeroing from inside `spawnMoney` (`:368`).
+    this.dropCoins(
+      dropAmount({
+        money: enemy.stats.money,
+        isBoss: enemy.enemyLevel === 'B',
+        mode: this.levelSpec?.mode ?? 'Normal',
+        reachedTank: !payMoney,
+        tankHp: this.hp,
+      }),
+      enemy.x,
+      enemy.y,
+      enemy.radius,
+    );
 
     // `:6849` — Kill Reload, and note where it sits: **outside** the `noMoney`
     // gate the payout above is inside (`:6842`). So a contact suicide, which

@@ -33,7 +33,7 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
@@ -41,6 +41,7 @@ function parseArgs(argv) {
     if (argv[i] === '--save') args.save = true;
     if (argv[i] === '--slots') args.slots = true;
     if (argv[i] === '--particles') args.particles = true;
+    if (argv[i] === '--money') args.money = true;
   }
   return args;
 }
@@ -288,6 +289,74 @@ if (args.slots) {
 
 if (args.save) {
   await saveRoundTrip();
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
+
+if (args.money) {
+  // Coins: the drop, the collect, and the wait.
+  //
+  // The last is the point and no unit test reaches it. `levelDoneFunction`
+  // (`:667`) holds the results screen while loose money is on the floor, so
+  // the sequence to capture is: last enemy dies -> coins scattered, no overlay
+  // -> tank hoovers them up -> overlay arrives. Until this pass `moneyOnFloor`
+  // was hardcoded 0 and that wait could never fire.
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /all-enemy test level/i }).click();
+  await delay(9000);
+
+  // Kill something at close range and photograph the drop immediately — coins
+  // are pulled toward the tank from anywhere with no range limit, so they do
+  // not sit still to be photographed later.
+  await page.locator('canvas').hover({ position: { x: 700, y: 400 } });
+  await page.mouse.move(700, 400);
+  await page.mouse.down();
+  await burst('m-01-drop', 10, 120);
+  await page.mouse.up();
+  await burst('m-02-collect', 10, 120);
+
+  // Now a real level played to a finish, which is where the wait matters.
+  //
+  // Mirrors `saveRoundTrip`'s fight exactly — a sequential sweep with the
+  // button held — because that one demonstrably clears 1-1 and two other
+  // shapes did not. Both failures read as "the level never resolved" and both
+  // were the harness.
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await delay(2200);
+
+  await page.locator('canvas').hover({ position: { x: 900, y: 400 } });
+  await page.mouse.down();
+
+  // Capture through the fight rather than after it: the sequence worth having
+  // is coins on the floor with the level already decided, then the overlay.
+  // Poll the arena counter, not the overlay text. The results stack **opens on
+  // its last page** (`Hud.tsx:135`), so on a first clear it shows "NEW ENEMY"
+  // and a /level cleared/ predicate never matches — that reported a working
+  // game as a 120s timeout twice before the frames said otherwise.
+  let cleared = false;
+  for (let i = 0; i < 90 && !cleared; i += 1) {
+    const a = (i / 8) * Math.PI * 2;
+    await page.mouse.move(640 + Math.cos(a) * 280, 400 + Math.sin(a) * 280);
+    await delay(400);
+    cleared = (await page.getByText(/^0 LEFT$/i).count()) > 0;
+    if (i % 6 === 0) await shot(`m-03-fight-${String(i).padStart(2, '0')}`);
+  }
+  console.log(`[look] arena cleared: ${cleared}`);
+
+  // The window, caught the moment the arena empties: level decided, coins
+  // still loose, overlay not yet up. 80ms so several frames land inside it.
+  await burst('m-04-wait', 14, 80);
+  const resolved = (await page.getByRole('dialog', { name: /level results/i }).count()) > 0;
+  console.log(`[look] results screen reached: ${resolved}`);
+  await page.mouse.up();
+  await shot('m-03-transition');
+
+  console.log(`[look] frames -> ${args.out}`);
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
   await browser.close();
   stop();
