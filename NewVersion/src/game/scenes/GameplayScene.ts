@@ -25,6 +25,7 @@ import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
 import { isAudibleAt } from '../audio/onScreenGate';
 import { musicForMode } from '../audio/musicCue';
+import { secondaryReloadRuns, tutorialHoldsPlay } from '../tutorial/tutorialGates';
 import { bombIndicatorView, medicRingScale } from '../effects/indicators';
 import { dropAmount, spawnMoney, tickCoin } from '../items/money';
 import type { Coin } from '../items/money';
@@ -1286,7 +1287,10 @@ export class GameplayScene extends Phaser.Scene {
 
     const random = (): number => this.spawnRng.frac();
 
-    tickWave(wave, deltaMs);
+    // `:7153` — the tutorial holds spawning until the player has fired. Passed
+    // into `tickWave` rather than wrapped around it, so the rule lives with the
+    // timer it modifies. Inert whenever the tutorial is off or past AimShoot.
+    tickWave(wave, deltaMs, tutorialHoldsPlay(this.profile.tutorial));
 
     if (canSpawn(wave)) {
       const drawn = drawEnemy(wave, { countsByType: this.livePopulation() }, random);
@@ -2826,8 +2830,13 @@ export class GameplayScene extends Phaser.Scene {
     // `:4262` — the sound fires on the frame the counter *reaches* zero, not
     // on every frame it sits there, so the transition has to be observed
     // across the tick rather than tested after it.
+    // `:4259` — the secondary's reload does not run until AimShoot is done, so
+    // a player still being told to shoot cannot have a special ready. Reads as
+    // a permission rather than a negation; see `tutorial/tutorialGates.ts`.
     const reloadingBefore = this.secondaryFiring.reloadTime > 0;
-    tickFiring(this.secondaryFiring, deltaMs);
+    if (secondaryReloadRuns(this.profile.tutorial)) {
+      tickFiring(this.secondaryFiring, deltaMs);
+    }
     if (reloadingBefore && this.secondaryFiring.reloadTime <= 0) {
       getSoundManager(this)?.queue('SpecialReloaded');
     }

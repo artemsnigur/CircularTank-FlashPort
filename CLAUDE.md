@@ -317,7 +317,14 @@ session. That is exactly the kind of thing that dies on the first cold start, so
    read: several scoping passes in a row corrected something the previous one got
    wrong. Where a behaviour is genuinely ambiguous in the source, say so and record
    both readings; do not resolve it by observing what the port currently does.
-2. **Pin an assertion against its counterpart, not alone.** Ice against lava, kill
+2. **Pin an assertion against its counterpart, not alone.** *(Sharpened, T46:
+   for a **negative** assertion, drive its opposite on the **identical
+   context**. "Nothing satisfies anything" passing is what makes a negative
+   worthless — `expect(actionSatisfies('Strength', everything)).toBe(false)` is
+   proved by nothing until `expect(actionSatisfies('Special', everything))
+   .toBe(true)` sits beside it on that same input. Every carve-out in the
+   tutorial's exit half was pinned this way, and the same shape separates a
+   gate that never engages from one that never releases.)* Ice against lava, kill
    reload against the ordinary reload, a bear's bounce against a cheese's. A rule
    asserted in isolation reads as arbitrary and survives a change that blurs it into
    its neighbour; the same rule asserted beside the thing it is *not* fails loudly.

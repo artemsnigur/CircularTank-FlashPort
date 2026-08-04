@@ -20,6 +20,7 @@
  */
 
 import type { LevelMode, LevelSpec } from '../levels/levelData';
+import { HELD_SPAWN_RELOAD } from '../tutorial/tutorialGates';
 import type { EnemyLevel } from '../config/constants';
 
 /** ScreenGame.as:45 — hard cap on enemies alive plus pending. */
@@ -59,6 +60,23 @@ export interface WaveState {
   /** AS3 `ScreenGame.flagsLeft` — flags still to capture on a Flag level. */
   flagsLeft: number;
   /** True once the level's opening countdown has finished. */
+  /**
+   * `PartGameArea.countDownDone` — true once the pre-level countdown finishes.
+   *
+   * **Read by `spawnPlacement` and never written by this port**, because the
+   * countdown itself is unported. It therefore sits permanently false, which
+   * is the *pre-countdown* state — every level behaves as though its countdown
+   * were still running.
+   *
+   * `PartInterface.as:288` is the one place the AS3 sets it early: on world 1
+   * level 1, for a tutorial that is on, incomplete and has done nothing yet,
+   * the countdown is skipped outright and this is forced true. That line was
+   * in scope for T47 and **deliberately not wired**: it is a gate of the same
+   * shape as the other two, but it entangles with an unported countdown rather
+   * than with the tutorial, and setting it would change spawn placement on 1-1
+   * for reasons that have nothing to do with the tutorial. It belongs with
+   * whichever pass ports the countdown.
+   */
   countDownDone: boolean;
 }
 
@@ -271,8 +289,23 @@ export function registerEnemyKilled(state: WaveState, wasBoss = false): void {
   if (wasBoss) state.bossAmountKilled += 1;
 }
 
-/** Advances the spawn timer. Call once per frame. */
-export function tickWave(state: WaveState, deltaMs: number): void {
+/**
+ * Advances the spawn timer. Call once per frame.
+ *
+ * `hold` is the tutorial's gate (`:7153`), applied **here rather than at the
+ * call site** so it cannot leak onto branches it was never meant to touch —
+ * the `levelDoneGate` lesson. It pins the countdown one frame above the
+ * threshold instead of suppressing the spawn, which is what makes release
+ * immediate; see `tutorial/tutorialGates.ts` for why that difference matters.
+ *
+ * Defaults to false, so every existing caller and every player with the
+ * tutorial off is unchanged.
+ */
+export function tickWave(state: WaveState, deltaMs: number, hold = false): void {
+  if (hold) {
+    state.reloadTimeEnemy = HELD_SPAWN_RELOAD;
+    return;
+  }
   const frames = (deltaMs / 1000) * AS3_FPS;
   state.reloadTimeEnemy = Math.max(0, state.reloadTimeEnemy - frames);
 }
