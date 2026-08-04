@@ -55,7 +55,13 @@ export function installSoundManager(scene: Phaser.Scene): Installed {
   };
   scene.game.events.on(Phaser.Core.Events.PRE_STEP, tick);
 
+  // The UI's hover/click sounds arrive here rather than calling `queue`
+  // directly, because React holds no `Scene`. One subscriber for all 39
+  // controls — see `ui/buttonSounds.ts` for why it is delegated.
+  const offUiSound = GameEvents.subscribe('ui:sound', ({ name }) => manager.queue(name));
+
   const dispose = (): void => {
+    offUiSound();
     scene.game.events.off(Phaser.Core.Events.PRE_STEP, tick);
     backend.destroy();
     scene.game.registry.remove(SOUND_REGISTRY_KEY);

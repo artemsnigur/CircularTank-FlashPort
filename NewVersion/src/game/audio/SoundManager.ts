@@ -38,6 +38,7 @@
  */
 
 import { LOOPS, MUSIC, SFX } from '../../assets/audioManifest';
+import { enableQueueHistory, publishQueueHistory, recordQueued } from './queueHistory';
 import type { MusicTrackName, SfxEntry } from '../../assets/audioManifest';
 
 /** SoundManager.as — the SWF runs at 30 fps (confirmed from the SWF header). */
@@ -131,6 +132,15 @@ export class SoundManager {
    *  scanning a parallel `sfxPlayedArray`, which is the same thing. */
   private readonly queued = new Set<string>();
 
+  /**
+   * Frames elapsed, so the history can express "in the same frame".
+   *
+   * Not a clock and not used for playback — it exists only so a caller can ask
+   * whether ten deaths in one frame produced one sound or ten, which is the
+   * dedup rule (`SoundManager.as:1080`) and the one most likely to fail quietly.
+   */
+  private frameCounter = 0;
+
   private currentMusic: MusicName = 'None';
   private changeMusic: MusicName = 'None';
   private currentMusicChannel: MusicChannel = 1;
@@ -145,6 +155,11 @@ export class SoundManager {
   private readonly loops: Record<LoopId, LoopState>;
 
   constructor({ backend, random = Math.random }: SoundManagerOptions) {
+    // DEV-AID: the queue history records nothing until this runs.
+    if (import.meta.env.DEV) {
+      enableQueueHistory();
+      publishQueueHistory();
+    }
     this.backend = backend;
     this.random = random;
 
@@ -181,7 +196,13 @@ export class SoundManager {
    * Safe to call repeatedly; it will still play once.
    */
   queue(name: string): void {
-    if (!this.sfxByName.has(name)) {
+    const resolved = this.sfxByName.has(name);
+    // DEV-AID: queue history, so a trigger is observable. Recorded *before* the
+    // early return, which is the whole point — an unresolved name is a row that
+    // says so rather than a console warning nobody reads.
+    recordQueued(name, resolved, this.frameCounter);
+
+    if (!resolved) {
       console.warn(`[SoundManager] Unknown sfx "${name}"; check audioManifest.ts.`);
       return;
     }
@@ -224,6 +245,7 @@ export class SoundManager {
    * control built before this would have flipped a flag and changed nothing.
    */
   update(deltaMs: number): void {
+    this.frameCounter += 1;
     this.playSounds();
     this.handleMusicChange(deltaMs);
     this.handleLoops(deltaMs);

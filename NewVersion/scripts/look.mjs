@@ -33,7 +33,7 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
@@ -43,6 +43,7 @@ function parseArgs(argv) {
     if (argv[i] === '--particles') args.particles = true;
     if (argv[i] === '--money') args.money = true;
     if (argv[i] === '--baseline') args.baseline = true;
+    if (argv[i] === '--sound') args.sound = true;
   }
   return args;
 }
@@ -290,6 +291,91 @@ if (args.slots) {
 
 if (args.save) {
   await saveRoundTrip();
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
+
+if (args.sound) {
+  // The driven proof for sound triggers.
+  //
+  // **What this shows and what it does not.** A row in the queue history means
+  // the call site was reached with a name the manifest resolves. It does NOT
+  // mean anything was audible — volume, mute and a suspended AudioContext all
+  // leave the history identical, and `audioSelfTest` is the check for that.
+  // Report both claims separately or neither is worth much.
+  const q = async (fn) => page.evaluate(fn);
+  const names = () => q(() => globalThis.__soundQueue?.names() ?? null);
+  const unresolved = () => q(() => globalThis.__soundQueue?.unresolved() ?? null);
+  const peak = (n) => page.evaluate((name) => globalThis.__soundQueue?.peakPerFrame(name) ?? -1, n);
+  const clear = () => q(() => globalThis.__soundQueue?.clear());
+
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+
+  if ((await names()) === null) {
+    console.log('[look] FAIL: globalThis.__soundQueue is absent — the aid did not install');
+  } else {
+    console.log('[look] queue history installed');
+  }
+
+  // A menu interaction, step by step, clearing between so each step's
+  // contribution is unambiguous rather than inferred from a growing list.
+  await clear();
+  await page.getByRole('button', { name: /save slots/i }).hover();
+  await delay(250);
+  console.log(`[look] after hover:        ${JSON.stringify(await names())}`);
+
+  // Hovering the same control again must NOT retrigger — the delegated
+  // listener tracks the last-hovered element for exactly this.
+  await page.getByRole('button', { name: /save slots/i }).hover();
+  await delay(250);
+  console.log(`[look] after re-hover:     ${JSON.stringify(await names())}`);
+
+  await clear();
+  await page.getByRole('button', { name: /save slots/i }).click();
+  await delay(400);
+  console.log(`[look] after click:        ${JSON.stringify(await names())}`);
+
+  // The opt-out: the diagnostics panel is a dev aid and must stay silent.
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await clear();
+  const diag = page.getByRole('button', { name: /diagnostics/i });
+  if ((await diag.count()) > 0) {
+    await diag.first().hover();
+    await delay(200);
+    await diag.first().click();
+    await delay(300);
+    console.log(`[look] after diagnostics:  ${JSON.stringify(await names())}  (expected [])`);
+  }
+
+  // Gameplay, for the dedup number. Many enemies die in a short window; a
+  // per-frame peak above 1 for a once-per-frame trigger is the over-firing
+  // defect the frame dedup is supposed to make impossible.
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /all-enemy test level/i }).click();
+  await delay(9000);
+  await clear();
+  await page.locator('canvas').hover({ position: { x: 700, y: 400 } });
+  await page.mouse.down();
+  for (let i = 0; i < 16; i += 1) {
+    const a = (i / 8) * Math.PI * 2;
+    await page.mouse.move(640 + Math.cos(a) * 200, 400 + Math.sin(a) * 200);
+    await delay(300);
+  }
+  await page.mouse.up();
+
+  const fired = await names();
+  const counts = {};
+  for (const n of fired ?? []) counts[n] = (counts[n] ?? 0) + 1;
+  console.log(`[look] gameplay triggers:  ${JSON.stringify(counts)}`);
+  console.log(`[look] peak/frame EnemySquish: ${await peak('EnemySquish')} (1 = dedup holding)`);
+  console.log(`[look] peak/frame Coin:        ${await peak('Coin')}`);
+  console.log(`[look] unresolved names:   ${JSON.stringify(await unresolved())}  (expected [])`);
+
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
   await browser.close();
   stop();

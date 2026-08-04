@@ -67,7 +67,7 @@ export function DiagnosticsPanel(): React.ReactElement | null {
 
   if (!open) {
     return (
-      <button type="button" className="diag__toggle" onClick={() => setOpen(true)}>
+      <button data-silent type="button" className="diag__toggle" onClick={() => setOpen(true)}>
         diagnostics
       </button>
     );
@@ -77,7 +77,7 @@ export function DiagnosticsPanel(): React.ReactElement | null {
     <aside className="diag">
       <header className="diag__head">
         <strong>Pipeline diagnostics</strong>
-        <button type="button" className="diag__close" onClick={() => setOpen(false)}>
+        <button data-silent type="button" className="diag__close" onClick={() => setOpen(false)}>
           ×
         </button>
       </header>
@@ -170,6 +170,7 @@ export function DiagnosticsPanel(): React.ReactElement | null {
           <p className="diag__empty">Tap once to unlock audio and run the self-test.</p>
         )}
         <button
+          data-silent
           type="button"
           className="menu__button menu__button--ghost"
           onClick={() => GameEvents.emit('ui:run-audio-selftest', {})}

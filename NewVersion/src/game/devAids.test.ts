@@ -34,6 +34,8 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
   'src/ui/screens/UpgradesScreen.tsx': ['catalogue top-up'],
   'src/ui/DiagnosticsPanel.tsx': ['pipeline diagnostics panel'],
   'src/game/events/GameEvents.ts': ['dev money event'],
+  'src/game/audio/queueHistory.ts': ['sound queue history'],
+  'src/game/audio/SoundManager.ts': ['queue history record', 'queue history enable'],
 };
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
@@ -66,6 +68,8 @@ describe('dev aids are enumerable', () => {
     // Not a style rule. The reason these are recorded is that they must all go
     // before release, and a set nobody can enumerate never does.
     const total = Object.values(DEV_AIDS).reduce((n, xs) => n + xs.length, 0);
-    expect(total).toBe(11);
+    // 11 until T39, which added three: the sound queue history and the two
+    // hooks in `SoundManager` that feed it.
+    expect(total).toBe(14);
   });
 });

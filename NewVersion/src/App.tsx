@@ -8,6 +8,8 @@ import { UpgradesScreen } from './ui/screens/UpgradesScreen';
 import { EnemiesScreen } from './ui/screens/EnemiesScreen';
 import { BestiaryScreen } from './ui/screens/BestiaryScreen';
 import { DiagnosticsPanel } from './ui/DiagnosticsPanel';
+import { installButtonSounds } from './ui/buttonSounds';
+import { useEffect, useRef } from 'react';
 
 /**
  * App shell.
@@ -21,10 +23,25 @@ import { DiagnosticsPanel } from './ui/DiagnosticsPanel';
  * live game without stealing input from it.
  */
 export function App(): React.ReactElement {
+  const overlay = useRef<HTMLDivElement>(null);
+
+  // One delegated pair of listeners for every DOM control in the tree. Not per
+  // button: the port has no shared button component, so coverage comes from
+  // position in the tree rather than from remembering to use a wrapper. See
+  // `ui/buttonSounds.ts`.
+  //
+  // In an effect rather than at module scope — unlike the bridge and the
+  // safe-area watcher, this needs the mounted node. StrictMode's double invoke
+  // is harmless because the cleanup removes the listeners it added.
+  useEffect(() => {
+    const node = overlay.current;
+    return node ? installButtonSounds(node) : undefined;
+  }, []);
+
   return (
     <div className="app">
       <GameCanvas />
-      <div className="app__overlay">
+      <div className="app__overlay" ref={overlay}>
         <LoadingScreen />
         <MainMenuScreen />
         <SaveSlotScreen />

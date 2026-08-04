@@ -280,6 +280,15 @@ export interface GameEventMap {
   'ui:equip-primary': { slot: 1 | 2; id: string };
   /** Equip an owned secondary — `ButtonEquip`. One slot, always occupied. */
   'ui:equip-secondary': { id: string };
+  /**
+   * A DOM control was hovered or clicked — `InterfaceButtonOver1` / `Click`.
+   *
+   * On the bus rather than called directly because **React must never hold a
+   * `Scene`**, and `getSoundManager` takes one. `soundService` subscribes at
+   * install time, where it already has the manager.
+   */
+  'ui:sound': { name: string };
+
   /** DEV-AID: top up the balance and persist it immediately. */
   'ui:dev-grant-money': { amount: number };
   /**
