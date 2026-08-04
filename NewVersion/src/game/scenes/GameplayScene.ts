@@ -24,6 +24,7 @@ import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/s
 import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
 import { isAudibleAt } from '../audio/onScreenGate';
+import { musicForMode } from '../audio/musicCue';
 import { dropAmount, spawnMoney, tickCoin } from '../items/money';
 import type { Coin } from '../items/money';
 import { MONEY_CLIPS, coinRadius } from '../items/moneyArt';
@@ -770,7 +771,11 @@ export class GameplayScene extends Phaser.Scene {
     // track names *are* the five LevelMode values. Five of the eight tracks
     // (Normal, Flag, Tower, Defense, Boss) had no call site at all before this,
     // so only Menu, Win and Lose were ever requested.
-    if (this.levelSpec) getSoundManager(this)?.setMusic(this.levelSpec.mode);
+    // `ScreenGame.as:378` — the track *is* the mode name. Routed through
+    // `musicForMode` rather than passing the mode straight through: the
+    // identity is a fact about the AS3 that should be checked, not an
+    // assumption the code leans on. See `audio/musicCue.ts`.
+    if (this.levelSpec) getSoundManager(this)?.setMusic(musicForMode(this.levelSpec.mode));
 
     this.setupCamera();
     this.setupInput();

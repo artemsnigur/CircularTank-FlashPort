@@ -216,6 +216,14 @@ export class SoundManager {
 
   /** `SoundManager.changeMusic = name` — requests a crossfade. */
   setMusic(name: MusicName): void {
+    // DEV-AID: music changes go into the same history as one-shots.
+    //
+    // They did not until T42, and the omission produced a clean wrong answer:
+    // all eight music names sat in the coverage sweep's NOT FIRED list while
+    // being fully wired, because the instrument could not see them. The list
+    // was read as "music is unported" twice. An instrument that observes only
+    // part of the thing it measures reports the rest as absent.
+    recordQueued(name, this.musicByName.has(name) || name === 'None', this.frameCounter);
     this.changeMusic = name;
     if (name !== 'None') {
       const file = this.musicByName.get(name);

@@ -362,6 +362,45 @@ if (args.soundSweep) {
     console.log(`[look] ${primary} + ${secondary}: ${fired.size} names so far`);
   }
 
+  // Isolated dev levels: thirty of one type, reached from the Enemies screen.
+  //
+  // This is the tool doing what it was built for. Six names — TeleportIn/Out,
+  // Freeze, BossCollision, TankShieldCollision, BottomCollision — need a
+  // particular enemy type or condition, and a mixed arena cannot guarantee
+  // any of them shows up in a short window.
+  for (const type of ['Teleporting', 'GrapplingHook', 'Shooting', 'Trap']) {
+    await page.goto(`${URL}?secondary=Ice%20Grenade&primary=Timed%20Bomb%20Cannon`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /enemy behaviour/i }).click();
+    await delay(900);
+    const row = page.locator('li', { hasText: type }).first();
+    const test = row.getByRole('button', { name: /test/i });
+    if ((await test.count()) === 0) {
+      console.log(`[look] no Test button for ${type} — skipped`);
+      continue;
+    }
+    await test.click();
+    await delay(6000);
+    await page.locator('canvas').hover({ position: { x: 760, y: 400 } });
+    await page.mouse.down();
+    for (let i = 0; i < 10; i += 1) {
+      const a = (i / 5) * Math.PI * 2;
+      await page.mouse.move(640 + Math.cos(a) * 200, 400 + Math.sin(a) * 200);
+      await delay(320);
+      if (i % 3 === 0) {
+        await page.keyboard.down('Space');
+        await delay(180);
+        await page.keyboard.up('Space');
+      }
+    }
+    await page.mouse.up();
+    await delay(600);
+    await collect();
+    console.log(`[look] isolated ${type}: ${fired.size} names so far`);
+  }
+
   // The dedup case, on its own page load and measured there.
   //
   // The history is per-page, so reading the peak after eight page loads read
