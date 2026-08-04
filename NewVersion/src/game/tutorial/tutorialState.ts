@@ -237,6 +237,44 @@ export function completeTutorial(state: TutorialState, id: TutorialId): Tutorial
   };
 }
 
+/**
+ * Whether a fresh player should have the tutorial on — `SaveManager.as:820`.
+ *
+ * **The rule is a sentinel in the options store, not in the save slot.**
+ * `initAndLoadOptions` tests `optionsSave.data.optionsInitiated == null`; if it
+ * is, this is a first run and the whole options block is written with defaults,
+ * `tutorialOn = true` among them. Otherwise every option is read back, tutorial
+ * included.
+ *
+ * Two consequences worth stating, because guessing either would be wrong:
+ *
+ * - **It is an *options* decision, not a progress one.** Deleting a save slot
+ *   does not restore the tutorial; clearing the options does. The three save
+ *   fields (`tau`, `taq`, `tad`) travel with the slot, but the on/off switch
+ *   does not.
+ * - **It is a preference the player can set**, and `ScreenOptions.as:286`
+ *   writes it from a checkbox. So "on" must survive being turned off, which is
+ *   why this returns a default for an uninitialised store rather than forcing
+ *   true whenever the tutorial is incomplete.
+ */
+export function tutorialDefaultOn(optionsInitiated: boolean): boolean {
+  return !optionsInitiated;
+}
+
+/**
+ * Applies the loaded preference — the `else` branch of `initAndLoadOptions`.
+ *
+ * Separate from `tutorialDefaultOn` so the first-run decision and the restore
+ * are not the same call: conflating them is how "on by default" quietly
+ * becomes "on again every launch".
+ */
+export function withTutorialEnabled(state: TutorialState, on: boolean): TutorialState {
+  // `:421` — once completed the AS3 has already set `tutorialOn = false`, and
+  // nothing turns it back on. A stored `true` from before completion must not
+  // resurrect it.
+  return { ...state, on: on && !state.completed };
+}
+
 /** True before any step has been completed — PartInterface.as:288. */
 export function isTutorialUntouched(state: TutorialState): boolean {
   return state.done.length === 0;
