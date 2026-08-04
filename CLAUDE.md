@@ -119,6 +119,23 @@ drifted string replace, a sub-frame key tap, an unowned weapon, a truncated grep
 screenshot taken 500 ms after a radial burst had already left the frame. **Where a claim
 matters, drive it and watch it.** `npm run look` exists for this.
 
+### A harness failure may be the harness, not the game
+
+`npm run look` encodes assumptions about the UI, so a **correct** UI change can break it.
+That has already happened: making the main menu hide while the slot picker is open — the
+right fix for a real layout defect — left the script unable to find the Play button,
+because it had opened the picker first. The run stopped, and the failure looked like the
+game.
+
+So when a harness step fails, establish which of the two moved before debugging either.
+The frames it captured up to that point usually say: if the game looks right in the last
+frame, suspect the script.
+
+Related, and the reason the harness exists at all: **a text assertion on UI proves the
+content exists, not that anyone can see it.** `allTextContents()` returned three correct
+slot rows while they sat off the bottom of the viewport behind the menu. Position,
+stacking and clipping are invisible to a DOM query.
+
 ### Never edit a doc with an unchecked string replace
 
 **Partly enforceable, and the enforcing part is available: use the `Edit` tool, which

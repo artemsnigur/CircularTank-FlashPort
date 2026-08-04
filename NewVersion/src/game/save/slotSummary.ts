@@ -65,3 +65,15 @@ export function summariseSlot(stores: SaveStores, slot: number): SlotSummary {
 export function summariseSlots(stores: SaveStores): SlotSummary[] {
   return SLOT_NUMBERS.map((slot) => summariseSlot(stores, slot));
 }
+
+/**
+ * Clears a slot — `ButtonGameSave` confirm on "Delete slot?" (`:453-462`).
+ *
+ * The AS3 calls `gameSave.clear()` on the slot's own SharedObject, which is why
+ * this drops the whole store rather than editing the save string: the store is
+ * the slot. `deleteFromSaveString` is the online path, and the port has no
+ * online saves.
+ */
+export function deleteSlot(stores: SaveStores, slot: number): void {
+  stores.slot(slot).clear();
+}

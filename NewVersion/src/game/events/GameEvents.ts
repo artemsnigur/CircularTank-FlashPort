@@ -241,6 +241,13 @@ export interface GameEventMap {
    * (`:110-134`), so neither is the screen's choice to make.
    */
   'ui:select-slot': { slot: number };
+  /**
+   * Confirmed "Delete slot?" — `ButtonGameSave` (`:453`).
+   *
+   * The confirmation itself is the row's own state and never leaves the screen;
+   * only the confirmed answer reaches the scene.
+   */
+  'ui:delete-slot': { slot: number };
   /** Open or close the slot picker — the AS3 shows it on the menu screen. */
   'ui:slot-picker': { open: boolean };
   /** Scene -> UI: one row per save slot. */

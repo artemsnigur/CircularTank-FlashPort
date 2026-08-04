@@ -260,6 +260,20 @@ async function slotScreen() {
   await delay(5000);
 
   await open('slots-2-occupied');
+
+  // Delete flow: the row flips to "Delete slot?" in place, then Confirm clears
+  // it and the row goes back to "New Game".
+  await page.getByRole('button', { name: /delete slot 1/i }).click();
+  await delay(400);
+  await shot('slots-3-confirm');
+  console.log('[look] confirming:',
+    (await page.locator('.slot-grid__cell').allTextContents()).map((t) => t.replace(/\s+/g, ' ').trim()).join(' // '));
+
+  await page.getByRole('button', { name: /^confirm$/i }).click();
+  await delay(600);
+  await shot('slots-4-deleted');
+  console.log('[look] after delete:',
+    (await page.locator('.slot-grid__cell').allTextContents()).map((t) => t.replace(/\s+/g, ' ').trim()).join(' // '));
 }
 
 if (args.slots) {

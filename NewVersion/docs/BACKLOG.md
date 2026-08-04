@@ -399,14 +399,18 @@ which two owned weapons are actually in the tank. The secondary has one slot.
       facts `ButtonGameSave.as:215-266` decides a button from, and both entry
       behaviours from `:110-134`: an occupied slot loads and goes to Level Select, an
       empty one starts a fresh game at 1-1.
-- [ ] **Per-slot delete.** `ButtonGameSave` carries a `bSaveDelete` child with its own
-      cursor handling (`:107`), so each slot can be cleared from the picker.
-      *Not in the original K description. Lift: small.*
-- [ ] **The "Overwrite?" confirmation page.** `makePage2("Overwrite?")` (`:141`) — the
-      button flips to a second page asking for confirmation before a non-empty slot is
-      replaced. The port currently overwrites without asking, which for a save screen is
-      the one interaction where a missing confirmation costs the player everything.
-      *Not in the original K description. Lift: small, and worth more than its size.*
+- [x] **Per-slot delete and its confirmation.** One flow, not two: `bSaveDelete`
+      (`:296`) opens `makePage2("Delete slot?")` (`:435`), and Confirm clears the slot
+      (`:453-462`). Built as the AS3 builds it — the row itself is replaced by the
+      question with Confirm and Cancel side by side, rather than a dialog over it.
+
+**A correction to this entry as it was first written.** It claimed the port "overwrites
+without asking" and cited `makePage2("Overwrite?")`. That is wrong on both counts.
+`"Overwrite?"` appears **only** when `ScreenMenu.convertingSaves` is true (`:140-144`) —
+a one-time migration from the old per-slot SharedObjects into the save-string format,
+which this port has no equivalent of and may never need. **Picking an occupied slot in
+the AS3 loads it; nothing is overwritten**, and the port does the same. The confirmation
+that exists in normal play is the delete one above.
 
 **Three corrections to the description above, found while porting the probe:**
 

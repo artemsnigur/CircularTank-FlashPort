@@ -9,12 +9,13 @@
 import Phaser from 'phaser';
 import { SceneKeys } from '../config/constants';
 import {
+  ACTIVE_SLOT,
   createPlayerProfile,
   getPlayerProfile,
   PROFILE_REGISTRY_KEY,
 } from '../player/playerProfile';
 import { SaveStores } from '../save/SaveStore';
-import { summariseSlot, summariseSlots } from '../save/slotSummary';
+import { deleteSlot, summariseSlot, summariseSlots } from '../save/slotSummary';
 import { readDifficulty } from '../levels/difficultyOption';
 import { getCurrentWorldAndLevel } from '../levels/levelProgress';
 import { SELECTABLE_WORLDS } from '../levels/levelUnlock';
@@ -108,6 +109,13 @@ export class MainMenuScene extends Phaser.Scene {
     const onResize = (): void => this.layout();
     GameEvents.on('viewport:changed', onResize);
     const offSlot = GameEvents.subscribe('ui:select-slot', ({ slot }) => this.selectSlot(slot));
+    const offDelete = GameEvents.subscribe('ui:delete-slot', ({ slot }) => {
+      deleteSlot(this.saveStores, slot);
+      this.publishSlots();
+      // The resume point is read from the active profile; clearing the slot it
+      // came from must not leave "Continue — Level 7" on a menu with no save.
+      if (slot === ACTIVE_SLOT) this.publishResumePoint();
+    });
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offStart();
@@ -115,6 +123,7 @@ export class MainMenuScene extends Phaser.Scene {
       offAudio();
       offSelfTest();
       offSlot();
+      offDelete();
       GameEvents.off('viewport:changed', onResize);
       GameEvents.emit('scene:shutdown', { key: SceneKeys.MainMenu });
     });

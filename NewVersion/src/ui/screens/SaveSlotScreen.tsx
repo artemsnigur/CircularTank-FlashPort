@@ -13,6 +13,7 @@
  * empty one starts a fresh game, is `MainMenuScene.selectSlot` reproducing
  * `onReleaseHandler` (`:110-134`). This renders `slotList` and emits a number.
  */
+import { useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 
@@ -23,6 +24,11 @@ export function SaveSlotScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
   const open = useGameStore((s) => s.slotPickerOpen);
   const slots = useGameStore((s) => s.slotList);
+
+  // Which row is asking "Delete slot?". The AS3 flips the button itself into a
+  // second page (`makePage2`, `:373`) rather than opening a dialog, so the
+  // confirmation is per-row state and never leaves this component.
+  const [confirming, setConfirming] = useState<number | null>(null);
 
   if (activeScene !== 'MainMenu' || !open) return null;
 
@@ -43,6 +49,38 @@ export function SaveSlotScreen(): React.ReactElement | null {
         {(slots ?? []).map((slot) => {
           // `:249` — a premium save is shown but not clickable without premium.
           const locked = slot.premium && !HAS_PREMIUM;
+
+          // `makePage2` clears the row's contents and shows the question with
+          // Confirm and Cancel side by side. Same shape here: the row is
+          // replaced, not covered.
+          if (confirming === slot.slot) {
+            return (
+              <li key={slot.slot}>
+                <div className="slot-grid__cell slot-grid__cell--confirm" role="group">
+                  <span className="slot-grid__title">Delete slot?</span>
+                  <span className="slot-grid__confirm-row">
+                    <button
+                      type="button"
+                      className="menu__button menu__button--primary"
+                      onClick={() => {
+                        GameEvents.emit('ui:delete-slot', { slot: slot.slot });
+                        setConfirming(null);
+                      }}
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      className="menu__button menu__button--ghost"
+                      onClick={() => setConfirming(null)}
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                </div>
+              </li>
+            );
+          }
 
           return (
             <li key={slot.slot}>
@@ -70,6 +108,19 @@ export function SaveSlotScreen(): React.ReactElement | null {
 
                 {locked && <span className="slot-grid__locked">Premium Required</span>}
               </button>
+
+              {/* `bSaveDelete` (`:296`) sits on the row, and `:107` makes the
+                  row's own click ignore presses that land on it. */}
+              {slot.hasData && (
+                <button
+                  type="button"
+                  className="slot-grid__delete"
+                  aria-label={`Delete slot ${slot.slot}`}
+                  onClick={() => setConfirming(slot.slot)}
+                >
+                  ✕
+                </button>
+              )}
             </li>
           );
         })}
