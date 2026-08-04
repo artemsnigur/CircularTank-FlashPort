@@ -25,6 +25,7 @@ import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
 import { isAudibleAt } from '../audio/onScreenGate';
 import { musicForMode } from '../audio/musicCue';
+import { bombIndicatorView, medicRingScale } from '../effects/indicators';
 import { dropAmount, spawnMoney, tickCoin } from '../items/money';
 import type { Coin } from '../items/money';
 import { MONEY_CLIPS, coinRadius } from '../items/moneyArt';
@@ -217,6 +218,12 @@ const GRENADE_DEPTH = 1;
 const HAZARD_DEPTH = 0;
 /** Above the tank and enemies — debris reads as being in front. */
 const PARTICLE_DEPTH = 14;
+/** `:2506` — `indicatorLayer`, above enemies and below particles. */
+const INDICATOR_DEPTH = 9;
+/** `WarningTimedBomb` frames: 1 ordinary, 2 boss. */
+const BOMB_MARKER_FRAMES = [370, 371] as const;
+/** `IndicatorMedic`'s single frame. */
+const MEDIC_RING_SHAPE = 1182;
 /** Coins sit under the tank and particles, above the ground. */
 const MONEY_DEPTH = 6;
 /** `:3366` — `poisonParticleTimerMax`. */
@@ -507,6 +514,19 @@ export class GameplayScene extends Phaser.Scene {
   private coins: Coin[] = [];
   private coinSprites: Phaser.GameObjects.Container[] = [];
 
+  /**
+   * Bomb markers, pooled — `enemyIndicatorArray` (`:2500`).
+   *
+   * The AS3 grows and shrinks the pool to match how many enemies carry a bomb,
+   * rather than owning one per enemy. Reproduced because it is what makes the
+   * markers independent of enemy lifetime: an enemy that dies mid-fuse simply
+   * stops being counted.
+   */
+  private bombMarkers: Phaser.GameObjects.Image[] = [];
+
+  /** Heal rings, one per living medic — `medicIndicatorArray` (`:2283`). */
+  private medicRings = new Map<Enemy, Phaser.GameObjects.Image>();
+
   /** Live particles, and a sprite pool indexed alongside them. */
   private particles: Particle[] = [];
   private particleSprites: Phaser.GameObjects.Image[] = [];
@@ -702,6 +722,8 @@ export class GameplayScene extends Phaser.Scene {
     this.particleSprites = [];
     this.coins = [];
     this.coinSprites = [];
+    this.bombMarkers = [];
+    this.medicRings = new Map();
     this.hp = TANK_MAX_HP;
     this.pushedFrames = 0;
     // `resetTempVariables("LevelStart")` — three of these start true.
@@ -960,6 +982,7 @@ export class GameplayScene extends Phaser.Scene {
     // side. Before the `levelDone` gate landed this was unreachable, because
     // the scene was paused outright the moment a level resolved — see
     // `waves/levelDoneGate.ts` for the partition, and A0 in the audit.
+    this.updateIndicators();
     this.updateParticles();
 
     // `:2840` — outside the gate, next to the particles and for the same
@@ -2283,6 +2306,68 @@ export class GameplayScene extends Phaser.Scene {
       this.currency += banked;
       getSoundManager(this)?.queue('Coin');
       GameEvents.emit('currency:earned', { amount: banked, total: this.currency });
+    }
+  }
+
+
+  /**
+   * Draws both on-enemy indicators — `:2478` and `:2279`.
+   *
+   * Outside the level-done gate, as the AS3 has them (`:2835`-`:2836`), so a
+   * bomb still counts down visibly under the results screen.
+   */
+  private updateIndicators(): void {
+    // `:2492` — count the hosts first, then size the pool to match. Markers are
+    // not owned by enemies; they are handed out each frame.
+    const hosts = this.enemies.filter((enemy) => enemy.status.gotBomb);
+
+    while (this.bombMarkers.length < hosts.length) {
+      this.bombMarkers.push(
+        this.add.image(0, 0, `unit-${BOMB_MARKER_FRAMES[0]}`).setDepth(INDICATOR_DEPTH),
+      );
+    }
+    while (this.bombMarkers.length > hosts.length) {
+      this.bombMarkers.pop()?.destroy();
+    }
+
+    hosts.forEach((enemy, i) => {
+      const marker = this.bombMarkers[i];
+      const view = bombIndicatorView({
+        radius: enemy.radius,
+        bombTimer: enemy.status.bombTimer,
+        bombTimerMax: enemy.status.bombTimerMax,
+        isBoss: enemy.enemyLevel === 'B',
+      });
+      marker
+        .setTexture(`unit-${BOMB_MARKER_FRAMES[view.frame - 1]}`)
+        .setPosition(enemy.x, enemy.y)
+        // The authored art is 150 wide; `view.scale` is authored against that,
+        // so the two multiply rather than one replacing the other.
+        .setDisplaySize(150 * view.scale, 150 * view.scale)
+        .setAlpha(view.alpha);
+    });
+
+    // `:2286` — a ring whose medic has gone is removed, not reused.
+    for (const [enemy, ring] of this.medicRings) {
+      if (!this.enemies.includes(enemy)) {
+        ring.destroy();
+        this.medicRings.delete(enemy);
+        continue;
+      }
+      ring.setPosition(enemy.x, enemy.y);
+    }
+
+    // `:3118` — created at spawn with a scale fixed from the medic's own reach.
+    for (const enemy of this.enemies) {
+      if (enemy.healDistance === undefined || this.medicRings.has(enemy)) continue;
+      const scale = medicRingScale(enemy.healDistance);
+      this.medicRings.set(
+        enemy,
+        this.add
+          .image(enemy.x, enemy.y, `unit-${MEDIC_RING_SHAPE}`)
+          .setDepth(INDICATOR_DEPTH - 1)
+          .setDisplaySize(200 * scale, 200 * scale),
+      );
     }
   }
 

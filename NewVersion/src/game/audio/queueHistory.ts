@@ -22,6 +22,22 @@
  * before the mistake was made again. A warning is only useful where the
  * mistake gets made, and this file is where a sound sweep naturally begins.
  *
+ * **The NOT FIRED list is only as trustworthy as this instrument's own
+ * coverage of the emit paths.** An instrument that observes part of what it
+ * measures reports the rest as missing — and that failure looks *exactly* like
+ * the thing it was built to detect, which is why it survives review.
+ *
+ * It has happened twice. `setMusic` bypassed the history, so eight fully wired
+ * music names measured as absent and were reported as unported in two separate
+ * passes. `keepLoopAlive` bypassed it too, and the loops were missing from the
+ * published name list as well — absent from numerator and denominator both, so
+ * nothing looked wrong at all.
+ *
+ * `emitCoverage.test.ts` now asserts that every `SoundManager` method reaching
+ * the backend records, and that no fourth emitting call has appeared. **Add a
+ * new emit path and that test fails**, which is the only reason this note can
+ * be trusted rather than merely believed.
+ *
  * **Distrust this instrument the way you would any other.** It was built to
  * stop clean-but-wrong answers and immediately produced two of its own: the
  * manifest name list was published in `SoundManager`'s constructor before the

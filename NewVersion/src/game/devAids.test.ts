@@ -41,6 +41,7 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     'queue history enable',
     'queue history publish',
     'queue history music',
+    'queue history loops',
   ],
 };
 
@@ -77,6 +78,6 @@ describe('dev aids are enumerable', () => {
     // 11 until T39, which added the sound queue history and its hooks in
     // `SoundManager`: record, enable, and the publish that hands the harness
     // the manifest name list.
-    expect(total).toBe(17);
+    expect(total).toBe(18);
   });
 });

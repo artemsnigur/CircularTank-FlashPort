@@ -33,7 +33,7 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
@@ -45,6 +45,7 @@ function parseArgs(argv) {
     if (argv[i] === '--baseline') args.baseline = true;
     if (argv[i] === '--sound') args.sound = true;
     if (argv[i] === '--sound-sweep') args.soundSweep = true;
+    if (argv[i] === '--indicators') args.indicators = true;
   }
   return args;
 }
@@ -292,6 +293,50 @@ if (args.slots) {
 
 if (args.save) {
   await saveRoundTrip();
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
+
+if (args.indicators) {
+  // The two on-enemy markers. Each needs a specific condition, so each gets
+  // its own isolated dev level rather than hoping a mixed arena obliges.
+  const isolated = async (type, slug, setup) => {
+    await page.goto(`${URL}${setup}`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /enemy behaviour/i }).click();
+    await delay(900);
+    const row = page.locator('li', { hasText: type }).first();
+    const test = row.getByRole('button', { name: /test/i });
+    if ((await test.count()) === 0) {
+      console.log(`[look] no Test button for ${type}`);
+      return;
+    }
+    await test.click();
+    await delay(6000);
+    // Sweep while firing. A fixed bearing put every round into empty ground —
+    // the enemies were behind the crosshair — and the marker never appeared,
+    // which reads as "not wired" and is the scenario missing.
+    await page.locator('canvas').hover({ position: { x: 760, y: 400 } });
+    await page.mouse.down();
+    for (let i = 0; i < 12; i += 1) {
+      const a = (i / 6) * Math.PI * 2;
+      await page.mouse.move(640 + Math.cos(a) * 200, 400 + Math.sin(a) * 200);
+      await delay(400);
+      await shot(`${slug}-${String(i).padStart(2, '0')}`);
+    }
+    await page.mouse.up();
+  };
+
+  // A bomb marker needs the Timed Bomb Cannon, whose rounds attach rather than
+  // damage. Basic enemies so the markers are unobstructed.
+  await isolated('Basic', 'i-01-bomb', '?primary=Timed%20Bomb%20Cannon');
+
+  // A heal ring needs a Medic, and the ring is sized from its own reach.
+  await isolated('Medic', 'i-02-medic', '');
+
+  console.log(`[look] frames -> ${args.out}`);
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
   await browser.close();
   stop();

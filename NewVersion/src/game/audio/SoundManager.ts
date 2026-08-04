@@ -167,9 +167,6 @@ export class SoundManager {
     // either loop ran, and handed the harness an empty list — which read as
     // "no names exist" rather than as a bug, i.e. exactly the silent-wrong
     // answer this instrument was built to stop.
-    if (import.meta.env.DEV) {
-      publishQueueHistory([...this.sfxByName.keys(), ...this.musicByName.keys()]);
-    }
 
     const loopFile = (name: LoopId): string | null =>
       LOOPS.find((l) => l.name === name)?.file ?? null;
@@ -192,6 +189,15 @@ export class SoundManager {
         file: loopFile('Burning'),
       },
     };
+
+    if (import.meta.env.DEV) {
+      publishQueueHistory([
+        ...this.sfxByName.keys(),
+        ...this.musicByName.keys(),
+        // The loops belong in the denominator too — see `keepLoopAlive`.
+        ...(Object.keys(this.loops) as LoopId[]),
+      ]);
+    }
   }
 
   /* ── Gameplay-facing API ───────────────────────────────────────────────── */
@@ -234,6 +240,15 @@ export class SoundManager {
 
   /** Re-assert every frame the weapon is firing. */
   keepLoopAlive(id: LoopId): void {
+    // DEV-AID: the third emit path, and it was invisible until T43.
+    //
+    // `playSfx` is fed by `queue()` and `playMusic` by `setMusic()`, both of
+    // which record. `startLoop` is fed by this, which did not — so the two
+    // continuous loops could never appear in the coverage sweep no matter what
+    // the game did. They were also absent from the published name list, so they
+    // were missing from the denominator as well as the numerator, which is the
+    // quietest possible version of the failure: nothing looked wrong.
+    recordQueued(id, true, this.frameCounter);
     this.loops[id].requested = true;
   }
 

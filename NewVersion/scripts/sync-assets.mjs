@@ -190,6 +190,20 @@ const CURATED_SHAPES = new Set([
   '957.svg',
   '958.svg',
 
+  // Indicator art (T43) — WarningTimedBomb, IndicatorMedic, IndicatorIce,
+  // DefenseEnemyBottomIndicator, WeaponReloadIndicator.
+  '370.svg',
+  '371.svg',
+  '1182.svg',
+  '1184.svg',
+  '1185.svg',
+  '1186.svg',
+  '1187.svg',
+  '1188.svg',
+  '1189.svg',
+  '1201.svg',
+  '1315.svg',
+
   // Background props — 21 BGObject clips, one shape per variant frame.
   // Generated from assets.swf: each DefineSprite frame places exactly one
   // DefineShape, and these are those shapes. See levels/propArt.ts.

@@ -37,7 +37,8 @@
     "cap:sync": "cap sync",
     "prepare": "node scripts/install-hooks.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "look": "node scripts/look.mjs"
+    "look": "node scripts/look.mjs",
+    "sweep": "node scripts/sweep.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0",

@@ -225,6 +225,17 @@ export const UNIT_SHAPES: readonly ShapeAsset[] = [
   shape('unit-956', '956.svg', 58, 26, 'ItemMoney clip frame'),
   shape('unit-957', '957.svg', 58, 26, 'ItemMoney clip frame'),
   shape('unit-958', '958.svg', 88, 88, 'ItemMoney clip frame'),
+  shape('unit-370', '370.svg', 600, 600, 'Indicator clip frame'),
+  shape('unit-371', '371.svg', 600, 600, 'Indicator clip frame'),
+  shape('unit-1182', '1182.svg', 800, 800, 'Indicator clip frame'),
+  shape('unit-1184', '1184.svg', 544, 578, 'Indicator clip frame'),
+  shape('unit-1185', '1185.svg', 626, 624, 'Indicator clip frame'),
+  shape('unit-1186', '1186.svg', 600, 573, 'Indicator clip frame'),
+  shape('unit-1187', '1187.svg', 526, 487, 'Indicator clip frame'),
+  shape('unit-1188', '1188.svg', 494, 499, 'Indicator clip frame'),
+  shape('unit-1189', '1189.svg', 464, 463, 'Indicator clip frame'),
+  shape('unit-1201', '1201.svg', 2560, 128, 'Indicator clip frame'),
+  shape('unit-1315', '1315.svg', 120, 120, 'Indicator clip frame'),
 ] as const;
 
 
