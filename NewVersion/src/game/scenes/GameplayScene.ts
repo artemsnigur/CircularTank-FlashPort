@@ -2507,14 +2507,28 @@ export class GameplayScene extends Phaser.Scene {
 
     // `setScrollFactor(0)` — these are screen furniture, not world objects, so
     // they must not move with the camera.
-    // `setScrollFactor(0)` on the container only.
+    // KNOWN DEFECT: no panel renders, and the render state says it should.
     //
-    // Propagating it to the children (`setScrollFactor(0, 0, true)` plus a
-    // per-child call) was tried in T49 as a fix for panels two onward being
-    // invisible, and it made things worse: the *first* panel stopped rendering
-    // too. So the camera-scroll hypothesis is falsified, and the remaining
-    // defect is elsewhere. Left as it was, because this form demonstrably
-    // renders the first panel correctly.
+    // `__tutorialPanel` (the DEV-AID dump below) reports alpha 1, visible true,
+    // (16, 16), depth 40, scrollFactor 0, four children all visible at alpha 1
+    // with the right textures, and `inDisplayList: true` — for every step. The
+    // values are indistinguishable from the build where the panels *were*
+    // visible.
+    //
+    // **Two wrong premises were burned getting here, both from frames.** T48
+    // reported "AimShoot does not follow"; the `Tutorial` sound fires three
+    // times, so every step is reached and the state machine is fine. T49 then
+    // reported "panel one renders, later ones do not"; that came from the
+    // pre-`setScale` build, where the panel was 4x oversized and unmissable.
+    // Once divided by `UNIT_RASTER_SCALE`, **none** of them render — so the
+    // difference is the scale, not the step.
+    //
+    // A `setScrollFactor(0, 0, true)` propagation fix was tried and reverted:
+    // it changed nothing, because scroll was never the cause.
+    //
+    // What has NOT been checked, and is where the next pass should start: what
+    // these SVGs actually rasterise to at 4x, and where their content sits
+    // inside the texture. Every other value has been read.
     const container = this.add.container(0, 0).setDepth(TUTORIAL_DEPTH).setScrollFactor(0);
     for (const shape of clip.shapes) {
       container.add(this.add.image(0, 0, `unit-${shape}`).setOrigin(0, 0));
@@ -2528,6 +2542,36 @@ export class GameplayScene extends Phaser.Scene {
     this.drawTutorialPanel();
   }
 
+  /**
+   * DEV-AID: publishes the panel's live render state for the look harness.
+   *
+   * Reading the values rather than hypothesising about them — T49 produced two
+   * plausible theories and one wrong fix without ever looking at alpha,
+   * position or the display list.
+   */
+  private publishTutorialDebug(): void {
+    if (!import.meta.env.DEV || typeof window === 'undefined') return;
+    const panel = this.tutorialPanel;
+    (window as unknown as Record<string, unknown>).__tutorialPanel = panel
+      ? {
+          step: this.tutorialStep?.id ?? null,
+          alpha: panel.alpha,
+          visible: panel.visible,
+          x: panel.x,
+          y: panel.y,
+          scaleX: panel.scaleX,
+          depth: panel.depth,
+          scrollFactorX: panel.scrollFactorX,
+          childCount: panel.length,
+          inDisplayList: this.children.exists(panel),
+          active: panel.active,
+          childAlphas: (panel.list as Phaser.GameObjects.Image[]).map((c) => c.alpha),
+          childVisible: (panel.list as Phaser.GameObjects.Image[]).map((c) => c.visible),
+          childTextures: (panel.list as Phaser.GameObjects.Image[]).map((c) => c.texture.key),
+        }
+      : { step: this.tutorialStep?.id ?? null, panel: null };
+  }
+
   private drawTutorialPanel(): void {
     const panel = this.tutorialPanel;
     const step = this.tutorialStep;
@@ -2537,6 +2581,7 @@ export class GameplayScene extends Phaser.Scene {
     const anchor = panelPosition(step.id, this.scale.height / this.cameras.main.zoom);
     const { dx, dy } = jitterOffset(this.tutorialAlpha);
     panel.setPosition(anchor.x + dx, anchor.y + dy).setAlpha(this.tutorialAlpha);
+    this.publishTutorialDebug();
   }
 
   private updateParticles(): void {

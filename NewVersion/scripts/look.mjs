@@ -308,9 +308,15 @@ if (args.tutorial) {
   await page.getByRole('button', { name: /play|continue/i }).first().click();
   await delay(2500);
 
+  const dump = async (label) => {
+    const d = await page.evaluate(() => globalThis.__tutorialPanel ?? null);
+    console.log(`[look] ${label}: ${JSON.stringify(d)}`);
+  };
+
   // Move: the panel should be up and nothing should have spawned, because
   // `:7153` holds the countdown until AimShoot is done.
   await burst('t-01-move', 6, 200);
+  await dump('panel 1 (Move)');
 
   // Doing the thing dismisses it. Held, not tapped.
   await page.keyboard.down('d');
@@ -319,7 +325,9 @@ if (args.tutorial) {
   await burst('t-02-move-dismissed', 8, 200);
 
   // AimShoot follows, and spawning is still held.
+  await dump('panel 2 (AimShoot) early');
   await burst('t-03-aimshoot', 6, 250);
+  await dump('panel 2 (AimShoot) late');
 
   // Firing satisfies it and releases the spawn gate on the same frame.
   await page.locator('canvas').hover({ position: { x: 900, y: 400 } });
