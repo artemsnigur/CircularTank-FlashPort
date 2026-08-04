@@ -15,6 +15,7 @@
  *   npm run look                 — default sequence, frames to .look/
  *   npm run look -- --out DIR    — somewhere else
  *   npm run look -- --hold 8000  — linger longer before the last frame
+ *   npm run look -- --particles — impacts, deaths and cues, then a resolved level
  *
  * Frames land in a gitignored directory. Run it when a subsystem lands, then
  * actually open them.
@@ -32,13 +33,14 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
     if (argv[i] === '--secondaries') args.secondaries = true;
     if (argv[i] === '--save') args.save = true;
     if (argv[i] === '--slots') args.slots = true;
+    if (argv[i] === '--particles') args.particles = true;
   }
   return args;
 }
@@ -286,6 +288,80 @@ if (args.slots) {
 
 if (args.save) {
   await saveRoundTrip();
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
+
+if (args.particles) {
+  // Impacts, deaths and the strength/weakness cues — the whole particle layer.
+  //
+  // Two things here cannot be seen any other way. Debris takes the *enemy's*
+  // own colour, so wrong wiring produces plausible-looking output in the wrong
+  // colour — which is why this uses the all-enemy arena rather than 1-1. And
+  // `handleParticles` runs outside the AS3's level-done gate, so the last
+  // capture deliberately happens *after* a level resolves: particles frozen
+  // mid-flight on the results screen is the failure this catches.
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+
+  // The all-enemy arena: three of every type, so one fight covers many colours.
+  await page.getByRole('button', { name: /all-enemy test level/i }).click();
+  await delay(3500);
+  await shot('p-01-arena');
+
+  // Let them close in first. Firing at a fixed bearing three seconds in put
+  // every round into empty ground — the arena is wide and the enemies start at
+  // its edges, so the first capture showed a working weapon and no impacts at
+  // all. Enemies chase the tank, so waiting is what produces targets.
+  await delay(9000);
+  await shot('p-02-closed-in');
+
+  // Now sweep a full circle at close range with the button held, capturing
+  // throughout. At this distance a sweep cannot miss, and the circle covers
+  // several different enemy types — which is the point: debris takes the
+  // enemy's own colour, so one type would not show a mis-wire.
+  await page.locator('canvas').hover({ position: { x: 900, y: 400 } });
+  await page.mouse.move(900, 400);
+  await page.mouse.down();
+  for (let step = 0; step < 12; step += 1) {
+    const angle = (step / 12) * Math.PI * 2;
+    await page.mouse.move(640 + Math.cos(angle) * 240, 400 + Math.sin(angle) * 240, { steps: 4 });
+    await shot(`p-03-sweep-${String(step).padStart(2, '0')}`);
+  }
+  await burst('p-04-deaths', 10, 150);
+  await page.mouse.up();
+  await delay(400);
+  await shot('p-05-settling');
+
+  // ── The check no unit test can make ──────────────────────────────────────
+  // `handleParticles` runs OUTSIDE `if(!levelDone)` at `:2839`, so debris keeps
+  // moving and fading while the results screen sits over it. Wiring it beside
+  // the gameplay systems instead — the natural-looking wrong answer — freezes
+  // every particle mid-flight the instant a level resolves, and looks entirely
+  // fine in every other frame this script takes.
+  //
+  // Driven by the kill dev-aid rather than by winning: 1-1 did not resolve
+  // inside 90s of held fire on one bearing, and a resolution that never arrives
+  // proves nothing either way. Defeat reaches the same `levelDone` state.
+  // Fire into the swarm first: the point is to have debris *airborne* when the
+  // level resolves, and the previous attempt pressed the key 600ms after the
+  // last impact, by which time everything had faded. Nothing to freeze is not
+  // evidence that nothing freezes.
+  await page.locator('canvas').hover({ position: { x: 760, y: 400 } });
+  await page.mouse.move(760, 400);
+  await page.mouse.down();
+  await delay(1200);
+  await page.keyboard.press('k');
+  // Frames from the instant of death, so the burst thrown by the tank's own
+  // destruction is still in the air when the results screen appears. Positions
+  // changing across these frames is the pass condition; identical frames with
+  // particles present is the failure.
+  await burst('p-06-after-level', 12, 100);
+  await page.mouse.up();
+
+  console.log(`[look] frames -> ${args.out}`);
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
   await browser.close();
   stop();

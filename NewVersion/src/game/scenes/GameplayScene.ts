@@ -105,6 +105,12 @@ import { planBlastOn } from '../weapons/blastPlan';
 import { sweepHazards } from '../weapons/hazardSweep';
 import { displayFrame, layoutLevelProps, propScale } from '../levels/backgroundProps';
 import { propShape, shapeSize } from '../levels/propArt';
+import { presetFor, spawnParticles, tickParticles } from '../effects/particles';
+import type { Particle, SpawnInput } from '../effects/particles';
+import { particleShape } from '../effects/particleArt';
+import { PARTICLE_RASTER_SCALE } from '../../assets/manifest';
+import { STRONG_WEAK_TIMER_MAX, impactBurst, impactClassOf } from '../effects/impactCue';
+import { muzzleFlareFor } from '../effects/muzzleFlare';
 import { applyKillReload, killReloadBonus } from '../upgrades/killReload';
 import {
   createHazard,
@@ -203,6 +209,10 @@ const SHIELD_DEPTH = 9.5;
 const GRENADE_DEPTH = 1;
 /** Below everything — the AS3 keeps trails in their own `groundLayer`. */
 const HAZARD_DEPTH = 0;
+/** Above the tank and enemies — debris reads as being in front. */
+const PARTICLE_DEPTH = 14;
+/** `:3366` — `poisonParticleTimerMax`. */
+const POISON_PARTICLE_FRAMES = 3;
 /** Just above the ground tile, below anything that moves. */
 const PROP_DEPTH = 0.5;
 
@@ -461,6 +471,9 @@ export class GameplayScene extends Phaser.Scene {
    * bomb blasts use.
    */
   private pendingDeathBlasts: ExplosionSpec[] = [];
+  /** Live particles, and a sprite pool indexed alongside them. */
+  private particles: Particle[] = [];
+  private particleSprites: Phaser.GameObjects.Image[] = [];
 
   /**
    * Last wave figures published, so the per-frame refresh only emits on change.
@@ -643,6 +656,8 @@ export class GameplayScene extends Phaser.Scene {
     this.flagMarker = null;
     this.enemyBullets = [];
     this.pendingDeathBlasts = [];
+    this.particles = [];
+    this.particleSprites = [];
     this.hp = TANK_MAX_HP;
     this.pushedFrames = 0;
     // `resetTempVariables("LevelStart")` — three of these start true.
@@ -859,9 +874,30 @@ export class GameplayScene extends Phaser.Scene {
 
     this.updateWave(delta);
 
+    // `:2839` — placed outside the level-done gate, as the AS3 has it.
+    //
+    // `handleParticles` sits after the explosion handlers and before
+    // `handleMoney`, and outside `if(!levelDone)`, so in the original debris
+    // keeps moving and fading while the results screen dims over it.
+    //
+    // **That is not observable in this port today, and it was checked.** A run
+    // through `npm run look -- --particles` resolved a level with debris in the
+    // air and captured twelve frames afterwards: they are pixel-identical, and
+    // so are the enemies. `:3121` calls `this.scene.pause()` the moment a level
+    // resolves, which stops `update` entirely — the AS3 has no equivalent and
+    // keeps simulating. So the placement here is currently a constraint on
+    // future work rather than something the running game demonstrates, and
+    // nothing enforces it. See `docs/AUDIT-2026-07.md` (frame-order divergences)
+    // for what unpausing would drag in with it.
+    this.updateParticles();
+
     this.updateStatusEffects(delta);
 
     for (const enemy of [...this.enemies]) {
+      // `:4519` — the Strength/Weakness cue's cooldown, counted per frame at
+      // the top of the enemy loop exactly as the AS3 does. See `impactCue.ts`.
+      if (enemy.strongWeakTimer > 0) enemy.strongWeakTimer -= 1;
+
       // Velocity and radius are required by `AimTank`, not optional: Medium and
       // Hard lead the tank's motion, and a zero default would silently be the
       // Easy rule on every difficulty.
@@ -1300,6 +1336,19 @@ export class GameplayScene extends Phaser.Scene {
           this.bullets.push(
             new Bullet(this, spec, this.roomWidth, this.roomHeight, bulletClass, flame),
           );
+
+          // `:3960-3972` — the barrel flash, sized by the primary weapon's
+          // name. Per round rather than per volley, because that is where the
+          // AS3 puts it; the Shotgun's "only the round down the barrel" rule
+          // lives inside `muzzleFlareFor` and depends on seeing each round.
+          const flare = muzzleFlareFor({
+            weaponName: this.weapon?.name ?? '',
+            tankX: this.player.x,
+            tankY: this.player.y,
+            rotation: spec.rotation,
+            towerRotation: this.player.towerRotationDegrees,
+          });
+          if (flare) this.burst(flare);
         }
       }
     }
@@ -1709,6 +1758,32 @@ export class GameplayScene extends Phaser.Scene {
     for (const enemy of [...this.enemies]) {
       const result = enemy.tickStatus(deltaMs);
 
+      // `:6375-6388` — a poisoned enemy puffs on its own 3-frame clock, which
+      // is deliberately not the damage clock: the AS3 keeps `poisonParticleTimer`
+      // separate from the poison tick so the two rates are independent. Size
+      // and speed both scale off the enemy's radius, and a boss gets its own
+      // type at half the outward speed (`:6385`).
+      if (enemy.status.poisonTimer > 0) {
+        if (enemy.poisonParticleTimer > 0) {
+          enemy.poisonParticleTimer -= 1;
+        } else {
+          const boss = enemy.enemyLevel === 'B';
+          this.burst({
+            type: boss ? 'PoisonBoss' : 'Poison',
+            count: 1,
+            x: enemy.x,
+            y: enemy.y,
+            distance: 0,
+            startAngle: 0,
+            randAngle: 360,
+            addVel: 1 + enemy.radius / (boss ? 30 : 15),
+            addMaxScale: 0.1 + enemy.radius / 15,
+            addMinScale: enemy.radius / 40,
+          });
+          enemy.poisonParticleTimer = POISON_PARTICLE_FRAMES;
+        }
+      }
+
       if (result.damage > 0) {
         enemy.takeDamage(result.damage);
         if (enemy.health <= 0) this.removeEnemy(enemy, true);
@@ -2018,6 +2093,52 @@ export class GameplayScene extends Phaser.Scene {
         // wrong prop. Nothing reaches this today.
         image.setDisplaySize(24 * scale, 24 * scale).setTint(0x6b5a44).setAlpha(0.5);
       }
+    }
+  }
+
+
+  /**
+   * Advances the particle layer — `handleParticles` (`:6960`).
+   *
+   * Called unconditionally, including after the level has resolved. See the
+   * call site for why that placement is the specification rather than a detail.
+   */
+  private updateParticles(): void {
+    this.particles = tickParticles(this.particles);
+
+    // Sprites are pooled by index: the array only ever shrinks within a frame,
+    // so a stale tail is hidden rather than destroyed and rebuilt each tick.
+    for (let i = 0; i < this.particleSprites.length; i += 1) {
+      const particle = this.particles[i];
+      const sprite = this.particleSprites[i];
+      if (!particle) {
+        sprite.setVisible(false);
+        continue;
+      }
+      const shape = particleShape(presetFor(particle.type).sprite, 1);
+      sprite
+        .setVisible(true)
+        .setTexture(shape !== undefined && this.textures.exists(`particle-${shape}`)
+          ? `particle-${shape}`
+          : 'particle-dot')
+        .setPosition(particle.x, particle.y)
+        .setRotation(Phaser.Math.DegToRad(particle.rotation))
+        // Divided by the raster oversampling — see `PARTICLE_RASTER_SCALE`.
+        .setScale(particle.scale / PARTICLE_RASTER_SCALE)
+        .setAlpha(particle.alpha);
+    }
+  }
+
+  /** Spawns a burst — `spawnParticle` (`:718`). */
+  private burst(input: SpawnInput): void {
+    const made = spawnParticles(input);
+    this.particles = [...this.particles, ...made];
+
+    // Grow the pool to match; it never shrinks, so a busy frame sizes it once.
+    while (this.particleSprites.length < this.particles.length) {
+      this.particleSprites.push(
+        this.add.image(0, 0, 'particle-dot').setDepth(PARTICLE_DEPTH).setVisible(false),
+      );
     }
   }
 
@@ -3046,6 +3167,15 @@ export class GameplayScene extends Phaser.Scene {
         newEnemies: this.banking?.newEnemies ?? [],
       });
       // Stop simulating; the result overlay owns the screen from here.
+      //
+      // **A divergence, not a port.** The AS3 keeps its loop running and gates
+      // only the gameplay half on `levelDone` (`:2839`), which is why
+      // `handleParticles`, `handleExplosions` and `handleMoney` sit outside
+      // that gate — debris settles and loose coins can still be collected under
+      // the results screen. Pausing freezes all three. Recorded rather than
+      // fixed here because unpausing is not a particle change: enemies would
+      // keep moving and firing beneath the overlay, and `ui:goto` resumes
+      // before restarting on the assumption the scene is paused.
       this.scene.pause();
     }
   }
@@ -3143,6 +3273,17 @@ export class GameplayScene extends Phaser.Scene {
 
     getSoundManager(this)?.queue(explosionSound(explosion.smallSound));
     new Explosion(this, explosion);
+
+    // `:4377` — every blast throws generic debris, with both the count and the
+    // reach scaled off its radius. `BulletDestroy` rather than an enemy colour:
+    // this is the explosion coming apart, not anything it hit.
+    this.burst({
+      type: 'BulletDestroy',
+      count: Math.round(explosion.radius / 10),
+      x: explosion.x,
+      y: explosion.y,
+      distance: explosion.radius,
+    });
 
     const targets = this.enemies.map((enemy) => ({
       x: enemy.x,
@@ -3273,6 +3414,27 @@ export class GameplayScene extends Phaser.Scene {
     );
     enemy.setHealth(result.health);
 
+    // `:5685-5820` — debris in the enemy's colour, plus a Strength, Weakness
+    // or Immune cue. The rule lives in `effects/impactCue.ts`; forty of the
+    // AS3's sixty-four spawn sites are copies of it, one per bullet class.
+    const burst = impactBurst({
+      impactClass: impactClassOf(bullet.as3Class),
+      x: bullet.x,
+      y: bullet.y,
+      // The AS3's `angleToBullet` points from the enemy to the round, and the
+      // debris is thrown back along it — away from the impact, not through it.
+      angleToBullet: Phaser.Math.RadToDeg(
+        Phaser.Math.Angle.Between(enemy.x, enemy.y, bullet.x, bullet.y),
+      ),
+      enemyParticle: enemy.particle,
+      multipliers: enemy.damageMultipliers,
+      damageType: bullet.damageType,
+      isBoss: enemy.enemyLevel === 'B',
+      strongWeakTimer: enemy.strongWeakTimer,
+    });
+    for (const spawn of burst.spawns) this.burst(spawn);
+    if (burst.armCooldown) enemy.strongWeakTimer = STRONG_WEAK_TIMER_MAX;
+
     if (!result.killed) {
       enemy.flashDamage(impactFeedback(enemy.damageMultipliers, bullet.damageType));
       return;
@@ -3288,6 +3450,18 @@ export class GameplayScene extends Phaser.Scene {
    * `noMoney = true` on contact, so a suicide attack earns the player nothing.
    */
   private removeEnemy(enemy: Enemy, payMoney: boolean): void {
+    // `:6837` — the body bursts into debris of its own colour. Count and reach
+    // both scale with the enemy's radius, so a boss showers and a small enemy
+    // puffs; the remaining arguments are `spawnParticle`'s defaults, which put
+    // it in a full circle at rest.
+    this.burst({
+      type: enemy.particle,
+      count: Math.round(enemy.radius / 1.5),
+      x: enemy.x,
+      y: enemy.y,
+      distance: enemy.radius,
+    });
+
     // `Tank.as:94-99` — the tether is held by reference, and the AS3 notices it
     // has gone by testing `stage.contains`. Clearing it here is the same thing
     // said at the moment it becomes true, and it restores the player's own

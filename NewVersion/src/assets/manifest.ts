@@ -109,6 +109,73 @@ export const SAMPLE_SHAPES: readonly ShapeAsset[] = [
  * to a texture. Rasterised at 96 because props are drawn at their own `scale`
  * draw, which reaches ~1.0, and a zoomed camera on a 2x screen needs pixels.
  */
+/**
+ * Particle art — one shape per frame of the 32 `Particle*` clips, keyed
+ * `particle-<shapeId>` so `particleArt.ts`'s frame map resolves straight to a
+ * texture.
+ *
+ * Rasterised at `PARTICLE_RASTER_SCALE` times the SVG's authored size, because
+ * the gameplay camera zooms and debris is the one effect the player sees at
+ * close range on every hit — a 1x raster visibly softens there.
+ *
+ * **The draw must divide by it.** A particle's `scale` is authored against the
+ * symbol's own size, so drawing an oversampled texture at that scale renders it
+ * oversampled *large*. This shipped wrong for one pass: debris came out roughly
+ * the size of the enemy that threw it, which no unit test could see — the
+ * spawn inputs were correct and only the raster was not. `GameplayScene` now
+ * divides by this constant at the draw, which is why it is exported rather than
+ * being a bare 3 in the sizes below.
+ */
+export const PARTICLE_RASTER_SCALE = 3;
+
+export const PARTICLE_SHAPES: readonly ShapeAsset[] = [
+  shape('particle-843', '843.svg', 72, 84, 'Particle clip frame'),
+  shape('particle-1060', '1060.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1062', '1062.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1064', '1064.svg', 47, 108, 'Particle clip frame'),
+  shape('particle-1065', '1065.svg', 43, 86, 'Particle clip frame'),
+  shape('particle-1066', '1066.svg', 40, 69, 'Particle clip frame'),
+  shape('particle-1068', '1068.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1070', '1070.svg', 51, 51, 'Particle clip frame'),
+  shape('particle-1072', '1072.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1074', '1074.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1076', '1076.svg', 47, 41, 'Particle clip frame'),
+  shape('particle-1077', '1077.svg', 51, 45, 'Particle clip frame'),
+  shape('particle-1078', '1078.svg', 51, 47, 'Particle clip frame'),
+  shape('particle-1080', '1080.svg', 90, 90, 'Particle clip frame'),
+  shape('particle-1081', '1081.svg', 90, 90, 'Particle clip frame'),
+  shape('particle-1083', '1083.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1085', '1085.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1087', '1087.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1089', '1089.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1091', '1091.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1093', '1093.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1095', '1095.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1097', '1097.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1099', '1099.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1101', '1101.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1103', '1103.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1105', '1105.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1108', '1108.svg', 97, 95, 'Particle clip frame'),
+  shape('particle-1109', '1109.svg', 70, 87, 'Particle clip frame'),
+  shape('particle-1110', '1110.svg', 159, 129, 'Particle clip frame'),
+  shape('particle-1111', '1111.svg', 159, 129, 'Particle clip frame'),
+  shape('particle-1114', '1114.svg', 116, 114, 'Particle clip frame'),
+  shape('particle-1115', '1115.svg', 84, 104, 'Particle clip frame'),
+  shape('particle-1116', '1116.svg', 127, 103, 'Particle clip frame'),
+  shape('particle-1117', '1117.svg', 191, 155, 'Particle clip frame'),
+  shape('particle-1119', '1119.svg', 78, 76, 'Particle clip frame'),
+  shape('particle-1120', '1120.svg', 127, 103, 'Particle clip frame'),
+  shape('particle-1122', '1122.svg', 39, 39, 'Particle clip frame'),
+  shape('particle-1124', '1124.svg', 42, 42, 'Particle clip frame'),
+  shape('particle-1126', '1126.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1128', '1128.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1130', '1130.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1132', '1132.svg', 30, 30, 'Particle clip frame'),
+  shape('particle-1337', '1337.svg', 55, 53, 'Particle clip frame'),
+] as const;
+
+
 export const PROP_SHAPES: readonly ShapeAsset[] = [
   shape('prop-1458', '1458.svg', 187, 151, 'Background prop variant frame'),
   shape('prop-1459', '1459.svg', 187, 151, 'Background prop variant frame'),

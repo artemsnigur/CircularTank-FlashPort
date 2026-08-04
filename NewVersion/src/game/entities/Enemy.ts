@@ -163,6 +163,32 @@ export class Enemy extends Phaser.GameObjects.Container {
   /** Per-channel resistances from this type's strengths/weaknesses tables. */
   readonly damageMultipliers: DamageMultipliers;
 
+  /**
+   * The debris this enemy throws — `enemyStatsArray[6]` via `:3280`.
+   *
+   * Exposed as well as tinted because the two uses are different: `baseTint`
+   * colours the body sprite, while the impact burst spawns particles *of this
+   * type*, which resolve to their own art in `particleArt.ts`. Reading the tint
+   * back would have lost the type.
+   */
+  readonly particle: string;
+
+  /**
+   * `:3373`, `:4519` — frames until this enemy will show another Strength or
+   * Weakness cue. Counts down once per frame; only the minigun's rounds
+   * consult it. See `effects/impactCue.ts`.
+   */
+  strongWeakTimer = 0;
+
+  /**
+   * `:3366`, `:6375` — frames until this enemy puffs another poison particle.
+   *
+   * Separate from the poison *damage* timer in `statusEffects.ts`: this one
+   * fires every 3 frames regardless of how often the damage ticks, so the two
+   * cannot share a counter without one of them changing rate.
+   */
+  poisonParticleTimer = 0;
+
   /** Carried from the stat tables; unused until the behaviour loop is ported. */
   health: number;
 
@@ -359,6 +385,7 @@ export class Enemy extends Phaser.GameObjects.Container {
 
     // `particle-dot` is the extracted 1.svg circle, tinted by the enemy's
     // particle colour so the stat table drives appearance.
+    this.particle = stats.particle;
     this.baseTint = PARTICLE_TINTS[stats.particle] ?? 0xffffff;
     this.shell = scene.add
       .sprite(0, 0, 'particle-dot')

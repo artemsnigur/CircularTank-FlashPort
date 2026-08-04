@@ -213,6 +213,11 @@ export class Bullet extends Phaser.GameObjects.Sprite {
    * Only the parent halves its damage when it splits (`:6140`); fragments pass
    * theirs along unchanged, so the cascade does not decay past the first split.
    */
+  /** The AS3 class name, for rules the source keyed on class identity. */
+  get as3Class(): string {
+    return this.bulletClassName;
+  }
+
   get isCakeParent(): boolean {
     return this.bulletClassName === 'BulletCake';
   }
