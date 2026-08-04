@@ -328,6 +328,13 @@ if (args.tutorial) {
   await page.mouse.up();
   await burst('t-04-spawn-released', 10, 250);
 
+  // How many steps were shown, via the sound the AS3 fires once per step
+  // (`:399`). A count of 1 means the handover never happened.
+  const tut = await page.evaluate(
+    () => (globalThis.__soundQueue?.names() ?? []).filter((n) => n === 'Tutorial').length,
+  );
+  console.log(`[look] Tutorial sound fired ${tut} time(s) — one per step shown`);
+
   console.log(`[look] frames -> ${args.out}`);
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
   await browser.close();

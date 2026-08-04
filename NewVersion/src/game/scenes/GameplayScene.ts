@@ -2507,6 +2507,14 @@ export class GameplayScene extends Phaser.Scene {
 
     // `setScrollFactor(0)` — these are screen furniture, not world objects, so
     // they must not move with the camera.
+    // `setScrollFactor(0)` on the container only.
+    //
+    // Propagating it to the children (`setScrollFactor(0, 0, true)` plus a
+    // per-child call) was tried in T49 as a fix for panels two onward being
+    // invisible, and it made things worse: the *first* panel stopped rendering
+    // too. So the camera-scroll hypothesis is falsified, and the remaining
+    // defect is elsewhere. Left as it was, because this form demonstrably
+    // renders the first panel correctly.
     const container = this.add.container(0, 0).setDepth(TUTORIAL_DEPTH).setScrollFactor(0);
     for (const shape of clip.shapes) {
       container.add(this.add.image(0, 0, `unit-${shape}`).setOrigin(0, 0));
