@@ -32,12 +32,13 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
     if (argv[i] === '--secondaries') args.secondaries = true;
     if (argv[i] === '--save') args.save = true;
+    if (argv[i] === '--slots') args.slots = true;
   }
   return args;
 }
@@ -115,6 +116,29 @@ async function burst(name, frames = 6, everyMs = 100) {
   }
 }
 
+/**
+ * Wait for the game to reach a state, not for a duration.
+ *
+ * The last of the timing class. Three of seven instrument failures came from a
+ * fixed delay chosen without reference to what the game was waiting on: a tap
+ * lost between frames, a burst photographed after it left the screen, and a
+ * storage read taken before the post-win timer had run the thing that writes it.
+ * The burst narrows that window; this closes it, for anything with an
+ * observable end state.
+ *
+ * Returns false on timeout rather than throwing — this script reports, it does
+ * not assert, and a caller that wants to capture the failure state still can.
+ */
+async function waitFor(label, predicate, timeoutMs = 20_000, everyMs = 250) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) return true;
+    await delay(everyMs);
+  }
+  console.log(`[look] timed out waiting for ${label} after ${timeoutMs}ms`);
+  return false;
+}
+
 /** The HUD strip, where the weapon and secondary readouts live. */
 const hud = (name) =>
   page.screenshot({ path: `${args.out}/${name}.png`, clip: { x: 0, y: 720, width: 1280, height: 80 } });
@@ -183,8 +207,9 @@ async function saveRoundTrip() {
   }
   await page.mouse.up();
 
-  // Past the hand-over delay, then look.
-  await delay(5000);
+  // Wait for the write rather than guessing how long the hand-over takes —
+  // guessing is what produced "nothing is saved".
+  await waitFor('the save to be written', async () => (await keys()).length > 0);
   await shot('save-1-after-win');
   console.log('[look] storage after win:', (await keys()).join(', ') || '(empty)');
 
@@ -194,6 +219,55 @@ async function saveRoundTrip() {
   console.log('[look] storage after reload:', (await keys()).join(', ') || '(empty)');
   const labels = (await page.locator('button:visible').allTextContents()).map((t) => t.trim());
   console.log('[look] menu after reload:', labels.filter(Boolean).join(' | '));
+}
+
+
+/**
+ * The slot picker, empty and occupied.
+ *
+ * "New Game" rendered over a real save is the failure this is guarding, and only
+ * a picture shows it — the store and the screen can each be individually right
+ * while the row is drawn from the wrong slot.
+ */
+async function slotScreen() {
+  const open = async (tag) => {
+    await page.goto(URL, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /save slots/i }).waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /save slots/i }).click();
+    await delay(600);
+    await shot(tag);
+    console.log(`[look] ${tag}:`,
+      (await page.locator('.slot-grid__cell').allTextContents()).map((t) => t.replace(/\s+/g, ' ').trim()).join(' // '));
+  };
+
+  await open('slots-1-empty');
+
+  // Close the picker first: the menu hides while it is open, so Play is not
+  // reachable until it does. (It was not, and this run stopped here.)
+  await page.getByRole('button', { name: /back/i }).first().click();
+  await delay(400);
+
+  // Play a level so slot 1 has a real save, then look again.
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await delay(2200);
+  await page.mouse.down();
+  for (let i = 0; i < 30; i += 1) {
+    const a = (i / 30) * Math.PI * 2;
+    await page.mouse.move(640 + Math.cos(a) * 280, 400 + Math.sin(a) * 280);
+    await delay(650);
+  }
+  await page.mouse.up();
+  await delay(5000);
+
+  await open('slots-2-occupied');
+}
+
+if (args.slots) {
+  await slotScreen();
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
 }
 
 if (args.save) {

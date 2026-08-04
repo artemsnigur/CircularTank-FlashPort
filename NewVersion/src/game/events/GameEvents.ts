@@ -13,6 +13,7 @@
  * down and rebuilt at any time, and a stale reference is a memory leak that
  * only shows up after twenty level restarts.
  */
+import type { SlotSummary } from '../save/slotSummary';
 import Phaser from 'phaser';
 import type { Difficulty, SceneKey } from '../config/constants';
 import type { LevelResult } from '../waves/levelOutcome';
@@ -232,6 +233,18 @@ export interface GameEventMap {
   };
   /** Open a world's level grid, or return to the picker with 0. */
   'ui:select-world': { world: number };
+  /**
+   * A save slot was picked on the slot screen — `ButtonGameSave.onReleaseHandler`.
+   *
+   * The scene decides what happens: an occupied slot loads and goes to Level
+   * Select, an empty one starts a fresh game at 1-1. Both are AS3 behaviour
+   * (`:110-134`), so neither is the screen's choice to make.
+   */
+  'ui:select-slot': { slot: number };
+  /** Open or close the slot picker — the AS3 shows it on the menu screen. */
+  'ui:slot-picker': { open: boolean };
+  /** Scene -> UI: one row per save slot. */
+  'save:slots': { slots: SlotSummary[] };
   'levels:listed': {
     world: number;
     worldName: string;

@@ -99,6 +99,14 @@ export function attachStoreBridge(): () => void {
     store.getState().setWorldList(listing);
   });
 
+  on('save:slots', ({ slots }) => {
+    store.getState().setSlotList(slots);
+  });
+
+  on('ui:slot-picker', ({ open }) => {
+    store.getState().setSlotPickerOpen(open);
+  });
+
   on('level:ended', (summary) => {
     store.getState().endLevel(summary);
 

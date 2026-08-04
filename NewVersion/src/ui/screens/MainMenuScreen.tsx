@@ -13,12 +13,17 @@ import { DEV_COMBINED_LEVEL, DEV_WORLD } from '../../game/levels/devLevels';
 
 export function MainMenuScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
+  const slotPickerOpen = useGameStore((s) => s.slotPickerOpen);
   const phase = useGameStore((s) => s.phase);
   const resumePoint = useGameStore((s) => s.resumePoint);
   // Echoed back, never decided here — MainMenuScene publishes it.
   const difficulty = useGameStore((s) => s.difficulty);
 
-  if (activeScene !== 'MainMenu' || phase !== 'ready') return null;
+  // The slot picker is drawn over the menu and both are keyed to MainMenu, so
+  // without this they render at once — the picker appeared *behind* the menu,
+  // its rows off-screen, while its DOM text read correctly. A text assertion
+  // passed on that; the screenshot did not.
+  if (activeScene !== 'MainMenu' || phase !== 'ready' || slotPickerOpen) return null;
 
   // 1-1 until the scene has published a resume point — a fresh save resolves
   // there anyway, so the fallback and the real answer agree for a new player.
@@ -43,6 +48,13 @@ export function MainMenuScreen(): React.ReactElement | null {
           {/* Resolved by MainMenuScene from the same progress table LevelSelect
               locks levels with — never computed here. */}
           {resume.level > 1 ? `Continue — Level ${resume.level}` : 'Play'}
+        </button>
+        <button
+          type="button"
+          className="menu__button"
+          onClick={() => GameEvents.emit('ui:slot-picker', { open: true })}
+        >
+          Save Slots
         </button>
         <button
           type="button"

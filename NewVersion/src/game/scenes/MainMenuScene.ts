@@ -8,7 +8,14 @@
  */
 import Phaser from 'phaser';
 import { SceneKeys } from '../config/constants';
-import { getPlayerProfile } from '../player/playerProfile';
+import {
+  createPlayerProfile,
+  getPlayerProfile,
+  PROFILE_REGISTRY_KEY,
+} from '../player/playerProfile';
+import { SaveStores } from '../save/SaveStore';
+import { summariseSlot, summariseSlots } from '../save/slotSummary';
+import { readDifficulty } from '../levels/difficultyOption';
 import { getCurrentWorldAndLevel } from '../levels/levelProgress';
 import { SELECTABLE_WORLDS } from '../levels/levelUnlock';
 import { publishDifficulty } from '../levels/difficultyService';
@@ -25,6 +32,9 @@ export class MainMenuScene extends Phaser.Scene {
   constructor() {
     super(SceneKeys.MainMenu);
   }
+
+  /** The three slot stores, for the picker. Opened once per menu visit. */
+  private readonly saveStores = new SaveStores();
 
   create(): void {
     const controller = getViewportController(this);
@@ -97,17 +107,20 @@ export class MainMenuScene extends Phaser.Scene {
     });
     const onResize = (): void => this.layout();
     GameEvents.on('viewport:changed', onResize);
+    const offSlot = GameEvents.subscribe('ui:select-slot', ({ slot }) => this.selectSlot(slot));
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offStart();
       offGoto();
       offAudio();
       offSelfTest();
+      offSlot();
       GameEvents.off('viewport:changed', onResize);
       GameEvents.emit('scene:shutdown', { key: SceneKeys.MainMenu });
     });
 
     publishAudioOptions(this);
+    this.publishSlots();
     GameEvents.emit('scene:ready', { key: SceneKeys.MainMenu });
   }
 
@@ -154,6 +167,39 @@ export class MainMenuScene extends Phaser.Scene {
           };
 
     GameEvents.emit('menu:resume-point', resume);
+  }
+
+  /** One row per save slot — `ButtonGameSave` reads the same four facts. */
+  private publishSlots(): void {
+    GameEvents.emit('save:slots', { slots: summariseSlots(this.saveStores) });
+  }
+
+  /**
+   * A slot was chosen — `ButtonGameSave.onReleaseHandler` (`:110-134`).
+   *
+   * Two behaviours, both the AS3's rather than choices: an **occupied** slot
+   * loads and goes to Level Select; an **empty** one starts a fresh game and
+   * goes straight to 1-1. The port's equivalent of `initGame()` is simply a
+   * profile built on an unwritten store — `createPlayerProfile(slot)` returns
+   * defaults when nothing is there.
+   */
+  private selectSlot(slot: number): void {
+    const summary = summariseSlot(this.saveStores, slot);
+    const profile = createPlayerProfile(slot);
+    this.game.registry.set(PROFILE_REGISTRY_KEY, profile);
+
+    GameEvents.emit('ui:slot-picker', { open: false });
+
+    if (summary.hasData) {
+      GameEvents.emit('ui:goto', { key: SceneKeys.LevelSelect });
+      return;
+    }
+
+    GameEvents.emit('ui:start-game', {
+      world: 1,
+      level: 1,
+      difficulty: readDifficulty(this.saveStores.options),
+    });
   }
 
   private layout(): void {

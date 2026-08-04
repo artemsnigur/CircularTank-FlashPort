@@ -17,6 +17,7 @@ import type { Difficulty, SceneKey } from '../game/config/constants';
 import { DEFAULT_DIFFICULTY } from '../game/levels/difficultyOption';
 import type { AudioSelfTestReport, BootStage, FontReport } from '../game/events/GameEvents';
 import type { SafeAreaInsets } from '../game/config/viewport';
+import type { SlotSummary } from '../game/save/slotSummary';
 import type { LevelResult } from '../game/waves/levelOutcome';
 import type { LevelRef } from '../game/levels/levelProgress';
 import { NO_INSETS } from '../game/config/viewport';
@@ -156,6 +157,8 @@ export interface GameState {
 
   /** The world picker's rows. `selected` 0 means the picker is showing. */
   worldList: WorldListing | null;
+  slotList: SlotSummary[] | null;
+  slotPickerOpen: boolean;
 
   /** The shop catalogue, published by UpgradesScene. */
   shop: ShopCatalogue | null;
@@ -203,6 +206,8 @@ export interface GameState {
   clearLevelOutcome: () => void;
   setLevelList: (listing: LevelListing) => void;
   setWorldList: (listing: WorldListing) => void;
+  setSlotList: (slots: SlotSummary[]) => void;
+  setSlotPickerOpen: (open: boolean) => void;
   setShop: (shop: ShopCatalogue) => void;
   setBestiary: (bestiary: BestiaryListing) => void;
   setResumePoint: (point: { world: number; level: number }) => void;
@@ -234,6 +239,8 @@ const initialRunState = {
   levelOutcome: null as LevelOutcomeSummary | null,
   levelList: null as LevelListing | null,
   worldList: null as WorldListing | null,
+  slotList: null as SlotSummary[] | null,
+  slotPickerOpen: false,
   shop: null as ShopCatalogue | null,
   bestiary: null as BestiaryListing | null,
   resumePoint: null as { world: number; level: number } | null,
@@ -279,6 +286,8 @@ export const useGameStore = create<GameState>()((set) => ({
   clearLevelOutcome: () => set({ levelOutcome: null }),
   setLevelList: (levelList) => set({ levelList }),
   setWorldList: (worldList) => set({ worldList }),
+  setSlotList: (slotList) => set({ slotList }),
+  setSlotPickerOpen: (slotPickerOpen) => set({ slotPickerOpen }),
   setShop: (shop) => set({ shop }),
   setBestiary: (bestiary) => set({ bestiary }),
   setResumePoint: (resumePoint) => set({ resumePoint }),

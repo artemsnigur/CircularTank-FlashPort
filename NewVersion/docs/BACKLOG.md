@@ -394,8 +394,19 @@ which two owned weapons are actually in the tank. The secondary has one slot.
 - [x] The **"slot has data" probe** is ported — `slotHasData` in `save/saveSlot.ts`,
       from `SaveManager.checkIfSlotHasData` (`:56`). Built on `partOfSaveString` so it
       and `readSaveSlot` cannot disagree about where a slot begins.
-- [ ] Missing: the slot-select screen itself, showing each slot's world and date stamp.
-      *Lift: small–medium, and genuinely independent of everything else here.*
+- [x] The **slot-select screen** is built — `ui/screens/SaveSlotScreen.tsx`, fed by
+      `save/slotSummary.ts`, drawn over the menu as the AS3 draws it. Renders the four
+      facts `ButtonGameSave.as:215-266` decides a button from, and both entry
+      behaviours from `:110-134`: an occupied slot loads and goes to Level Select, an
+      empty one starts a fresh game at 1-1.
+- [ ] **Per-slot delete.** `ButtonGameSave` carries a `bSaveDelete` child with its own
+      cursor handling (`:107`), so each slot can be cleared from the picker.
+      *Not in the original K description. Lift: small.*
+- [ ] **The "Overwrite?" confirmation page.** `makePage2("Overwrite?")` (`:141`) — the
+      button flips to a second page asking for confirmation before a non-empty slot is
+      replaced. The port currently overwrites without asking, which for a save screen is
+      the one interaction where a missing confirmation costs the player everything.
+      *Not in the original K description. Lift: small, and worth more than its size.*
 
 **Three corrections to the description above, found while porting the probe:**
 

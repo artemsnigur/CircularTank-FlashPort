@@ -62,7 +62,26 @@ const PAIRS: { screen: string; scene: string }[] = [
   // Shown during Boot and Preload, which run before any screen can be used.
   // Listed so the completeness check below stays honest; it emits nothing.
   { screen: `${SCREEN_DIR}/LoadingScreen.tsx`, scene: `${SCENE_DIR}/PreloadScene.ts` },
+  // The slot picker is drawn over the menu, so MainMenuScene is what is alive
+  // behind it — same pairing, different DOM.
+  { screen: `${SCREEN_DIR}/SaveSlotScreen.tsx`, scene: `${SCENE_DIR}/MainMenuScene.ts` },
 ];
+
+/**
+ * Events that are answered by `state/bridge.ts` rather than by any scene.
+ *
+ * A narrow, named exception. The contract above exists because a screen button
+ * whose event nothing handles is silently dead — that was the `EnemiesScreen`
+ * bug. A *UI-state* event has the same shape and a different answer: nothing in
+ * the game reacts to it, the bridge sets a store flag, and React re-renders.
+ *
+ * Listed rather than pattern-matched, so a genuinely dead event cannot hide
+ * behind a naming convention. If an entry here ever needs the game to react, it
+ * belongs in a scene and comes off this list.
+ */
+const UI_ONLY: Readonly<Record<string, string>> = {
+  'ui:slot-picker': 'opens/closes the save-slot overlay; bridge sets slotPickerOpen',
+};
 
 describe('the screen/scene event contract', () => {
   it('covers every screen that exists', () => {
@@ -83,11 +102,25 @@ describe('the screen/scene event contract', () => {
     const handled = subscribed(read(scene));
 
     for (const event of emitted(read(screen))) {
+      if (event in UI_ONLY) continue;
       expect(
         handled.has(event),
         `${screen} emits "${event}" but ${scene} does not subscribe to it. ` +
           `That scene is the only one running while this screen is visible, ` +
           `so the event reaches nobody and the button silently does nothing.`,
+      ).toBe(true);
+    }
+  });
+
+  it('every UI-only event is actually handled by the bridge', () => {
+    // The exemption is only safe while something answers these. Without this,
+    // adding a name to UI_ONLY would be a way to silence the contract rather
+    // than satisfy it.
+    const bridge = read('src/state/bridge.ts');
+    for (const event of Object.keys(UI_ONLY)) {
+      expect(
+        subscribed(bridge).has(event),
+        `${event} is exempt from the scene contract but the bridge does not handle it either.`,
       ).toBe(true);
     }
   });

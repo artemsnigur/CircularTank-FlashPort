@@ -1,3 +1,4 @@
+import { SaveSlotScreen } from './ui/screens/SaveSlotScreen';
 import { GameCanvas } from './ui/GameCanvas';
 import { Hud } from './ui/Hud';
 import { LoadingScreen } from './ui/screens/LoadingScreen';
@@ -26,6 +27,7 @@ export function App(): React.ReactElement {
       <div className="app__overlay">
         <LoadingScreen />
         <MainMenuScreen />
+        <SaveSlotScreen />
         <LevelSelectScreen />
         <UpgradesScreen />
         <EnemiesScreen />

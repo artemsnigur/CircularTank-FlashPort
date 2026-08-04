@@ -1228,3 +1228,15 @@ code {
   letter-spacing: 0.15em;
 }
 .bestiary-row--locked .bestiary-row__text { font-style: italic; opacity: 0.75; }
+
+/* Save-slot picker — three rows over the menu. */
+.screen--slots { gap: 1rem; }
+.slot-grid { display: flex; flex-direction: column; gap: 0.75rem; list-style: none; padding: 0; margin: 0; width: min(28rem, 90vw); }
+.slot-grid__cell { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem;
+  width: 100%; padding: 0.9rem 1.1rem; border-radius: 0.6rem; cursor: pointer;
+  background: rgba(24, 18, 8, 0.82); border: 2px solid rgba(255, 233, 168, 0.35); color: #ffe9a8; }
+.slot-grid__cell:hover:not(:disabled) { border-color: #ffe9a8; }
+.slot-grid__cell--locked { opacity: 0.55; cursor: not-allowed; }
+.slot-grid__title { font-size: 1.1rem; font-weight: 700; }
+.slot-grid__progress, .slot-grid__date { font-size: 0.85rem; opacity: 0.8; }
+.slot-grid__locked { font-size: 0.8rem; color: #ff6a6a; }
