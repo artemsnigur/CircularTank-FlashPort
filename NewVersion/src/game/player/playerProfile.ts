@@ -45,6 +45,18 @@ import type { Difficulty } from '../config/constants';
 export const PROFILE_REGISTRY_KEY = 'playerProfile';
 
 /** Only slot 1 is reachable until a slot-select screen exists. */
+/**
+ * The slot used when none is chosen.
+ *
+ * No longer pinned: `PlayerProfile` carries its own slot and writes at that
+ * index, so **store N holds its data at slot N** rather than every store
+ * holding it at slot 1. That mattered the moment a screen started reading other
+ * slots — summarising store 2 at index 1 would have shown "empty" for a save
+ * that exists, which is the "offers slot 2, loads slot 1" failure one step
+ * removed.
+ *
+ * It stays as the default because nothing selects a slot yet.
+ */
 export const ACTIVE_SLOT = 1;
 
 /** Key the encoded save string lives under inside the slot's store. */
@@ -54,9 +66,19 @@ export class PlayerProfile {
   private readonly store: SaveStore;
   private data: SaveSlotData;
 
-  constructor(store: SaveStore) {
+  /**
+   * Which of the three save slots this profile occupies.
+   *
+   * Deliberately **not** `slot`: that name is already taken by the getter
+   * returning this profile's `SaveSlotData`. Two different things called `slot`
+   * on one class is how the last collision of this kind went wrong.
+   */
+  readonly slotNumber: number;
+
+  constructor(store: SaveStore, slotNumber: number = ACTIVE_SLOT) {
     this.store = store;
-    this.data = PlayerProfile.load(store);
+    this.slotNumber = slotNumber;
+    this.data = PlayerProfile.load(store, slotNumber);
   }
 
   /**
@@ -66,12 +88,12 @@ export class PlayerProfile {
    * `SaveStore.load` uses for corrupt JSON. Losing one save is bad; refusing
    * to start is worse.
    */
-  private static load(store: SaveStore): SaveSlotData {
+  private static load(store: SaveStore, slot: number): SaveSlotData {
     const saveString = store.get<string>(SAVE_STRING_KEY, '');
     if (!saveString) return createInitialSaveSlot();
 
     try {
-      return readSaveSlot(saveString, ACTIVE_SLOT);
+      return readSaveSlot(saveString, slot);
     } catch (error) {
       console.warn('[PlayerProfile] Save slot could not be decoded; starting fresh.', error);
       return createInitialSaveSlot();
@@ -228,7 +250,7 @@ export class PlayerProfile {
       // empty string therefore silently saves nothing, so a first save has to
       // start from the `()()()` skeleton rather than from ''.
       const previous = this.store.get<string>(SAVE_STRING_KEY, '') || EMPTY_SAVE_STRING;
-      const next = writeSaveSlot(previous, ACTIVE_SLOT, this.data, { now });
+      const next = writeSaveSlot(previous, this.slotNumber, this.data, { now });
       this.store.set(SAVE_STRING_KEY, next);
       this.store.flush();
     } catch (error) {
@@ -239,9 +261,10 @@ export class PlayerProfile {
 }
 
 /** Builds a profile backed by real storage. */
-export function createPlayerProfile(): PlayerProfile {
+export function createPlayerProfile(slot: number = ACTIVE_SLOT): PlayerProfile {
   return new PlayerProfile(
-    new SaveStore(saveSlotStoreName(ACTIVE_SLOT), new LocalStorageBackend()),
+    new SaveStore(saveSlotStoreName(slot), new LocalStorageBackend()),
+    slot,
   );
 }
 
