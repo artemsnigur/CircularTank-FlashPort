@@ -113,11 +113,56 @@ export function buildStatusPages(input: StatusPagesInput): StatusPage[] {
 }
 
 /**
- * The page the screen opens on — the last one (`:431`).
+ * The page the screen opens on.
  *
- * Zero-based, so it is `pages.length - 1`. With no reveals that is 0, the
- * results page, and the arrows are both hidden.
+ * ── DELIBERATE DIVERGENCE (T44) ───────────────────────────────────────────
+ * **The AS3 opens on the *last* page** — `pageCurrent = pagesTotal` at `:431`
+ * — so a player who has just unlocked an enemy lands on that reveal and pages
+ * backwards to their score. This port opens on the **results**.
+ *
+ * The original's order is coherent for a game where the reveal *is* the
+ * reward: you finished the level, here is the new thing. The port surfaces the
+ * score as primary feedback instead, and moves the reveal to a pop-up over the
+ * top with a summary line left behind on the results.
+ *
+ * Requested by the user after it misread as a bug twice in development — a
+ * first clear shows "NEW ENEMY" where a score is expected, and it cost two
+ * harness misdiagnoses. **The reveal content is untouched**; only where it
+ * appears in the sequence has changed. Recorded in `docs/AUDIT-2026-07.md`.
+ *
+ * Kept as a named function rather than inlining `0`, so the divergence has a
+ * place to be read and reverted.
  */
-export function initialPageIndex(pages: readonly StatusPage[]): number {
-  return Math.max(0, pages.length - 1);
+export function initialPageIndex(_pages: readonly StatusPage[]): number {
+  return 0;
+}
+
+/**
+ * The reveal pages, in order — everything after the results.
+ *
+ * The pop-up's content. Split out here rather than sliced at the call site so
+ * the "results is page 0" assumption lives in one file with the divergence
+ * note, not in the component.
+ */
+export function revealPages(pages: readonly StatusPage[]): readonly StatusPage[] {
+  return pages.slice(1);
+}
+
+/**
+ * One line summarising what the reveals contained, for the results footer.
+ *
+ * **The information has to survive the pop-up being dismissed.** In the AS3 it
+ * could not be missed, because it was a page you had to walk through; as a
+ * dismissible overlay it can be, so the results keep a record of it.
+ *
+ * Returns null when there is nothing to say, which is the common case.
+ */
+export function unlockSummary(pages: readonly StatusPage[]): string | null {
+  const reveals = revealPages(pages);
+  if (reveals.length === 0) return null;
+
+  const names = reveals.map((page) =>
+    page.type === 'Enemy' ? page.displayName : page.type === 'Achievement' ? page.title : '',
+  );
+  return `Unlocked: ${names.filter(Boolean).join(', ')}`;
 }

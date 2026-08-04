@@ -430,6 +430,27 @@ that exists in normal play is the delete one above.
 
 ---
 
+## Group M — Requested by the user
+
+### M1 — Tank damage feedback (`damageIndicator`'s red tint)
+
+**Approved, and explicitly scheduled last.** The user asked for this by name;
+it goes after the results-screen work (done, T44) and after the tutorial.
+Recorded here rather than carried in a report so it cannot be lost.
+
+`PartGameArea.as:2795-2803` tints the tank red in proportion to
+`tank.damageIndicator`, counting down one per frame from 20:
+
+    colorClip(tank, 0xFF0000, tank.damageIndicator / 20 * 0.8)
+
+The port has the health bar and takes the damage; it has no `damageIndicator`
+and no tint, so a player loses most of a bar without the screen ever saying so.
+Named in the T37 baseline as the second-largest legibility gap after sound.
+
+Small — one counter on `PlayerTank`, set where contact and bullet damage land,
+and a tint in the draw. The enemy equivalent (`flashDamage`) already exists and
+is the model to follow.
+
 ## Group L — Tooling
 
 ### L1 — `assets:sync` never prunes

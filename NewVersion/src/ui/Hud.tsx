@@ -11,7 +11,10 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from '../state/gameStore';
-import { buildStatusPages, initialPageIndex } from '../game/waves/statusPages';
+import { buildStatusPages, initialPageIndex,
+  revealPages,
+  unlockSummary,
+} from '../game/waves/statusPages';
 import { AudioToggles } from './AudioToggles';
 import { GameEvents } from '../game/events/GameEvents';
 import { formatNumber } from '../game/core/Functions';
@@ -129,18 +132,29 @@ function MedalRow({ value }: { value: number }): React.ReactElement {
 }
 
 /**
- * End-of-level results, and the reveal pages behind them — `ScreenStatus`.
+ * End-of-level results, with reveals over the top — `ScreenStatus`, diverged.
  *
- * ── The paging model is the AS3's, and it is unusual ──────────────────────
- * The stack is results → achievements → enemies, and the screen **opens on the
- * last page** (`:431`), so the player lands on the newest reveal and pages
- * backwards to the results. The forward arrow is hidden on arrival because
- * that is already the end; the back arrow is hidden once the results are
- * showing.
+ * ── What the AS3 does ─────────────────────────────────────────────────────
+ * One stack of pages, results → achievements → enemies, opening on the **last**
+ * (`:431`). The exit buttons sit on the results page only (`:939-960`), so the
+ * reveals cannot be skipped, only walked back through. The AS3's exits are
+ * Play Again and Next Level; it has **no menu button at all**, and no route to
+ * choose a different level.
  *
- * The exit buttons are on the results page only, exactly as the AS3 adds them
- * (`:939-960`), so the reveals cannot be skipped — they can only be walked
- * through. Nothing auto-advances and nothing responds to a tap elsewhere.
+ * ── What this port does, deliberately (T44) ───────────────────────────────
+ * The results open first, and the reveals are a **pop-up over them** rather
+ * than pages behind them. A summary line on the results records what was
+ * unlocked, so dismissing the pop-up does not lose the information — in the
+ * AS3 it could not be missed, because it was a page you had to walk through.
+ *
+ * The reveal *content* is untouched. Only its place in the sequence moved.
+ *
+ * `Level select` is also added, alongside the AS3's Next Level and Play Again:
+ * the original leaves the screen only forwards or by replaying, which strands
+ * a player who wants a different level. It reuses the existing `ui:goto`
+ * LevelSelect route rather than introducing a second path.
+ *
+ * Full reasoning in `docs/AUDIT-2026-07.md`.
  */
 function LevelOutcomeOverlay(): React.ReactElement | null {
   const outcome = useGameStore((s) => s.levelOutcome);
@@ -158,18 +172,26 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
     [outcome],
   );
   const [page, setPage] = useState(0);
+  // The reveals show over the results and can be dismissed. Opened whenever a
+  // result arrives that has any, which is the AS3's "you cannot miss this"
+  // without its "you must page past this".
+  const [revealsOpen, setRevealsOpen] = useState(false);
 
-  // Reset to the opening page whenever a new result arrives, not on every
-  // render: paging back and forth must not be undone by an unrelated update.
+  const reveals = useMemo(() => revealPages(pages), [pages]);
+  const unlocked = useMemo(() => unlockSummary(pages), [pages]);
+
+  // Reset whenever a new result arrives, not on every render: paging back and
+  // forth must not be undone by an unrelated update.
   useEffect(() => {
     setPage(initialPageIndex(pages));
+    setRevealsOpen(revealPages(pages).length > 0);
   }, [pages]);
 
   if (!outcome) return null;
 
-  const current = pages[Math.min(page, pages.length - 1)] ?? { type: 'Standard' as const };
+  const current = reveals[Math.min(page, reveals.length - 1)];
   const atFirst = page <= 0;
-  const atLast = page >= pages.length - 1;
+  const atLast = page >= reveals.length - 1;
 
   const retry = (): void => {
     clearLevelOutcome();
@@ -190,6 +212,16 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
     GameEvents.emit('ui:start-game', { ...outcome.nextLevel, difficulty });
   };
 
+  /**
+   * Added by this port; the AS3 leaves this screen only forwards or by
+   * replaying. Reuses the existing route rather than a second path — the
+   * level-select screen already owns the unlock rule and the world pin.
+   */
+  const toLevelSelect = (): void => {
+    clearLevelOutcome();
+    GameEvents.emit('ui:goto', { key: 'LevelSelect' });
+  };
+
   const toMenu = (): void => {
     clearLevelOutcome();
     GameEvents.emit('ui:goto', { key: 'MainMenu' });
@@ -198,7 +230,7 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
   return (
     <div className="level-outcome" role="dialog" aria-label="Level results">
       <div className="level-outcome__panel">
-        {current.type === 'Standard' && (
+        {(
           <>
             <h2 className="level-outcome__title">
               {outcome.result === 'won' ? 'Level Cleared' : 'Tank Destroyed'}
@@ -218,7 +250,9 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
                 <dd>{outcome.currency}</dd>
               </div>
             </dl>
-            {/* Only the results page carries these, as the AS3 has it. */}
+            {/* Survives the pop-up being dismissed — see the note above. */}
+            {unlocked && <p className="level-outcome__unlocked">{unlocked}</p>}
+
             <div className="level-outcome__actions">
               {outcome.nextLevel !== null && (
                 <button
@@ -232,33 +266,60 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
               <button type="button" className="hud__button" onClick={retry}>
                 {outcome.result === 'won' ? 'Replay' : 'Retry'}
               </button>
+              <button type="button" className="hud__button" onClick={toLevelSelect}>
+                Level select
+              </button>
               <button type="button" className="hud__button" onClick={toMenu}>
                 Menu
               </button>
             </div>
-          </>
-        )}
-
-        {current.type === 'Achievement' && (
-          <>
-            <p className="level-outcome__eyebrow">New Achievement</p>
-            <h2 className="level-outcome__title">{current.title}</h2>
-            <p className="level-outcome__body">{current.description}</p>
-            {current.difficultyMatters && (
-              <p className="level-outcome__note">Earned on {difficulty}</p>
+            {reveals.length > 0 && !revealsOpen && (
+              <button
+                type="button"
+                className="hud__button hud__button--ghost"
+                onClick={() => {
+                  setPage(0);
+                  setRevealsOpen(true);
+                }}
+              >
+                Show what you unlocked
+              </button>
             )}
           </>
         )}
 
-        {current.type === 'Enemy' && (
-          <>
-            <p className="level-outcome__eyebrow">New Enemy</p>
-            <h2 className="level-outcome__title">{current.displayName}</h2>
-            <p className="level-outcome__body">{current.description}</p>
-          </>
-        )}
+      </div>
 
-        {pages.length > 1 && (
+      {revealsOpen && current && (
+        <div className="level-outcome__reveal" role="dialog" aria-label="New unlocks">
+          {current.type === 'Achievement' && (
+            <>
+              <p className="level-outcome__eyebrow">New Achievement</p>
+              <h2 className="level-outcome__title">{current.title}</h2>
+              <p className="level-outcome__body">{current.description}</p>
+              {current.difficultyMatters && (
+                <p className="level-outcome__note">Earned on {difficulty}</p>
+              )}
+            </>
+          )}
+
+          {current.type === 'Enemy' && (
+            <>
+              <p className="level-outcome__eyebrow">New Enemy</p>
+              <h2 className="level-outcome__title">{current.displayName}</h2>
+              <p className="level-outcome__body">{current.description}</p>
+            </>
+          )}
+
+          <button
+            type="button"
+            className="hud__button hud__button--primary"
+            onClick={() => setRevealsOpen(false)}
+          >
+            Continue
+          </button>
+
+        {reveals.length > 1 && (
           <nav className="level-outcome__pager" aria-label="Results pages">
             <button
               type="button"
@@ -270,20 +331,21 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
               ‹
             </button>
             <span className="level-outcome__count">
-              {page + 1} / {pages.length}
+              {page + 1} / {reveals.length}
             </span>
             <button
               type="button"
               className="level-outcome__arrow"
               disabled={atLast}
               aria-label="Next page"
-              onClick={() => setPage((p) => Math.min(pages.length - 1, p + 1))}
+              onClick={() => setPage((p) => Math.min(reveals.length - 1, p + 1))}
             >
               ›
             </button>
           </nav>
         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

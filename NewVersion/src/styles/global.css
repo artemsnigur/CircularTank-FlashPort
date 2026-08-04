@@ -599,6 +599,43 @@ code {
   text-align: center;
 }
 
+/*
+ * The unlock line — T44. Sits under the actions on the results, and is the
+ * record that survives the reveal pop-up being dismissed.
+ */
+.level-outcome__unlocked {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: var(--accent, #ffd166);
+  opacity: 0.9;
+}
+
+/*
+ * The reveal pop-up — T44, a deliberate divergence from `ScreenStatus`.
+ *
+ * Over the results rather than beside them, so the score stays visible behind
+ * it. Absolutely positioned inside `.level-outcome`, which is already the
+ * full-screen dimmed layer.
+ */
+.level-outcome__reveal {
+  position: absolute;
+  /*
+   * Sits ABOVE the results panel, not over it. Centring it covered the title
+   * and the stats, which defeats the whole reason for the divergence — the
+   * score is supposed to stay readable behind the reveal. Found by looking at
+   * the frame rather than by reasoning about the layout.
+   */
+  inset: 12% auto auto 50%;
+  transform: translateX(-50%);
+  min-width: min(300px, 76vw);
+  padding: 1.5rem 1.75rem;
+  border-radius: 12px;
+  background: var(--surface, #1b1710);
+  border: 1px solid rgb(255 255 255 / 22%);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 55%);
+  text-align: center;
+}
+
 .level-outcome__title {
   margin: 0 0 1rem;
   font-family: var(--font-display);

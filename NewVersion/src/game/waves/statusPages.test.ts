@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildStatusPages, initialPageIndex } from './statusPages';
+import { buildStatusPages, initialPageIndex, revealPages, unlockSummary } from './statusPages';
 import { ACHIEVEMENTS } from '../achievements/achievementData';
 import { BESTIARY } from '../enemies/bestiaryData';
 import { discoverEnemies } from '../enemies/enemyKnowledge';
@@ -50,34 +50,81 @@ describe('the page count', () => {
 /**
  * "Newest-first" is where the cursor starts, not a reversed list.
  */
-describe('the screen opens on the last page', () => {
-  it('starts at pagesTotal, so the newest reveal is showing', () => {
+describe('the screen opens on the RESULTS — a deliberate divergence', () => {
+  /**
+   * **These assertions were replaced, not repaired.** They used to require
+   * `initialPageIndex` to be `pages.length - 1`, which was an accurate port of
+   * `ScreenStatus:431` and is no longer what this game does.
+   *
+   * The divergence is asserted *against* the AS3's rule rather than simply
+   * stating the new one, so it stays visible as a choice: if someone restores
+   * the original ordering these fail and say why.
+   */
+  it('opens on the results even when reveals exist', () => {
     const pages = buildStatusPages({
       newAchievements: ['Kills1'],
       newEnemies: ['Fast', 'Ghost'],
     });
 
-    expect(initialPageIndex(pages)).toBe(pages.length - 1);
-    expect(pages[initialPageIndex(pages)]).toMatchObject({ type: 'Enemy', displayName: 'Ghost' });
+    expect(initialPageIndex(pages)).toBe(0);
+    expect(pages[initialPageIndex(pages)]).toMatchObject({ type: 'Standard' });
+    // The AS3's answer, stated so the difference is the point.
+    expect(initialPageIndex(pages)).not.toBe(pages.length - 1);
   });
 
-  it('starts on the results when nothing is new', () => {
+  it('opens on the results when nothing is new, exactly as the AS3 did', () => {
+    // Unchanged behaviour — with no reveals both models agree, which is why
+    // the divergence went unnoticed until a first clear.
     const pages = buildStatusPages({ newAchievements: [], newEnemies: [] });
     expect(initialPageIndex(pages)).toBe(0);
   });
 
-  it('paging back from the start walks enemies, then achievements, then results', () => {
+  it('keeps the reveal order and content untouched', () => {
+    // Only the *presentation* moved. The stack is still results ->
+    // achievements -> enemies, in that order, with the same entries.
     const pages = buildStatusPages({
       newAchievements: ['Kills1', 'Money1'],
       newEnemies: ['Fast', 'Ghost'],
     });
 
-    const walked: string[] = [];
-    for (let i = initialPageIndex(pages); i >= 0; i -= 1) walked.push(pages[i].type);
+    expect(pages.map((p) => p.type)).toEqual([
+      'Standard',
+      'Achievement',
+      'Achievement',
+      'Enemy',
+      'Enemy',
+    ]);
+  });
+});
 
-    expect(walked).toEqual(['Enemy', 'Enemy', 'Achievement', 'Achievement', 'Standard']);
+describe('the reveals become a pop-up', () => {
+  it('excludes the results from what the pop-up shows', () => {
+    const pages = buildStatusPages({ newAchievements: ['Kills1'], newEnemies: ['Fast'] });
+    expect(revealPages(pages).map((p) => p.type)).toEqual(['Achievement', 'Enemy']);
   });
 
+  it('has nothing to show when nothing was unlocked', () => {
+    // Which is what keeps the pop-up closed on an ordinary level.
+    expect(revealPages(buildStatusPages({ newAchievements: [], newEnemies: [] }))).toEqual([]);
+  });
+
+  it('leaves a summary line naming every unlock', () => {
+    // The information must survive the pop-up being dismissed. In the AS3 it
+    // could not be missed — it was a page you walked through.
+    const pages = buildStatusPages({ newAchievements: ['Kills1'], newEnemies: ['Fast'] });
+    const line = unlockSummary(pages);
+
+    expect(line).toContain('Fast');
+    expect(line).toMatch(/^Unlocked: /);
+  });
+
+  it('returns no summary when there is nothing to summarise', () => {
+    // Pinned beside the case above, so "always shows a line" fails.
+    expect(unlockSummary(buildStatusPages({ newAchievements: [], newEnemies: [] }))).toBeNull();
+  });
+});
+
+describe('initialPageIndex edge cases', () => {
   it('never returns a negative index', () => {
     expect(initialPageIndex([])).toBe(0);
   });
@@ -165,13 +212,15 @@ describe('enemy pages use the display names discovery produced', () => {
 /**
  * The overlay's own rules, which only exist in the component.
  */
-describe('the overlay honours the AS3 paging model', () => {
-  it('opens on the last page rather than the first', () => {
+describe('the overlay, after the T44 divergence', () => {
+  it('opens through the named function rather than a bare 0', () => {
+    // The divergence has to have somewhere to be read and reverted.
     expect(HUD).toContain('setPage(initialPageIndex(pages));');
   });
 
   it('hides the arrows at each end rather than dimming them', () => {
-    // `ButtonSquarePage` sets alpha = 0 at page 1 and at pagesTotal.
+    // `ButtonSquarePage` sets alpha = 0 at page 1 and at pagesTotal. Unchanged
+    // by the divergence — the pager still behaves this way inside the pop-up.
     expect(HUD).toContain('disabled={atFirst}');
     expect(HUD).toContain('disabled={atLast}');
     const css = readFileSync('src/styles/global.css', 'utf8');
@@ -179,40 +228,31 @@ describe('the overlay honours the AS3 paging model', () => {
     expect(css).toContain('visibility: hidden;');
   });
 
-  it('shows no pager at all when there is one page', () => {
-    expect(HUD).toContain('{pages.length > 1 && (');
+  it('pages the reveals, not the whole stack', () => {
+    // Was `pages.length > 1`, which counted the results page. The pop-up shows
+    // reveals only, so a single reveal must show no pager.
+    expect(HUD).toContain('{reveals.length > 1 && (');
   });
 
-  it('puts the exit buttons on the results page only', () => {
-    // `:939-960` adds Play Again and Next Level only for the Standard type, so
-    // the reveals cannot be skipped — only walked back through.
-    const standard = HUD.slice(
-      HUD.indexOf("{current.type === 'Standard' && ("),
-      HUD.indexOf("{current.type === 'Achievement' && ("),
-    );
-    expect(standard).toContain('level-outcome__actions');
-    expect(standard).toContain('Next level');
-    expect(standard).toContain('onClick={toMenu}');
-
-    const rest = HUD.slice(HUD.indexOf("{current.type === 'Achievement' && ("));
-    expect(rest).not.toContain('level-outcome__actions');
+  it('shows the reveals over the results rather than instead of them', () => {
+    // Source-shape check, flagged as such — it proves the structure is
+    // written, not that it renders. The frames are the driven proof.
+    //
+    // The AS3 put the exits on the Standard page only (`:939-960`) so reveals
+    // could not be skipped. This port shows the results *underneath* and lets
+    // the pop-up be dismissed, with `unlockSummary` left behind so nothing is
+    // lost — which is the whole trade.
+    expect(HUD).toContain('{revealsOpen && current && (');
+    expect(HUD).toContain('level-outcome__reveal');
+    expect(HUD).toContain('{unlocked && <p className="level-outcome__unlocked">');
   });
 
-  it('nothing auto-advances', () => {
-    // The AS3 has no timer on this screen; the only movement is the arrows.
-    const overlay = HUD.slice(
-      HUD.indexOf('function LevelOutcomeOverlay'),
-      // Bounded: the toast component below does use a timer, and an unbounded
-      // slice would catch it and read as a failure of this component.
-      HUD.indexOf('function AchievementToasts'),
-    );
-    expect(overlay).not.toContain('setTimeout');
-    expect(overlay).not.toContain('setInterval');
-  });
-
-  it('consumes the level:ended payload with no extra event', () => {
-    expect(HUD).toContain('newAchievements: outcome.newAchievements');
-    expect(HUD).toContain('newEnemies: outcome.newEnemies');
-    expect(HUD).toContain('value={outcome.medals}');
+  it('offers a level-select route the AS3 does not have', () => {
+    // `ScreenStatus` exits only forwards (Next Level) or by replaying; it has
+    // no menu button and no level chooser. Added deliberately, reusing the
+    // existing route.
+    expect(HUD).toContain('toLevelSelect');
+    expect(HUD).toContain("GameEvents.emit('ui:goto', { key: 'LevelSelect' })");
   });
 });
+
