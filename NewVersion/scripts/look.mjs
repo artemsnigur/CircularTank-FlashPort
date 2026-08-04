@@ -33,7 +33,7 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
@@ -42,6 +42,7 @@ function parseArgs(argv) {
     if (argv[i] === '--slots') args.slots = true;
     if (argv[i] === '--particles') args.particles = true;
     if (argv[i] === '--money') args.money = true;
+    if (argv[i] === '--baseline') args.baseline = true;
   }
   return args;
 }
@@ -289,6 +290,78 @@ if (args.slots) {
 
 if (args.save) {
   await saveRoundTrip();
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
+
+if (args.baseline) {
+  // The full loop, stage by stage, for the dated baseline entry in the audit.
+  // boot -> slots -> 1-1 -> fight -> win with coins -> results -> continue ->
+  // level 2 -> defeat.
+  const stage = async (name, ms = 0) => {
+    if (ms) await delay(ms);
+    await shot(`b-${name}`);
+  };
+
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await stage('01-menu');
+
+  await page.getByRole('button', { name: /save slots/i }).click();
+  await stage('02-slots', 600);
+  // Reload rather than closing. `MainMenuScreen` returns null while the picker
+  // is open — the right fix for a real layout defect in T28 — so Play is not
+  // reachable from here and Escape does not dismiss it. Recorded in CLAUDE.md
+  // as a harness failure that is the harness, not the game.
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await stage('03-level-start', 2200);
+
+  await page.locator('canvas').hover({ position: { x: 900, y: 400 } });
+  await page.mouse.down();
+  let cleared = false;
+  for (let i = 0; i < 90 && !cleared; i += 1) {
+    const a = (i / 8) * Math.PI * 2;
+    await page.mouse.move(640 + Math.cos(a) * 280, 400 + Math.sin(a) * 280);
+    await delay(400);
+    cleared = (await page.getByText(/^0 LEFT$/i).count()) > 0;
+    if (i === 4) await stage('04-fight');
+    if (i === 12) await stage('05-fight-later');
+  }
+  console.log(`[look] level 1-1 cleared: ${cleared}`);
+  await burst('b-06-win-coins', 10, 100);
+  await page.mouse.up();
+
+  // The results stack opens on its LAST page, so step back to the results.
+  await delay(1500);
+  await stage('07-results-as-opened');
+  for (let i = 0; i < 3; i += 1) {
+    // `aria-label="Previous page"` — the visible glyph is a chevron and does
+    // not make an accessible name to match on.
+    const back = page.getByRole('button', { name: /previous page/i });
+    if ((await back.count()) === 0) break;
+    await back.first().click();
+    await delay(500);
+  }
+  await stage('08-results');
+
+  // Onward to level 2, then lose it.
+  const next = page.getByRole('button', { name: /next level/i });
+  if ((await next.count()) > 0) {
+    await next.first().click();
+    await stage('09-level-2', 2600);
+    await page.keyboard.press('k');
+    await stage('10-defeat', 1200);
+  } else {
+    console.log('[look] no onward button on the results screen');
+    await stage('09-no-onward');
+  }
+
+  console.log(`[look] frames -> ${args.out}`);
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
   await browser.close();
   stop();
