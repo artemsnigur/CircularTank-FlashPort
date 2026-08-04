@@ -145,6 +145,15 @@ export interface WeaponSpec {
   targetsTrack?: number;
   /** SoundManager logical name. */
   sound: string;
+
+  /**
+   * The sound this weapon's rounds make on the room border — `:3761` etc.
+   *
+   * A per-weapon column in the AS3 too (`bullet.borderSound`), not a size
+   * derived from the round: the Shotgun's pellets are 'Tiny' while the Cake
+   * Cannon's are 'Medium', and nothing about their radii says so.
+   */
+  borderSound: 'Tiny' | 'Medium' | 'Big';
   explosion: boolean;
   /**
    * AS3 projectile class, which decides the damage channel. Defaults to the
@@ -160,6 +169,8 @@ export interface WeaponSpec {
  */
 export const CANNON: WeaponSpec = {
   name: 'Cannon',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Medium',
   upgradeId: 'Cannon',
   reloadTrack: 0,
   damageTrack: 1,
@@ -190,6 +201,8 @@ export const CANNON: WeaponSpec = {
  */
 export const MINIGUN: WeaponSpec = {
   name: 'MiniGun',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Tiny',
   upgradeId: 'MiniGun',
   reloadTrack: 0,
   damageTrack: 1,
@@ -219,6 +232,8 @@ export const MINIGUN: WeaponSpec = {
  */
 export const BIG_CANNON: WeaponSpec = {
   name: 'Big Cannon',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Big',
   upgradeId: 'BigCannon',
   reloadTrack: 0,
   damageTrack: 1,
@@ -242,6 +257,8 @@ export const BIG_CANNON: WeaponSpec = {
  */
 export const GUMMY_BEAR_CANNON: WeaponSpec = {
   name: 'Gummy Bear Cannon',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Medium',
   upgradeId: 'GummyBearCannon',
   reloadTrack: 0,
   damageTrack: 1,
@@ -277,6 +294,8 @@ export const GUMMY_BEAR_CANNON: WeaponSpec = {
  */
 export const SHOTGUN: WeaponSpec = {
   name: 'Shotgun',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Tiny',
   upgradeId: 'Shotgun',
   reloadTrack: 0,
   damageTrack: 1,
@@ -323,6 +342,8 @@ export const SHOTGUN: WeaponSpec = {
  */
 export const PENETRATION_CANNON: WeaponSpec = {
   name: 'Penetration Cannon',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Big',
   upgradeId: 'PenetrationCannon',
   reloadTrack: 0,
   damageTrack: 1,
@@ -363,6 +384,8 @@ export const PENETRATION_CANNON: WeaponSpec = {
  */
 export const TIMED_BOMB_CANNON: WeaponSpec = {
   name: 'Timed Bomb Cannon',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Big',
   upgradeId: 'TimedBombCannon',
   reloadTrack: 0,
   damageTrack: 1,
@@ -404,6 +427,8 @@ export const TIMED_BOMB_CANNON: WeaponSpec = {
  */
 export const POISON_CANNON: WeaponSpec = {
   name: 'Poison Cannon',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Tiny',
   upgradeId: 'PoisonCannon',
   reloadTrack: 0,
   damageTrack: 1,
@@ -454,6 +479,8 @@ export const POISON_CANNON: WeaponSpec = {
  */
 export const FLAMETHROWER: WeaponSpec = {
   name: 'Flamethrower',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Tiny',
   upgradeId: 'Flamethrower',
   reloadTrack: 0,
   damageTrack: 1,
@@ -491,6 +518,8 @@ export const FLAMETHROWER: WeaponSpec = {
  */
 export const CAKE_CANNON: WeaponSpec = {
   name: 'Cake Cannon',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Medium',
   upgradeId: 'CakeCannon',
   reloadTrack: 0,
   damageTrack: 1,
@@ -521,6 +550,8 @@ export const CAKE_CANNON: WeaponSpec = {
  */
 export const LASER_CANNON: WeaponSpec = {
   name: 'Laser Cannon',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Medium',
   upgradeId: 'LaserCannon',
   reloadTrack: 0,
   damageTrack: 1,
@@ -549,6 +580,8 @@ export const LASER_CANNON: WeaponSpec = {
  */
 export const MAGIC_CANNON: WeaponSpec = {
   name: 'Magic Cannon',
+  // `:3761`-`:3902` — per weapon, from the AS3's own chain.
+  borderSound: 'Medium',
   upgradeId: 'MagicCannon',
   reloadTrack: 0,
   damageTrack: 1,

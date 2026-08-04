@@ -33,6 +33,14 @@ export class Bullet extends Phaser.GameObjects.Sprite {
    */
   readonly damageType: DamageType | null;
 
+  /**
+   * Which border sound this round makes — `bullet.borderSound` (`:3761`).
+   *
+   * Null for rounds the AS3 gives none: `:1844` tests for null before the
+   * three-way branch, so silence is a real answer rather than a gap.
+   */
+  borderSound: 'Tiny' | 'Medium' | 'Big' | null = null;
+
   /** AS3 class name, kept so cake fragments can be told from the parent. */
   private readonly bulletClassName: string;
 

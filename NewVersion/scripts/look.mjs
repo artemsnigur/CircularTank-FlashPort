@@ -33,7 +33,7 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
@@ -44,6 +44,7 @@ function parseArgs(argv) {
     if (argv[i] === '--money') args.money = true;
     if (argv[i] === '--baseline') args.baseline = true;
     if (argv[i] === '--sound') args.sound = true;
+    if (argv[i] === '--sound-sweep') args.soundSweep = true;
   }
   return args;
 }
@@ -292,6 +293,109 @@ if (args.slots) {
 if (args.save) {
   await saveRoundTrip();
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
+
+if (args.soundSweep) {
+  // MEASURE coverage, do not count call sites.
+  //
+  // A grep counts what a regex matches; this counts what actually fired. The
+  // two have disagreed three times in this project and the harness was right
+  // every time. Anything this reports as missing is either genuinely unwired
+  // or on a path the scenario did not reach — and the second case is listed
+  // explicitly rather than inferred from silence.
+  const names = () => page.evaluate(() => globalThis.__soundQueue?.names() ?? []);
+  const peak = (n) => page.evaluate((x) => globalThis.__soundQueue?.peakPerFrame(x) ?? -1, n);
+  const clear = () => page.evaluate(() => globalThis.__soundQueue?.clear());
+
+  const fired = new Set();
+  const collect = async () => {
+    for (const n of await names()) fired.add(n);
+  };
+
+  // One page load per primary: `?secondary=` grants a secondary, and the
+  // weapon cycle key (Q) walks the equipped slots.
+  const SECONDARIES = ['Grenade', 'Mine', 'Shield', 'Rockets', 'Icicles', 'Crazy Cheese', 'Ice Ball', 'Magic Bunny'];
+
+  for (const secondary of SECONDARIES) {
+    await page.goto(`${URL}?secondary=${encodeURIComponent(secondary)}`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /all-enemy test level/i }).click();
+    await delay(7000);
+    await clear();
+
+    await page.locator('canvas').hover({ position: { x: 760, y: 400 } });
+    await page.mouse.down();
+    for (let i = 0; i < 10; i += 1) {
+      const a = (i / 5) * Math.PI * 2;
+      await page.mouse.move(640 + Math.cos(a) * 220, 400 + Math.sin(a) * 220);
+      await delay(280);
+      // Held, never tapped — a sub-frame press is simply not observed.
+      if (i % 3 === 0) {
+        await page.keyboard.down('Space');
+        await delay(180);
+        await page.keyboard.up('Space');
+      }
+      // Drive into a wall so border sounds get a chance.
+      if (i === 5) {
+        await page.keyboard.down('a');
+        await delay(1200);
+        await page.keyboard.up('a');
+      }
+    }
+    await page.mouse.up();
+    await delay(600);
+    await collect();
+    console.log(`[look] after ${secondary}: ${fired.size} names so far`);
+  }
+
+  // The dedup case, on its own page load and measured there.
+  //
+  // The history is per-page, so reading the peak after eight page loads read
+  // the last one only — and reported 0 for a name that had demonstrably fired
+  // on an earlier page. Kills and measurement have to happen together.
+  //
+  // Equipped with the Grenade: a blast killing several enemies at once is the
+  // ten-in-one-frame case the dedup rule exists for, and the Cannon alone
+  // could not produce it — an earlier run reported peak 0 simply because
+  // nothing died, which is not evidence about the rule.
+  await page.goto(`${URL}?secondary=Grenade`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /all-enemy test level/i }).click();
+  await delay(11000);
+  await clear();
+  await page.locator('canvas').hover({ position: { x: 700, y: 400 } });
+  await page.mouse.down();
+  for (let i = 0; i < 24; i += 1) {
+    const a = (i / 6) * Math.PI * 2;
+    await page.mouse.move(640 + Math.cos(a) * 180, 400 + Math.sin(a) * 180);
+    await delay(260);
+    // Held, not tapped.
+    if (i % 2 === 0) {
+      await page.keyboard.down('Space');
+      await delay(160);
+      await page.keyboard.up('Space');
+    }
+  }
+  await page.mouse.up();
+  await delay(500);
+  await collect();
+  const squish = await peak('EnemySquish');
+  const coin = await peak('Coin');
+
+  const manifest = await page.evaluate(() => globalThis.__soundManifestNames ?? []);
+  console.log('');
+  console.log(`[look] FIRED (${fired.size}): ${[...fired].sort().join(' ')}`);
+  if (manifest.length) {
+    const missing = manifest.filter((n) => !fired.has(n)).sort();
+    console.log(`[look] NOT FIRED (${missing.length}): ${missing.join(' ')}`);
+  }
+  console.log(`[look] peak/frame EnemySquish: ${squish}`);
+  console.log(`[look] peak/frame Coin:        ${coin}`);
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+
   await browser.close();
   stop();
   process.exit(0);

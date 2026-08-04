@@ -23,6 +23,7 @@ import { Enemy } from '../entities/Enemy';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
+import { isAudibleAt } from '../audio/onScreenGate';
 import { dropAmount, spawnMoney, tickCoin } from '../items/money';
 import type { Coin } from '../items/money';
 import { MONEY_CLIPS, coinRadius } from '../items/moneyArt';
@@ -1388,9 +1389,11 @@ export class GameplayScene extends Phaser.Scene {
             }
           : null;
         for (const spec of shots) {
-          this.bullets.push(
-            new Bullet(this, spec, this.roomWidth, this.roomHeight, bulletClass, flame),
-          );
+          const round = new Bullet(this, spec, this.roomWidth, this.roomHeight, bulletClass, flame);
+          // `:3761` — the weapon's own column, carried onto each round it
+          // fires, exactly as the AS3 assigns it at the spawn site.
+          round.borderSound = this.weapon?.borderSound ?? null;
+          this.bullets.push(round);
 
           // `:3960-3972` — the barrel flash, sized by the primary weapon's
           // name. Per round rather than per volley, because that is where the
@@ -1606,6 +1609,14 @@ export class GameplayScene extends Phaser.Scene {
 
     for (const bullet of this.bullets) {
       if (!bullet.advance(deltaMs, camera)) {
+        // `:1844` — a round leaving the room hits the border, and its weapon's
+        // `borderSound` column picks one of three. Ungated by the on-screen
+        // rule: the AS3 pushes this straight, unlike the six sites in
+        // `audio/onScreenGate.ts`. Kept ungated deliberately, and pinned as a
+        // pair with a gated sound so the two cannot be normalised into one.
+        if (bullet.borderSound) {
+          getSoundManager(this)?.queue(`Border${bullet.borderSound}`);
+        }
         bullet.destroy();
         continue;
       }
@@ -3001,7 +3012,24 @@ export class GameplayScene extends Phaser.Scene {
       if (enemy.grapple) {
         enemy.grapple = { ...enemy.grapple, bulletsShooting: enemy.grapple.bulletsShooting + 1 };
       }
-      getSoundManager(this)?.queue('EnemyShoot');
+      // `:6895-6903` — two names, and a gate. The Trap's shooter has its own
+      // sound, and the push is skipped entirely when the shooter is off
+      // screen (`distanceAdd = 100`). Both were missing: the port queued one
+      // name unconditionally.
+      //
+      // Gated where the border sound above is not — see `audio/onScreenGate.ts`
+      // for why that asymmetry is deliberate.
+      const view = this.cameras.main.worldView;
+      if (
+        isAudibleAt(enemy.x, enemy.y, enemy.radius, {
+          cameraX: view.x,
+          cameraY: view.y,
+          cameraWidth: view.width,
+          cameraHeight: view.height,
+        })
+      ) {
+        getSoundManager(this)?.queue(enemy.stats.shootType === 'Trap' ? 'TrapFart' : 'EnemyShoot');
+      }
 
       // `PartGameArea.as:6972-6980` puts traps on `enemyTrapLayer` and
       // everything else on `enemyBulletLayer`, so a trap renders *under* live

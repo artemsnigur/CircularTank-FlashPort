@@ -156,15 +156,20 @@ export class SoundManager {
 
   constructor({ backend, random = Math.random }: SoundManagerOptions) {
     // DEV-AID: the queue history records nothing until this runs.
-    if (import.meta.env.DEV) {
-      enableQueueHistory();
-      publishQueueHistory();
-    }
+    if (import.meta.env.DEV) enableQueueHistory();
     this.backend = backend;
     this.random = random;
 
     for (const entry of SFX) this.sfxByName.set(entry.name, entry);
     for (const track of MUSIC) this.musicByName.set(track.name, track.file);
+
+    // DEV-AID: published *after* the maps are filled. It was above, before
+    // either loop ran, and handed the harness an empty list — which read as
+    // "no names exist" rather than as a bug, i.e. exactly the silent-wrong
+    // answer this instrument was built to stop.
+    if (import.meta.env.DEV) {
+      publishQueueHistory([...this.sfxByName.keys(), ...this.musicByName.keys()]);
+    }
 
     const loopFile = (name: LoopId): string | null =>
       LOOPS.find((l) => l.name === name)?.file ?? null;

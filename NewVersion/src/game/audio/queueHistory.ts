@@ -1,6 +1,31 @@
 /**
  * DEV-AID: a record of every sound `SoundManager.queue()` was asked for.
  *
+ * ── MEASURE COVERAGE WITH THIS, DO NOT COUNT CALL SITES ───────────────────
+ * **If you are about to work out how much of the sound work remains, run
+ * `npm run look -- --sound-sweep` and read the NOT FIRED list. Do not grep.**
+ *
+ * A grep counts what a regex matches; this counts what actually fired. They
+ * have disagreed three times in this project and the harness was right every
+ * time:
+ *
+ *   - `EnemyShoot` was reported as an invented name (T37). The AS3 pushes it
+ *     through a variable at `PartGameArea.as:6903`; the name was real.
+ *   - "17 of 55 names wired" (T39). The port also pushes through variables —
+ *     `weapon.sound`, `secondary.sound`, `explosionSound()` — so two whole
+ *     rules were already done and the estimate was nearly double the work.
+ *   - "33 of 67" (T39, the correction). Also a floor: helper functions the
+ *     regex could not see. The measured figure was 17.
+ *
+ * This note is here, rather than only in `CLAUDE.md`, because a `CLAUDE.md`
+ * line is what failed to prevent the third instance — it was written one pass
+ * before the mistake was made again. A warning is only useful where the
+ * mistake gets made, and this file is where a sound sweep naturally begins.
+ *
+ * **Silence in an unexercised path is not evidence.** A name in NOT FIRED is
+ * either genuinely unwired or on a path the scenario did not reach; those are
+ * different findings and the second must be named, not inferred.
+ *
  * ── Why this exists ───────────────────────────────────────────────────────
  * Every verification in this project for the last ten passes has been a frame,
  * and **audio does not appear in a frame**. Without this, wiring 167 remaining
@@ -113,8 +138,11 @@ export function unresolvedNames(): string[] {
  * so there has to be a handle somewhere. Installed only when recording is
  * enabled, i.e. only in a dev build, and it is the *only* global this aid adds.
  */
-export function publishQueueHistory(): void {
+export function publishQueueHistory(names: readonly string[] = []): void {
   if (!enabled || typeof window === 'undefined') return;
+  // The full name list, so the harness can subtract what fired from what
+  // exists rather than being handed a hand-maintained expectation.
+  (window as unknown as Record<string, unknown>).__soundManifestNames = [...names];
   (window as unknown as Record<string, unknown>).__soundQueue = {
     all: queueHistory,
     names: queuedNames,
