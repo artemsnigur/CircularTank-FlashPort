@@ -715,6 +715,9 @@ export class GameplayScene extends Phaser.Scene {
       this.roomWidth,
       this.roomHeight,
       this.upgrades,
+      // `ScreenGame.setVisibleTankWeapon` — the turret's art is the equipped
+      // primary's, from the first frame.
+      this.weapon?.name,
     );
 
     this.startWave();
@@ -3227,6 +3230,10 @@ export class GameplayScene extends Phaser.Scene {
     this.currentSlot = target;
     this.weapon = next;
     this.weaponStats = stats;
+
+    // `ScreenGame.as:513` calls `setVisibleTankWeapon()` on every switch, so
+    // the turret art changes with the weapon rather than only at level start.
+    this.player.setWeaponArt(next.name);
 
     // `chooseWeapon` writes `primaryWeapon` so a mid-level quit and resume
     // returns to the same slot. The slot *contents* are not touched: switching

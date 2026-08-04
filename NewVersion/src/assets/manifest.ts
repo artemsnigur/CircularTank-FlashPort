@@ -126,6 +126,90 @@ export const SAMPLE_SHAPES: readonly ShapeAsset[] = [
  * divides by this constant at the draw, which is why it is exported rather than
  * being a bare 3 in the sizes below.
  */
+/**
+ * Enemy and tank art — one shape per frame of the 40 `Enemy*` clips and the
+ * three `Tank*` parts, keyed `unit-<shapeId>` so `enemyArt.ts` and `tankArt.ts`
+ * resolve straight to a texture.
+ *
+ * Rasterised at `UNIT_RASTER_SCALE` times the authored size, and **the draw
+ * divides by it**. The same coupling `PARTICLE_RASTER_SCALE` names, and worth
+ * naming twice: the tank's previous `TANK_DIAMETER = 58` came from exactly this
+ * confusion left unnamed — a 29-unit authored body rasterised large, then drawn
+ * at the raster size, which doubled both the sprite and the radius taken from
+ * it. An unnamed scale factor is how that happens.
+ */
+export const UNIT_RASTER_SCALE = 4;
+
+export const UNIT_SHAPES: readonly ShapeAsset[] = [
+  shape('unit-3', '3.svg', 116, 116, 'Enemy or tank clip frame'),
+  shape('unit-4', '4.svg', 117, 117, 'Enemy or tank clip frame'),
+  shape('unit-6', '6.svg', 84, 84, 'Enemy or tank clip frame'),
+  shape('unit-7', '7.svg', 76, 68, 'Enemy or tank clip frame'),
+  shape('unit-8', '8.svg', 84, 84, 'Enemy or tank clip frame'),
+  shape('unit-9', '9.svg', 84, 84, 'Enemy or tank clip frame'),
+  shape('unit-10', '10.svg', 84, 84, 'Enemy or tank clip frame'),
+  shape('unit-11', '11.svg', 80, 76, 'Enemy or tank clip frame'),
+  shape('unit-12', '12.svg', 90, 90, 'Enemy or tank clip frame'),
+  shape('unit-13', '13.svg', 84, 84, 'Enemy or tank clip frame'),
+  shape('unit-14', '14.svg', 84, 83, 'Enemy or tank clip frame'),
+  shape('unit-15', '15.svg', 80, 92, 'Enemy or tank clip frame'),
+  shape('unit-16', '16.svg', 84, 84, 'Enemy or tank clip frame'),
+  shape('unit-17', '17.svg', 106, 68, 'Enemy or tank clip frame'),
+  shape('unit-208', '208.svg', 388, 388, 'Enemy or tank clip frame'),
+  shape('unit-209', '209.svg', 300, 300, 'Enemy or tank clip frame'),
+  shape('unit-210', '210.svg', 250, 250, 'Enemy or tank clip frame'),
+  shape('unit-211', '211.svg', 228, 228, 'Enemy or tank clip frame'),
+  shape('unit-271', '271.svg', 404, 404, 'Enemy or tank clip frame'),
+  shape('unit-273', '273.svg', 84, 84, 'Enemy or tank clip frame'),
+  shape('unit-275', '275.svg', 324, 324, 'Enemy or tank clip frame'),
+  shape('unit-277', '277.svg', 364, 364, 'Enemy or tank clip frame'),
+  shape('unit-278', '278.svg', 364, 364, 'Enemy or tank clip frame'),
+  shape('unit-280', '280.svg', 364, 364, 'Enemy or tank clip frame'),
+  shape('unit-281', '281.svg', 364, 364, 'Enemy or tank clip frame'),
+  shape('unit-283', '283.svg', 76, 76, 'Enemy or tank clip frame'),
+  shape('unit-284', '284.svg', 76, 76, 'Enemy or tank clip frame'),
+  shape('unit-286', '286.svg', 324, 324, 'Enemy or tank clip frame'),
+  shape('unit-287', '287.svg', 324, 324, 'Enemy or tank clip frame'),
+  shape('unit-289', '289.svg', 68, 68, 'Enemy or tank clip frame'),
+  shape('unit-290', '290.svg', 68, 68, 'Enemy or tank clip frame'),
+  shape('unit-292', '292.svg', 76, 76, 'Enemy or tank clip frame'),
+  shape('unit-293', '293.svg', 76, 76, 'Enemy or tank clip frame'),
+  shape('unit-295', '295.svg', 324, 324, 'Enemy or tank clip frame'),
+  shape('unit-297', '297.svg', 68, 68, 'Enemy or tank clip frame'),
+  shape('unit-299', '299.svg', 404, 404, 'Enemy or tank clip frame'),
+  shape('unit-301', '301.svg', 84, 84, 'Enemy or tank clip frame'),
+  shape('unit-303', '303.svg', 404, 404, 'Enemy or tank clip frame'),
+  shape('unit-305', '305.svg', 84, 84, 'Enemy or tank clip frame'),
+  shape('unit-307', '307.svg', 324, 324, 'Enemy or tank clip frame'),
+  shape('unit-309', '309.svg', 68, 68, 'Enemy or tank clip frame'),
+  shape('unit-311', '311.svg', 524, 524, 'Enemy or tank clip frame'),
+  shape('unit-313', '313.svg', 108, 108, 'Enemy or tank clip frame'),
+  shape('unit-315', '315.svg', 404, 404, 'Enemy or tank clip frame'),
+  shape('unit-317', '317.svg', 84, 84, 'Enemy or tank clip frame'),
+  shape('unit-319', '319.svg', 364, 364, 'Enemy or tank clip frame'),
+  shape('unit-321', '321.svg', 444, 444, 'Enemy or tank clip frame'),
+  shape('unit-323', '323.svg', 92, 92, 'Enemy or tank clip frame'),
+  shape('unit-325', '325.svg', 284, 284, 'Enemy or tank clip frame'),
+  shape('unit-326', '326.svg', 284, 284, 'Enemy or tank clip frame'),
+  shape('unit-328', '328.svg', 60, 60, 'Enemy or tank clip frame'),
+  shape('unit-329', '329.svg', 60, 60, 'Enemy or tank clip frame'),
+  shape('unit-331', '331.svg', 364, 364, 'Enemy or tank clip frame'),
+  shape('unit-333', '333.svg', 100, 100, 'Enemy or tank clip frame'),
+  shape('unit-335', '335.svg', 484, 484, 'Enemy or tank clip frame'),
+  shape('unit-339', '339.svg', 244, 244, 'Enemy or tank clip frame'),
+  shape('unit-341', '341.svg', 244, 244, 'Enemy or tank clip frame'),
+  shape('unit-343', '343.svg', 52, 52, 'Enemy or tank clip frame'),
+  shape('unit-345', '345.svg', 164, 164, 'Enemy or tank clip frame'),
+  shape('unit-347', '347.svg', 324, 324, 'Enemy or tank clip frame'),
+  shape('unit-349', '349.svg', 68, 68, 'Enemy or tank clip frame'),
+  shape('unit-1352', '1352.svg', 68, 68, 'Enemy or tank clip frame'),
+  shape('unit-1407', '1407.svg', 76, 76, 'Enemy or tank clip frame'),
+  shape('unit-1409', '1409.svg', 52, 52, 'Enemy or tank clip frame'),
+  shape('unit-1411', '1411.svg', 36, 36, 'Enemy or tank clip frame'),
+  shape('unit-1413', '1413.svg', 76, 76, 'Enemy or tank clip frame'),
+] as const;
+
+
 export const PARTICLE_RASTER_SCALE = 3;
 
 export const PARTICLE_SHAPES: readonly ShapeAsset[] = [

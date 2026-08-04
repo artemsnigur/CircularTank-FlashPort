@@ -7,7 +7,9 @@ import {
   moveTank,
   reduceValue,
   rotateTank,
+  TANK_ROT_SPEED_MAX,
   tankStatsFor,
+  turretBearingDegrees,
 } from './tankMovement';
 import type { DirectionalInput, TankStats } from './tankMovement';
 import { createInitialUpgradeState } from '../upgrades/upgradeState';
@@ -251,11 +253,83 @@ describe('rotateTank', () => {
     const state = { ...centre(), xVel: 0, yVel: -1, rotation: 175 };
     const next = rotateTank(state, 1);
     // Goal is -180+... ; turning should not sweep the long way through 0.
-    expect(Math.abs(next.rotation - state.rotation)).toBeLessThanOrEqual(10 + 1e-9);
+    //
+    // Reads the constant rather than a literal. This line said `10` and passed
+    // for as long as `TANK_ROT_SPEED_MAX` was wrong — a test that pins the step
+    // size by copying it cannot tell a correct step from a halved one.
+    expect(Math.abs(next.rotation - state.rotation)).toBeLessThanOrEqual(
+      TANK_ROT_SPEED_MAX + 1e-9,
+    );
   });
 
   it('refreshes speed', () => {
     const state = { ...centre(), xVel: 3, yVel: 4, speed: 0 };
     expect(rotateTank(state, 1).speed).toBeCloseTo(5, 10);
+  });
+});
+
+describe('the tank`s two angle conventions', () => {
+  /**
+   * The hull and the turret do NOT share a convention, and the whole risk here
+   * is one being normalised into the other. Every assertion drives both and
+   * requires a specific disagreement, rather than checking either alone — a
+   * rule asserted in isolation survives exactly this kind of blurring.
+   *
+   * `frames: 100` where the hull's *goal* is the subject: `rotateTank` eases at
+   * `TANK_ROT_SPEED_MAX` per frame from `createTankState`'s -90 start, so one
+   * frame lands 20 degrees along and says nothing about the convention. That
+   * mistake is why these values are derived rather than guessed.
+   */
+  const settle = (xVel: number, yVel: number, rotation = -90): number =>
+    rotateTank({ ...createTankState(0, 0), rotation, xVel, yVel }, 100).rotation;
+
+  it('points them 90 degrees apart for the same physical direction', () => {
+    // Due east. Turret: 0 degrees is east. Hull: 0 is north, clockwise.
+    expect(turretBearingDegrees(0, 0, 100, 0)).toBeCloseTo(0, 6);
+    expect(settle(5, 0)).toBeCloseTo(90, 6);
+  });
+
+  it('keeps the offset on a second, non-symmetric direction', () => {
+    // Due south, chosen because east/west alone would also pass under a sign
+    // flip. The hull wraps to -180 rather than 180 (`:243`), which is the same
+    // facing and the reason this is asserted as the exact value.
+    expect(turretBearingDegrees(0, 0, 0, 100)).toBeCloseTo(90, 6);
+    expect(settle(0, 5)).toBeCloseTo(-180, 6);
+  });
+
+  it('holds the hull`s facing while stopped and moves the turret anyway', () => {
+    // `Tank.as:260` guards the hull turn on `speed > 0`; the turret has no such
+    // guard. Asserted together, because "the hull did not move" is only
+    // meaningful beside something that did.
+    const stopped = { ...createTankState(0, 0), rotation: 33, xVel: 0, yVel: 0 };
+    expect(rotateTank(stopped, 1).rotation).toBe(33);
+    expect(turretBearingDegrees(0, 0, 0, 100)).not.toBeCloseTo(
+      turretBearingDegrees(0, 0, 100, 0),
+      6,
+    );
+  });
+
+  it('caps the hull per frame where the turret snaps', () => {
+    // One frame from -90 toward the eastward goal of 90: the hull moves
+    // exactly `TANK_ROT_SPEED_MAX` and no further, while the turret reaches
+    // its own demand in the single call beside it.
+    const oneFrame = rotateTank({ ...createTankState(0, 0), rotation: -90, xVel: 5, yVel: 0 }, 1);
+    expect(oneFrame.rotation).toBeCloseTo(-90 + TANK_ROT_SPEED_MAX, 6);
+    expect(oneFrame.rotation).not.toBeCloseTo(90, 6);
+    expect(turretBearingDegrees(0, 0, 100, 0)).toBeCloseTo(0, 6);
+  });
+
+  it('takes the hull`s atan2 arguments swapped', () => {
+    // The literal difference, pinned so a "cleanup" that reorders them fails.
+    // With xVel=1, yVel=0 the swapped-and-subtracted form gives 90; the
+    // ordinary form gives 0, which is what the turret would produce.
+    expect(settle(1, 0)).toBeCloseTo(90, 6);
+    expect((Math.atan2(0, 1) * 180) / Math.PI).toBeCloseTo(0, 6);
+  });
+
+  it('turns the hull at the AS3`s 20 degrees per frame, not half that', () => {
+    // `Tank.as:25`. Pinned because the port carried 10 with a citation to this
+    // line, which is the failure mode a citation alone does not catch.
+    expect(TANK_ROT_SPEED_MAX).toBe(20);
   });
 });

@@ -28,6 +28,7 @@ import {
 } from '../enemies/enemySteering';
 import type { SteeringState } from '../enemies/enemySteering';
 import { resolveDamageMultipliers } from '../enemies/damageTypes';
+import { ENEMY_CLIPS, enemyClipKey, enemyShape } from './enemyArt';
 import { shrinkScale, shrinksWithHealth } from '../enemies/enemyBodies';
 import {
   blinksOnTimer,
@@ -101,8 +102,18 @@ const AS3_FPS = 30;
 const INVISIBLE_ALPHA = 0.18;
 
 /** Body diameter in design units, by tier. The AS3 scales the boss art up. */
-const BASE_DIAMETER = 26;
-const BOSS_DIAMETER = 46;
+/**
+ * Fallback sizes, used only when a type has no clip in `ENEMY_CLIPS`.
+ *
+ * These were the *only* sizes until T34: one diameter for every normal enemy
+ * and one for every boss. The AS3 has no such flattening — `:3318` takes each
+ * type's own sprite width — so the port's contact range was wrong by up to
+ * 2.9x per type. They survive as a fallback because `Enemy` must still
+ * construct for a type whose art has not been mapped; `enemyArt.test.ts`
+ * asserts all twenty resolve, so nothing reaches them today.
+ */
+const FALLBACK_DIAMETER = 26;
+const FALLBACK_BOSS_DIAMETER = 46;
 
 /** How long the damage flash holds before reverting, in ms. */
 const FLASH_MS = 80;
@@ -310,7 +321,12 @@ export class Enemy extends Phaser.GameObjects.Container {
     stats: ResolvedEnemyStats,
   ) {
     const isBoss = config.level === 'B';
-    const diameter = isBoss ? BOSS_DIAMETER : BASE_DIAMETER;
+    // `PartGameArea.as:3318` — `enemy.radius = enemy.width / 2`. The authored
+    // sprite width is the hitbox, per type, and the fallback is only reached
+    // for a type with no clip.
+    const diameter =
+      ENEMY_CLIPS[enemyClipKey(config.type, isBoss)]?.size ??
+      (isBoss ? FALLBACK_BOSS_DIAMETER : FALLBACK_DIAMETER);
 
     const spawn = resolveSpawn(
       {
@@ -383,22 +399,25 @@ export class Enemy extends Phaser.GameObjects.Container {
       yVel: spawn.yVel,
     };
 
-    // `particle-dot` is the extracted 1.svg circle, tinted by the enemy's
-    // particle colour so the stat table drives appearance.
     this.particle = stats.particle;
     this.baseTint = PARTICLE_TINTS[stats.particle] ?? 0xffffff;
+
+    // Real art, drawn at its authored size. `setDisplaySize` rather than a
+    // scale, because the texture is rasterised at `UNIT_RASTER_SCALE` and the
+    // authored width is the number that has to end up on screen — it is also
+    // the diameter the radius above came from, so the two cannot drift.
+    const shape = enemyShape(config.type, isBoss, 1);
     this.shell = scene.add
-      .sprite(0, 0, 'particle-dot')
-      .setDisplaySize(diameter, diameter)
-      .setTint(this.baseTint);
+      .sprite(0, 0, shape !== undefined ? `unit-${shape}` : 'particle-dot')
+      .setDisplaySize(diameter, diameter);
 
-    // A short nose showing which way it is heading.
-    const nose = scene.add
-      .sprite(diameter * 0.32, 0, 'particle-dot')
-      .setDisplaySize(diameter * 0.34, diameter * 0.34)
-      .setTint(0x1b1b1b);
+    // The placeholder tinted a plain circle by the enemy's particle colour and
+    // added a nose so it had a facing. Both are gone: the art carries its own
+    // colour and its own front. The tint is kept as `baseTint` because
+    // `flashDamage` still restores to it.
+    if (shape === undefined) this.shell.setTint(this.baseTint);
 
-    this.add([this.shell, nose]);
+    this.add([this.shell]);
     this.setDepth(8);
     this.setRotation(Phaser.Math.DegToRad(spawn.rotation));
 
@@ -599,9 +618,9 @@ export class Enemy extends Phaser.GameObjects.Container {
   /**
    * Advances the blink or flinch and fades the sprite to match.
    *
-   * The AS3 swaps to frame 2 for the invisible state; the port has no such
-   * frame, so it uses alpha. Deliberately not fully transparent: the original
-   * shows a faint ghost rather than nothing, and an enemy the player cannot see
+   * The AS3 swaps to frame 2 for the invisible state, which `applyAlpha` now
+   * does too. The alpha is kept alongside it and is this port's own addition:
+   * deliberately not fully transparent, because an enemy the player cannot see
    * at all is indistinguishable from one that has despawned.
    */
   private tickVisibility(frames: number): void {
@@ -679,6 +698,18 @@ export class Enemy extends Phaser.GameObjects.Container {
       return;
     }
     this.setAlpha(this.invisible ? INVISIBLE_ALPHA : 1);
+
+    // `:4824`, `:4844` — the AS3 also swaps to the clip's second frame while
+    // invisible. Four types have one (Ghost, ScaredGhost, Teleporting,
+    // Temperamental, and their bosses); `enemyShape` clamps, so a single-frame
+    // type asking for frame 2 gets frame 1 rather than nothing.
+    //
+    // Frame *and* alpha, not one or the other: the frame is the art the
+    // original shows, and the alpha is this port's own softening so a fully
+    // hidden enemy is not mistaken for a despawned one. That divergence
+    // predates the art and is kept — see the note on `tickVisibility`.
+    const shape = enemyShape(this.enemyType, this.enemyLevel === 'B', this.invisible ? 2 : 1);
+    if (shape !== undefined) this.shell.setTexture(`unit-${shape}`);
   }
 
   /**

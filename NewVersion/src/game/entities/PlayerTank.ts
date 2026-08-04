@@ -20,16 +20,33 @@ import {
 } from '../player/tankMovement';
 import type { DirectionalInput, TankState, TankStats } from '../player/tankMovement';
 import type { UpgradeState } from '../upgrades/upgradeState';
+import { TANK_BODY_FRAMES, TANK_SIZES, towerShape } from './tankArt';
+import { TANK_RADIUS } from '../player/tankDamage';
 
 /** Body diameter in design units — the extracted TankBody shape is ~58. */
-const TANK_DIAMETER = 58;
+/**
+ * `TankBody`'s authored width — `TANK_SIZES.body`, and `Tank.radius * 2`.
+ *
+ * This was 58 until T34, which is exactly twice the authored 29. The two
+ * numbers reconcile only one way: 29 was read as a *radius* and doubled to
+ * make a diameter, when 29 is already the diameter. That put the drawn tank
+ * and its hitbox at 2.07x the original's 14-unit radius for the whole project.
+ * See `docs/AUDIT-2026-07.md` E1.
+ */
+const TANK_DIAMETER = TANK_SIZES.body;
 
 export type PlayerInput = DirectionalInput;
 
 export class PlayerTank extends Phaser.GameObjects.Container {
   /** Turret. Aims at the pointer independently of the body. */
   readonly tower: Phaser.GameObjects.Sprite;
-  readonly radius = TANK_DIAMETER / 2;
+  /**
+   * `Tank.as:23`. Imported rather than recomputed from `TANK_DIAMETER`: the
+   * constant was already ported, tested and correct in `tankDamage.ts`, and
+   * reached by nothing — the game used a locally derived 29 instead. Pointing
+   * the entity at the ported constant is what closes that split.
+   */
+  readonly radius = TANK_RADIUS;
 
   private motion: TankState;
   private stats: TankStats;
@@ -47,6 +64,13 @@ export class PlayerTank extends Phaser.GameObjects.Container {
     roomWidth: number,
     roomHeight: number,
     upgrades: UpgradeState,
+    /**
+     * The equipped primary, which selects the turret's art —
+     * `ScreenGame.setVisibleTankWeapon`. Defaulted to the Cannon so a caller
+     * that has not chosen yet gets frame 1, which is what the AS3 shows before
+     * `setVisibleTankWeapon` first runs.
+     */
+    weaponName = 'Cannon',
   ) {
     super(scene, x, y);
 
@@ -55,13 +79,18 @@ export class PlayerTank extends Phaser.GameObjects.Container {
     this.roomWidth = roomWidth;
     this.roomHeight = roomHeight;
 
-    // `tank-body` is the extracted 3.svg TankBody shape.
-    this.hull = scene.add.sprite(0, 0, 'tank-body').setDisplaySize(TANK_DIAMETER, TANK_DIAMETER);
+    // `Tank.as:54` — body first. Frame 1; frame 2 is Tower mode.
+    this.hull = scene.add
+      .sprite(0, 0, `unit-${TANK_BODY_FRAMES[0]}`)
+      .setDisplaySize(TANK_DIAMETER, TANK_DIAMETER);
 
+    // `:63` — the turret is added after the body, so it draws on top. It used
+    // to be a tinted circle with no facing at all, which is why the turret
+    // appeared to have no direction; it has real art and a bearing now, and
+    // the art it shows depends on the equipped primary.
     this.tower = scene.add
-      .sprite(0, 0, 'particle-dot')
-      .setDisplaySize(22, 22)
-      .setTint(0x8fd3ff)
+      .sprite(0, 0, `unit-${towerShape(weaponName)}`)
+      .setDisplaySize(TANK_SIZES.tower, TANK_SIZES.tower)
       .setDepth(11);
 
     this.add(this.hull);
@@ -156,10 +185,28 @@ export class PlayerTank extends Phaser.GameObjects.Container {
 
     this.setPosition(this.motion.x, this.motion.y);
     // The AS3 art points up at rotation 0, so add a quarter turn.
+    // `motion.rotation` already carries the AS3's hull convention (0 at north,
+    // via `rotateTank`); the art is authored pointing up, so the quarter turn
+    // converts that to Phaser's 0-at-east. Both halves are needed — dropping
+    // either leaves the hull 90 degrees out, which on a round body reads as
+    // "slightly off" rather than as broken.
     this.hull.setRotation(Phaser.Math.DegToRad(this.motion.rotation + 90));
 
     this.tower.setPosition(this.motion.x, this.motion.y);
     if (aim) this.tower.setRotation(Phaser.Math.Angle.Between(this.x, this.y, aim.x, aim.y));
+  }
+
+  /**
+   * Swaps the turret to the equipped primary's art —
+   * `ScreenGame.setVisibleTankWeapon` (`:521`).
+   *
+   * The AS3 calls this on every weapon switch, not only at level start, so an
+   * unrecognised name falls back to frame 1 rather than leaving the previous
+   * weapon's turret on screen.
+   */
+  setWeaponArt(weaponName: string): void {
+    this.tower.setTexture(`unit-${towerShape(weaponName)}`);
+    this.tower.setDisplaySize(TANK_SIZES.tower, TANK_SIZES.tower);
   }
 
   /** Turret facing in degrees — what the firing code needs. */

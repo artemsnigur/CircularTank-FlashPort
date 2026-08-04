@@ -36,8 +36,16 @@ export const DEFAULT_MAX_SPEED = 3;
 export const DEFAULT_ACC_SPEED = 0.5;
 export const DEFAULT_FRICTION = 0.2;
 
-/** Tank.as `rotSpeedMax` — degrees per frame the body turns toward travel. */
-export const TANK_ROT_SPEED_MAX = 10;
+/**
+ * `Tank.as:25` `rotSpeedMax` — degrees per frame the body turns toward travel.
+ *
+ * Was 10 here until T34, against the AS3's 20, so the hull turned at half rate
+ * while carrying a citation to the line that says otherwise. Found while
+ * deriving expected values for the rotation tests rather than by reading the
+ * code, which is the same way the radius errors surfaced: a constant with a
+ * correct-looking source reference is not a checked constant.
+ */
+export const TANK_ROT_SPEED_MAX = 20;
 
 export interface TankStats {
   maxSpeed: number;
@@ -231,6 +239,34 @@ export function moveTank(
  * above 180 into the negative half, which is the same facing expressed in
  * (-180, 180].
  */
+/**
+ * The turret's bearing in degrees — `Tank.as:74`.
+ *
+ * Deliberately next to `rotateTank`, because the pair is the point: **the tank
+ * carries two different angle conventions and they are easy to normalise into
+ * each other.**
+ *
+ *   hull    `180 - atan2(xVel, yVel)`   0 degrees at north, clockwise, eased
+ *   turret  `atan2(dy, dx)`             0 degrees at east, assigned outright
+ *
+ * The hull's `atan2` takes its arguments swapped and is subtracted from 180.
+ * The turret's is the ordinary form. Rewriting either in the other's shape
+ * rotates that part 90 degrees and mirrors it, which on a round tank reads as
+ * "a bit off" rather than as a defect.
+ *
+ * Two further asymmetries, pinned in the tests: the hull is capped at
+ * `TANK_ROT_SPEED_MAX` per frame and **does not turn at all while stopped**
+ * (`:260`), where the turret snaps to the pointer every frame regardless.
+ */
+export function turretBearingDegrees(
+  tankX: number,
+  tankY: number,
+  pointerX: number,
+  pointerY: number,
+): number {
+  return (Math.atan2(pointerY - tankY, pointerX - tankX) * 180) / Math.PI;
+}
+
 export function rotateTank(state: TankState, frames: number): TankState {
   const speed = Math.hypot(state.xVel, state.yVel);
   if (speed <= 0) return { ...state, speed };
