@@ -144,7 +144,13 @@ describe('the level start re-derives the weapon', () => {
 
   it('the scene uses the derived value', () => {
     expect(SCENE).toContain('this.currentSlot = resolveActiveSlot(this.profile.loadout);');
-    expect(SCENE).toContain('this.weapon = getWeapon(resolveActivePrimary(this.profile.loadout));');
+    // Matched on the operand rather than the whole line. It pinned the exact
+    // call and broke in T41 when `?primary=` added a `devPrimary ??` in front —
+    // a correct change reportable only as a failure, which is the known cost of
+    // pinning a spelling. The rule that survives is that the *derived* value is
+    // what reaches `getWeapon`, and that the stored field is never read back.
+    expect(SCENE).toContain('resolveActivePrimary(this.profile.loadout)');
+    expect(SCENE).toMatch(/this\.weapon = getWeapon\([^)]*resolveActivePrimary/);
     // The stored field must not be read back for this.
     expect(SCENE).not.toContain('getWeapon(this.profile.loadout.primaryWeapon)');
   });

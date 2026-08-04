@@ -5,6 +5,7 @@
  * deliberately omits (homing, reflection, and the status effects).
  */
 import Phaser from 'phaser';
+import { getSoundManager } from '../audio/soundService';
 import { stepBullet } from '../weapons/bulletStep';
 import type { BounceEdge, CameraBounds } from '../weapons/bulletBounce';
 import {
@@ -308,7 +309,13 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     );
     if (!step) return false;
 
-    if (step.bounced) this.applyBounceCost(step.bounced);
+    if (step.bounced) {
+      this.applyBounceCost(step.bounced);
+      // `:2011` — one sound for every bounce, whatever bounced and off which
+      // edge. Ungated by the on-screen rule, like the border sound: the AS3
+      // pushes it straight.
+      getSoundManager(this.scene)?.queue('BorderBounce');
+    }
 
     // Keep the live (possibly grown) radius rather than the spawn value.
     this.motion = { ...step.state, radius: this.radius };

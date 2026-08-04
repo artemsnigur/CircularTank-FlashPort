@@ -22,6 +22,15 @@
  * before the mistake was made again. A warning is only useful where the
  * mistake gets made, and this file is where a sound sweep naturally begins.
  *
+ * **Distrust this instrument the way you would any other.** It was built to
+ * stop clean-but-wrong answers and immediately produced two of its own: the
+ * manifest name list was published in `SoundManager`'s constructor before the
+ * maps were filled, so the harness got an empty list and printed *no missing
+ * names at all*; and the per-frame peak was read on a page where nothing had
+ * died, reporting 0 for a rule that was working. **A run reporting nothing
+ * missing should be as suspect as one reporting everything missing** — check
+ * the FIRED count is plausible before believing the NOT FIRED list.
+ *
  * **Silence in an unexercised path is not evidence.** A name in NOT FIRED is
  * either genuinely unwired or on a path the scenario did not reach; those are
  * different findings and the second must be named, not inferred.

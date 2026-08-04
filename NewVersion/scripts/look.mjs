@@ -319,8 +319,19 @@ if (args.soundSweep) {
   // weapon cycle key (Q) walks the equipped slots.
   const SECONDARIES = ['Grenade', 'Mine', 'Shield', 'Rockets', 'Icicles', 'Crazy Cheese', 'Ice Ball', 'Magic Bunny'];
 
-  for (const secondary of SECONDARIES) {
-    await page.goto(`${URL}?secondary=${encodeURIComponent(secondary)}`, { waitUntil: 'domcontentloaded' });
+  // Paired with a different primary each pass, via the `?primary=` aid added
+  // in T41. Eight weapon sounds plus BorderTiny/BorderBig were silent purely
+  // because the Cannon is what a fresh profile equips — unexercised, not
+  // unwired, and this is what tells the two apart.
+  const PRIMARIES = [
+    'MiniGun', 'Shotgun', 'Big Cannon', 'Gummy Bear Cannon',
+    'Cake Cannon', 'Poison Cannon', 'Magic Cannon', 'Laser Cannon',
+  ];
+
+  for (const [i, secondary] of SECONDARIES.entries()) {
+    const primary = PRIMARIES[i % PRIMARIES.length];
+    const q = `?secondary=${encodeURIComponent(secondary)}&primary=${encodeURIComponent(primary)}`;
+    await page.goto(`${URL}${q}`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
     await page.getByRole('button', { name: /all-enemy test level/i }).click();
     await delay(7000);
@@ -348,7 +359,7 @@ if (args.soundSweep) {
     await page.mouse.up();
     await delay(600);
     await collect();
-    console.log(`[look] after ${secondary}: ${fired.size} names so far`);
+    console.log(`[look] ${primary} + ${secondary}: ${fired.size} names so far`);
   }
 
   // The dedup case, on its own page load and measured there.

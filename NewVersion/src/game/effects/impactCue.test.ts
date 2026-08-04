@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { BOSS_CUE_SIZE_BONUS, impactBurst, impactClassOf } from './impactCue';
+import { BOSS_CUE_SIZE_BONUS, impactBurst, impactClassOf, impactSoundFor } from './impactCue';
+import { SFX } from '../../assets/audioManifest';
 import type { ImpactClass, ImpactInput } from './impactCue';
 import { BULLET_DAMAGE_TYPES, resolveDamageMultipliers } from '../enemies/damageTypes';
 import type { DamageType } from '../enemies/enemyStatsData';
@@ -13,6 +14,7 @@ import type { DamageType } from '../enemies/enemyStatsData';
 function input(over: Partial<ImpactInput> = {}): ImpactInput {
   return {
     impactClass: 'Standard',
+    bulletClass: 'BulletShotgun',
     x: 100,
     y: 200,
     angleToBullet: 45,
@@ -210,5 +212,41 @@ describe('impactClassOf', () => {
 
   it('falls through to Standard for a name it does not know', () => {
     expect(impactClassOf('BulletNotPortedYet')).toBe('Standard');
+  });
+});
+
+describe('impactSoundFor', () => {
+  it('gives two classes that share a shape different sounds, and vice versa', () => {
+    // The reason this is its own table rather than a field on ImpactShape:
+    // the sounds cut across the four burst shapes in both directions.
+    expect(impactSoundFor('BulletSmall')).toBe(impactSoundFor('BulletShotgun'));
+    expect(impactClassOf('BulletSmall')).not.toBe(impactClassOf('BulletShotgun'));
+
+    expect(impactSoundFor('BulletGummyBear')).not.toBe(impactSoundFor('BulletCake'));
+    expect(impactClassOf('BulletGummyBear')).toBe(impactClassOf('BulletCake'));
+  });
+
+  it('returns null for a class the AS3 gives no impact sound', () => {
+    // A real answer, not a gap — `BulletFire` and the grenades have none.
+    expect(impactSoundFor('BulletFire')).toBeNull();
+    expect(impactSoundFor('ObjectGrenade')).toBeNull();
+  });
+
+  it('silences the sound on an immune hit, alongside the debris', () => {
+    // Every AS3 push sits inside `if(multiplier > 0)`, so immunity takes the
+    // sound with it. Pinned against the same hit on a non-immune enemy, which
+    // is the only way this reads as a rule rather than as an accident.
+    const immune = { ...resolveDamageMultipliers('Basic'), Bullets: 0 };
+    expect(impactBurst(input({ bulletClass: 'BulletSmall', multipliers: immune })).sound).toBeNull();
+    expect(impactBurst(input({ bulletClass: 'BulletSmall' })).sound).toBe('ImpactBullet');
+  });
+
+  it('names only sounds the manifest knows', () => {
+    // The EnemyShoot failure mode, at build time.
+    const known = new Set(SFX.map((e) => e.name));
+    for (const bulletClass of Object.keys(BULLET_DAMAGE_TYPES)) {
+      const sound = impactSoundFor(bulletClass);
+      if (sound) expect(known.has(sound), `${bulletClass} -> ${sound}`).toBe(true);
+    }
   });
 });

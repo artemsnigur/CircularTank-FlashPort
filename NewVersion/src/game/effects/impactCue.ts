@@ -100,8 +100,51 @@ export function impactClassOf(bulletClass: string): ImpactClass {
   return IMPACT_CLASSES[bulletClass] ?? 'Standard';
 }
 
+/**
+ * The sound a round makes when it lands — `:5656-5965`.
+ *
+ * Keyed on the AS3 class name, like `IMPACT_CLASSES` above, because the sounds
+ * are finer-grained than the four burst shapes: `BulletSmall` and
+ * `BulletShotgun` share `ImpactBullet` but not a shape, while `BulletIcicle`
+ * shares the *sound* with them and has its own shape.
+ *
+ * **Gated on the enemy not being immune**, exactly as the AS3 has it — every
+ * push sits inside `if(theEnemy.<channel>DamageMultiplier > 0)`. That is the
+ * same condition `impactBurst` already computes for the `Immune` cue, so the
+ * sound rides on it rather than re-deriving it.
+ *
+ * A class absent from this table makes no impact sound, which is a real answer
+ * rather than a gap: `BulletFire` and the grenades have none in the original.
+ *
+ * `ImpactCrazyCheese` is deliberately not here. The asset exists
+ * (`101_sndImpactCrazyCheesev1.mp3`) and **no `sfxArray.push` site in the AS3
+ * references it by any spelling** — an orphan sound, recorded rather than
+ * invented a trigger for.
+ */
+const IMPACT_SOUNDS: Readonly<Record<string, string>> = {
+  BulletSmall: 'ImpactBullet', // `:5660`
+  BulletShotgun: 'ImpactBullet', // `:5660`, same branch
+  BulletIcicle: 'ImpactBullet', // `:5841`
+  BulletPoisonSpike: 'ImpactBullet', // `:5901`
+  BulletPoison: 'ImpactBullet', // `:5931`
+  BulletGummyBear: 'ImpactGummyBear', // `:5667`
+  BulletCake: 'ImpactCake', // `:5674`
+  BulletCakePiece: 'ImpactCake', // `:5674`, same branch
+  BulletMagic: 'ImpactMagic', // `:5949`
+  BulletMagicBunny: 'ImpactMagic', // `:5949`
+  BulletBomb: 'ImpactTimedBomb', // `:5828`
+  BulletLaser: 'ImpactLaser', // `:5573` — and this one is gated on screen
+};
+
+/** The impact sound for an AS3 bullet class, or null where it makes none. */
+export function impactSoundFor(bulletClass: string): string | null {
+  return IMPACT_SOUNDS[bulletClass] ?? null;
+}
+
 export interface ImpactInput {
   impactClass: ImpactClass;
+  /** AS3 class name, for the sound table. */
+  bulletClass: string;
   /** Where the bullet met the enemy. */
   x: number;
   y: number;
@@ -121,6 +164,12 @@ export interface ImpactInput {
 export interface ImpactBurst {
   spawns: SpawnInput[];
   /**
+   * The sound to queue, or null. Null covers two different cases on purpose —
+   * a class with no impact sound, and an immune hit, which the AS3 silences by
+   * putting every push inside the multiplier check.
+   */
+  sound: string | null;
+  /**
    * Whether the caller should arm `strongWeakTimer`.
    *
    * Returned rather than mutated so the rule stays pure. The AS3 arms it at
@@ -139,6 +188,7 @@ export interface ImpactBurst {
 export function impactBurst(input: ImpactInput): ImpactBurst {
   const shape = SHAPES[input.impactClass];
   const feedback = impactFeedback(input.multipliers, input.damageType);
+  const sound = impactSoundFor(input.bulletClass);
   const spawns: SpawnInput[] = [];
 
   if (feedback === 'Immune') {
@@ -154,7 +204,9 @@ export function impactBurst(input: ImpactInput): ImpactBurst {
       addVel: 0,
       addMaxScale: shape.immuneScale,
     });
-    return { spawns, armCooldown: false };
+    // Immune: no sound either. Every AS3 push sits inside the multiplier
+    // check, so silence here is the rule and not an omission.
+    return { spawns, armCooldown: false, sound: null };
   }
 
   if (shape.debris > 0) {
@@ -176,11 +228,11 @@ export function impactBurst(input: ImpactInput): ImpactBurst {
   // untyped-round case: debris, no cue. That is the AS3's behaviour for a
   // round whose multiplier is exactly 1, and the port's untyped rounds are
   // indistinguishable from it at this seam.
-  if (feedback === null) return { spawns, armCooldown: false };
+  if (feedback === null) return { spawns, armCooldown: false, sound };
 
   // `:5691` — only `BulletSmall` checks the cooldown, and only it arms one.
   if (shape.cooldown && input.strongWeakTimer > 0) {
-    return { spawns, armCooldown: false };
+    return { spawns, armCooldown: false, sound };
   }
 
   spawns.push({
@@ -196,5 +248,5 @@ export function impactBurst(input: ImpactInput): ImpactBurst {
       (input.isBoss ? BOSS_CUE_SIZE_BONUS : 0) + shape.cueSizeOffset,
   });
 
-  return { spawns, armCooldown: shape.cooldown };
+  return { spawns, armCooldown: shape.cooldown, sound };
 }

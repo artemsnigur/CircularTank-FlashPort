@@ -319,6 +319,27 @@ function withOwnedSecondary(state: UpgradeState, name: string): UpgradeState {
   return { ...state, secondary };
 }
 
+/**
+ * DEV-AID: the equipped primary, from `?primary=<name>`.
+ *
+ * The exact counterpart of `?secondary=`, and it exists for the same reason
+ * one level up. Ten sound names — the eight per-weapon fire sounds plus
+ * `BorderTiny` and `BorderBig` — were reported as "not fired" by the coverage
+ * sweep purely because the Cannon is what a fresh profile equips and nothing
+ * could switch it. That is an *unexercised* path being read as an unwired one,
+ * which is the exact misreading the sweep exists to prevent.
+ *
+ * Like its sibling it grants ownership as well as equipping: a primary the
+ * profile does not own resolves to null stats and simply never fires, which
+ * photographs and measures identically to a broken weapon.
+ */
+function devPrimaryOverride(): string | null {
+  if (!import.meta.env.DEV) return null;
+  if (typeof window === 'undefined') return null;
+  const name = new URLSearchParams(window.location.search).get('primary');
+  return name && getWeapon(name) ? name : null;
+}
+
 function devSecondaryOverride(): string | null {
   if (!import.meta.env.DEV) return null;
   if (typeof window === 'undefined') return null;
@@ -626,7 +647,13 @@ export class GameplayScene extends Phaser.Scene {
     // equipping over slot 1 leaves it naming a weapon that is now in no slot.
     // Reading it would play the weapon the player just unequipped.
     this.currentSlot = resolveActiveSlot(this.profile.loadout);
-    this.weapon = getWeapon(resolveActivePrimary(this.profile.loadout));
+    // `?primary=<name>` overrides the slot-derived choice — see
+    // `devPrimaryOverride`. Ownership comes from the maxed-upgrade path below
+    // rather than a separate grant, because primaries are upgrade-gated the
+    // same way secondaries are.
+    const devPrimary = devPrimaryOverride();
+    if (devPrimary) this.upgrades = maxedUpgradeState(this.upgrades.money);
+    this.weapon = getWeapon(devPrimary ?? resolveActivePrimary(this.profile.loadout));
     this.weaponStats = this.weapon
       ? resolveWeaponStats(this.weapon, this.upgrades)
       : null;
@@ -2706,7 +2733,14 @@ export class GameplayScene extends Phaser.Scene {
   }
 
   private updateSecondary(deltaMs: number): void {
+    // `:4262` — the sound fires on the frame the counter *reaches* zero, not
+    // on every frame it sits there, so the transition has to be observed
+    // across the tick rather than tested after it.
+    const reloadingBefore = this.secondaryFiring.reloadTime > 0;
     tickFiring(this.secondaryFiring, deltaMs);
+    if (reloadingBefore && this.secondaryFiring.reloadTime <= 0) {
+      getSoundManager(this)?.queue('SpecialReloaded');
+    }
 
     // `:1008-1042` — the window runs down whether or not the trigger is held.
     this.shield = tickShield(this.shield, (deltaMs / 1000) * 30);
@@ -3619,6 +3653,7 @@ export class GameplayScene extends Phaser.Scene {
     // AS3's sixty-four spawn sites are copies of it, one per bullet class.
     const burst = impactBurst({
       impactClass: impactClassOf(bullet.as3Class),
+      bulletClass: bullet.as3Class,
       x: bullet.x,
       y: bullet.y,
       // The AS3's `angleToBullet` points from the enemy to the round, and the
@@ -3633,6 +3668,9 @@ export class GameplayScene extends Phaser.Scene {
       strongWeakTimer: enemy.strongWeakTimer,
     });
     for (const spawn of burst.spawns) this.burst(spawn);
+    // `:5656-5965` — the impact sound rides on the same immunity check the
+    // cue does, so an immune hit is silent as well as debris-less.
+    if (burst.sound) getSoundManager(this)?.queue(burst.sound);
     if (burst.armCooldown) enemy.strongWeakTimer = STRONG_WEAK_TIMER_MAX;
 
     if (!result.killed) {
