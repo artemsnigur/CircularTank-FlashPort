@@ -104,3 +104,71 @@ export function jitterOffset(
   const reach = (1 - alpha) * JITTER_RADIUS;
   return { dx: Math.cos(angle) * reach, dy: Math.sin(angle) * reach };
 }
+
+/**
+ * Authored size per shape, for `setDisplaySize` at the draw.
+ *
+ * **The shapes carry no internal offsets.** Every panel SVG has an identity
+ * transform and a tight bounding box — checked, after a comment in T48 claimed
+ * the opposite and used it to justify scaling a container instead. Each one
+ * therefore rasterises to its own tight texture with content at the origin.
+ *
+ * The consequence is the honest gap below: with no offsets in the art and no
+ * `PlaceObject` matrices extracted, **there is nothing that says where inside a
+ * panel each piece belongs.** The backdrop is placed correctly; the icons and
+ * text stack on it at the panel's origin rather than laid out. See
+ * `PANEL_LAYOUT_UNPORTED` at the draw site.
+ */
+export const SHAPE_SIZES: Readonly<Record<number, readonly [number, number]>> = {
+  43: [54, 54],
+  167: [20, 20],
+  187: [16, 16],
+  195: [6, 12],
+  1325: [160, 80],
+  1326: [24.4, 58.05],
+  1328: [104.2, 25.9],
+  1330: [104.2, 25.9],
+  1332: [160, 64],
+  1333: [117.6, 42],
+  1335: [117.6, 42],
+  1337: [18.3, 17.6],
+  1339: [85, 56],
+  1341: [85, 56],
+  1342: [18.3, 17.6],
+  1345: [90.3, 73],
+  1347: [90.3, 73],
+  1348: [17, 17.1],
+  1350: [17, 17.1],
+  1352: [17, 17],
+  1354: [160, 70],
+  1355: [111.9, 9.9],
+  1357: [111.9, 9.9],
+  1359: [33, 33],
+  1361: [160, 70],
+  1362: [126, 10.1],
+  1365: [126, 10.1],
+  1367: [109.1, 26.5],
+  1369: [29.3, 29.3],
+  1371: [109.1, 70.45],
+  1375: [92, 122],
+  1377: [137.3, 25.9],
+  1379: [137.3, 25.9],
+  1381: [64, 16],
+  1383: [16, 16],
+  1385: [113.9, 25.9],
+  1387: [113.9, 64.8],
+  1389: [26, 16],
+  1391: [124.3, 10.1],
+  1393: [124.3, 38.25],
+  1395: [80, 16],
+  1397: [114.3, 25.9],
+  1399: [114.3, 25.9],
+  1401: [52, 34],
+  1403: [86.4, 41.9],
+  1405: [136.15, 79.5],
+};
+
+/** The authored size of a shape, or null when it is not a panel shape. */
+export function shapeSize(id: number): readonly [number, number] | null {
+  return SHAPE_SIZES[id] ?? null;
+}

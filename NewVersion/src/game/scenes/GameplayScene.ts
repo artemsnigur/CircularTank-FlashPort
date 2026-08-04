@@ -26,7 +26,13 @@ import { shouldRun } from '../waves/levelDoneGate';
 import { isAudibleAt } from '../audio/onScreenGate';
 import { musicForMode } from '../audio/musicCue';
 import { secondaryReloadRuns, tutorialHoldsPlay } from '../tutorial/tutorialGates';
-import { TUTORIAL_CLIPS, TWEEN_FRAMES, jitterOffset, panelPosition } from '../tutorial/tutorialArt';
+import {
+  TUTORIAL_CLIPS,
+  TWEEN_FRAMES,
+  jitterOffset,
+  panelPosition,
+  shapeSize as tutorialShapeSize,
+} from '../tutorial/tutorialArt';
 import {
   addTutorialsToQueue,
   completeTutorial,
@@ -124,7 +130,7 @@ import { propShape, shapeSize } from '../levels/propArt';
 import { presetFor, spawnParticles, tickParticles } from '../effects/particles';
 import type { Particle, SpawnInput } from '../effects/particles';
 import { particleShape } from '../effects/particleArt';
-import { PARTICLE_RASTER_SCALE, UNIT_RASTER_SCALE } from '../../assets/manifest';
+import { PARTICLE_RASTER_SCALE } from '../../assets/manifest';
 import { STRONG_WEAK_TIMER_MAX, impactBurst, impactClassOf } from '../effects/impactCue';
 import { muzzleFlareFor } from '../effects/muzzleFlare';
 import { applyKillReload, killReloadBonus } from '../upgrades/killReload';
@@ -555,7 +561,7 @@ export class GameplayScene extends Phaser.Scene {
 
   /** The tutorial step on screen, its timers, and its fade. */
   private tutorialStep: ActiveStep | null = null;
-  private tutorialPanel: Phaser.GameObjects.Container | null = null;
+  private tutorialSprites: Phaser.GameObjects.Image[] = [];
   private tutorialAlpha = 0;
   /** Any movement key this frame — `Main.up || down || left || right`. */
   private tutorialMovementHeld = false;
@@ -763,7 +769,6 @@ export class GameplayScene extends Phaser.Scene {
     this.coins = [];
     this.coinSprites = [];
     this.tutorialStep = null;
-    this.tutorialPanel = null;
     this.bombMarkers = [];
     this.medicRings = new Map();
     this.hp = TANK_MAX_HP;
@@ -2490,8 +2495,8 @@ export class GameplayScene extends Phaser.Scene {
 
     if (result.finished) {
       this.profile.setTutorial(completeTutorial(this.profile.tutorial, result.step.id));
-      this.tutorialPanel?.destroy();
-      this.tutorialPanel = null;
+      for (const sprite of this.tutorialSprites) sprite.destroy();
+      this.tutorialSprites = [];
       this.tutorialStep = null;
     }
   }
@@ -2499,46 +2504,48 @@ export class GameplayScene extends Phaser.Scene {
   /** Builds the panel: backdrop first, then content, on one container. */
   private showTutorialPanel(id: string): void {
     const clip = TUTORIAL_CLIPS[id];
-    this.tutorialPanel?.destroy();
-    if (!clip) {
-      this.tutorialPanel = null;
-      return;
-    }
+    for (const sprite of this.tutorialSprites) sprite.destroy();
+    this.tutorialSprites = [];
+    if (!clip) return;
 
     // `setScrollFactor(0)` — these are screen furniture, not world objects, so
     // they must not move with the camera.
-    // KNOWN DEFECT: no panel renders, and the render state says it should.
-    //
-    // `__tutorialPanel` (the DEV-AID dump below) reports alpha 1, visible true,
-    // (16, 16), depth 40, scrollFactor 0, four children all visible at alpha 1
-    // with the right textures, and `inDisplayList: true` — for every step. The
-    // values are indistinguishable from the build where the panels *were*
-    // visible.
-    //
-    // **Two wrong premises were burned getting here, both from frames.** T48
-    // reported "AimShoot does not follow"; the `Tutorial` sound fires three
-    // times, so every step is reached and the state machine is fine. T49 then
-    // reported "panel one renders, later ones do not"; that came from the
-    // pre-`setScale` build, where the panel was 4x oversized and unmissable.
-    // Once divided by `UNIT_RASTER_SCALE`, **none** of them render — so the
-    // difference is the scale, not the step.
-    //
-    // A `setScrollFactor(0, 0, true)` propagation fix was tried and reverted:
-    // it changed nothing, because scroll was never the cause.
-    //
-    // What has NOT been checked, and is where the next pass should start: what
-    // these SVGs actually rasterise to at 4x, and where their content sits
-    // inside the texture. Every other value has been read.
-    const container = this.add.container(0, 0).setDepth(TUTORIAL_DEPTH).setScrollFactor(0);
+    /**
+     * **Individually positioned sprites with `setDisplaySize`, not a scaled
+     * container.** Four subsystems — props, coins, enemies and the tank — draw
+     * art this way and all four work; the panels were the only place using a
+     * container scaled by `1 / UNIT_RASTER_SCALE`, and they were the only
+     * place nothing rendered.
+     *
+     * The dump settled it rather than a hypothesis: every value was correct
+     * (alpha 1, visible, in the display list, world position (16,16), scale
+     * 0.25) with nothing on screen. Rather than keep making the container
+     * work, this takes the approach already proven three times. The AS3's
+     * structure argues for a container — the panels *are* composed, and shape
+     * 1325 is shared between Move and AimShoot — but fidelity to its display
+     * hierarchy is not worth a fourth pass on an invisible panel.
+     *
+     * PANEL_LAYOUT_UNPORTED: the pieces stack at the panel's origin. The SVGs
+     * carry no offsets and the `PlaceObject` matrices were never extracted, so
+     * nothing in the port knows where inside a panel each icon belongs. The
+     * backdrop is right; the contents are not laid out. Extracting the
+     * matrices is the fix and it is a parser change, not a rendering one.
+     */
+    const sprites: Phaser.GameObjects.Image[] = [];
     for (const shape of clip.shapes) {
-      container.add(this.add.image(0, 0, `unit-${shape}`).setOrigin(0, 0));
+      const size = tutorialShapeSize(shape);
+      const image = this.add
+        .image(0, 0, `unit-${shape}`)
+        .setOrigin(0, 0)
+        .setDepth(TUTORIAL_DEPTH)
+        .setScrollFactor(0);
+      // Authored size, so the 4x raster is divided exactly where every other
+      // working subsystem divides it.
+      if (size) image.setDisplaySize(size[0], size[1]);
+      sprites.push(image);
     }
-    // Divided by the raster oversampling — the third time this has bitten, and
-    // the first frame showed it as a panel filling a quarter of the screen.
-    // The shapes carry their own offsets, so scaling the container restores the
-    // layout as well as the size. See `UNIT_RASTER_SCALE`.
-    container.setScale(1 / UNIT_RASTER_SCALE);
-    this.tutorialPanel = container;
+    this.tutorialSprites = sprites;
+
     this.drawTutorialPanel();
   }
 
@@ -2551,38 +2558,38 @@ export class GameplayScene extends Phaser.Scene {
    */
   private publishTutorialDebug(): void {
     if (!import.meta.env.DEV || typeof window === 'undefined') return;
-    const panel = this.tutorialPanel;
-    (window as unknown as Record<string, unknown>).__tutorialPanel = panel
+    const first = this.tutorialSprites[0];
+    (window as unknown as Record<string, unknown>).__tutorialPanel = first
       ? {
           step: this.tutorialStep?.id ?? null,
-          alpha: panel.alpha,
-          visible: panel.visible,
-          x: panel.x,
-          y: panel.y,
-          scaleX: panel.scaleX,
-          depth: panel.depth,
-          scrollFactorX: panel.scrollFactorX,
-          childCount: panel.length,
-          inDisplayList: this.children.exists(panel),
-          active: panel.active,
-          childAlphas: (panel.list as Phaser.GameObjects.Image[]).map((c) => c.alpha),
-          childVisible: (panel.list as Phaser.GameObjects.Image[]).map((c) => c.visible),
-          childTextures: (panel.list as Phaser.GameObjects.Image[]).map((c) => c.texture.key),
+          alpha: first.alpha,
+          visible: first.visible,
+          x: first.x,
+          y: first.y,
+          depth: first.depth,
+          displaySize: [first.displayWidth, first.displayHeight],
+          count: this.tutorialSprites.length,
+          textures: this.tutorialSprites.map((s2) => s2.texture.key),
+          cameraScroll: [this.cameras.main.scrollX, this.cameras.main.scrollY],
+          cameraZoom: this.cameras.main.zoom,
         }
       : { step: this.tutorialStep?.id ?? null, panel: null };
   }
 
+
   private drawTutorialPanel(): void {
-    const panel = this.tutorialPanel;
     const step = this.tutorialStep;
-    if (!panel || !step) return;
+    if (this.tutorialSprites.length === 0 || !step) return;
 
     // The live viewport bottom, not the AS3's frozen 480 — see `tutorialArt`.
     const anchor = panelPosition(step.id, this.scale.height / this.cameras.main.zoom);
     const { dx, dy } = jitterOffset(this.tutorialAlpha);
-    panel.setPosition(anchor.x + dx, anchor.y + dy).setAlpha(this.tutorialAlpha);
+    for (const sprite of this.tutorialSprites) {
+      sprite.setPosition(anchor.x + dx, anchor.y + dy).setAlpha(this.tutorialAlpha);
+    }
     this.publishTutorialDebug();
   }
+
 
   private updateParticles(): void {
     this.particles = tickParticles(this.particles);
