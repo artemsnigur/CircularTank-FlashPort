@@ -121,6 +121,17 @@ export class PlayerProfile {
     this.data = { ...this.data, loadout };
   }
 
+  /**
+   * Replaces the tutorial state.
+   *
+   * In memory only, like `setLoadout`. The three arrays persist with the slot
+   * when the level banks; the on/off switch lives in options and is not
+   * touched here — see `tutorialState.tutorialDefaultOn`.
+   */
+  setTutorial(tutorial: TutorialState): void {
+    this.data = { ...this.data, tutorial };
+  }
+
   get progress(): ProgressTable {
     return this.data.levelSelect.progress;
   }

@@ -33,7 +33,7 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false, tutorial: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
@@ -46,6 +46,7 @@ function parseArgs(argv) {
     if (argv[i] === '--sound') args.sound = true;
     if (argv[i] === '--sound-sweep') args.soundSweep = true;
     if (argv[i] === '--indicators') args.indicators = true;
+    if (argv[i] === '--tutorial') args.tutorial = true;
   }
   return args;
 }
@@ -293,6 +294,41 @@ if (args.slots) {
 
 if (args.save) {
   await saveRoundTrip();
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
+
+if (args.tutorial) {
+  // The first end-to-end watch of the whole subsystem: T46 built the state
+  // machine, T47 the gates, and neither could observe the sequence.
+  await page.goto(`${URL}?tutorial=1`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await delay(2500);
+
+  // Move: the panel should be up and nothing should have spawned, because
+  // `:7153` holds the countdown until AimShoot is done.
+  await burst('t-01-move', 6, 200);
+
+  // Doing the thing dismisses it. Held, not tapped.
+  await page.keyboard.down('d');
+  await delay(700);
+  await page.keyboard.up('d');
+  await burst('t-02-move-dismissed', 8, 200);
+
+  // AimShoot follows, and spawning is still held.
+  await burst('t-03-aimshoot', 6, 250);
+
+  // Firing satisfies it and releases the spawn gate on the same frame.
+  await page.locator('canvas').hover({ position: { x: 900, y: 400 } });
+  await page.mouse.down();
+  await delay(300);
+  await page.mouse.up();
+  await burst('t-04-spawn-released', 10, 250);
+
+  console.log(`[look] frames -> ${args.out}`);
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
   await browser.close();
   stop();

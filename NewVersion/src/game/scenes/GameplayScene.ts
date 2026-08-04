@@ -26,6 +26,14 @@ import { shouldRun } from '../waves/levelDoneGate';
 import { isAudibleAt } from '../audio/onScreenGate';
 import { musicForMode } from '../audio/musicCue';
 import { secondaryReloadRuns, tutorialHoldsPlay } from '../tutorial/tutorialGates';
+import { TUTORIAL_CLIPS, TWEEN_FRAMES, jitterOffset, panelPosition } from '../tutorial/tutorialArt';
+import {
+  addTutorialsToQueue,
+  completeTutorial,
+  takeNextTutorial,
+} from '../tutorial/tutorialState';
+import { beginStep, createDefaultExitContext, tickStep } from '../tutorial/tutorialExit';
+import type { ActiveStep } from '../tutorial/tutorialExit';
 import { bombIndicatorView, medicRingScale } from '../effects/indicators';
 import { dropAmount, spawnMoney, tickCoin } from '../items/money';
 import type { Coin } from '../items/money';
@@ -116,7 +124,7 @@ import { propShape, shapeSize } from '../levels/propArt';
 import { presetFor, spawnParticles, tickParticles } from '../effects/particles';
 import type { Particle, SpawnInput } from '../effects/particles';
 import { particleShape } from '../effects/particleArt';
-import { PARTICLE_RASTER_SCALE } from '../../assets/manifest';
+import { PARTICLE_RASTER_SCALE, UNIT_RASTER_SCALE } from '../../assets/manifest';
 import { STRONG_WEAK_TIMER_MAX, impactBurst, impactClassOf } from '../effects/impactCue';
 import { muzzleFlareFor } from '../effects/muzzleFlare';
 import { applyKillReload, killReloadBonus } from '../upgrades/killReload';
@@ -221,6 +229,8 @@ const HAZARD_DEPTH = 0;
 const PARTICLE_DEPTH = 14;
 /** `:2506` — `indicatorLayer`, above enemies and below particles. */
 const INDICATOR_DEPTH = 9;
+/** Tutorial panels sit above everything in the world. */
+const TUTORIAL_DEPTH = 40;
 /** `WarningTimedBomb` frames: 1 ordinary, 2 boss. */
 const BOMB_MARKER_FRAMES = [370, 371] as const;
 /** `IndicatorMedic`'s single frame. */
@@ -347,6 +357,21 @@ function devPrimaryOverride(): string | null {
   if (typeof window === 'undefined') return null;
   const name = new URLSearchParams(window.location.search).get('primary');
   return name && getWeapon(name) ? name : null;
+}
+
+/**
+ * DEV-AID: force the tutorial on, from `?tutorial=1`.
+ *
+ * The switch lives in the options store and defaults on only for a genuinely
+ * first run (`SaveManager.as:820`), so a browser that has ever loaded this
+ * game has it off and there is no options screen yet to turn it back on. This
+ * is the only route an observer has to the subsystem — the same gap
+ * `?secondary=` fills for weapons two through twelve.
+ */
+function devTutorialOverride(): boolean {
+  if (!import.meta.env.DEV) return false;
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('tutorial') === '1';
 }
 
 function devSecondaryOverride(): string | null {
@@ -528,6 +553,16 @@ export class GameplayScene extends Phaser.Scene {
   /** Heal rings, one per living medic — `medicIndicatorArray` (`:2283`). */
   private medicRings = new Map<Enemy, Phaser.GameObjects.Image>();
 
+  /** The tutorial step on screen, its timers, and its fade. */
+  private tutorialStep: ActiveStep | null = null;
+  private tutorialPanel: Phaser.GameObjects.Container | null = null;
+  private tutorialAlpha = 0;
+  /** Any movement key this frame — `Main.up || down || left || right`. */
+  private tutorialMovementHeld = false;
+  /** Flags the level began with, so `flagsTaken` is a difference. */
+  private flagsAtStart = 0;
+  private tutorialFading: 'in' | 'out' = 'in';
+
   /** Live particles, and a sprite pool indexed alongside them. */
   private particles: Particle[] = [];
   private particleSprites: Phaser.GameObjects.Image[] = [];
@@ -673,6 +708,10 @@ export class GameplayScene extends Phaser.Scene {
     // `devPrimaryOverride`. Ownership comes from the maxed-upgrade path below
     // rather than a separate grant, because primaries are upgrade-gated the
     // same way secondaries are.
+    if (devTutorialOverride()) {
+      this.profile.setTutorial({ ...this.profile.tutorial, on: true, completed: false });
+    }
+
     const devPrimary = devPrimaryOverride();
     if (devPrimary) this.upgrades = maxedUpgradeState(this.upgrades.money);
     this.weapon = getWeapon(devPrimary ?? resolveActivePrimary(this.profile.loadout));
@@ -723,6 +762,8 @@ export class GameplayScene extends Phaser.Scene {
     this.particleSprites = [];
     this.coins = [];
     this.coinSprites = [];
+    this.tutorialStep = null;
+    this.tutorialPanel = null;
     this.bombMarkers = [];
     this.medicRings = new Map();
     this.hp = TANK_MAX_HP;
@@ -918,6 +959,11 @@ export class GameplayScene extends Phaser.Scene {
       this.levelFlags.nothingPressed = false;
     }
 
+    // `Main.up || down || left || right` — the tutorial's Move exit reads only
+    // the four direction keys, not firing or aiming, so it cannot be satisfied
+    // by the input that satisfies AimShoot.
+    this.tutorialMovementHeld = input.up || input.down || input.left || input.right;
+
     const aim = this.pointerWorldPoint();
 
     // On a loss the tank is gone, so it neither drives nor shoots. On a win it
@@ -983,6 +1029,7 @@ export class GameplayScene extends Phaser.Scene {
     // side. Before the `levelDone` gate landed this was unreachable, because
     // the scene was paused outright the moment a level resolved — see
     // `waves/levelDoneGate.ts` for the partition, and A0 in the audit.
+    this.updateTutorial(delta);
     this.updateIndicators();
     this.updateParticles();
 
@@ -1265,6 +1312,9 @@ export class GameplayScene extends Phaser.Scene {
     if (!spec) return;
 
     this.wave = createWaveState(spec);
+    // Captured once, so `flagsTaken` is a difference rather than a count the
+    // tutorial would have to be told separately.
+    this.flagsAtStart = this.wave.flagsLeft;
     // `:305-308` — set at level start from the level's own boss count, not by
     // watching three bosses be alive together. It is a property of the level,
     // so a Boss level with two bosses can never earn BossOnlySpecial however it
@@ -2373,6 +2423,112 @@ export class GameplayScene extends Phaser.Scene {
           .setDisplaySize(200 * scale, 200 * scale),
       );
     }
+  }
+
+
+  /**
+   * Drives the tutorial — `PartTutorial.update` (`:428`).
+   *
+   * Outside the level-done gate, like the particles and the money: `Objective`
+   * ends on `levelDone`, so gating this would stop the step that is waiting for
+   * the very thing that just happened.
+   */
+  private updateTutorial(deltaMs: number): void {
+    const profile = this.profile.tutorial;
+    if (!profile.on || profile.completed) return;
+
+    const frames = (deltaMs / 1000) * 30;
+    const wave = this.wave;
+
+    // `:443` — entry conditions are evaluated every frame, whether or not a
+    // step is showing.
+    this.profile.setTutorial(
+      addTutorialsToQueue(profile, {
+        levelMode: this.levelSpec?.mode ?? 'Normal',
+        currentWorldAndLevel: [this.world, this.level],
+        reloadTimeSecondary: this.secondaryFiring.reloadTime,
+        equippedWeapons: this.profile.loadout.equippedWeapons,
+        movementKeyHeld: this.tutorialMovementHeld,
+        // `PartGameArea.enemyStrengthTrigger`/`WeaknessTrigger` are not ported.
+        // False rather than a guess: `Strength` and `Weakness` are timer-only
+        // steps, so leaving them unqueued costs nothing but the two hints, and
+        // inventing a trigger would put them on screen at the wrong moment.
+        enemyStrengthTrigger: false,
+        enemyWeaknessTrigger: false,
+      }),
+    );
+
+    if (this.tutorialStep === null) {
+      const taken = takeNextTutorial(this.profile.tutorial);
+      if (!taken.tutorial) return;
+      this.profile.setTutorial(taken.state);
+      this.tutorialStep = beginStep(taken.tutorial);
+      this.tutorialAlpha = 0;
+      this.tutorialFading = 'in';
+      this.showTutorialPanel(taken.tutorial);
+      // `:399` — one per step, as it appears.
+      getSoundManager(this)?.queue('Tutorial');
+      return;
+    }
+
+    const result = tickStep(this.tutorialStep, {
+      ...createDefaultExitContext(),
+      movementKeyHeld: this.tutorialMovementHeld,
+      firePressed: this.firePressed,
+      secondaryPressed: this.secondaryPressed,
+      enemiesKilled: this.kills,
+      flagsTaken: wave ? Math.max(0, this.flagsAtStart - wave.flagsLeft) : 0,
+      levelDone: this.outcome.result !== null,
+    }, frames);
+    this.tutorialStep = result.step;
+
+    // Satisfied: fade out while the follow-on timer runs.
+    this.tutorialFading = result.step.continueTimer !== null ? 'out' : 'in';
+    const step = this.tutorialFading === 'in' ? 1 / TWEEN_FRAMES : -1 / TWEEN_FRAMES;
+    this.tutorialAlpha = Phaser.Math.Clamp(this.tutorialAlpha + step * frames, 0, 1);
+    this.drawTutorialPanel();
+
+    if (result.finished) {
+      this.profile.setTutorial(completeTutorial(this.profile.tutorial, result.step.id));
+      this.tutorialPanel?.destroy();
+      this.tutorialPanel = null;
+      this.tutorialStep = null;
+    }
+  }
+
+  /** Builds the panel: backdrop first, then content, on one container. */
+  private showTutorialPanel(id: string): void {
+    const clip = TUTORIAL_CLIPS[id];
+    this.tutorialPanel?.destroy();
+    if (!clip) {
+      this.tutorialPanel = null;
+      return;
+    }
+
+    // `setScrollFactor(0)` — these are screen furniture, not world objects, so
+    // they must not move with the camera.
+    const container = this.add.container(0, 0).setDepth(TUTORIAL_DEPTH).setScrollFactor(0);
+    for (const shape of clip.shapes) {
+      container.add(this.add.image(0, 0, `unit-${shape}`).setOrigin(0, 0));
+    }
+    // Divided by the raster oversampling — the third time this has bitten, and
+    // the first frame showed it as a panel filling a quarter of the screen.
+    // The shapes carry their own offsets, so scaling the container restores the
+    // layout as well as the size. See `UNIT_RASTER_SCALE`.
+    container.setScale(1 / UNIT_RASTER_SCALE);
+    this.tutorialPanel = container;
+    this.drawTutorialPanel();
+  }
+
+  private drawTutorialPanel(): void {
+    const panel = this.tutorialPanel;
+    const step = this.tutorialStep;
+    if (!panel || !step) return;
+
+    // The live viewport bottom, not the AS3's frozen 480 — see `tutorialArt`.
+    const anchor = panelPosition(step.id, this.scale.height / this.cameras.main.zoom);
+    const { dx, dy } = jitterOffset(this.tutorialAlpha);
+    panel.setPosition(anchor.x + dx, anchor.y + dy).setAlpha(this.tutorialAlpha);
   }
 
   private updateParticles(): void {

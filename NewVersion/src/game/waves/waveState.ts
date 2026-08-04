@@ -68,6 +68,16 @@ export interface WaveState {
    * is the *pre-countdown* state — every level behaves as though its countdown
    * were still running.
    *
+   * **What depends on it being false today.** `spawnPlacement`'s first line is
+   * `if (countDownDone) return false` — the off-camera spawn search is skipped
+   * once the countdown has finished. Permanently false therefore means the
+   * port runs that search on **every** spawn, on every level, where the AS3
+   * runs it only during the countdown. So this is an unported subsystem's
+   * state leaking into a ported one's behaviour *now*, not merely a missing
+   * feature: whoever ports the countdown is changing spawn placement for the
+   * whole game, and should expect enemies to start appearing in places they
+   * currently cannot.
+   *
    * `PartInterface.as:288` is the one place the AS3 sets it early: on world 1
    * level 1, for a tutorial that is on, incomplete and has done nothing yet,
    * the countdown is skipped outright and this is forced true. That line was
