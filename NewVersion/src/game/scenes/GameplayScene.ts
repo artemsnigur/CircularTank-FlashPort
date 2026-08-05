@@ -26,6 +26,9 @@ import { shouldRun } from '../waves/levelDoneGate';
 import { isAudibleAt } from '../audio/onScreenGate';
 import { musicForMode } from '../audio/musicCue';
 import { secondaryReloadRuns, tutorialHoldsPlay } from '../tutorial/tutorialGates';
+import { withTutorialEnabled } from '../tutorial/tutorialState';
+import { readGameplayOptions } from '../options/gameplayOptions';
+import { getOptionsStore } from '../save/optionsStore';
 import {
   damageIndicatorOnHit,
   damageTintStrength,
@@ -727,6 +730,20 @@ export class GameplayScene extends Phaser.Scene {
     // `devPrimaryOverride`. Ownership comes from the maxed-upgrade path below
     // rather than a separate grant, because primaries are upgrade-gated the
     // same way secondaries are.
+    // The stored preference decides, exactly as `initAndLoadOptions` does — a
+    // first run has never written the store, so `readGameplayOptions` returns
+    // the defaults with `tutorialOn: true`. `withTutorialEnabled` keeps the
+    // restore separate from the first-run decision and refuses to resurrect a
+    // completed tutorial.
+    this.profile.setTutorial(
+      withTutorialEnabled(
+        this.profile.tutorial,
+        readGameplayOptions(getOptionsStore(this)).tutorialOn,
+      ),
+    );
+
+    // DEV-AID: `?tutorial=1` still forces it on, for driving a *completed*
+    // profile that the preference alone cannot re-enable.
     if (devTutorialOverride()) {
       this.profile.setTutorial({ ...this.profile.tutorial, on: true, completed: false });
     }

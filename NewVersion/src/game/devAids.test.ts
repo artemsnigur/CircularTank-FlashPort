@@ -30,6 +30,7 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     'equipped + owned primary via ?primary=',
     'force the tutorial on via ?tutorial=1',
     'tutorial panel render dump',
+    'force the tutorial on for a completed profile',
   ],
   'src/game/levels/devLevels.ts': ['QA levels for enemy behaviour'],
   'src/game/scenes/UpgradesScene.ts': ['money top-up'],
@@ -80,6 +81,6 @@ describe('dev aids are enumerable', () => {
     // 11 until T39, which added the sound queue history and its hooks in
     // `SoundManager`: record, enable, and the publish that hands the harness
     // the manifest name list.
-    expect(total).toBe(20);
+    expect(total).toBe(21);
   });
 });

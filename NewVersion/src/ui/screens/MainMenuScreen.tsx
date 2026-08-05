@@ -77,6 +77,13 @@ export function MainMenuScreen(): React.ReactElement | null {
         >
           Bestiary
         </button>
+        <button
+          type="button"
+          className="menu__button"
+          onClick={() => GameEvents.emit('ui:goto', { key: 'Options' })}
+        >
+          Options
+        </button>
         {import.meta.env.DEV && (
           <button
             type="button"

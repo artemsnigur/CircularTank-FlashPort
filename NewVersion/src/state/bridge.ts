@@ -131,6 +131,10 @@ export function attachStoreBridge(): () => void {
     store.getState().setViewport(viewport);
   });
 
+  on('options:changed', (options) => {
+    useGameStore.setState({ gameplayOptions: options });
+  });
+
   on('audio:options', ({ soundOn, musicOn }) => {
     useGameStore.getState().setAudioOptions({ soundOn, musicOn });
   });

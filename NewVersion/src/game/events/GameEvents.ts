@@ -14,6 +14,7 @@
  * only shows up after twenty level restarts.
  */
 import type { SlotSummary } from '../save/slotSummary';
+import type { GameplayOptions } from '../options/gameplayOptions';
 import Phaser from 'phaser';
 import type { Difficulty, SceneKey } from '../config/constants';
 import type { LevelResult } from '../waves/levelOutcome';
@@ -346,6 +347,15 @@ export interface GameEventMap {
    * own options SharedObject — see audio/audioOptions.ts.
    */
   'ui:set-audio': { soundOn?: boolean; musicOn?: boolean };
+  /**
+   * Set one gameplay preference — `ScreenOptions`' checkboxes.
+   *
+   * A partial, like `ui:set-audio`, so a toggle names only what it changed and
+   * cannot accidentally rewrite the other five with stale values.
+   */
+  'ui:set-option': Partial<GameplayOptions>;
+  /** The current preferences, so React can render the checkboxes. */
+  'options:changed': GameplayOptions;
   /** The current preferences, so React can render the toggles. */
   'audio:options': { soundOn: boolean; musicOn: boolean };
   /**

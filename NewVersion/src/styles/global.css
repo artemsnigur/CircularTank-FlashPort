@@ -1285,3 +1285,72 @@ code {
 .slot-grid__delete:hover { background: #7a2222; color: #fff; }
 .slot-grid__cell--confirm { align-items: center; gap: 0.6rem; }
 .slot-grid__confirm-row { display: flex; gap: 0.6rem; }
+
+/* Options — `ScreenOptions.as`. A list of switches, not bullets. */
+.options__list {
+  list-style: none;
+  margin: 1rem auto 0;
+  padding: 0;
+  max-width: 32rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.options__row {
+  text-align: left;
+}
+
+.options__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.35rem 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.options__box {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  border: 1px solid rgb(255 255 255 / 35%);
+  background: rgb(0 0 0 / 30%);
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.options__toggle[aria-checked='true'] .options__box {
+  background: var(--accent, #ffd166);
+  border-color: var(--accent, #ffd166);
+  color: #1b1710;
+}
+
+.options__label {
+  font-weight: 600;
+}
+
+.options__hint {
+  margin: 0.1rem 0 0 1.75rem;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.options__audio {
+  margin-top: 1.75rem;
+  text-align: center;
+}
+
+.options__subtitle {
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}

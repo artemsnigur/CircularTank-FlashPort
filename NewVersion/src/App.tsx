@@ -7,6 +7,7 @@ import { LevelSelectScreen } from './ui/screens/LevelSelectScreen';
 import { UpgradesScreen } from './ui/screens/UpgradesScreen';
 import { EnemiesScreen } from './ui/screens/EnemiesScreen';
 import { BestiaryScreen } from './ui/screens/BestiaryScreen';
+import { OptionsScreen } from './ui/screens/OptionsScreen';
 import { DiagnosticsPanel } from './ui/DiagnosticsPanel';
 import { installButtonSounds } from './ui/buttonSounds';
 import { useEffect, useRef } from 'react';
@@ -49,6 +50,7 @@ export function App(): React.ReactElement {
         <UpgradesScreen />
         <EnemiesScreen />
         <BestiaryScreen />
+        <OptionsScreen />
         <Hud />
         <DiagnosticsPanel />
       </div>

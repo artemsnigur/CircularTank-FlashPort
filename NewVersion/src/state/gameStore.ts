@@ -13,6 +13,8 @@
  * keeps a single place to look when a HUD value is wrong.
  */
 import { create } from 'zustand';
+import { DEFAULT_GAMEPLAY_OPTIONS } from '../game/options/gameplayOptions';
+import type { GameplayOptions } from '../game/options/gameplayOptions';
 import type { Difficulty, SceneKey } from '../game/config/constants';
 import { DEFAULT_DIFFICULTY } from '../game/levels/difficultyOption';
 import type { AudioSelfTestReport, BootStage, FontReport } from '../game/events/GameEvents';
@@ -172,6 +174,8 @@ export interface GameState {
   safeArea: SafeAreaInsets;
   /** Sound/music preferences, mirrored from SoundManager for the HUD toggles. */
   audioOptions: { soundOn: boolean; musicOn: boolean };
+  /** `ScreenOptions`' six checkboxes. See game/options/gameplayOptions.ts. */
+  gameplayOptions: GameplayOptions;
   /**
    * The chosen difficulty, mirrored from the options store.
    *
@@ -258,6 +262,7 @@ export const useGameStore = create<GameState>()((set) => ({
   viewport: null,
   safeArea: NO_INSETS,
   audioOptions: { soundOn: true, musicOn: true },
+  gameplayOptions: { ...DEFAULT_GAMEPLAY_OPTIONS },
   difficulty: DEFAULT_DIFFICULTY,
   difficultyHintPending: true,
   fonts: [],

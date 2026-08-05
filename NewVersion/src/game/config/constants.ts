@@ -12,6 +12,7 @@ export const SceneKeys = {
   Upgrades: 'Upgrades',
   Enemies: 'Enemies',
   Bestiary: 'Bestiary',
+  Options: 'Options',
   Gameplay: 'Gameplay',
 } as const;
 

@@ -339,6 +339,7 @@ if (args.ui) {
   await probe('SaveSlots', click(/save slots/i));
   await probe('Enemies', click(/enemy behaviour/i));
   await probe('Options', click(/^options$/i));
+  await probe('Achievements2', click(/achievements/i));
   await probe('Achievements', click(/achievements/i));
   await probe('Premium', click(/premium|more games/i));
   await probe('Credits', click(/credits/i));
@@ -352,7 +353,10 @@ if (args.ui) {
 if (args.tutorial) {
   // The first end-to-end watch of the whole subsystem: T46 built the state
   // machine, T47 the gates, and neither could observe the sequence.
-  await page.goto(`${URL}?tutorial=1`, { waitUntil: 'domcontentloaded' });
+  // No dev flag: a fresh options store means `tutorialOn` defaults true, which
+  // is the whole point of T54. The flag now exists only for a *completed*
+  // profile, which the preference cannot re-enable.
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: /play|continue/i }).first().click();
   await delay(2500);
