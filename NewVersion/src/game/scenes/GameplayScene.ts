@@ -27,6 +27,11 @@ import { isAudibleAt } from '../audio/onScreenGate';
 import { musicForMode } from '../audio/musicCue';
 import { secondaryReloadRuns, tutorialHoldsPlay } from '../tutorial/tutorialGates';
 import {
+  damageIndicatorOnHit,
+  damageTintStrength,
+  tickDamageIndicator,
+} from '../player/damageIndicator';
+import {
   TUTORIAL_CLIPS,
   TWEEN_FRAMES,
   jitterOffset,
@@ -561,6 +566,14 @@ export class GameplayScene extends Phaser.Scene {
 
   /** The tutorial step on screen, its timers, and its fade. */
   private tutorialStep: ActiveStep | null = null;
+  /**
+   * `tank.damageIndicator` — frames left on the red hit flash.
+   *
+   * A counter rather than a boolean: the tint fades across it. See
+   * `player/damageIndicator.ts`.
+   */
+  private damageIndicator = 0;
+
   private tutorialSprites: Phaser.GameObjects.Image[] = [];
   private tutorialAlpha = 0;
   /** Any movement key this frame — `Main.up || down || left || right`. */
@@ -772,6 +785,7 @@ export class GameplayScene extends Phaser.Scene {
     this.bombMarkers = [];
     this.medicRings = new Map();
     this.hp = TANK_MAX_HP;
+    this.damageIndicator = 0;
     this.pushedFrames = 0;
     // `resetTempVariables("LevelStart")` — three of these start true.
     this.levelFlags = createLevelFlags();
@@ -1034,6 +1048,10 @@ export class GameplayScene extends Phaser.Scene {
     // side. Before the `levelDone` gate landed this was unreachable, because
     // the scene was paused outright the moment a level resolved — see
     // `waves/levelDoneGate.ts` for the partition, and A0 in the audit.
+    // `:2795-2803` — sits *before* the bullet handlers in the AS3's frame and
+    // outside the level-done gate, so a hit taken on the last frame still
+    // fades rather than freezing mid-tint.
+    this.updateDamageTint(delta);
     this.updateTutorial(delta);
     this.updateIndicators();
     this.updateParticles();
@@ -2438,6 +2456,21 @@ export class GameplayScene extends Phaser.Scene {
    * ends on `levelDone`, so gating this would stop the step that is waiting for
    * the very thing that just happened.
    */
+
+  /**
+   * Fades the tank's red hit flash — `:2795-2803`.
+   *
+   * The AS3 clears the tint outright at zero rather than tinting by zero;
+   * `damageTintStrength` returns 0 there and `setTintFill` is skipped, which is
+   * the same thing to the renderer.
+   */
+  private updateDamageTint(deltaMs: number): void {
+    const frames = (deltaMs / 1000) * 30;
+    const strength = damageTintStrength(this.damageIndicator);
+    this.player.setDamageTint(strength);
+    this.damageIndicator = tickDamageIndicator(this.damageIndicator, frames);
+  }
+
   private updateTutorial(deltaMs: number): void {
     const profile = this.profile.tutorial;
     if (!profile.on || profile.completed) return;
@@ -2546,6 +2579,17 @@ export class GameplayScene extends Phaser.Scene {
     }
     this.tutorialSprites = sprites;
 
+    // TIMEBOXED PROBE (T52): a plain rect on the same position/depth/camera
+    // path. Separates "this art does not draw" from "nothing draws there".
+    if (import.meta.env.DEV) {
+      const probe = this.add
+        .rectangle(16, 16, 160, 80, 0xff00ff)
+        .setOrigin(0, 0)
+        .setDepth(TUTORIAL_DEPTH)
+        .setScrollFactor(0);
+      sprites.push(probe as unknown as Phaser.GameObjects.Image);
+    }
+
     this.drawTutorialPanel();
   }
 
@@ -2569,7 +2613,15 @@ export class GameplayScene extends Phaser.Scene {
           depth: first.depth,
           displaySize: [first.displayWidth, first.displayHeight],
           count: this.tutorialSprites.length,
-          textures: this.tutorialSprites.map((s2) => s2.texture.key),
+          textures: this.tutorialSprites.map((s2) => s2.texture?.key ?? 'none'),
+          // The texture-manager check, allowed as the single follow-up.
+          textureExists: (TUTORIAL_CLIPS[this.tutorialStep?.id ?? '']?.shapes ?? []).map(
+            (id) => {
+              const key = `unit-${id}`;
+              const t = this.textures.exists(key) ? this.textures.get(key) : null;
+              return [key, t !== null, t ? t.source[0]?.width : 0, t ? t.source[0]?.height : 0];
+            },
+          ),
           cameraScroll: [this.cameras.main.scrollX, this.cameras.main.scrollY],
           cameraZoom: this.cameras.main.zoom,
         }
@@ -3217,6 +3269,7 @@ export class GameplayScene extends Phaser.Scene {
 
       const damage = enemy.stats.damage;
       this.hp = Math.max(0, this.hp - damage);
+      this.damageIndicator = damageIndicatorOnHit();
       getSoundManager(this)?.queue('TankEnemyCollision');
       this.cameras.main.shake(90, 0.0012);
       GameEvents.emit('player:damaged', {
@@ -3268,6 +3321,9 @@ export class GameplayScene extends Phaser.Scene {
 
       if (result.damage > 0) {
         this.hp = result.hp;
+        // `:5294` — an enemy reaching the tank. Inside the `damage > 0`
+        // branch, so a shielded contact that deals nothing does not flash.
+        this.damageIndicator = damageIndicatorOnHit();
         getSoundManager(this)?.queue('TankEnemyCollision');
         this.cameras.main.shake(90, 0.0012);
         GameEvents.emit('player:damaged', {
@@ -3503,7 +3559,9 @@ export class GameplayScene extends Phaser.Scene {
           }
         }
 
-        this.hp = applyBulletToTank(this.hp, next.damage);
+        // `:1579` — an enemy bullet landing.
+      this.hp = applyBulletToTank(this.hp, next.damage);
+      this.damageIndicator = damageIndicatorOnHit();
         getSoundManager(this)?.queue('TankDamaged');
         this.cameras.main.shake(60, 0.0008);
         GameEvents.emit('player:damaged', {

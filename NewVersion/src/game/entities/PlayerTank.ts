@@ -54,6 +54,10 @@ export class PlayerTank extends Phaser.GameObjects.Container {
   private readonly roomHeight: number;
   private readonly hull: Phaser.GameObjects.Sprite;
 
+  /** Flat-red copies drawn over each part — see `setDamageTint`. */
+  private readonly hullFlash: Phaser.GameObjects.Sprite;
+  private readonly towerFlash: Phaser.GameObjects.Sprite;
+
   /** True on the frame the tank struck the bottom wall — AS3 `tempHitBottom`. */
   hitBottom = false;
 
@@ -93,13 +97,23 @@ export class PlayerTank extends Phaser.GameObjects.Container {
       .setDisplaySize(TANK_SIZES.tower, TANK_SIZES.tower)
       .setDepth(11);
 
-    this.add(this.hull);
+    // Above their sources, and hidden until a hit.
+    this.hullFlash = scene.add.sprite(0, 0, `unit-${TANK_BODY_FRAMES[0]}`).setVisible(false);
+    this.hullFlash.setTintFill(0xff0000);
+    this.towerFlash = scene.add
+      .sprite(0, 0, `unit-${towerShape(weaponName)}`)
+      .setVisible(false)
+      .setDepth(12);
+    this.towerFlash.setTintFill(0xff0000);
+
+    this.add([this.hull, this.hullFlash]);
     this.setDepth(10);
     scene.add.existing(this);
 
     // The turret is a sibling, not a child, so the body's rotation does not
     // drag it around.
     scene.add.existing(this.tower);
+    scene.add.existing(this.towerFlash);
   }
 
   /** Re-reads speed stats, e.g. after the Speed upgrade is bought. */
@@ -208,6 +222,45 @@ export class PlayerTank extends Phaser.GameObjects.Container {
     this.tower.setTexture(`unit-${towerShape(weaponName)}`);
     this.tower.setDisplaySize(TANK_SIZES.tower, TANK_SIZES.tower);
   }
+
+  /**
+   * Applies the red hit tint — `colorClip(tank, 0xFF0000, strength)` (`:2801`).
+   *
+   * ── `colorClip` blends; `setTint` multiplies ──────────────────────────────
+   * The AS3 builds a `ColorTransform` with `ctMul = 1 - trans` and per-channel
+   * offsets of `trans * channel`, i.e. `result = art * (1 - t) + red * t`. A
+   * **blend toward red**, leaving the art visible underneath.
+   *
+   * Phaser's `setTint` multiplies instead, and multiplying green art by a
+   * reddish tint darkens it rather than reddening it — the first attempt at
+   * this produced a tank that turned dark green when hit, which reads as a
+   * shadow rather than damage. Caught in a frame, not by a test.
+   *
+   * So the blend is done the way a renderer can express it: a flat-red copy of
+   * each part drawn over the original at `strength` alpha. `setTintFill`
+   * replaces the art's colour outright, so the overlay is a solid red
+   * silhouette and the composite is the AS3's linear blend.
+   */
+  setDamageTint(strength: number): void {
+    for (const [source, overlay] of [
+      [this.hull, this.hullFlash],
+      [this.tower, this.towerFlash],
+    ] as const) {
+      if (strength <= 0) {
+        overlay.setVisible(false);
+        continue;
+      }
+      overlay
+        .setTexture(source.texture.key)
+        .setPosition(source.x, source.y)
+        .setRotation(source.rotation)
+        .setDisplaySize(source.displayWidth, source.displayHeight)
+        .setAlpha(strength)
+        .setVisible(true);
+    }
+  }
+
+
 
   /** Turret facing in degrees — what the firing code needs. */
   get towerRotationDegrees(): number {
