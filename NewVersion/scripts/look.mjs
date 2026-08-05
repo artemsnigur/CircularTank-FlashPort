@@ -33,7 +33,7 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false, tutorial: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false, tutorial: false, ui: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
@@ -47,6 +47,7 @@ function parseArgs(argv) {
     if (argv[i] === '--sound-sweep') args.soundSweep = true;
     if (argv[i] === '--indicators') args.indicators = true;
     if (argv[i] === '--tutorial') args.tutorial = true;
+    if (argv[i] === '--ui') args.ui = true;
   }
   return args;
 }
@@ -294,6 +295,54 @@ if (args.slots) {
 
 if (args.save) {
   await saveRoundTrip();
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
+
+if (args.ui) {
+  // MEASURE the UI by driving it, not by counting AS3 classes.
+  //
+  // Every count-based estimate in this project has been wrong: 27 tutorial
+  // classes were 26 stubs and one real class; 187 sound sites were 12 rules.
+  // A screen that opens, renders content and responds is ported, whatever a
+  // class list says.
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+
+  const probe = async (label, open) => {
+    await page.goto(URL, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    try {
+      await open();
+      await delay(900);
+    } catch {
+      console.log(`[ui] ${label.padEnd(16)} UNREACHABLE (no entry point)`);
+      return;
+    }
+    // Content, not just presence: a screen that opens empty is not ported.
+    const buttons = await page.getByRole('button').count();
+    const text = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim();
+    await shot(`ui-${label.toLowerCase().replace(/[^a-z]/g, '')}`);
+    console.log(`[ui] ${label.padEnd(16)} buttons=${String(buttons).padStart(3)} chars=${String(text.length).padStart(4)}`);
+  };
+
+  const click = (re) => async () => {
+    await page.getByRole('button', { name: re }).first().click({ timeout: 4000 });
+  };
+
+  await probe('MainMenu', async () => {});
+  await probe('LevelSelect', click(/level select/i));
+  await probe('Upgrades', click(/upgrades/i));
+  await probe('Bestiary', click(/bestiary/i));
+  await probe('SaveSlots', click(/save slots/i));
+  await probe('Enemies', click(/enemy behaviour/i));
+  await probe('Options', click(/^options$/i));
+  await probe('Achievements', click(/achievements/i));
+  await probe('Premium', click(/premium|more games/i));
+  await probe('Credits', click(/credits/i));
+
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
   await browser.close();
   stop();
