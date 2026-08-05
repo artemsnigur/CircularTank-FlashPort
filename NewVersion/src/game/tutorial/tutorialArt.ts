@@ -90,19 +90,56 @@ export const JITTER_RADIUS = 10;
  * A fresh angle **every frame**, so the panel shimmers rather than drifting,
  * and the offset shrinks as it fades in: `(1 - alpha) * 10`.
  *
+ * ── It re-rolls at 30 Hz, and only while a tween runs ────────────────────
+ * `:454` guards the whole block on `inTweenRunning || outTweenRunning`, so the
+ * jitter exists **only during the one-second fade in and fade out** — a settled
+ * panel is perfectly still. `(1 - alpha) * 10` makes that nearly true anyway,
+ * but the guard is the rule.
+ *
+ * **And the AS3 ran at 30 fps.** A fresh angle every frame at 60 Hz is twice as
+ * many re-rolls over the same fade, which reads as roughly twice as busy at
+ * identical amplitude — the amplitude was never wrong. `jitterOffset` therefore
+ * takes an accumulator and re-rolls on whole AS3 frames only, which is a
+ * frame-rate correction rather than a taste change.
+ *
  * **Unseeded `Math.random()`, confirmed at `:457`** — not `PM_PRNG`, so it
  * consumes nothing from any reproducible stream and nothing downstream shifts
  * if it is called a different number of times. That was worth checking rather
  * than assuming: the background props hid a generator in a presentation layer
  * and it changed every placement after it.
  */
+export interface JitterState {
+  /** Fractional AS3 frames since the last re-roll. */
+  elapsed: number;
+  angle: number;
+}
+
+export function createJitterState(): JitterState {
+  return { elapsed: 0, angle: 0 };
+}
+
+/**
+ * The panel's offset while a tween runs, re-rolled on whole AS3 frames.
+ *
+ * `frames` is elapsed AS3 frames (`deltaMs / 1000 * 30`), so at 60 fps this is
+ * ~0.5 per call and the angle changes every second call — matching the
+ * original's cadence rather than the browser's.
+ */
 export function jitterOffset(
   alpha: number,
+  state: JitterState,
+  frames: number,
   random: () => number = Math.random,
-): { dx: number; dy: number } {
-  const angle = ((random() * 360) / 180) * Math.PI;
+): { dx: number; dy: number; state: JitterState } {
+  let { elapsed, angle } = state;
+  elapsed += frames;
+  if (elapsed >= 1) {
+    elapsed %= 1;
+    angle = ((random() * 360) / 180) * Math.PI;
+  }
+
   const reach = (1 - alpha) * JITTER_RADIUS;
-  return { dx: Math.cos(angle) * reach, dy: Math.sin(angle) * reach };
+  return { dx: Math.cos(angle) * reach, dy: Math.sin(angle) * reach, state: { elapsed, angle } };
 }
 
 /**

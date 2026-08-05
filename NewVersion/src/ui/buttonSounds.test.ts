@@ -2,7 +2,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { CLICK_SOUND, HOVER_SOUND, SILENT_ATTRIBUTE, isAudible } from './buttonSounds';
+import {
+  CLICK_SOUND,
+  HOVER_SOUND,
+  INTERACTIVE_SELECTOR,
+  SILENT_ATTRIBUTE,
+  isAudible,
+} from './buttonSounds';
 import { SFX } from '../assets/audioManifest';
 
 /**
@@ -154,5 +160,65 @@ describe('the silent set is closed', () => {
     // DiagnosticsPanel is a dev aid, not a game control — it is removed with
     // the other dev affordances and should never have made the AS3's UI sound.
     expect(optedOut).toEqual(['DiagnosticsPanel']);
+  });
+});
+
+describe('the selector covers every interactive role in the tree', () => {
+  /**
+   * **The gap this closes.** The selector matched `button` and
+   * `[role="button"]` only, so T54's six `role="switch"` checkboxes shipped
+   * silent while the coverage tests above reported success — they asked "is
+   * every component inside the listener's subtree", which was true, and never
+   * "does the selector match every control".
+   *
+   * Same shape as `setMusic` bypassing the queue history: a real guarantee
+   * with a narrower scope than it reads.
+   */
+  const rolesInUse = (): string[] => {
+    const roles = new Set<string>();
+    for (const file of tsxFiles(UI_DIR)) {
+      for (const [, role] of readFileSync(file, 'utf8').matchAll(/role="([a-z]+)"/g)) {
+        roles.add(role);
+      }
+    }
+    return [...roles];
+  };
+
+  /** Roles that are containers or output, not controls. */
+  const NON_INTERACTIVE = new Set([
+    'group',
+    'progressbar',
+    'dialog',
+    'navigation',
+    'list',
+    // `alert` is an announcement, not a control — it takes no input.
+    'alert',
+  ]);
+
+  it('finds the roles actually used, so this is not vacuous', () => {
+    expect(rolesInUse().length).toBeGreaterThan(2);
+    expect(rolesInUse()).toContain('switch');
+  });
+
+  it('matches every interactive role present', () => {
+    for (const role of rolesInUse()) {
+      if (NON_INTERACTIVE.has(role)) continue;
+      const element = document.createElement('div');
+      element.setAttribute('role', role);
+      expect(isAudible(element), `role="${role}" makes no sound`).toBe(true);
+    }
+  });
+
+  it('still rejects the container roles, so it has not widened to everything', () => {
+    // The counterpart. A selector of `*` would pass the assertion above.
+    for (const role of ['group', 'progressbar', 'dialog']) {
+      const element = document.createElement('div');
+      element.setAttribute('role', role);
+      expect(isAudible(element), `role="${role}" should be silent`).toBe(false);
+    }
+  });
+
+  it('names the switch role explicitly, since that is the one that was missing', () => {
+    expect(INTERACTIVE_SELECTOR).toContain('[role="switch"]');
   });
 });

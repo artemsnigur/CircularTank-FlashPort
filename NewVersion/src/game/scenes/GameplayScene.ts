@@ -39,6 +39,7 @@ import {
   TWEEN_FRAMES,
   jitterOffset,
   panelPosition,
+  createJitterState,
   shapeSize as tutorialShapeSize,
 } from '../tutorial/tutorialArt';
 import {
@@ -579,6 +580,9 @@ export class GameplayScene extends Phaser.Scene {
 
   private tutorialSprites: Phaser.GameObjects.Image[] = [];
   private tutorialAlpha = 0;
+  private tutorialJitter = createJitterState();
+  /** AS3 frames elapsed this tick, for the jitter's 30 Hz re-roll. */
+  private tutorialFrames = 0;
   /** Any movement key this frame — `Main.up || down || left || right`. */
   private tutorialMovementHeld = false;
   /** Flags the level began with, so `flagsTaken` is a difference. */
@@ -2493,6 +2497,7 @@ export class GameplayScene extends Phaser.Scene {
     if (!profile.on || profile.completed) return;
 
     const frames = (deltaMs / 1000) * 30;
+    this.tutorialFrames = frames;
     const wave = this.wave;
 
     // `:443` — entry conditions are evaluated every frame, whether or not a
@@ -2665,7 +2670,11 @@ export class GameplayScene extends Phaser.Scene {
     const view = this.cameras.main.worldView;
     const screen = panelPosition(step.id, view.height);
     const anchor = { x: view.x + screen.x, y: view.y + screen.y };
-    const { dx, dy } = jitterOffset(this.tutorialAlpha);
+    // Re-rolled on whole AS3 frames — see `tutorialArt`. The panel is only
+    // still-ish at alpha 1; the shake belongs to the fade.
+    const jitter = jitterOffset(this.tutorialAlpha, this.tutorialJitter, this.tutorialFrames);
+    this.tutorialJitter = jitter.state;
+    const { dx, dy } = jitter;
     for (const sprite of this.tutorialSprites) {
       sprite.setPosition(anchor.x + dx, anchor.y + dy).setAlpha(this.tutorialAlpha);
     }

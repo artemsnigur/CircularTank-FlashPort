@@ -44,10 +44,29 @@ export const CLICK_SOUND = 'InterfaceButtonClick';
  */
 export const SILENT_ATTRIBUTE = 'data-silent';
 
+/**
+ * Every control the delegated listener treats as a button.
+ *
+ * **Widened in T55, and it was a real gap.** It matched `button` and
+ * `[role="button"]` only, so the six `role="switch"` checkboxes added to
+ * Options in T54 made no hover or click sound at all — a screen shipped
+ * silent while `buttonSounds.test.ts` reported full coverage, because the test
+ * asked "is every component in the subtree" and not "does the selector match
+ * every control".
+ *
+ * That is the instrument's-own-coverage failure again, in the same shape as
+ * `setMusic` bypassing the queue history: the guarantee was real and its scope
+ * was narrower than it read. `buttonSounds.test.ts` now asserts the selector
+ * against every interactive role actually present in `src/ui`, so a seventh
+ * role fails rather than joining the blind spot.
+ */
+export const INTERACTIVE_SELECTOR =
+  'button, [role="button"], [role="switch"], [role="tab"], [role="link"], [role="checkbox"], [role="radio"]';
+
 /** Whether this element should make a sound when hovered or clicked. */
 export function isAudible(element: Element | null): element is HTMLElement {
   if (!element) return false;
-  const control = element.closest('button, [role="button"]');
+  const control = element.closest(INTERACTIVE_SELECTOR);
   if (!control) return false;
   if (control.hasAttribute(SILENT_ATTRIBUTE)) return false;
   // A disabled control is not interactive, so it is not a missed sound.
@@ -70,7 +89,7 @@ export function installButtonSounds(root: HTMLElement): () => void {
   const onOver = (event: Event): void => {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    const control = target.closest('button, [role="button"]');
+    const control = target.closest(INTERACTIVE_SELECTOR);
     if (control === lastHovered) return;
     lastHovered = control;
     if (isAudible(target)) GameEvents.emit('ui:sound', { name: HOVER_SOUND });
@@ -78,7 +97,7 @@ export function installButtonSounds(root: HTMLElement): () => void {
 
   const onOut = (event: Event): void => {
     const target = event.target;
-    if (target instanceof Element && target.closest('button, [role="button"]') === lastHovered) {
+    if (target instanceof Element && target.closest(INTERACTIVE_SELECTOR) === lastHovered) {
       lastHovered = null;
     }
   };

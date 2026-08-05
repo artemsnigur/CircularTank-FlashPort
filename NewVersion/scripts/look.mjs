@@ -322,10 +322,18 @@ if (args.ui) {
       return;
     }
     // Content, not just presence: a screen that opens empty is not ported.
-    const buttons = await page.getByRole('button').count();
+    //
+    // **Counts every interactive role, not just `button`.** The first version
+    // counted buttons alone and reported Options as 4 controls when it renders
+    // 9 — the six checkboxes use `role="switch"`. Caught before an estimate
+    // leaned on it, unlike the sound sweep's blind spot, which inverted a
+    // reading twice before anyone noticed.
+    const roles = ['button', 'switch', 'checkbox', 'radio', 'tab', 'link'];
+    let controls = 0;
+    for (const role of roles) controls += await page.getByRole(role).count();
     const text = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim();
     await shot(`ui-${label.toLowerCase().replace(/[^a-z]/g, '')}`);
-    console.log(`[ui] ${label.padEnd(16)} buttons=${String(buttons).padStart(3)} chars=${String(text.length).padStart(4)}`);
+    console.log(`[ui] ${label.padEnd(16)} controls=${String(controls).padStart(3)} chars=${String(text.length).padStart(4)}`);
   };
 
   const click = (re) => async () => {
