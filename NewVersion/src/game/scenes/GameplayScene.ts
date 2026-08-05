@@ -2570,14 +2570,14 @@ export class GameplayScene extends Phaser.Scene {
       const image = this.add
         .image(0, 0, `unit-${shape}`)
         .setOrigin(0, 0)
-        .setDepth(TUTORIAL_DEPTH)
-        .setScrollFactor(0);
+        .setDepth(TUTORIAL_DEPTH);
       // Authored size, so the 4x raster is divided exactly where every other
       // working subsystem divides it.
       if (size) image.setDisplaySize(size[0], size[1]);
       sprites.push(image);
     }
     this.tutorialSprites = sprites;
+
 
     // TIMEBOXED PROBE (T52): a plain rect on the same position/depth/camera
     // path. Separates "this art does not draw" from "nothing draws there".
@@ -2634,7 +2634,20 @@ export class GameplayScene extends Phaser.Scene {
     if (this.tutorialSprites.length === 0 || !step) return;
 
     // The live viewport bottom, not the AS3's frozen 480 — see `tutorialArt`.
-    const anchor = panelPosition(step.id, this.scale.height / this.cameras.main.zoom);
+    // **World space, converted from the screen anchor every frame.**
+    //
+    // `setScrollFactor(0)` is the confirmed cause of the panels never
+    // rendering (T53): the identical rect draws fine in world space at the
+    // same depth and fails with a zero scroll factor, on this camera — which
+    // runs a negative `scrollX` at `zoom` 2 over a 640-unit design width.
+    // Every other subsystem in this scene draws in world space; this was the
+    // only exception, and the only thing invisible.
+    //
+    // `worldView` is the live visible rect, so the panel keeps its screen
+    // position as the camera moves without relying on a scroll factor.
+    const view = this.cameras.main.worldView;
+    const screen = panelPosition(step.id, view.height);
+    const anchor = { x: view.x + screen.x, y: view.y + screen.y };
     const { dx, dy } = jitterOffset(this.tutorialAlpha);
     for (const sprite of this.tutorialSprites) {
       sprite.setPosition(anchor.x + dx, anchor.y + dy).setAlpha(this.tutorialAlpha);
