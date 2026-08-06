@@ -4,8 +4,14 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T58**, commit `8852cc8`, 5 August 2026. Keep it current — it is
+Current as of **T60**, commit `b2d2193`, 7 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
+
+*(The previous stamp read `T58` / `8852cc8` / 5 August. This file was written in
+T59 and described the T58 baseline, so the stamp named the commit it was written
+**about** rather than the one it was written **on** — the same slip the audit
+guards against with "a `verified` entry must name what it was observed against".
+T60 re-scoped `BACKLOG.md` and re-drove the UI and sound measurements below.)*
 
 ---
 
@@ -34,9 +40,27 @@ Nine of eleven screens render and respond. The two that do not are `Premium`
 (a Kongregate upsell, deliberately out of scope) and `Credits` (no separate AS3
 class found).
 
-**Sound: 39 of 67 names fire**, measured by driving the game rather than by
-counting call sites. **UI: measured by driving too** — a screen that opens empty
-and a screen that is not ported are indistinguishable to a presence check.
+**UI: 9 of 11 screens render with content**, re-driven at `b2d2193` — MainMenu
+13 controls, LevelSelect 69, Upgrades 35, Enemies 22, Options 10, SaveSlots 5,
+Bestiary 2, Achievements 2. `Premium` and `Credits` report `UNREACHABLE (no
+entry point)`, both deliberately out of scope. Measured by driving, because a
+screen that opens empty and a screen that is not ported are indistinguishable to
+a presence check.
+
+**Sound: 25 of 67 names fired in the sweep at `b2d2193` — and that number is
+currently an artefact of the harness, not a measure of the game.** The audit
+records 39 at `59b9756`. **The game did not regress.** On the *same* build,
+`--baseline` reports `level 1-1 cleared: true`, so enemies spawn, die and drop
+coins, while the sweep reports `peak/frame EnemySquish: 0` — nothing died in it
+at all. T58 made the tutorial gate hold spawning until the player has moved and
+fired, and fixed `--baseline` to move first; **`--sound-sweep` never got the
+same fix**, so most of its window runs on a level that is deliberately not
+spawning. Tracked as **L3** in `BACKLOG.md`.
+
+**Do not read 39 → 25 as lost wiring**, and do not wire anything in response.
+This is *reach and wiring are separate questions* (rule 9) — the same misreading
+that made ten fully-wired names look unwired in T40. **The last trustworthy
+sound number is 39 at `59b9756`; there will not be another until L3 is fixed.**
 
 ### How to see it
 
@@ -106,7 +130,7 @@ Stated as rules. Each was paid for.
 |---|---|
 | `CLAUDE.md` (repo root) | **The working rules.** Read first. |
 | `NewVersion/docs/AUDIT-2026-07.md` | **Every finding and divergence.** Where the port deliberately differs, and every "this looks like a defect and is faithful". Includes the dated playable baselines. |
-| `NewVersion/docs/BACKLOG.md` | **The plan.** Group M is "requested by the user". |
+| `NewVersion/docs/BACKLOG.md` | **The plan** — re-scoped against `b2d2193` in T60. Groups F, H, I, J, K, M and L2 are closed; what remains is six small items listed at its foot. Group M is "requested by the user". **It is not the whole remaining port** — its own opening box says so. |
 | `NewVersion/docs/HANDOFF.md` | This file. |
 | `NewVersion/PROGRESS.md` | 643 AS3 classes, four statuses. Regenerated; preserves recorded values. |
 | `NewVersion/docs/` others | `SCALING.md`, `TEXT_RENDERING.md`, `AUDIO_PIPELINE.md`, `ENEMIES.md`. |
@@ -156,8 +180,23 @@ decisive, wrong result and was believed.*
    subtree", never "does the selector match every control". **A coverage test
    must assert the mechanism's reach, not the membership of what it points at.**
 
+10. **An instrument left behind by its own last run.** `npm run look` does not
+    kill its vite child on exit, and uses `--strictPort` — so an orphan does not
+    silently move to another port, it blocks every later run. Two were found
+    alive at the start of T60 from the previous session; the one holding the
+    harness port predated the commit it would have been measuring. **Check the
+    port before trusting a `look` run**, and kill what you started. (`L4`.)
+11. **A correct game change invalidating one harness mode but not another.**
+    T58's tutorial spawn gate is faithful, and `--baseline` was updated to move
+    first. `--sound-sweep` was not, so it now measures a level that is
+    deliberately not spawning and reports 25 of 67 where the same build clears
+    1-1 under `--baseline`. **The failure looks exactly like lost wiring.** This
+    is trap 9's shape one level up: the instrument's reach narrowed while its
+    output format stayed identical. (`L3`.)
+
 **A run reporting nothing missing should be as suspect as one reporting
-everything missing.**
+everything missing** — and a run reporting *more* missing than last time should
+be checked against a second mode on the same build before it is believed.
 
 ---
 
@@ -171,7 +210,9 @@ everything missing.**
 | **Pre-level countdown** | `spawnWarnings` and the countdown are unported. **Not just a missing feature:** `countDownDone` is read by `spawnPlacement` and never written, so the off-camera spawn search runs on *every* spawn where the AS3 runs it only during the countdown. Porting it changes spawn placement game-wide. |
 | **Sound: 28 names not firing** | Six blocked on unported triggers (achievement reveal, level-unlock, countdown, shop purchase, second loadout slot). The rest is scenario reach — they fire in play, the sweep just does not visit those modes. `ImpactCrazyCheese` is an orphan asset with no AS3 trigger under any spelling. |
 | **`D1` — PM_PRNG** | Open decision, not a hold: wire it to `LevelSpec.seed` for the original's exact prop layouts, or standardise on Phaser's generator and lose them. Deferred twice by not being written down. |
-| **`L1`** | `assets:sync` never prunes. |
+| **`L1`** | `assets:sync` never prunes. Re-verified at `b2d2193`: a count of `unlink\|rm(\|rmSync` over `scripts/sync-assets.mjs` returns 0. |
+| **`L3`** | `--sound-sweep` never satisfies the tutorial spawn gate, so its count is not comparable to the recorded 39. Trivial fix; blocks the next sound measurement. |
+| **`L4`** | `npm run look` leaves its vite child alive on exit. Because it uses `--strictPort`, one orphan blocks every later run — and two were found alive from the previous session, one of them older than the code it would have been measuring. |
 
 ### Blocked on you, not on me
 
