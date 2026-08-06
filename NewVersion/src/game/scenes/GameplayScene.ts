@@ -2604,18 +2604,6 @@ export class GameplayScene extends Phaser.Scene {
     this.tutorialSprites = sprites;
     this.tutorialParts = clip.parts;
 
-
-    // TIMEBOXED PROBE (T52): a plain rect on the same position/depth/camera
-    // path. Separates "this art does not draw" from "nothing draws there".
-    if (import.meta.env.DEV) {
-      const probe = this.add
-        .rectangle(16, 16, 160, 80, 0xff00ff)
-        .setOrigin(0, 0)
-        .setDepth(TUTORIAL_DEPTH)
-        .setScrollFactor(0);
-      sprites.push(probe as unknown as Phaser.GameObjects.Image);
-    }
-
     this.drawTutorialPanel();
   }
 

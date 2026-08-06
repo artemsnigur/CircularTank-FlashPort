@@ -718,6 +718,15 @@ if (args.baseline) {
   await page.getByRole('button', { name: /play|continue/i }).first().click();
   await stage('03-level-start', 2200);
 
+  // Move first. The tutorial is on by default for a fresh options store, and
+  // `:7153` holds enemy spawning until `AimShoot` is done — which needs the
+  // player to move and then fire. A baseline that never pressed a key stalled
+  // at 10 LEFT forever and looked like a broken level.
+  await page.keyboard.down('d');
+  await delay(600);
+  await page.keyboard.up('d');
+  await delay(400);
+
   await page.locator('canvas').hover({ position: { x: 900, y: 400 } });
   await page.mouse.down();
   let cleared = false;
