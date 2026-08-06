@@ -7,8 +7,27 @@
  * are icons and text laid inside it. 1325 is shared with `AimShoot`, so the
  * shapes are not owned by the panel that draws them.
  *
- * Resolved with the **display-list** parser (depth -> character, snapshotted at
- * `ShowFrame`), not the placement list. The placement parser was latent through
+ * Resolved with the **matrix** parser — the third refinement of this tool:
+ *
+ *   1. placement list  "shapes placed on this frame". Wrong; latent in props
+ *                      and particles, exposed by the coins.
+ *   2. display list    depth -> character at `ShowFrame`. Correct about *what*
+ *                      draws.
+ *   3. + matrices      where each one draws, and how many times.
+ *
+ * **The matrix translate is in the shape's own coordinate space, and JPEXS
+ * normalises each SVG to its bounding box.** A shape whose art sits around its
+ * origin gets a `<g transform="matrix(1,0,0,1, tx, ty)">` in the export, so
+ * drawing it at the raw translate puts its *top-left* where its *origin*
+ * belongs. `x - tx` corrects it, and shapes with an identity transform are
+ * unaffected — 1403 needed 43.2 and 1401 needed nothing, which is exactly the
+ * kind of per-shape difference that averages out to "close enough" and reads
+ * as sloppy art.
+ *
+ * Step 3 found something step 2 could not: **the display list deduped by shape
+ * id, and the AS3 places some shapes twice.** `Move` draws `1401` at both
+ * `x: 10` and `x: 99` — two arrow keys from one glyph. A parser that returns a
+ * set loses the second, and the panel silently renders one arrow. The placement parser was latent through
  * props and particles — each of their frames replaces a single shape — and only
  * surfaced on the coins, where it produced a non-monotonic ladder. These panels
  * are the same layered shape, so it would have been wrong here too.
@@ -27,29 +46,166 @@
  * a literal (16, 16).
  */
 
+export interface TutorialPart {
+  /** Shape id. May repeat — the AS3 places some shapes more than once. */
+  shape: number;
+  /** Offset from the panel's origin, in design units. */
+  x: number;
+  y: number;
+}
+
 export interface TutorialClip {
   /** `assets.swf` character id. */
   symbol: number;
-  /** Shape ids, backdrop first, in display order. */
-  shapes: readonly number[];
   /** The backdrop's authored size — what `DisplayObject.height` returns. */
   width: number;
   height: number;
+  /** Every placement, in draw order, backdrop first. */
+  parts: readonly TutorialPart[];
 }
 
 export const TUTORIAL_CLIPS: Readonly<Record<string, TutorialClip>> = {
-  Move: { symbol: 1406, shapes: [1325, 1401, 1403, 1405], width: 160, height: 80 },
-  AimShoot: { symbol: 1331, shapes: [1325, 1326, 1328, 1330], width: 160, height: 80 },
-  KillEnemies: { symbol: 1358, shapes: [1354, 1355, 1357, 1352], width: 160, height: 70 },
-  Objective: { symbol: 1336, shapes: [1332, 1333, 1335], width: 160, height: 64 },
-  CollectFlags: { symbol: 1366, shapes: [1361, 1362, 187, 1365, 1359], width: 160, height: 70 },
-  Pause: { symbol: 1394, shapes: [1325, 1383, 1389, 1391, 1393], width: 160, height: 80 },
-  Special: { symbol: 1400, shapes: [1325, 1395, 1397, 1399], width: 160, height: 80 },
-  NoMoveTowerMode: { symbol: 1373, shapes: [1325, 1367, 1369, 1371, 195, 43], width: 160, height: 80 },
-  DefendBottom: { symbol: 1380, shapes: [1325, 167, 1375, 1377, 1379], width: 160, height: 80 },
-  ShiftWeapon: { symbol: 1388, shapes: [1325, 1381, 1383, 1385, 1387], width: 160, height: 80 },
-  Strength: { symbol: 1351, shapes: [1325, 1345, 1347, 1348, 1350], width: 160, height: 80 },
-  Weakness: { symbol: 1344, shapes: [1325, 1339, 1341, 1342, 1337], width: 160, height: 80 },
+  Move: {
+    symbol: 1406,
+    width: 160,
+    height: 80,
+    parts: [
+      { shape: 1325, x: 0, y: 0 },
+      { shape: 1401, x: 10, y: 57 },
+      { shape: 1401, x: 99, y: 57 },
+      { shape: 1403, x: 36.7, y: 10 },
+      { shape: 1405, x: 13.65, y: 10 },
+    ],
+  },
+  AimShoot: {
+    symbol: 1331,
+    width: 160,
+    height: 80,
+    parts: [
+      { shape: 1325, x: 0, y: 0 },
+      { shape: 1326, x: 66.3, y: 33.1 },
+      { shape: 1328, x: 27.9, y: 10 },
+      { shape: 1330, x: 27.9, y: 10 },
+    ],
+  },
+  KillEnemies: {
+    symbol: 1358,
+    width: 160,
+    height: 70,
+    parts: [
+      { shape: 1354, x: 0, y: 0 },
+      { shape: 1355, x: 24.1, y: 10 },
+      { shape: 1357, x: 24.1, y: 10 },
+      { shape: 1352, x: 71.5, y: 35.5 },
+    ],
+  },
+  Objective: {
+    symbol: 1336,
+    width: 160,
+    height: 64,
+    parts: [
+      { shape: 1332, x: -16, y: 0 },
+      { shape: 1333, x: 13.2, y: 10 },
+      { shape: 1335, x: 13.2, y: 10 },
+    ],
+  },
+  CollectFlags: {
+    symbol: 1366,
+    width: 160,
+    height: 70,
+    parts: [
+      { shape: 1361, x: 0, y: 0 },
+      { shape: 1362, x: 16.9, y: 10 },
+      { shape: 187, x: 72, y: 36 },
+      { shape: 1365, x: 16.9, y: 10 },
+      { shape: 1359, x: 63.5, y: 27.5 },
+    ],
+  },
+  Pause: {
+    symbol: 1394,
+    width: 160,
+    height: 80,
+    parts: [
+      { shape: 1325, x: 0, y: 0 },
+      { shape: 1383, x: 91, y: 35.95 },
+      { shape: 1389, x: 49, y: 35.95 },
+      { shape: 1391, x: 17.8, y: 10 },
+      { shape: 1393, x: 17.8, y: 10 },
+    ],
+  },
+  Special: {
+    symbol: 1400,
+    width: 160,
+    height: 80,
+    parts: [
+      { shape: 1325, x: 0, y: 0 },
+      { shape: 1395, x: 40, y: 62 },
+      { shape: 1397, x: 22.8, y: 10 },
+      { shape: 1399, x: 22.8, y: 10 },
+    ],
+  },
+  NoMoveTowerMode: {
+    symbol: 1373,
+    width: 160,
+    height: 80,
+    parts: [
+      { shape: 1325, x: 0, y: 0 },
+      { shape: 1367, x: 25.3, y: 10 },
+      { shape: 1369, x: 65.35, y: 55.35 },
+      { shape: 1371, x: 25.3, y: 10 },
+      { shape: 195, x: 50.9, y: 64 },
+      { shape: 195, x: 104.9, y: 64 },
+      { shape: 43, x: 53, y: 43 },
+    ],
+  },
+  DefendBottom: {
+    symbol: 1380,
+    width: 160,
+    height: 80,
+    parts: [
+      { shape: 1325, x: 0, y: 0 },
+      { shape: 167, x: 35, y: 60 },
+      { shape: 1375, x: 34, y: 58.95 },
+      { shape: 1377, x: 11.3, y: 10 },
+      { shape: 1379, x: 11.3, y: 10 },
+    ],
+  },
+  ShiftWeapon: {
+    symbol: 1388,
+    width: 160,
+    height: 80,
+    parts: [
+      { shape: 1325, x: 0, y: 0 },
+      { shape: 1381, x: 32, y: 62 },
+      { shape: 1383, x: 112, y: 62 },
+      { shape: 1385, x: 22.9, y: 10 },
+      { shape: 1387, x: 22.9, y: 10 },
+    ],
+  },
+  Strength: {
+    symbol: 1351,
+    width: 160,
+    height: 80,
+    parts: [
+      { shape: 1325, x: 0, y: 0 },
+      { shape: 1345, x: 34.85, y: 10 },
+      { shape: 1347, x: 34.85, y: 10 },
+      { shape: 1348, x: 81.5, y: 51.45 },
+      { shape: 1350, x: 81.5, y: 51.45 },
+    ],
+  },
+  Weakness: {
+    symbol: 1344,
+    width: 160,
+    height: 80,
+    parts: [
+      { shape: 1325, x: 0, y: 0 },
+      { shape: 1339, x: 40, y: 10 },
+      { shape: 1341, x: 40, y: 10 },
+      { shape: 1342, x: 80.9, y: 34.15 },
+      { shape: 1337, x: 80.9, y: 34.15 },
+    ],
+  },
 };
 
 /** `:319` — every panel but one sits at this inset from the top-left. */

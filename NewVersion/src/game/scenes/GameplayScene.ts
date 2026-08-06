@@ -42,6 +42,7 @@ import {
   createJitterState,
   shapeSize as tutorialShapeSize,
 } from '../tutorial/tutorialArt';
+import type { TutorialPart } from '../tutorial/tutorialArt';
 import {
   addTutorialsToQueue,
   completeTutorial,
@@ -579,6 +580,8 @@ export class GameplayScene extends Phaser.Scene {
   private damageIndicator = 0;
 
   private tutorialSprites: Phaser.GameObjects.Image[] = [];
+  /** Per-part offsets, parallel to `tutorialSprites`. */
+  private tutorialParts: readonly TutorialPart[] = [];
   private tutorialAlpha = 0;
   private tutorialJitter = createJitterState();
   /** AS3 frames elapsed this tick, for the jitter's 30 Hz re-roll. */
@@ -2587,10 +2590,10 @@ export class GameplayScene extends Phaser.Scene {
      * matrices is the fix and it is a parser change, not a rendering one.
      */
     const sprites: Phaser.GameObjects.Image[] = [];
-    for (const shape of clip.shapes) {
-      const size = tutorialShapeSize(shape);
+    for (const part of clip.parts) {
+      const size = tutorialShapeSize(part.shape);
       const image = this.add
-        .image(0, 0, `unit-${shape}`)
+        .image(0, 0, `unit-${part.shape}`)
         .setOrigin(0, 0)
         .setDepth(TUTORIAL_DEPTH);
       // Authored size, so the 4x raster is divided exactly where every other
@@ -2599,6 +2602,7 @@ export class GameplayScene extends Phaser.Scene {
       sprites.push(image);
     }
     this.tutorialSprites = sprites;
+    this.tutorialParts = clip.parts;
 
 
     // TIMEBOXED PROBE (T52): a plain rect on the same position/depth/camera
@@ -2637,9 +2641,9 @@ export class GameplayScene extends Phaser.Scene {
           count: this.tutorialSprites.length,
           textures: this.tutorialSprites.map((s2) => s2.texture?.key ?? 'none'),
           // The texture-manager check, allowed as the single follow-up.
-          textureExists: (TUTORIAL_CLIPS[this.tutorialStep?.id ?? '']?.shapes ?? []).map(
-            (id) => {
-              const key = `unit-${id}`;
+          textureExists: (TUTORIAL_CLIPS[this.tutorialStep?.id ?? '']?.parts ?? []).map(
+            (part) => {
+              const key = `unit-${part.shape}`;
               const t = this.textures.exists(key) ? this.textures.get(key) : null;
               return [key, t !== null, t ? t.source[0]?.width : 0, t ? t.source[0]?.height : 0];
             },
@@ -2675,9 +2679,14 @@ export class GameplayScene extends Phaser.Scene {
     const jitter = jitterOffset(this.tutorialAlpha, this.tutorialJitter, this.tutorialFrames);
     this.tutorialJitter = jitter.state;
     const { dx, dy } = jitter;
-    for (const sprite of this.tutorialSprites) {
-      sprite.setPosition(anchor.x + dx, anchor.y + dy).setAlpha(this.tutorialAlpha);
-    }
+    // Each part at its own offset from the panel origin — the matrices, not a
+    // shared position. Before T56 they all drew at the origin and overlapped.
+    this.tutorialSprites.forEach((sprite, i) => {
+      const part = this.tutorialParts[i];
+      sprite
+        .setPosition(anchor.x + dx + (part?.x ?? 0), anchor.y + dy + (part?.y ?? 0))
+        .setAlpha(this.tutorialAlpha);
+    });
     this.publishTutorialDebug();
   }
 
