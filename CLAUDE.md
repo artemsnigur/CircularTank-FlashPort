@@ -339,6 +339,12 @@ session. That is exactly the kind of thing that dies on the first cold start, so
    someone will be standing when it matters, and say what is owed and what would
    unblock it. A gap recorded only in a commit message is invisible six months out.
 
+**`docs/HANDOFF.md` is the briefing for a reviewer with no repo access and no
+memory of the project** — what plays, the working rules, where things live, the
+instrument traps, what is open, and what the user asked for by name. It is part
+of the deliverable and is kept current, like the audit. Update it whenever the
+queue moves, a divergence is approved, or an instrument trap is found.
+
 **`docs/AUDIT-2026-07.md` is the home for divergences.** Anything where the port
 deliberately differs from the AS3, or where AS3 ambiguity was settled by judgment, goes
 there rather than into a commit message — it aggregates viewport-dependent differences,
