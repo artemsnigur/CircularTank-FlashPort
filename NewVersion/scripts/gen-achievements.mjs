@@ -50,7 +50,19 @@ function parseLiteralArray(text) {
   const re = /"((?:[^"\\]|\\.)*)"|(-?\d+(?:\.\d+)?)|(true|false)|(null)/g;
   let m;
   while ((m = re.exec(text)) !== null) {
-    if (m[1] !== undefined) out.push(m[1].replace(/\\"/g, '"'));
+    if (m[1] !== undefined) {
+      // Unescape the AS3 literal, not just its quotes. The newline escape was
+      // left as two characters and rendered verbatim on the achievements
+      // board — "Upgrade 1 primary weapon\nto level 10." with the backslash-n
+      // visible. A generator that handles one escape and not the rest looks
+      // correct until a string uses another.
+      out.push(
+        m[1]
+          .replace(/\\n/g, '\n')
+          .replace(/\\t/g, '\t')
+          .replace(/\\(["'\\])/g, '$1'),
+      );
+    }
     else if (m[2] !== undefined) out.push(Number(m[2]));
     else if (m[3] !== undefined) out.push(m[3] === 'true');
     else out.push(null);

@@ -1354,3 +1354,51 @@ code {
   letter-spacing: 0.08em;
   opacity: 0.75;
 }
+
+/* Achievements — `ScreenAchievements.as`. Proportional board, not a grid. */
+.achievements__grid {
+  position: relative;
+  list-style: none;
+  margin: 1rem auto;
+  padding: 0;
+  width: min(56rem, 94vw);
+  /* Matches the AS3 board's 300x280 aspect, so the proportions hold. */
+  aspect-ratio: 300 / 280;
+}
+
+.achievements__cell {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 8.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  background: rgb(0 0 0 / 35%);
+  opacity: 0.45;
+  text-align: center;
+}
+
+.achievements__cell--earned {
+  opacity: 1;
+  border-color: var(--accent, #ffd166);
+  background: rgb(255 209 102 / 12%);
+}
+
+.achievements__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+
+.achievements__goal {
+  margin: 0.15rem 0 0;
+  font-size: 0.62rem;
+  opacity: 0.75;
+}
+
+.achievements__difficulty {
+  margin: 0.15rem 0 0;
+  font-size: 0.6rem;
+  color: var(--accent, #ffd166);
+}

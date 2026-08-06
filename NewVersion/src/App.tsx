@@ -8,6 +8,7 @@ import { UpgradesScreen } from './ui/screens/UpgradesScreen';
 import { EnemiesScreen } from './ui/screens/EnemiesScreen';
 import { BestiaryScreen } from './ui/screens/BestiaryScreen';
 import { OptionsScreen } from './ui/screens/OptionsScreen';
+import { AchievementsScreen } from './ui/screens/AchievementsScreen';
 import { DiagnosticsPanel } from './ui/DiagnosticsPanel';
 import { installButtonSounds } from './ui/buttonSounds';
 import { useEffect, useRef } from 'react';
@@ -51,6 +52,7 @@ export function App(): React.ReactElement {
         <EnemiesScreen />
         <BestiaryScreen />
         <OptionsScreen />
+        <AchievementsScreen />
         <Hud />
         <DiagnosticsPanel />
       </div>

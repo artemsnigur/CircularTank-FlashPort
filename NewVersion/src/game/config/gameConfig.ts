@@ -7,6 +7,7 @@ import { GameplayScene } from '../scenes/GameplayScene';
 import { UpgradesScene } from '../scenes/UpgradesScene';
 import { EnemiesScene } from '../scenes/EnemiesScene';
 import { OptionsScene } from '../scenes/OptionsScene';
+import { AchievementsScene } from '../scenes/AchievementsScene';
 import { BestiaryScene } from '../scenes/BestiaryScene';
 import { INITIAL_HEIGHT, INITIAL_WIDTH } from './viewport';
 
@@ -122,6 +123,7 @@ export function createGameConfig({
       EnemiesScene,
       BestiaryScene,
   OptionsScene,
+  AchievementsScene,
       GameplayScene,
     ],
   };

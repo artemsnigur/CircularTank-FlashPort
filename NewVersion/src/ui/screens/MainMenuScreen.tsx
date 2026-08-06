@@ -84,6 +84,13 @@ export function MainMenuScreen(): React.ReactElement | null {
         >
           Options
         </button>
+        <button
+          type="button"
+          className="menu__button"
+          onClick={() => GameEvents.emit('ui:goto', { key: 'Achievements' })}
+        >
+          Achievements
+        </button>
         {import.meta.env.DEV && (
           <button
             type="button"

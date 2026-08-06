@@ -131,6 +131,10 @@ export function attachStoreBridge(): () => void {
     store.getState().setViewport(viewport);
   });
 
+  on('achievements:listed', (achievements) => {
+    useGameStore.setState({ achievementBoard: achievements });
+  });
+
   on('options:changed', (options) => {
     useGameStore.setState({ gameplayOptions: options });
   });

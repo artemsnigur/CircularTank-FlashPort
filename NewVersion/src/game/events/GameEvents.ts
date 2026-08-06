@@ -14,6 +14,7 @@
  * only shows up after twenty level restarts.
  */
 import type { SlotSummary } from '../save/slotSummary';
+import type { AchievementListing } from '../achievements/achievementListing';
 import type { GameplayOptions } from '../options/gameplayOptions';
 import Phaser from 'phaser';
 import type { Difficulty, SceneKey } from '../config/constants';
@@ -356,6 +357,8 @@ export interface GameEventMap {
   'ui:set-option': Partial<GameplayOptions>;
   /** The current preferences, so React can render the checkboxes. */
   'options:changed': GameplayOptions;
+  /** The achievements board, published by its scene. */
+  'achievements:listed': AchievementListing;
   /** The current preferences, so React can render the toggles. */
   'audio:options': { soundOn: boolean; musicOn: boolean };
   /**
