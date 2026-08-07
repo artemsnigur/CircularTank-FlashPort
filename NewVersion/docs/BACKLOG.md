@@ -650,7 +650,31 @@ is the model to follow.
       It was paired with I2 as this entry recommended, so the world picker shows
       nine worlds that actually look different.
 
-### L3 — `--sound-sweep` never satisfies the tutorial spawn gate
+### L3 — `--sound-sweep` never satisfies the tutorial spawn gate — **FIXED (T65), and it was not the whole cause**
+
+**The fix landed and is verified; the sound number did not move.** Both halves
+matter, and the second is the useful one.
+
+**What the fix does.** `look.mjs` now moves, then fires, *before* the settle
+delay, mirroring `--baseline`'s T58 fix. Verified by A/B on the dev level rather
+than inferred from the count:
+
+| | tutorial step reached | arena | enemies on screen |
+|---|---|---|---|
+| Without the move (old) | `Move`, through the **whole** firing loop — 140 sounds queued | `60 LEFT` | no |
+| With it (new) | `KillEnemies`, inside the settle | `60 LEFT` | **yes** |
+
+So the gate was real, it was shut, and it is now open.
+
+**What it did not fix.** The sweep still reports **25 of 67** with
+`peak/frame EnemySquish: 0`, unchanged. **A second, independent cause was hiding
+behind the first** — see `L8`. The count cannot move until both are closed, and
+that is why the pre-L3 figure of 39 must not be treated as the target: see the
+note under `L8`.
+
+*Original entry kept below.*
+
+#### The original diagnosis
 
 - [ ] **New, found by driving the sweep at `b2d2193`.** The sweep reports
       **25 of 67** names where the audit records 39 at `59b9756`, and
@@ -736,6 +760,37 @@ believed" is the recurring shape and this is the clearest instance of it.*
   *Fix shape: kill the child on exit, including on throw. Lift: trivial.
   Meanwhile: check the port before trusting any `look` run — and check it
   **before** the run, because afterwards you cannot tell which server answered.*
+
+### L8 — the sweep aims at a screen constant, so nothing it fires connects
+
+- [ ] **Found by fixing `L3` and watching the count refuse to move.** With the
+      spawn gate open and enemies demonstrably on screen, the sweep still lands
+      **zero** hits: no `ImpactBullet`, `ImpactCake`, `ImpactMagic`,
+      `ImpactGummyBear` or `ImpactLaser`, no `EnemySquish`, no `Coin`, no
+      `TankDamaged`, and the arena reads `60 LEFT` from first frame to last.
+
+  **The cause, from a frame.** The orbit at `look.mjs:520` sweeps the cursor
+  around **(640, 400) — a screen-space constant** — while the tank is wherever
+  the camera left it. After the gate-satisfying move it sits near **x 900**, so
+  the crosshair circles empty ground a couple of hundred units to its left and
+  every round flies into it. Visible directly: crosshair up-left of the tank,
+  bullets in flight toward nothing, enemies elsewhere on screen.
+
+  **Same family as `L3` and worth naming as such:** the harness encodes a
+  screen constant that stopped being true, and reports a clean number anyway.
+  The AS3-side version of this is the whole *constants-that-became-variables*
+  section; this is the instrument's own instance of it.
+
+  *Fix shape: aim relative to the tank rather than to the viewport centre, or
+  drive the tank into the enemies so contact resolves — the tank's screen
+  position is not currently exposed to the harness, which is the one thing that
+  makes this more than a two-line change. Needs a deliberate choice about what a
+  sound sweep should guarantee, so it is not a tail-end job.*
+
+  > **The 39 is not the target, and never was a floor.** It was measured on a
+  > harness carrying at least these two defects, so it recorded whatever
+  > combination of luck and timing that build happened to produce. Treat the
+  > next post-`L8` number as the first trustworthy one, and do not "restore" 39.
 
 ### L5–L7 — PROGRESS.md status mechanics, deferred from T61
 
@@ -839,7 +894,8 @@ Small, and none of it blocks anything else:
 | **G / I2** | The visible-values model — one change, two consumers | small |
 | **J** | Shop descriptions and stat previews (**data absent too**) | small + an unscoped extraction |
 | **L1** | `assets:sync` never prunes | small |
-| **L3** | `--sound-sweep` never satisfies the tutorial gate | trivial |
+| ~~**L3**~~ | ~~`--sound-sweep` never satisfies the tutorial gate~~ — **fixed T65**; count unmoved, see L8 | done |
+| **L8** | The sweep aims at a screen constant, so nothing it fires connects | needs a design call |
 | ~~**L4**~~ | ~~`npm run look` leaves its vite server alive~~ — **fixed T64** | done |
 | **L5** | 517 stub statuses hand-set where `gen-progress.mjs:256` could derive them | small work, large metric consequence |
 | **L6** | `ScreenGame`/`PartGameArea` generated prose self-contradicts and is coupled to their status | small, generator pass |

@@ -61,8 +61,13 @@ spawning. Tracked as **L3** in `BACKLOG.md`.
 
 **Do not read 39 → 25 as lost wiring**, and do not wire anything in response.
 This is *reach and wiring are separate questions* (rule 9) — the same misreading
-that made ten fully-wired names look unwired in T40. **The last trustworthy
-sound number is 39 at `59b9756`; there will not be another until L3 is fixed.**
+that made ten fully-wired names look unwired in T40.
+
+**Updated T65: there is no trustworthy sound number yet, including 39.** `L3`
+was fixed and the count stayed at 25, because `L8` was behind it — the sweep
+aims at a screen constant and lands zero hits. 39 was measured on a harness
+carrying *both* defects, so it is not a floor, a target, or a regression
+baseline. The first number worth recording is the one after `L8`.
 
 ### How to see it
 
@@ -221,8 +226,8 @@ be checked against a second mode on the same build before it is believed.
 | Item | Needs |
 |---|---|
 | **Pre-level countdown** | `spawnWarnings` and the countdown are unported. **Not just a missing feature:** `countDownDone` is read by `spawnPlacement.ts:91` and never written (only ever `false`, `waveState.ts:150`), so the off-camera spawn search runs on *every* spawn where the AS3 runs it only during the countdown. Porting it changes spawn placement game-wide, and it wants its own pass. |
-| **`L3`** | **Still open — the fix has never been written.** `--sound-sweep` fires at `look.mjs:498` and moves only at iteration 5 of 10 (`:511`), where `--baseline` moves first (`:725-728`, the T58 fix). So the sweep spends most of its window on a level the tutorial gate is deliberately holding, and its count is not comparable to the recorded 39. Trivial; **blocks the next sound measurement.** |
-| **Sound: 28 names not firing** | Six blocked on unported triggers (achievement reveal, level-unlock, countdown, shop purchase, second loadout slot). The rest is scenario reach — they fire in play, the sweep just does not visit those modes. `ImpactCrazyCheese` is an orphan asset with no AS3 trigger under any spelling. **Do not re-measure before `L3`.** |
+| **`L8`** | **The sweep aims at a screen constant.** Found by fixing `L3` and watching the count refuse to move. Its cursor orbits `(640, 400)` (`look.mjs:520`) while the tank sits near x 900 after the gate-satisfying move, so every round flies past. Zero hits: no impact sounds, no `EnemySquish`, no `Coin`, arena `60 LEFT` start to finish. **This, not `L3`, is what now blocks a trustworthy sound number.** Needs a design call — aim relative to the tank, or drive it into contact — because the tank's screen position is not exposed to the harness. |
+| **Sound: 28 names not firing** | Six blocked on unported triggers (achievement reveal, level-unlock, countdown, shop purchase, second loadout slot). The rest is scenario reach. `ImpactCrazyCheese` is an orphan asset with no AS3 trigger under any spelling. **Do not re-measure before `L8`.** |
 | **`L1`** | `assets:sync` never prunes. Re-verified at `b2d2193`: a count of `unlink\|rm(\|rmSync` over `scripts/sync-assets.mjs` returns 0. |
 
 ### Closed since the previous stamp
@@ -246,6 +251,18 @@ things that are actually open.
   (`resolveCollisions:539`, from `:2603-2664`) and props render. **Nothing is
   owed and no call is needed** — the audit was right and only §5 was stale.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
+- **`L3`** — fixed (T65). `--sound-sweep` now moves before firing, mirroring
+  `--baseline`. Verified by A/B on the dev level rather than by the count:
+  without the move the tutorial stays on step `Move` through the entire firing
+  loop (140 sounds queued, nothing spawns); with it the step reaches
+  `KillEnemies` inside the settle and enemies are on screen.
+
+  **The sound number did not move — it is 25 of 67, not 39.** Flagged rather
+  than glossed: `L3` was necessary and not sufficient, and `L8` was hiding
+  behind it. **Do not read 25 as a regression and do not treat 39 as the
+  target** — 39 was itself measured on a harness carrying both defects, so it
+  recorded whatever that build's luck produced. The first trustworthy number
+  will be the one after `L8`.
 
 ### Blocked on you, not on me
 

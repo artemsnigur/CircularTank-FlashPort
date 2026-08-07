@@ -544,6 +544,38 @@ if (args.soundSweep) {
     await page.goto(`${URL}${q}`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
     await page.getByRole('button', { name: /all-enemy test level/i }).click();
+
+    // Move, then fire, *before* the settle delay — the same fix `--baseline`
+    // got in T58, arriving here in T65 (`L3`).
+    //
+    // Each `page.goto` above is a fresh profile, so `tutorialOn` defaults true
+    // and `:7153` holds enemy spawning until the player has moved **and**
+    // fired. This loop used to fire at the hover below and move only at
+    // iteration 5, so the gate stayed shut and nothing spawned.
+    //
+    // **Measured A/B on this level, not assumed.** Without the move the
+    // tutorial stays on step `Move` through the entire firing loop — 140 sounds
+    // queued, step never advances, arena still reads `60 LEFT`. With it the
+    // step reaches `KillEnemies` inside the settle and enemies are on screen
+    // when measurement starts.
+    //
+    // ── What this does NOT fix ────────────────────────────────────────────
+    // The sound count did not move (25 of 67, `EnemySquish` still 0). A second
+    // and independent cause remains: the orbit below is centred on a **screen
+    // constant** (640, 400) while the tank drifts under camera lag — after the
+    // move it sits near x 900 — so the crosshair sweeps empty ground beside it
+    // and no round connects. Tracked as `L8` in docs/BACKLOG.md. The gate fix
+    // is a prerequisite for that one, not a substitute: aiming at enemies is
+    // worth nothing on a level that never spawns any.
+    await page.keyboard.down('d');
+    await delay(600);
+    await page.keyboard.up('d');
+    await delay(200);
+    await page.locator('canvas').hover({ position: { x: 760, y: 400 } });
+    await page.mouse.down();
+    await delay(300);
+    await page.mouse.up();
+
     await delay(7000);
     await clear();
 
