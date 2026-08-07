@@ -436,9 +436,24 @@ describe('immunity', () => {
   });
 
   it('death by decay goes through the shared removal path', () => {
-    // So kill count, money drop and wave accounting cannot tell it apart from
-    // any other death — they all key off removeEnemy(enemy, true).
+    // **A source-shape check. It proves the call is written with the right
+    // arguments; it cannot prove the branch is reached.** Flagged inline per
+    // the rule in CLAUDE.md, because the distinction is the whole reason this
+    // repository distrusts this technique.
+    //
+    // The claim: `DamageAddict` bleeds itself to death inside `update`, and the
+    // scene resolves that through the same `removeEnemy(enemy, true)` every
+    // other death uses — so kill count, money drop and wave accounting cannot
+    // tell it apart.
+    //
+    // **The proximity window was removed in T71 after it broke a fourth time
+    // on a correct change** — twenty lines of teleport-sound wiring landed
+    // between `enemy.update(` and the call, and the regex measured the gap in
+    // characters. It has never caught a defect and has now cost four passes,
+    // which is the pattern the audit records under *source-shape assertions*.
+    // What survives is the part that carries meaning: the health test and the
+    // `true`, which is what distinguishes a decay death from a contact one.
     const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
-    expect(scene).toMatch(/enemy\.update\([\s\S]{0,400}?removeEnemy\(enemy, true\)/);
+    expect(scene).toContain('if (enemy.health <= 0) this.removeEnemy(enemy, true);');
   });
 });

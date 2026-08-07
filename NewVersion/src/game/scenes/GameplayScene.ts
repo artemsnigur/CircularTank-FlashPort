@@ -1235,6 +1235,29 @@ export class GameplayScene extends Phaser.Scene {
         delta,
       );
 
+      // `:4948` TeleportOut and `:4975` TeleportIn — both gated on the enemy
+      // being on screen (`checkWithinScreen(…, 100)` at `:4946`/`:4973`), the
+      // same rule `EnemyShoot` uses below. A teleport the player cannot see is
+      // silent.
+      //
+      // Read after `update` deliberately: the departure fires before the hop,
+      // so `enemy.x/y` is still the old position, and the arrival fires after
+      // `setPosition`, so it is the new one. Each is gated on the place the
+      // AS3 gates it on.
+      if (enemy.teleportedOut || enemy.teleportedIn) {
+        const teleView = this.cameras.main.worldView;
+        if (
+          isAudibleAt(enemy.x, enemy.y, enemy.radius, {
+            cameraX: teleView.x,
+            cameraY: teleView.y,
+            cameraWidth: teleView.width,
+            cameraHeight: teleView.height,
+          })
+        ) {
+          getSoundManager(this)?.queue(enemy.teleportedOut ? 'TeleportOut' : 'TeleportIn');
+        }
+      }
+
       // `DamageAddict` bleeds itself to death inside `update`. Routed through
       // the same `removeEnemy(enemy, true)` the status-effect tick uses, so the
       // death is indistinguishable downstream — kill count, money drop, wave
@@ -3097,7 +3120,10 @@ export class GameplayScene extends Phaser.Scene {
         // `:6221` has no boss divisor where the blast does, but `iceFreezes`
         // has already refused every boss, so `freeze`'s divisor is unreachable
         // here and the two spellings agree.
-        enemy.freeze(effect.frames, this.levelSpec?.mode === 'Tower');
+        // `:6232` — only on a fresh freeze. See `Enemy.freeze`.
+        if (enemy.freeze(effect.frames, this.levelSpec?.mode === 'Tower')) {
+          getSoundManager(this)?.queue('Freeze');
+        }
         if (effect.enemyType === 'Temperamental') this.levelFlags.temperamentalFrozen = true;
         continue;
       }
@@ -3613,7 +3639,9 @@ export class GameplayScene extends Phaser.Scene {
         maxHealth: TANK_MAX_HP,
       });
 
-      this.removeEnemy(enemy, false);
+      // `:6867` — a line breach is the one death that sounds `BottomCollision`
+      // instead of `EnemySquish`.
+      this.removeEnemy(enemy, false, true);
     }
   }
 
@@ -4288,7 +4316,10 @@ export class GameplayScene extends Phaser.Scene {
     if (explosion.type === 'Ice') {
       // The `:6554` stamp moved to `planBlastOn`, which decides it alongside
       // the gate it is coupled to. This applies only the freeze.
-      enemy.freeze(explosion.effectTime, this.levelSpec?.mode === 'Tower');
+      // `:5868` — only on a fresh freeze. See `Enemy.freeze`.
+      if (enemy.freeze(explosion.effectTime, this.levelSpec?.mode === 'Tower')) {
+        getSoundManager(this)?.queue('Freeze');
+      }
       // `:6324` — freezing a raged Temperamental. Unreachable until the Ice
       // Grenade landed, because nothing dealt Ice damage: the achievement was
       // documented as a known gap and this is the source that closes it.
@@ -4331,7 +4362,10 @@ export class GameplayScene extends Phaser.Scene {
     // Ice resistance and quartered against a boss. Same timer the Ice Grenade's
     // blast writes to, so the two stack by the same rule.
     if (bullet.appliesFreeze && enemy.damageMultipliers.Ice > 0) {
-      enemy.freeze(bullet.freezeTime, this.levelSpec?.mode === 'Tower');
+      // `:5868` — only on a fresh freeze. See `Enemy.freeze`.
+      if (enemy.freeze(bullet.freezeTime, this.levelSpec?.mode === 'Tower')) {
+        getSoundManager(this)?.queue('Freeze');
+      }
       if (enemy.enemyType === 'Temperamental') this.levelFlags.temperamentalFrozen = true;
     }
 
@@ -4395,7 +4429,12 @@ export class GameplayScene extends Phaser.Scene {
    * `payMoney` is false when the enemy reached the tank: the AS3 sets
    * `noMoney = true` on contact, so a suicide attack earns the player nothing.
    */
-  private removeEnemy(enemy: Enemy, payMoney: boolean): void {
+  /**
+   * @param bottomCollision the enemy died by crossing the Defense line, which
+   * selects `BottomCollision` over `EnemySquish` (`:6861-6868`). Defaults false
+   * so every other caller keeps the ordinary death sound.
+   */
+  private removeEnemy(enemy: Enemy, payMoney: boolean, bottomCollision = false): void {
     // `:6837` — the body bursts into debris of its own colour. Count and reach
     // both scale with the enemy's radius, so a boss showers and a small enemy
     // puffs; the remaining arguments are `spawnParticle`'s defaults, which put
@@ -4437,8 +4476,17 @@ export class GameplayScene extends Phaser.Scene {
       // A kill counts exactly where the removal counts. Contact deaths pass
       // false — a suicide attack pays nothing and is not a kill.
       this.kills += 1;
-      getSoundManager(this)?.queue('EnemySquish');
     }
+
+    // `:6861-6868` — **every** death sounds, and the two names are an
+    // either/or: `if(!bottomCollision) EnemySquish else BottomCollision`.
+    //
+    // Two corrections in one line. The push sits *below* the `noMoney` gate at
+    // `:6842` and the KillReload block at `:6850`, so it is **not** conditional
+    // on the death paying out — the port had it inside `payMoney`, which meant
+    // a contact suicide died silently. And `BottomCollision` was unreachable
+    // because it is the branch for exactly the deaths that pay nothing.
+    getSoundManager(this)?.queue(bottomCollision ? 'BottomCollision' : 'EnemySquish');
 
     // `:6842` — the drop. Scattered as coins the player must collect, not
     // credited outright: this used to add `enemy.stats.money` straight to the

@@ -26,8 +26,8 @@
 >   counts enemies carrying `gotBomb`. Corrected here rather than silently, because
 >   the wrong description would have scoped a feature that does not exist.
 > - **The UI and sound bulk** — **measured, not counted** (see below). UI: 9 of 11
->   screens render with content. Sound: **41–42 of 67** names fire, settled at
->   T69 once `L3` and `L8` were both closed — see *Instrument note*.
+>   screens render with content. Sound: **48 of 67** names fire (T71) — see
+>   *Instrument note*.
 >
 > Recorded here rather than in a report because a list that refers to work it does not
 > enumerate is how the dev aids ended up saying "remove the others" about a set nobody
@@ -59,12 +59,16 @@ document were **driven at `b2d2193`**, not counted:
   content: MainMenu 13, LevelSelect 69, Upgrades 35, Bestiary 2, SaveSlots 5,
   Enemies 22, Options 10, Achievements 2. `Premium` and `Credits` report
   `UNREACHABLE (no entry point)` — both deliberately out of scope.
-- **Sound — driven. Settled at T69: 41–42 of 67.** `npm run look -- --sound-sweep`,
-  with `L3` and `L8` both closed. Two consecutive runs gave 41 and 42, so it is a
-  **±1 band around 41**, not a fixed figure. What makes it trustworthy where the
-  earlier readings were not: **landing evidence 6/6** — `ImpactBullet`,
-  `ImpactLaser`, `ImpactMagic`, `ImpactCake`, `EnemySquish` and `Coin` all fire,
-  and every one of them was absent from every previous run.
+- **Sound — driven. 48 of 67 (T71).** `npm run look -- --sound-sweep`, with `L3`
+  and `L8` closed and the sweep extended to the four modes `--baseline` never
+  visits. What makes it trustworthy where the earlier readings were not:
+  **landing evidence 6/6** — `ImpactBullet`, `ImpactLaser`, `ImpactMagic`,
+  `ImpactCake`, `EnemySquish` and `Coin` all fire, and every one of them was
+  absent from every run before T69.
+
+  **41–42 → 48 mixes two different gains and they are worth keeping apart:**
+  **+5 from reach** (`Boss`, `Defense`, `Flag`, `Tower` music and `Lose`, none
+  of which needed code) and **+2 from wiring** (`Freeze`, `TeleportOut`).
 
   **The earlier figures are history, not a series.** Each was taken with
   different defects present in the harness, so they cannot be compared to this
@@ -75,7 +79,8 @@ document were **driven at `b2d2193`**, not counted:
   | 39 of 65/67 | `59b9756` (T57) | before `L3` and `L8` were known |
   | 25 of 67 | `b2d2193` (T60) | tutorial gate closed the arena (`L3`) |
   | 27 of 67 | T65 | `L3` fixed; sweep still aimed at a screen constant (`L8`) |
-  | **41–42 of 67** | **T69** | **both closed; impacts confirmed landing** |
+  | 41–42 of 67 | T69 | both closed; impacts landing — Normal mode only |
+  | **48 of 67** | **T71** | **+ four modes driven, + two triggers wired** |
 
   **41–42 does not confirm or replace 39.** They measure the same thing through
   two different broken instruments and one working one.
@@ -719,9 +724,8 @@ note under `L8`.
   the pass that found it, which was docs-only.*
 
   > **"Sound coverage" is two permanently unrelated numbers in this project.**
-  > This one — the sweep's **trigger-firing count**, now **41–42 of 67** (T69,
-  > with `L3` and `L8` both closed) — measures how many sound *names* actually
-  > play when the game is driven. `PROGRESS.md`'s **Sound and music triggers
+  > This one — the sweep's **trigger-firing count**, now **48 of 67** (T71) —
+  > measures how many sound *names* actually play when the game is driven. `PROGRESS.md`'s **Sound and music triggers
   > 0/115** counts `[Embed]` MP3 *wrapper classes* (`sndBall.as` is 15 lines
   > around one file) and is pending **L5**. Neither can ever move the other, and
   > a fix to one will not change the other's figure. Conflating them cost a task
@@ -948,7 +952,7 @@ Small, and none of it blocks anything else:
 | **L1** | `assets:sync` never prunes | small |
 | ~~**L3**~~ | ~~`--sound-sweep` never satisfies the tutorial gate~~ — **fixed T65**; count unmoved, see L8 | done |
 | ~~**L8**~~ | ~~The sweep aims at a screen constant~~ — **fixed T69**; 25 → 41–42 of 67, landing evidence 0/6 → 6/6 | done |
-| **Sound: 25 names still silent** | Re-derived at T69 against the trustworthy count, not carried forward from the old 28. Six are blocked on unported triggers; the rest is mode reach. Tracked in `HANDOFF.md` §5, which holds the breakdown | small, mostly harness |
+| **Sound: 19 silent** | **48 of 67 fire** (T71, driven). 10 of the 19 are wired and reach-only — no code owed. The rest split three ways: `BossCollision` blocked on enemy-to-enemy collision, five reveal sounds blocked on the visible-values model, `Burning`/`FlameThrower` on an undriven loop channel, and `ImpactCrazyCheese` is an orphan that must never be wired. Breakdown in `HANDOFF.md` §5 | mostly blocked, not owed |
 | ~~**L4**~~ | ~~`npm run look` leaves its vite server alive~~ — **fixed T64** | done |
 | **L5** | 517 stub statuses hand-set where `gen-progress.mjs:256` could derive them | small work, large metric consequence |
 | **L6** | `ScreenGame`/`PartGameArea` generated prose self-contradicts and is coupled to their status | small, generator pass |

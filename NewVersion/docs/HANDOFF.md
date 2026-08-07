@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T70**, commit `725adb5`, 7 August 2026. Keep it current — it is
+Current as of **T71**, commit `a552bfc`, 7 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -49,9 +49,14 @@ entry point)`, both deliberately out of scope. Measured by driving, because a
 screen that opens empty and a screen that is not ported are indistinguishable to
 a presence check.
 
-**Sound: 41–42 of 67 names fire.** Settled at T69 from a driven
-`--sound-sweep` with `L3` and `L8` both closed. Two consecutive runs gave 41 and
-42, so treat it as a **±1 band around 41** rather than a fixed figure.
+**Sound: 48 of 67 names fire** (T71, driven `--sound-sweep`).
+
+**41–42 → 48 is not a coverage improvement of the same thing.** T69's figure was
+the first taken on a trustworthy harness; T71 then *extended the harness* to
+visit the four modes `--baseline` never reached (+5: `Boss`, `Defense`, `Flag`,
+`Tower`, `Lose`) **and** wired two genuinely-missing triggers (+2: `Freeze`,
+`TeleportOut`). Those are different kinds of gain and are worth keeping apart —
+the first was reach, the second was code.
 
 **What makes this one trustworthy where three earlier readings were not:**
 **landing evidence 6/6** — `ImpactBullet`, `ImpactLaser`, `ImpactMagic`,
@@ -67,7 +72,8 @@ defects present in the harness, so none of them can be compared with another:
 | 39 of 65/67 | `59b9756` (T57) | before `L3` or `L8` were known |
 | 25 of 67 | `b2d2193` (T60) | the tutorial gate left the arena empty (`L3`) |
 | 27 of 67 | T65 | `L3` fixed; the sweep still aimed at a screen constant (`L8`) |
-| **41–42 of 67** | **T69** | **both closed; impacts confirmed landing** |
+| 41–42 of 67 | T69 | both closed; impacts confirmed landing — Normal mode only |
+| **48 of 67** | **T71** | **+ four modes driven, + `Freeze` and `TeleportOut` wired** |
 
 **41–42 does not confirm or replace 39**, and 39 → 25 was never a regression.
 They are the same quantity measured through two broken instruments and one
@@ -269,7 +275,10 @@ be checked against a second mode on the same build before it is believed.
 | Item | Needs |
 |---|---|
 | **A real reload readout** | The HUD shows a placeholder magazine count (`GameplayScene.PLACEHOLDER_AMMO`), not the AS3's two reload bars (`PartInterface.as:746-780`). Whoever builds one also owns `:750-752`, which forces the **primary** bar empty for the whole opening countdown — and only the primary; the secondary's is untouched, which is the original's own asymmetry. The rule is deliberately **not** ported ahead of a consumer; reasoning at the foot of `waves/countdownPanel.ts` and at `PLACEHOLDER_AMMO`. |
-| **Sound: 25 names not firing** | Re-derived at T69 against the trustworthy number, not carried forward. Of the 25: `Achievement`/`Award1-3` need the achievement reveal, `Unlock` the level-unlock path, `InterfaceButtonMoney` a shop purchase, `WeaponChange` a second owned slot. `Boss`/`BossCollision`, `Defense`/`BottomCollision`, `Tower`, `Flag`/`FlagPickup` are **mode reach** — the sweep drives the all-enemy dev level and never visits those modes. `Menu`/`Win`/`Lose` need the sweep to leave or finish a level. `ImpactCrazyCheese` is an orphan asset with no AS3 trigger under any spelling. |
+| **Sound: 19 silent, and 13 of them need no code** | **48 of 67 fire** (T71, driven). Of the 19 left, **10 are wired and reach-only** — `FlagPickup`, `InterfaceButtonMoney` (`UpgradesScene.ts:243`), `Menu` (`MainMenuScene.ts:83`), `Win` (`GameplayScene.ts:4022`), `SpecialReloaded` (`:3444`), `TankShieldCollision` (`:3655`), `WeaponChange` (`:4181`), `ReflectBullet` (`:3906`), plus `TeleportIn` and `BottomCollision` wired in T71 whose scenario the sweep does not reach. **No code change owed for any of those.** The rest are blocked — see below. |
+| **`BossCollision` — blocked on enemy-to-enemy collision** | `PartGameArea.as:5197` fires when a boss shoves another enemy, and the mass exchange it sits in (`enemy1Mass`/`enemy2Mass`, `:5199-5200`) **has no port equivalent**. Previously filed as mode reach, which was wrong: driving a Boss level cannot produce it. Blocked on a subsystem, not a scenario. |
+| **`Achievement`, `Award1-3`, `Unlock` — blocked on the reveal moments** | `PartAchievements.as:120`, `ScreenStatus.as:1151/1157/1163`, `ScreenLevelSelect.as:768`/`:1475`. The medal and unlock reveals are the animation half of the **visible-values model**, which is `G`/`I2`'s one remaining shared item. Five names close together when that lands. |
+| **`Burning`, `FlameThrower` — the loop channel is never driven** | Both assets preload and `SoundManager.keepLoopAlive` exists, but **nothing in `GameplayScene` starts or stops a loop** — a grep for either name in the scene returns nothing. Distinct from the one-shots above: it is a whole emit path with no caller, not a missing trigger. |
 | **`L1`** | `assets:sync` never prunes. Re-verified at `b2d2193`: a count of `unlink\|rm(\|rmSync` over `scripts/sync-assets.mjs` returns 0. |
 
 ### Closed since the previous stamp

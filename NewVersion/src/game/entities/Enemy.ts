@@ -477,9 +477,19 @@ export class Enemy extends Phaser.GameObjects.Container {
    * instead of implemented. G2's Ice Grenade then became the first freeze
    * source and inherited the gap. This closes it.
    */
-  freeze(frozenTime: number, isTower: boolean): void {
+  /**
+   * @returns whether this was a **fresh** freeze — the enemy was not already
+   * frozen. Both AS3 push sites gate the `Freeze` sound on
+   * `!theEnemy.gotIceIndicator` (`PartGameArea.as:5866-5868`, `:6230-6232`),
+   * so re-freezing an already-frozen enemy is silent. The caller needs that
+   * answer and cannot recover it afterwards, since `applyFreeze` has already
+   * set the flag by the time it returns.
+   */
+  freeze(frozenTime: number, isTower: boolean): boolean {
+    const wasFrozen = this.status.frozen;
     applyFreeze(this.status, frozenTime, this.damageMultipliers.Ice, this.enemyLevel === 'B');
     if (isTower) this.towerAcc = 0;
+    return !wasFrozen;
   }
 
   /** The Tower ramp, for tests and the debug readout. */
@@ -652,7 +662,27 @@ export class Enemy extends Phaser.GameObjects.Container {
    * simply stays ready and re-tests next frame, exactly as the AS3 does by
    * leaving `teleStartTimer` at zero.
    */
+  /**
+   * Teleport transitions that happened on the last `update`, for the scene to
+   * sound — `:4948` `TeleportOut` and `:4975` `TeleportIn`.
+   *
+   * Surfaced as flags rather than queued here because **entities in this port
+   * do not emit sounds**; the scene owns the `SoundManager`, and it also owns
+   * the camera rect that both pushes are gated on (`checkWithinScreen(…, 100)`
+   * at `:4946` and `:4973` — the port's `isAudibleAt`). Doing it here would
+   * need the enemy to know about both, and would put a second sound path
+   * beside the scene's.
+   *
+   * Reset at the top of every `tickTeleportCycle`, so a frame that does not run
+   * the cycle cannot re-sound a stale transition.
+   */
+  teleportedOut = false;
+
+  teleportedIn = false;
+
   private tickTeleportCycle(frames: number, target: { x: number; y: number }): void {
+    this.teleportedOut = false;
+    this.teleportedIn = false;
     if (!this.teleport) return;
 
     const context = {
@@ -667,6 +697,8 @@ export class Enemy extends Phaser.GameObjects.Container {
     const result = tickTeleport(this.teleport, frames, canTeleport(context), Math.random);
     this.teleport = result.state;
     this.teleporting = isTeleporting(this.teleport);
+    this.teleportedOut = result.departs;
+    this.teleportedIn = result.arrives;
 
     if (!result.arrives) return;
 

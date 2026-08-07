@@ -893,6 +893,113 @@ if (args.soundSweep) {
     console.log(`[look] isolated ${type}: ${fired.size} names so far`);
   }
 
+  /**
+   * The four modes the sweep never visited — Flag, Tower, Boss and Defense.
+   *
+   * Eight sounds were being reported as "not firing" purely because the sweep
+   * only ever drove the all-enemy dev level, which is Normal. `musicForMode`
+   * (`GameplayScene.ts:948`) picks the track from `spec.mode`, so four of the
+   * eight are one page load away from proving themselves; `FlagPickup`,
+   * `BossCollision` and `BottomCollision` need the mode's own mechanic.
+   *
+   * Reached through the dev level jump rather than by unlocking, so this does
+   * not depend on progress. World 1 gives one of each: `1-3` Flag, `1-7` Tower,
+   * `1-9` Boss, `1-11` Defense.
+   */
+  const MODE_LEVELS = [
+    ['Flag', 3],
+    ['Tower', 7],
+    ['Boss', 9],
+    ['Defense', 11],
+  ];
+
+  for (const [mode, level] of MODE_LEVELS) {
+    await page.goto(`${URL}?primary=Big%20Cannon&secondary=Grenade`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /level select/i }).first().click();
+    await delay(800);
+    const cell = page.getByRole('button', { name: new RegExp(`World 1, level ${level}, ${mode}`, 'i') });
+    if ((await cell.count()) === 0) {
+      console.log(`[look] no dev cell for 1-${level} ${mode} — skipped`);
+      continue;
+    }
+    await cell.click();
+    await releasePlay();
+    await delay(3000);
+
+    const before = fired.size;
+    await page.mouse.down();
+    for (let i = 0; i < 16; i += 1) {
+      await aimFrom(i);
+      await delay(300);
+      // Tower cannot move, so driving is pointless there; elsewhere it is what
+      // reaches a flag or the bottom lane.
+      if (mode !== 'Tower' && i % 4 === 0) {
+        const key = mode === 'Defense' ? 's' : 'd';
+        await page.keyboard.down(key);
+        await delay(400);
+        await page.keyboard.up(key);
+      }
+      if (i % 3 === 0) {
+        await page.keyboard.down('Space');
+        await delay(160);
+        await page.keyboard.up('Space');
+      }
+    }
+    await page.mouse.up();
+    await delay(600);
+    await collect();
+    console.log(`[look] mode ${mode.padEnd(8)} (1-${level}): ${fired.size} names (+${fired.size - before})`);
+  }
+
+  /**
+   * A defeat, then the menu — `outcomeMusic` (`GameplayScene.ts:4022`) and
+   * `MainMenuScene.ts:83`.
+   *
+   * `Lose` and `Menu` are wired and were silent only because the sweep never
+   * finished a level or left one. The dev `K` key resolves a level in one
+   * press, which is the cheapest way to reach both.
+   */
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /all-enemy test level/i }).click();
+  await releasePlay();
+  await delay(1500);
+  await page.keyboard.press('k');
+  await delay(2500);
+  await collect();
+  const afterLoss = fired.size;
+  console.log(`[look] defeat: ${afterLoss} names`);
+
+  await page.getByRole('button', { name: /menu/i }).first().click({ force: true }).catch(() => {});
+  await delay(2500);
+  await collect();
+  console.log(`[look] back to menu: ${fired.size} names (+${fired.size - afterLoss})`);
+
+  /**
+   * A shop purchase — `InterfaceButtonMoney` (`UpgradesScene.ts:243`).
+   *
+   * Wired, and silent only because nothing in the sweep ever bought anything.
+   * The dev money top-up makes an affordable row certain.
+   */
+  const beforeShop = fired.size;
+  await page.getByRole('button', { name: /upgrades/i }).first().click().catch(() => {});
+  await delay(1200);
+  const topUp = page.getByRole('button', { name: /top.?up|\+.*coins/i }).first();
+  if ((await topUp.count()) > 0) {
+    await topUp.click();
+    await delay(400);
+  }
+  const buy = page.getByRole('button', { name: /buy|upgrade/i }).first();
+  if ((await buy.count()) > 0) {
+    await buy.click();
+    await delay(800);
+  }
+  await collect();
+  console.log(`[look] shop: ${fired.size} names (+${fired.size - beforeShop})`);
+
   // The dedup case, on its own page load and measured there.
   //
   // The history is per-page, so reading the peak after eight page loads read
