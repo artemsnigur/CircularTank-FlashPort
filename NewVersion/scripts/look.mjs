@@ -23,6 +23,7 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -71,22 +72,74 @@ async function serverUp(url, timeoutMs) {
   return false;
 }
 
+/**
+ * Whether something already holds `port`.
+ *
+ * ── Why `serverUp` cannot answer this ─────────────────────────────────────
+ * `serverUp` fetches the URL and accepts any 200. A **foreign** server on this
+ * port answers 200 perfectly well, so with `--strictPort` the sequence used to
+ * be: our vite fails to bind, the stranger replies, and the run captures a full
+ * set of normal-looking frames from a build nobody chose. Nothing in the output
+ * said so.
+ *
+ * That is not hypothetical — it happened in T63, one commit after the hazard was
+ * written down, and the frames were of a server started before the fix they were
+ * taken to verify. Binding is the only test that distinguishes "answering" from
+ * "ours".
+ */
+function portInUse(port) {
+  return new Promise((res) => {
+    const probe = createServer();
+    probe.once('error', (e) => res(e.code === 'EADDRINUSE'));
+    probe.listen(port, '127.0.0.1', () => probe.close(() => res(false)));
+  });
+}
+
 const args = parseArgs(process.argv.slice(2));
+
+// Refuse rather than measure something we did not start. A `look` run that
+// silently answers from a stranger is worse than one that does not run: it
+// produces evidence, and the evidence looks fine.
+if (await portInUse(PORT)) {
+  throw new Error(
+    `port ${PORT} is already in use, so this run would be answered by a server ` +
+      `it did not start — and its frames would be evidence about an unknown build.\n` +
+      `Find the owner:  netstat -ano | findstr :${PORT}      (Windows)\n` +
+      `                 lsof -i :${PORT}                     (macOS/Linux)\n` +
+      `Then kill it and re-run. This is usually a leaked child from an earlier ` +
+      `look run — see L4 in docs/BACKLOG.md.`,
+  );
+}
+
 rmSync(args.out, { recursive: true, force: true });
 mkdirSync(args.out, { recursive: true });
 
-const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort', '--host', '127.0.0.1'], {
-  cwd: ROOT,
-  shell: true,
-  stdio: 'ignore',
-});
+// Spawned **directly**, not through `npx` with `shell: true`. `child.kill()`
+// signals the process it spawned; with a shell wrapper that is the shell, and
+// the vite grandchild survives holding the port. That is how this script leaked
+// its own port and then answered its next run from the leak. `smoke.mjs` fixed
+// the identical bug the same way and says so at its own spawn site.
+const vite = spawn(
+  process.execPath,
+  [
+    resolve(ROOT, 'node_modules/vite/bin/vite.js'),
+    '--port',
+    String(PORT),
+    '--strictPort',
+    '--host',
+    '127.0.0.1',
+  ],
+  { cwd: ROOT, stdio: 'ignore' },
+);
 const stop = () => {
   try {
-    vite.kill();
+    if (!vite.killed) vite.kill();
   } catch {
     /* already gone */
   }
 };
+// `exit` covers a thrown error below as well as a clean finish, so a failed run
+// cannot leave a server behind either.
 process.once('exit', stop);
 process.once('SIGINT', () => {
   stop();

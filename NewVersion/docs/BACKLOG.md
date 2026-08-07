@@ -691,9 +691,29 @@ is the model to follow.
   > fix to one will not change the other's figure. Conflating them cost a task
   > prompt once; the note is here so it costs nothing again.
 
-### L4 — `npm run look` leaves its vite server running
+### L4 — `npm run look` leaves its vite server running — **FIXED (T64)**
 
-- [ ] **Found the same pass.** After `--ui` exited normally, port 5199 was still
+**Two causes, both closed, and the second was the dangerous one.**
+
+1. **The leak.** vite was spawned through `npx` with `shell: true`, so
+   `child.kill()` signalled the shell and the vite grandchild survived. Now
+   spawned directly (`process.execPath` + `vite/bin/vite.js`), the same fix
+   `smoke.mjs` already carried and documents at its own spawn site.
+2. **The silent answer.** `serverUp()` only fetched the URL, and a foreign
+   server answers 200 — so an occupied `--strictPort` meant our vite bound
+   nothing, the stranger replied, and the run captured normal-looking frames
+   from an unknown build. `look.mjs` now **binds the port first** and refuses
+   with a hard error naming the port and how to find the owner. Binding is the
+   only test that distinguishes "answering" from "ours".
+
+**Both halves driven, not assumed:** a clean `--ui` run now leaves no listener
+where the identical run leaked before, and an occupied port exits 1 with the
+error instead of producing frames.
+
+*Kept below as the record of how it presented, because "the instrument was
+believed" is the recurring shape and this is the clearest instance of it.*
+
+- [x] **Found the same pass.** After `--ui` exited normally, port 5199 was still
       held by a `vite --port 5199 --strictPort` child. Because the harness uses
       `--strictPort`, one orphan blocks **every subsequent run** rather than
       silently moving to another port.
@@ -820,7 +840,7 @@ Small, and none of it blocks anything else:
 | **J** | Shop descriptions and stat previews (**data absent too**) | small + an unscoped extraction |
 | **L1** | `assets:sync` never prunes | small |
 | **L3** | `--sound-sweep` never satisfies the tutorial gate | trivial |
-| **L4** | `npm run look` leaves its vite server alive | trivial |
+| ~~**L4**~~ | ~~`npm run look` leaves its vite server alive~~ — **fixed T64** | done |
 | **L5** | 517 stub statuses hand-set where `gen-progress.mjs:256` could derive them | small work, large metric consequence |
 | **L6** | `ScreenGame`/`PartGameArea` generated prose self-contradicts and is coupled to their status | small, generator pass |
 | **L7** | ~20 absorbed classes uncounted under the "named port citation" rule | a decision, not work |

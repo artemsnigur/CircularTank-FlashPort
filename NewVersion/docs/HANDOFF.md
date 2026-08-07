@@ -4,14 +4,16 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T60**, commit `b2d2193`, 7 August 2026. Keep it current — it is
+Current as of **T64**, commit `8536881`, 7 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
-*(The previous stamp read `T58` / `8852cc8` / 5 August. This file was written in
-T59 and described the T58 baseline, so the stamp named the commit it was written
-**about** rather than the one it was written **on** — the same slip the audit
-guards against with "a `verified` entry must name what it was observed against".
-T60 re-scoped `BACKLOG.md` and re-drove the UI and sound measurements below.)*
+*(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
+commit it was written **about** rather than **on**; `T60`/`b2d2193` was correct
+but predated three passes. T61 corrected 13 `PROGRESS.md` statuses, T62 logged
+L5–L7, T63 fixed the `Objective` panel and found `D1` already decided, and T64
+mitigated `L4` and synced §5 to match. **§5 had drifted independently of the
+audit — the audit was right about `D1` and this file was not**, which is the
+argument for re-deriving a queue rather than reading it.)*
 
 ---
 
@@ -180,12 +182,24 @@ decisive, wrong result and was believed.*
    subtree", never "does the selector match every control". **A coverage test
    must assert the mechanism's reach, not the membership of what it points at.**
 
-10. **An instrument left behind by its own last run.** `npm run look` does not
-    kill its vite child on exit, and uses `--strictPort` — so an orphan does not
-    silently move to another port, it blocks every later run. Two were found
-    alive at the start of T60 from the previous session; the one holding the
-    harness port predated the commit it would have been measuring. **Check the
-    port before trusting a `look` run**, and kill what you started. (`L4`.)
+10. **An instrument left behind by its own last run — now mitigated
+    structurally.** `npm run look` spawned vite through `npx` with
+    `shell: true`, so `child.kill()` signalled the shell and the vite grandchild
+    survived holding `--strictPort` 5199. Worse, `serverUp()` only fetched the
+    URL: a **foreign** server answers 200 perfectly well, so the next run bound
+    nothing, was answered by the stranger, and captured a full set of
+    normal-looking frames from an unknown build. It recurred in T63 one commit
+    after being written down, against a server older than the fix being
+    verified.
+
+    **Fixed in T64 the way trap 1 was fixed — by making the tool refuse rather
+    than by restating the rule.** `look.mjs` now spawns vite directly
+    (`process.execPath` + `vite/bin/vite.js`, no shell wrapper) so `kill()`
+    reaches it, and **binds the port before starting**: occupied means a hard
+    error naming the port and how to find the owner, because binding is the only
+    test that distinguishes "something is answering" from "ours is answering".
+    Both halves were driven — a clean `--ui` run now leaves no listener, and an
+    occupied port exits 1 instead of producing frames.
 11. **A correct game change invalidating one harness mode but not another.**
     T58's tutorial spawn gate is faithful, and `--baseline` was updated to move
     first. `--sound-sweep` was not, so it now measures a level that is
@@ -206,13 +220,32 @@ be checked against a second mode on the same build before it is believed.
 
 | Item | Needs |
 |---|---|
-| ~~**`Objective` panel overlaps the HUD**~~ | **Done** (T63). And the entry's diagnosis was wrong twice: the panel already used the live viewport (rule 7 was applied in T51), and the AS3 *did* have a HUD there — a 400..480 interface strip. It cleared the widgets on **x** (`bgWeapon.x = 388` vs the panel's 194..354), which a full-width DOM HUD makes impossible. Fixed by reserving an AS3-derived 80-unit band. Divergence **A5**. |
-| **Pre-level countdown** | `spawnWarnings` and the countdown are unported. **Not just a missing feature:** `countDownDone` is read by `spawnPlacement` and never written, so the off-camera spawn search runs on *every* spawn where the AS3 runs it only during the countdown. Porting it changes spawn placement game-wide. |
-| **Sound: 28 names not firing** | Six blocked on unported triggers (achievement reveal, level-unlock, countdown, shop purchase, second loadout slot). The rest is scenario reach — they fire in play, the sweep just does not visit those modes. `ImpactCrazyCheese` is an orphan asset with no AS3 trigger under any spelling. |
-| ~~**`D1` — PM_PRNG**~~ | **Not open — decided and built.** This row was stale. The audit's D1 entry reads `DECIDED — Option A`, and the code implements it: `backgroundProps.ts:8-10` calls itself "the first production reader of `LevelSpec.seed`, and the reason D1 was decided", seeds `new PM_PRNG(input.seed)` (`:286`, `:579`), and is consumed in production at `GameplayScene.ts:138`. The collision pass is ported too (`resolveCollisions:539`, from `:2603-2664`). Props render — visible in `.look/b-04-fight.png`. **Nothing is owed and no call is needed.** |
+| **Pre-level countdown** | `spawnWarnings` and the countdown are unported. **Not just a missing feature:** `countDownDone` is read by `spawnPlacement.ts:91` and never written (only ever `false`, `waveState.ts:150`), so the off-camera spawn search runs on *every* spawn where the AS3 runs it only during the countdown. Porting it changes spawn placement game-wide, and it wants its own pass. |
+| **`L3`** | **Still open — the fix has never been written.** `--sound-sweep` fires at `look.mjs:498` and moves only at iteration 5 of 10 (`:511`), where `--baseline` moves first (`:725-728`, the T58 fix). So the sweep spends most of its window on a level the tutorial gate is deliberately holding, and its count is not comparable to the recorded 39. Trivial; **blocks the next sound measurement.** |
+| **Sound: 28 names not firing** | Six blocked on unported triggers (achievement reveal, level-unlock, countdown, shop purchase, second loadout slot). The rest is scenario reach — they fire in play, the sweep just does not visit those modes. `ImpactCrazyCheese` is an orphan asset with no AS3 trigger under any spelling. **Do not re-measure before `L3`.** |
 | **`L1`** | `assets:sync` never prunes. Re-verified at `b2d2193`: a count of `unlink\|rm(\|rmSync` over `scripts/sync-assets.mjs` returns 0. |
-| **`L3`** | `--sound-sweep` never satisfies the tutorial spawn gate, so its count is not comparable to the recorded 39. Trivial fix; blocks the next sound measurement. |
-| **`L4`** | `npm run look` leaves its vite child alive on exit. Because it uses `--strictPort`, one orphan blocks every later run — and two were found alive from the previous session, one of them older than the code it would have been measuring. |
+
+### Closed since the previous stamp
+
+Kept as a short list rather than struck-through rows, so the queue above is only
+things that are actually open.
+
+- **`Objective` panel overlaps the HUD** — done (T63). **The entry's diagnosis
+  was wrong on both counts**: the panel already used the live viewport (rule 7
+  was applied in T51), and the AS3 *did* have a HUD in that region — a 400..480
+  interface strip (`PartInterface.as:232`). It cleared the weapon widgets on
+  **x** (`bgWeapon.x = 388` vs the panel's 194..354), which a full-width DOM HUD
+  row makes impossible. The real defect was structural, not a frozen constant.
+  Recorded as divergence **A5**.
+- **`D1` — PM_PRNG** — **never open at this point; this file had drifted.** The
+  audit's D1 entry already read `DECIDED — Option A`, and the code implements
+  it: `backgroundProps.ts:8-10` calls itself "the first production reader of
+  `LevelSpec.seed`, and the reason D1 was decided", seeds
+  `new PM_PRNG(input.seed)` (`:286`, `:579`, `:587`), and is consumed at
+  `GameplayScene.ts:138`. The collision pass is ported too
+  (`resolveCollisions:539`, from `:2603-2664`) and props render. **Nothing is
+  owed and no call is needed** — the audit was right and only §5 was stale.
+- **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 
 ### Blocked on you, not on me
 

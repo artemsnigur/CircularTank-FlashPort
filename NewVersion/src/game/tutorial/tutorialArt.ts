@@ -255,9 +255,10 @@ export const HUD_BAND = AS3_STAGE_HEIGHT - AS3_PLAY_AREA_HEIGHT;
  * float `Objective` in mid-air on a tall phone and off the bottom on a short
  * window.
  *
- * **`Objective` additionally clears `HUD_BAND`** — see above. That is a
- * deliberate divergence from `:341`, not a correction to it: the AS3's y is
- * faithful and unusable here because its HUD was not full-width.
+ * **`Objective` additionally clears `HUD_BAND`** — divergence **`A5`** in
+ * `docs/AUDIT-2026-07.md`. That is a deliberate departure from `:341`, not a
+ * correction to it: the AS3's y is faithful and unusable here because its HUD
+ * was not full-width.
  */
 export function panelPosition(
   id: string,
@@ -267,6 +268,10 @@ export function panelPosition(
   if (id === 'Objective' && clip) {
     return {
       x: OBJECTIVE_X,
+      // `- HUD_BAND` is the divergence, not the port: `:341` is
+      // `480 - height - 8` and seats the panel *inside* the interface strip,
+      // clearing the weapon widgets on x. A full-width HUD row makes that
+      // impossible here. See `A5` in `docs/AUDIT-2026-07.md` before removing it.
       y: viewportHeight - HUD_BAND - clip.height - OBJECTIVE_BOTTOM_GAP,
     };
   }
