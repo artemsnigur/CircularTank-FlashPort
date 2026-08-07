@@ -676,6 +676,75 @@ if (args.soundSweep) {
     for (const n of await names()) fired.add(n);
   };
 
+  /**
+   * Gets a freshly-loaded level to the point where play actually runs.
+   *
+   * **Two gates, in order, and both were being ignored.** `:7153` holds
+   * spawning until the tutorial's `AimShoot` is done, which needs a move and a
+   * fire (`L3`, T65). Since T67 the countdown *also* blocks `moveTank` and
+   * `tankAttack` (`:2818`, `:2820`) for its two seconds — so a move-and-fire
+   * inside that window satisfies nothing and the tutorial gate stays shut for
+   * the whole run.
+   *
+   * That combination is what made the sweep measure an empty arena: `60 LEFT`
+   * from first frame to last, `__arena.enemies` empty at every sample, and a
+   * perfectly plausible 27 of 67 reported anyway.
+   *
+   * Waits on the real flag rather than sleeping, so a slow machine cannot
+   * reintroduce it.
+   */
+  const releasePlay = async () => {
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => console.log('[look] warning: countdown never reported done'));
+
+    await page.keyboard.down('d');
+    await delay(600);
+    await page.keyboard.up('d');
+    await delay(200);
+    await page.locator('canvas').hover({ position: { x: 760, y: 400 } });
+    await page.mouse.down();
+    await delay(300);
+    await page.mouse.up();
+  };
+
+  /**
+   * The tank and its nearest enemies, in canvas CSS pixels — `__arena` (T69).
+   *
+   * The fallback is deliberately **not** the screen centre: `(640, 400)` is
+   * also exactly where the tank starts, so a silent fallback used to be
+   * indistinguishable from a correct read and produced an entirely plausible
+   * log. `live` is reported so the count of real reads is the claim.
+   */
+  const arenaAt = async () => {
+    const arena = await page.evaluate(() => globalThis.__arena ?? null);
+    const screen = arena?.tank?.screen;
+    return screen
+      ? { ...screen, live: true, enemies: arena.enemies ?? [] }
+      : { x: 640, y: 400, live: false, enemies: [] };
+  };
+
+  /**
+   * Points the cursor at a live enemy, or orbits the tank when none is in the
+   * list.
+   *
+   * The orbit is kept as the fallback rather than deleted — it is what
+   * exercises the *border* sounds when the arena is empty — but it is centred
+   * on the tank's live position, not on the old screen constant. Enemies are
+   * cycled rather than always-nearest so successive shots take different
+   * bearings and the "spray in all directions" intent survives.
+   */
+  const aimFrom = async (step, radius = 220) => {
+    const at = await arenaAt();
+    const target = at.enemies?.[step % Math.max(1, at.enemies.length)];
+    if (target) await page.mouse.move(target.screen.x, target.screen.y);
+    else {
+      const a = (step / 5) * Math.PI * 2;
+      await page.mouse.move(at.x + Math.cos(a) * radius, at.y + Math.sin(a) * radius);
+    }
+    return { ...at, aimed: Boolean(target) };
+  };
+
   // One page load per primary: `?secondary=` grants a secondary, and the
   // weapon cycle key (Q) walks the equipped slots.
   const SECONDARIES = ['Grenade', 'Mine', 'Shield', 'Rockets', 'Icicles', 'Crazy Cheese', 'Ice Ball', 'Magic Bunny'];
@@ -710,14 +779,22 @@ if (args.soundSweep) {
     // step reaches `KillEnemies` inside the settle and enemies are on screen
     // when measurement starts.
     //
-    // ── What this does NOT fix ────────────────────────────────────────────
-    // The sound count did not move (25 of 67, `EnemySquish` still 0). A second
-    // and independent cause remains: the orbit below is centred on a **screen
-    // constant** (640, 400) while the tank drifts under camera lag — after the
-    // move it sits near x 900 — so the crosshair sweeps empty ground beside it
-    // and no round connects. Tracked as `L8` in docs/BACKLOG.md. The gate fix
-    // is a prerequisite for that one, not a substitute: aiming at enemies is
-    // worth nothing on a level that never spawns any.
+    // ── Wait out the countdown before doing any of it (T69) ───────────────
+    // `:2818`/`:2820` put `moveTank` and `tankAttack` inside the countdown
+    // gate, so the move-and-fire below satisfies nothing if it runs inside the
+    // window — the tutorial's `AimShoot` stays undone and `:7153` then holds
+    // spawning for the entire run. That is exactly what happened after T67:
+    // the arena stayed at `60 LEFT`, `__arena.enemies` was empty at every
+    // sample, and the sweep still reported a plausible 27 of 67.
+    //
+    // Waiting on the flag rather than sleeping a guessed duration, so a slower
+    // machine cannot reintroduce it.
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => console.log('[look] warning: countdown never reported done'));
+
+    // The `L8` half is below: the orbit is centred on the tank's **live**
+    // screen position rather than on a hard-coded one.
     await page.keyboard.down('d');
     await delay(600);
     await page.keyboard.up('d');
@@ -730,11 +807,18 @@ if (args.soundSweep) {
     await delay(7000);
     await clear();
 
-    await page.locator('canvas').hover({ position: { x: 760, y: 400 } });
+    // `aimFrom` re-reads `__arena` **every step** rather than sampling once:
+    // the camera keeps following, so a centre taken at the top of the loop is
+    // stale by the end of it.
+    const start = await arenaAt();
+    await page.mouse.move(start.x + 220, start.y);
     await page.mouse.down();
+    const centres = [];
+    let aimedAtEnemy = 0;
     for (let i = 0; i < 10; i += 1) {
-      const a = (i / 5) * Math.PI * 2;
-      await page.mouse.move(640 + Math.cos(a) * 220, 400 + Math.sin(a) * 220);
+      const c = await aimFrom(i);
+      centres.push(c);
+      if (c.aimed) aimedAtEnemy += 1;
       await delay(280);
       // Held, never tapped — a sub-frame press is simply not observed.
       if (i % 3 === 0) {
@@ -752,7 +836,19 @@ if (args.soundSweep) {
     await page.mouse.up();
     await delay(600);
     await collect();
-    console.log(`[look] ${primary} + ${secondary}: ${fired.size} names so far`);
+
+    // The tracking, stated rather than assumed. A centre list that never
+    // moves means `__arena` is not being read and the orbit is fixed again —
+    // which is the failure this pass exists to remove, and it would otherwise
+    // be invisible in the count.
+    const xs = centres.map((c) => Math.round(c.x));
+    const spread = Math.max(...xs) - Math.min(...xs);
+    const live = centres.filter((c) => c.live).length;
+    console.log(
+      `[look] ${primary} + ${secondary}: ${fired.size} names so far` +
+        `  | tank x ${xs[0]}..${xs[xs.length - 1]} spread ${spread}, ${live}/${centres.length} live` +
+        `, aimed at an enemy ${aimedAtEnemy}/${centres.length}`,
+    );
   }
 
   // Isolated dev levels: thirty of one type, reached from the Enemies screen.
@@ -775,12 +871,15 @@ if (args.soundSweep) {
       continue;
     }
     await test.click();
+    // Same two gates as the pairings above — these isolated levels carried the
+    // identical fixed-point orbit and the identical missing release.
+    await releasePlay();
     await delay(6000);
-    await page.locator('canvas').hover({ position: { x: 760, y: 400 } });
+    const isolatedStart = await arenaAt();
+    await page.mouse.move(isolatedStart.x + 200, isolatedStart.y);
     await page.mouse.down();
     for (let i = 0; i < 10; i += 1) {
-      const a = (i / 5) * Math.PI * 2;
-      await page.mouse.move(640 + Math.cos(a) * 200, 400 + Math.sin(a) * 200);
+      await aimFrom(i, 200);
       await delay(320);
       if (i % 3 === 0) {
         await page.keyboard.down('Space');
@@ -807,13 +906,17 @@ if (args.soundSweep) {
   await page.goto(`${URL}?secondary=Grenade`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: /all-enemy test level/i }).click();
+  // The peak measurement was reading 0 for a name that had demonstrably fired
+  // earlier in the same run — not because the dedup rule was wrong, but
+  // because this block never released play either, so nothing ever died here.
+  await releasePlay();
   await delay(11000);
   await clear();
-  await page.locator('canvas').hover({ position: { x: 700, y: 400 } });
+  const dedupStart = await arenaAt();
+  await page.mouse.move(dedupStart.x + 180, dedupStart.y);
   await page.mouse.down();
   for (let i = 0; i < 24; i += 1) {
-    const a = (i / 6) * Math.PI * 2;
-    await page.mouse.move(640 + Math.cos(a) * 180, 400 + Math.sin(a) * 180);
+    await aimFrom(i, 180);
     await delay(260);
     // Held, not tapped.
     if (i % 2 === 0) {
@@ -835,6 +938,14 @@ if (args.soundSweep) {
     const missing = manifest.filter((n) => !fired.has(n)).sort();
     console.log(`[look] NOT FIRED (${missing.length}): ${missing.join(' ')}`);
   }
+  // The rounds-are-landing check. Before T69 every one of these was absent
+  // while the sweep still reported a plausible 25 of 67 — a count alone cannot
+  // tell an unwired sound from one nothing ever triggered.
+  const IMPACTS = ['ImpactBullet', 'ImpactLaser', 'ImpactMagic', 'ImpactCake', 'EnemySquish', 'Coin'];
+  const landed = IMPACTS.filter((n) => fired.has(n));
+  console.log(
+    `[look] landing evidence: ${landed.length}/${IMPACTS.length} — ${landed.join(' ') || 'NONE'}`,
+  );
   console.log(`[look] peak/frame EnemySquish: ${squish}`);
   console.log(`[look] peak/frame Coin:        ${coin}`);
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');

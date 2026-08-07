@@ -63,11 +63,17 @@ spawning. Tracked as **L3** in `BACKLOG.md`.
 This is *reach and wiring are separate questions* (rule 9) — the same misreading
 that made ten fully-wired names look unwired in T40.
 
-**Updated T65: there is no trustworthy sound number yet, including 39.** `L3`
-was fixed and the count stayed at 25, because `L8` was behind it — the sweep
-aims at a screen constant and lands zero hits. 39 was measured on a harness
-carrying *both* defects, so it is not a floor, a target, or a regression
-baseline. The first number worth recording is the one after `L8`.
+**Settled T69: the number is 41–42 of 67**, from a driven `--sound-sweep` with
+`L3` and `L8` both closed. Two consecutive runs gave 41 and 42, so treat it as a
+**±1 band around 41** rather than a fixed figure. The evidence that it is real
+rather than another plausible-looking count: **landing evidence 6/6** —
+`ImpactBullet`, `ImpactLaser`, `ImpactMagic`, `ImpactCake`, `EnemySquish` and
+`Coin` all fire, where every one of them was absent before.
+
+**It does not confirm or replace the old 39.** That figure was retired for an
+unrelated reason (`L3`, T65) and was measured on a harness carrying two defects;
+41–42 is the first number taken with both closed, and is the one to track from
+here.
 
 ### How to see it
 
@@ -229,8 +235,7 @@ be checked against a second mode on the same build before it is believed.
 | Item | Needs |
 |---|---|
 | **A real reload readout** | The HUD shows a placeholder magazine count (`GameplayScene.PLACEHOLDER_AMMO`), not the AS3's two reload bars (`PartInterface.as:746-780`). Whoever builds one also owns `:750-752`, which forces the **primary** bar empty for the whole opening countdown — and only the primary; the secondary's is untouched, which is the original's own asymmetry. The rule is deliberately **not** ported ahead of a consumer; reasoning at the foot of `waves/countdownPanel.ts` and at `PLACEHOLDER_AMMO`. |
-| **`L8`** | **The sweep aims at a screen constant.** Found by fixing `L3` and watching the count refuse to move. Its cursor orbits `(640, 400)` (`look.mjs:520`) while the tank sits near x 900 after the gate-satisfying move, so every round flies past. Zero hits: no impact sounds, no `EnemySquish`, no `Coin`, arena `60 LEFT` start to finish. **This, not `L3`, is what now blocks a trustworthy sound number.** Needs a design call — aim relative to the tank, or drive it into contact — because the tank's screen position is not exposed to the harness. |
-| **Sound: 28 names not firing** | Six blocked on unported triggers (achievement reveal, level-unlock, countdown, shop purchase, second loadout slot). The rest is scenario reach. `ImpactCrazyCheese` is an orphan asset with no AS3 trigger under any spelling. **Do not re-measure before `L8`.** |
+| **Sound: 25 names not firing** | Re-derived at T69 against the trustworthy number, not carried forward. Of the 25: `Achievement`/`Award1-3` need the achievement reveal, `Unlock` the level-unlock path, `InterfaceButtonMoney` a shop purchase, `WeaponChange` a second owned slot. `Boss`/`BossCollision`, `Defense`/`BottomCollision`, `Tower`, `Flag`/`FlagPickup` are **mode reach** — the sweep drives the all-enemy dev level and never visits those modes. `Menu`/`Win`/`Lose` need the sweep to leave or finish a level. `ImpactCrazyCheese` is an orphan asset with no AS3 trigger under any spelling. |
 | **`L1`** | `assets:sync` never prunes. Re-verified at `b2d2193`: a count of `unlink\|rm(\|rmSync` over `scripts/sync-assets.mjs` returns 0. |
 
 ### Closed since the previous stamp
@@ -270,6 +275,14 @@ things that are actually open.
   measured, and recorded as **C15** so it is not reported as a regression.
   Tower and Defense are untouched — their rooms already matched the camera.
   Presentation is still owed; see the queue above.
+- **`L8`** — fixed (T69), and it turned out to be two bugs. The aim fix alone
+  moved 25 → 32 on one run and 27 on the next, with the good run's whole gain
+  arriving at the **homing** Magic Cannon — so the harness now aims at a live
+  enemy rather than orbiting a ring. The larger cause was that **T67's countdown
+  gate had silently broken `L3`'s fix**: the sweep's move-and-fire ran inside
+  the two-second input block, so the tutorial gate never released and nothing
+  spawned at all. Both closed; the sweep now waits on `__arena.countDownDone`.
+  **The count reported a plausible 27 throughout.**
 - **`L3`** — fixed (T65). `--sound-sweep` now moves before firing, mirroring
   `--baseline`. Verified by A/B on the dev level rather than by the count:
   without the move the tutorial stays on step `Move` through the entire firing

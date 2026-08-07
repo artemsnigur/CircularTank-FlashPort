@@ -36,6 +36,9 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     // how the difference is measured. Remove them together.
     'hold the countdown flag false via ?countdown=0',
     'spawn placement recorder',
+    // T69: the sweep aimed at a hard-coded screen point. This is how it finds
+    // the tank instead.
+    'live tank screen position',
   ],
   'src/game/levels/devLevels.ts': ['QA levels for enemy behaviour'],
   'src/game/scenes/UpgradesScene.ts': ['money top-up'],
@@ -87,7 +90,8 @@ describe('dev aids are enumerable', () => {
     // `SoundManager`: record, enable, and the publish that hands the harness
     // the manifest name list. 23 since T67 — `?countdown=0` and the spawn
     // recorder, the pair `--countdown` needs to measure a placement change
-    // that no screenshot and no unit test can see.
-    expect(total).toBe(23);
+    // that no screenshot and no unit test can see. 24 since T69 — the live
+    // tank position, without which the sweep fires at where the tank was.
+    expect(total).toBe(24);
   });
 });

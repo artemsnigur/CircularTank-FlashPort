@@ -1199,6 +1199,9 @@ export class GameplayScene extends Phaser.Scene {
     this.updateTutorial(delta);
     this.updateIndicators();
     this.updateParticles();
+    // After the camera has settled for the frame, so the harness reads the
+    // same mapping the player is looking at.
+    this.publishArenaDebug();
 
     // `:2840` — outside the gate, next to the particles and for the same
     // reason. Collection is what the handover is waiting on.
@@ -2793,6 +2796,89 @@ export class GameplayScene extends Phaser.Scene {
         amountMultiplier: getDifficultyProfile(this.difficulty).amount,
       }),
     });
+  }
+
+  /**
+   * DEV-AID: the tank's live position in **canvas CSS pixels**, for the harness.
+   *
+   * `--sound-sweep` orbited the cursor around a hard-coded `(640, 400)` — the
+   * screen centre of a 1280x800 window. That was close enough while the tank
+   * started centred and never moved, and stopped being true the moment `L3`
+   * made the sweep drive right to satisfy the tutorial gate: the tank ends up
+   * near x 900 and every round was fired at where it used to be.
+   *
+   * ── Why the scene computes the mapping, not the harness ──────────────────
+   * World -> screen needs the camera's zoom and scroll *and* the device pixel
+   * ratio, because `ViewportController` sizes the backing store in device
+   * pixels while `page.mouse.move` speaks CSS pixels. Doing it here means one
+   * expression owns that, rather than the harness re-deriving it from three
+   * exposed numbers and being subtly wrong on any dpr but 1.
+   *
+   * `worldView` is the visible world rect, so mapping it onto the canvas's own
+   * client box collapses zoom and dpr into one ratio and needs neither.
+   */
+  private publishArenaDebug(): void {
+    if (!import.meta.env.DEV || typeof window === 'undefined') return;
+
+    const view = this.cameras.main.worldView;
+    const canvas = this.game.canvas;
+    if (!canvas || view.width === 0 || view.height === 0) return;
+    const rect = canvas.getBoundingClientRect();
+
+    const toScreen = (worldX: number, worldY: number) => ({
+      x: rect.left + ((worldX - view.x) / view.width) * rect.width,
+      y: rect.top + ((worldY - view.y) / view.height) * rect.height,
+    });
+
+    (window as unknown as Record<string, unknown>).__arena = {
+      /**
+       * `PartGameArea.countDownDone`, so the harness can wait on the real flag
+       * instead of sleeping.
+       *
+       * It needs this because the countdown blocks `moveTank` and `tankAttack`
+       * (`:2818`, `:2820`): a scripted move-and-fire inside the window
+       * satisfies nothing, the tutorial's `AimShoot` never completes, and
+       * `:7153` then holds spawning for the whole run. That is what made the
+       * sweep measure an empty arena after T67 — correct game, wrong moment.
+       */
+      countDownDone: this.countdown.done,
+      tank: {
+        world: { x: Math.round(this.player.x), y: Math.round(this.player.y) },
+        screen: toScreen(this.player.x, this.player.y),
+        alive: this.outcome.result !== 'lost',
+      },
+      /**
+       * Live enemies, nearest first, in the same screen space as the tank.
+       *
+       * Exposed because centring the orbit was necessary and **not
+       * sufficient**: a fixed-radius ring in a sparse arena connects only by
+       * luck. Measured — two consecutive sweeps on the identical build gave
+       * 32 names with 3 of 6 impact sounds and 27 with none, and the good run's
+       * gain came entirely at the Magic Cannon pairing, which *homes* and lands
+       * without being aimed. Aiming at a real target is what makes the impact
+       * half of the manifest reachable at all.
+       *
+       * Capped: the dev arena holds sixty, and the harness only ever needs the
+       * closest handful.
+       */
+      enemies: [...this.enemies]
+        .filter((e) => e.active)
+        .map((e) => ({
+          screen: toScreen(e.x, e.y),
+          distance: Math.hypot(e.x - this.player.x, e.y - this.player.y),
+        }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 8),
+      // The visible world rect, so the harness can pick an orbit radius that
+      // stays on screen rather than guessing one in world units.
+      worldView: {
+        x: Math.round(view.x),
+        y: Math.round(view.y),
+        width: Math.round(view.width),
+        height: Math.round(view.height),
+      },
+      canvas: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+    };
   }
 
   /**

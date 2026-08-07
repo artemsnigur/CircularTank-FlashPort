@@ -761,7 +761,47 @@ believed" is the recurring shape and this is the clearest instance of it.*
   Meanwhile: check the port before trusting any `look` run — and check it
   **before** the run, because afterwards you cannot tell which server answered.*
 
-### L8 — the sweep aims at a screen constant, so nothing it fires connects
+### L8 — the sweep aims at a screen constant — **FIXED (T69), and it was two bugs**
+
+**Before: 25 of 67, landing evidence 0/6. After: 41–42 of 67, landing evidence
+6/6.** Two consecutive runs gave 41 and 42 (the second also caught
+`ReflectBullet`), so the honest figure is a **±1 band around 41**, not a single
+number.
+
+**The aim fix alone was not enough, and the measurement said so.** Centring the
+orbit on `__arena.tank.screen` gave 32 on one run and 27 on the next — and the
+good run's entire gain arrived at the **Magic Cannon** pairing, which *homes*
+and lands without being aimed. A fixed-radius ring in a sparse arena connects
+by luck. So the harness now aims at a **live enemy** from `__arena.enemies`,
+cycling through them so the "spray in all directions" intent survives, and
+falls back to the tank-centred orbit only when the arena is empty (which is
+what still exercises the border sounds).
+
+**The larger cause was not `L8` at all.** With the aim corrected the count
+*still* did not move, because **T67's countdown gate had silently broken
+`L3`'s fix**: `:2818`/`:2820` put `moveTank` and `tankAttack` inside the
+countdown, so the sweep's move-and-fire — which ran in the first 900 ms —
+satisfied nothing, the tutorial's `AimShoot` never completed, and `:7153` held
+spawning for the entire run.
+
+Measured directly rather than inferred: `__arena.enemies` was empty at every
+sample, the arena read `60 LEFT` from first frame to last, the tank never left
+`(320, 480)` despite a scripted `d` press — **and the sweep still reported a
+perfectly plausible 27 of 67.** Waiting on `__arena.countDownDone` before
+releasing play fixes it, and the same two gates were missing from the isolated
+dev levels and the dedup block, which is why `peak/frame EnemySquish` had been
+reporting `0` for a sound that demonstrably fired: nothing had ever died there
+either. It now reads `2`.
+
+**Instrument note worth keeping.** The first version of the tracking log used
+`(640, 400)` as its fallback centre — which is also exactly where the tank
+starts, so a silently-failed read was indistinguishable from a correct one and
+produced a convincing `640..171`. The fallback is now off-centre and the count
+of *live* reads is reported beside the coordinates: `10/10 live`.
+
+*Original entry kept below.*
+
+#### The original diagnosis
 
 - [ ] **Found by fixing `L3` and watching the count refuse to move.** With the
       spawn gate open and enemies demonstrably on screen, the sweep still lands
@@ -895,7 +935,7 @@ Small, and none of it blocks anything else:
 | **J** | Shop descriptions and stat previews (**data absent too**) | small + an unscoped extraction |
 | **L1** | `assets:sync` never prunes | small |
 | ~~**L3**~~ | ~~`--sound-sweep` never satisfies the tutorial gate~~ — **fixed T65**; count unmoved, see L8 | done |
-| **L8** | The sweep aims at a screen constant, so nothing it fires connects | needs a design call |
+| ~~**L8**~~ | ~~The sweep aims at a screen constant~~ — **fixed T69**; 25 → 41–42 of 67, landing evidence 0/6 → 6/6 | done |
 | ~~**L4**~~ | ~~`npm run look` leaves its vite server alive~~ — **fixed T64** | done |
 | **L5** | 517 stub statuses hand-set where `gen-progress.mjs:256` could derive them | small work, large metric consequence |
 | **L6** | `ScreenGame`/`PartGameArea` generated prose self-contradicts and is coupled to their status | small, generator pass |
