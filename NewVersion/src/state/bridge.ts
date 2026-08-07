@@ -75,8 +75,8 @@ export function attachStoreBridge(): () => void {
     store.getState().setHealth(health, maxHealth);
   });
 
-  on('ammo:changed', ({ current, capacity, weapon }) => {
-    store.getState().setAmmo(current, capacity, weapon);
+  on('reload:changed', ({ primary, secondary, weapon, secondaryName }) => {
+    store.getState().setReload(primary, secondary, weapon, secondaryName);
   });
 
   on('countdown:changed', (panel) => {

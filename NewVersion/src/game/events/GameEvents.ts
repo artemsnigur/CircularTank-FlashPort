@@ -101,7 +101,24 @@ export interface GameEventMap {
   'currency:earned': { amount: number; total: number };
   'player:damaged': { amount: number; health: number; maxHealth: number };
   'player:healed': { amount: number; health: number; maxHealth: number };
-  'ammo:changed': { current: number; capacity: number; weapon: string };
+  /**
+   * The two reload bars — `PartInterface.drawReloadBars` (`:746-778`).
+   *
+   * **Replaced `ammo:changed` in T78.** That event carried
+   * `{ current, capacity }`, which modelled a magazine: `ammo`, `magazine` and
+   * `clipSize` appear **zero** times in the AS3's three gameplay files, so
+   * "12/12" described something the original does not have. These are cooldown
+   * fills, 0-1, and the weapon name for the readout beside them.
+   */
+  'reload:changed': {
+    /** 0-1 — `height1 / 80`. Empty during the opening countdown (`:750-752`). */
+    primary: number;
+    /** 0-1 — `height2 / 80`. Never gated by the countdown (`:766`). */
+    secondary: number;
+    weapon: string;
+    /** Null when no secondary is equipped, so the bar can be hidden. */
+    secondaryName: string | null;
+  };
   /**
    * The opening countdown's panel — `PartInterface.as:303-308`.
    *

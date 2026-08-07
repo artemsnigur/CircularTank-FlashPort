@@ -70,12 +70,17 @@ describe('attachStoreBridge', () => {
     expect(useGameStore.getState().loadError).toContain('ground-desert');
   });
 
-  it('mirrors health and ammo', () => {
+  it('mirrors health and the reload bars', () => {
     GameEvents.emit('player:damaged', { amount: 30, health: 70, maxHealth: 100 });
     expect(useGameStore.getState().health).toBe(70);
 
-    GameEvents.emit('ammo:changed', { current: 3, capacity: 12, weapon: 'Shotgun' });
-    expect(useGameStore.getState()).toMatchObject({ ammo: 3, ammoCapacity: 12, weapon: 'Shotgun' });
+    GameEvents.emit('reload:changed', { primary: 0.25, secondary: 1, weapon: 'Shotgun', secondaryName: null });
+    expect(useGameStore.getState()).toMatchObject({
+      reloadPrimary: 0.25,
+      reloadSecondary: 1,
+      weapon: 'Shotgun',
+      secondaryName: null,
+    });
   });
 
   it('never lets health go negative', () => {

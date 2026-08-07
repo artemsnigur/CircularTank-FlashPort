@@ -616,6 +616,43 @@ is the model to follow.
 
 ## Group L — Tooling
 
+### L5b — The reload readout — **DONE (T78)**
+
+`PLACEHOLDER_AMMO` is gone; the HUD draws the AS3's two cooldown bars
+(`PartInterface.drawReloadBars`, `:746-778`). The rule is
+`weapons/reloadBars.ts`.
+
+**The premise was wrong, and that is the useful part.** This was recorded as a
+placeholder *value* awaiting a real ammo count. It was a placeholder *concept*:
+`ammo`, `magazine` and `clipSize` appear **zero** times in `ScreenGame.as`,
+`PartGameArea.as` and `PartInterface.as`. The original counts no rounds — it
+draws two 4x80 rectangles that fill as `reloadTime` drains. "12/12" described a
+magazine the game does not have, so `ammo:changed` was retired rather than
+populated.
+
+**What `:750-752` actually gates.** `if (countDown > 0) height1 = 0` — and
+`countDown` there is **the opening countdown**, the 3/2/1/GO! ported in T67/T68,
+not a reload timer. It is display-only: no reload timing, no ammo, no input
+lockout. The primary bar reads empty until GO! and then jumps to full, because
+`reloadTime` is 0 at level start so `:758-760` takes over the moment the gate
+lifts. **Only the primary** — `:766` has no countdown branch, so the secondary
+shows its real state throughout.
+
+`:754` additionally excludes `MiniGun` and `Flamethrower` from the filling
+branch: continuous fire would otherwise strobe the bar at its fire rate.
+
+**Driven.** In play the primary reads `27 → 15 → 8 → 100` across 360ms samples
+while the secondary holds at `100`, independent. The readout's bottom measures
+788px in an 800px viewport — clear of the edge by exactly the 0.75rem padding.
+
+**No new divergence.** Placement in the DOM HUD row is the same consequence
+already recorded as **A5**, and the fraction-vs-pixels change is representation,
+not behaviour. The one defensive difference — a zero `reloadTimeMax` reads full
+rather than NaN — is documented at the site and unreachable from the stat
+tables.
+
+---
+
 ### L1 — `assets:sync` never prunes — **FIXED (T77)**
 
 `sync-assets.mjs` now deletes destination files the run would not have written.

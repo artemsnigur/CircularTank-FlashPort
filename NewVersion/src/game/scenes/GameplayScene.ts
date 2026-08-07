@@ -27,6 +27,7 @@ import { shouldRunDuringCountdown } from '../waves/countdownGate';
 import { countdownSkipped, createCountdown, tickCountdown } from '../waves/countdown';
 import type { CountdownState } from '../waves/countdown';
 import { countdownLabel, modeLabel, objectiveText } from '../waves/countdownPanel';
+import { primaryBarFill, secondaryBarFill } from '../weapons/reloadBars';
 import { isAudibleAt } from '../audio/onScreenGate';
 import { musicForMode } from '../audio/musicCue';
 import { secondaryReloadRuns, tutorialHoldsPlay } from '../tutorial/tutorialGates';
@@ -321,21 +322,6 @@ function roomFillEnabled(world: number, level: number): boolean {
  * emitting a zero capacity unmounts the whole readout, taking the weapon name
  * with it. Both emit sites must use this.
  */
-/**
- * Stand-in magazine count. **This port draws no reload bars.**
- *
- * Worth knowing before porting anything that gates them: `drawReloadBars`
- * (`PartInterface.as:746-780`) fills two bars from `reloadTime` and
- * `reloadTimeSecondary`, and `:750-752` forces the **primary** one empty for
- * the whole opening countdown — the secondary's is untouched, which is the
- * original's own asymmetry. None of that is reachable here because there is no
- * bar to fill; the HUD shows this number instead.
- *
- * Whoever builds a real reload readout owns `:750-752` with it. The rule is
- * deliberately not ported ahead of a consumer — see the foot of
- * `waves/countdownPanel.ts`.
- */
-const PLACEHOLDER_AMMO = 12;
 
 /**
  * Frames of freeze a flame burns off instead of dealing damage
@@ -1034,10 +1020,32 @@ export class GameplayScene extends Phaser.Scene {
       maxHealth: TANK_MAX_HP,
     });
     this.emitWaveState();
-    GameEvents.emit('ammo:changed', {
-      current: PLACEHOLDER_AMMO,
-      capacity: PLACEHOLDER_AMMO,
+    this.emitReloadBars();
+  }
+
+  /**
+   * The two reload bars — `PartInterface.drawReloadBars` (`:746-778`).
+   *
+   * Emitted every frame rather than on a change, because both fills move
+   * continuously while a cooldown drains; there is no discrete event to hang
+   * them off. The rule itself is `weapons/reloadBars.ts` so it can be driven
+   * without a scene.
+   */
+  private emitReloadBars(): void {
+    GameEvents.emit('reload:changed', {
+      primary: primaryBarFill({
+        // `:750` reads `countDown > 0` — the *opening* countdown, not a reload.
+        countdownRunning: !this.countdown.done,
+        reloadTime: this.firing.reloadTime,
+        reloadTimeMax: this.weaponStats?.reloadTimeMax ?? 0,
+        weaponName: this.weapon?.name ?? 'Cannon',
+      }),
+      secondary: secondaryBarFill({
+        reloadTime: this.secondaryFiring.reloadTime,
+        reloadTimeMax: this.secondaryStats?.reloadTimeMax ?? 0,
+      }),
       weapon: this.weapon?.name ?? 'Cannon',
+      secondaryName: this.secondary?.name ?? null,
     });
   }
 
@@ -1202,6 +1210,9 @@ export class GameplayScene extends Phaser.Scene {
     // After the camera has settled for the frame, so the harness reads the
     // same mapping the player is looking at.
     this.publishArenaDebug();
+    // Both fills move continuously while a cooldown drains, so this is a
+    // per-frame publish rather than an on-change one.
+    this.emitReloadBars();
 
     // `:2840` — outside the gate, next to the particles and for the same
     // reason. Collection is what the handover is waiting on.
@@ -4207,14 +4218,11 @@ export class GameplayScene extends Phaser.Scene {
     this.firing.reloadTime = stats.reloadTimeMax;
 
     getSoundManager(this)?.queue('WeaponChange');
-    // Capacity must stay above zero or the readout unmounts — see
-    // PLACEHOLDER_AMMO. Emitting 0 here is what made the weapon name vanish on
-    // the first weapon switch.
-    GameEvents.emit('ammo:changed', {
-      current: PLACEHOLDER_AMMO,
-      capacity: PLACEHOLDER_AMMO,
-      weapon: next.name,
-    });
+    // The switch pays a full reload (`:506`/`:511`), so the bar drops to empty
+    // here. It used to need a non-zero `capacity` to keep the readout mounted;
+    // `ReloadReadout` has no such guard, because an empty bar is an ordinary
+    // state rather than a reason to hide the weapon name.
+    this.emitReloadBars();
     console.info(`[GameplayScene] Weapon: ${next.name} (slot ${target})`);
   }
 

@@ -184,7 +184,7 @@ describe('the weapon toggle in the scene', () => {
       'this.weapon = next;',
       'this.firing.reloadTime = stats.reloadTimeMax;',
       "queue('WeaponChange')",
-      "GameEvents.emit('ammo:changed'",
+      "this.emitReloadBars();",
     ]) {
       expect(body.indexOf(effect), effect).toBeGreaterThan(guard);
     }

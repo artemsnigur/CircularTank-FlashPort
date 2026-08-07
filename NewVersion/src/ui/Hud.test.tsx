@@ -108,36 +108,86 @@ describe('Hud', () => {
     expect(screen.getByText('7 left')).toBeInTheDocument();
   });
 
-  it('shows the ammo readout only once a weapon has capacity', () => {
+  it('shows both reload bars once a secondary is equipped, and one before', () => {
+    // The secondary bar is conditional on *having a secondary* — the only
+    // conditional part of the readout. Pinned as a pair so "always two" and
+    // "always one" both fail.
     enterGameplay();
     const { rerender } = render(<Hud />);
-    expect(screen.queryByText('Cannon')).not.toBeInTheDocument();
 
     act(() => {
-      GameEvents.emit('ammo:changed', { current: 8, capacity: 12, weapon: 'Cannon' });
+      GameEvents.emit('reload:changed', {
+        primary: 1,
+        secondary: 1,
+        weapon: 'Cannon',
+        secondaryName: null,
+      });
     });
     rerender(<Hud />);
-
+    expect(screen.getAllByRole('progressbar', { name: /reload/i })).toHaveLength(1);
     expect(screen.getByText('Cannon')).toBeInTheDocument();
-    expect(screen.getByText('/12')).toBeInTheDocument();
+
+    act(() => {
+      GameEvents.emit('reload:changed', {
+        primary: 1,
+        secondary: 0.5,
+        weapon: 'Cannon',
+        secondaryName: 'Mine',
+      });
+    });
+    rerender(<Hud />);
+    expect(screen.getAllByRole('progressbar', { name: /reload/i })).toHaveLength(2);
+    expect(screen.getByText('Mine')).toBeInTheDocument();
   });
 
-  it('keeps the weapon name visible across a weapon switch', () => {
-    // Regression: GameplayScene.cycleWeapon used to emit `capacity: 0`, which
-    // trips AmmoReadout's `capacity <= 0` guard and unmounts the readout — so
-    // the weapon name showed on start and vanished for good on the first Q
-    // press. Any emit on a switch must carry a non-zero capacity.
+  it('renders the fill it is given, at both ends and in between', () => {
+    // A bar that ignored its input would still mount and still show the weapon
+    // name, so the readout being present proves nothing on its own.
+    enterGameplay();
+    const { rerender } = render(<Hud />);
+
+    for (const [fill, expected] of [[0, '0'], [0.5, '50'], [1, '100']] as const) {
+      act(() => {
+        GameEvents.emit('reload:changed', {
+          primary: fill,
+          secondary: 1,
+          weapon: 'Cannon',
+          secondaryName: null,
+        });
+      });
+      rerender(<Hud />);
+      expect(
+        screen.getByRole('progressbar', { name: /Cannon reload/i }),
+      ).toHaveAttribute('aria-valuenow', expected);
+    }
+  });
+
+  it('keeps the weapon name visible across a weapon switch, at an empty bar', () => {
+    // Regression, and the reason the old `capacity <= 0` guard is gone.
+    // `cycleWeapon` pays the incoming weapon a full reload, so the bar is
+    // **empty** on the frame after a switch — exactly the state that used to
+    // unmount the whole readout and take the weapon name with it.
     enterGameplay();
     const { rerender } = render(<Hud />);
 
     act(() => {
-      GameEvents.emit('ammo:changed', { current: 12, capacity: 12, weapon: 'Cannon' });
+      GameEvents.emit('reload:changed', {
+        primary: 1,
+        secondary: 1,
+        weapon: 'Cannon',
+        secondaryName: null,
+      });
     });
     rerender(<Hud />);
     expect(screen.getByText('Cannon')).toBeInTheDocument();
 
     act(() => {
-      GameEvents.emit('ammo:changed', { current: 12, capacity: 12, weapon: 'MiniGun' });
+      GameEvents.emit('reload:changed', {
+        primary: 0,
+        secondary: 1,
+        weapon: 'MiniGun',
+        secondaryName: null,
+      });
     });
     rerender(<Hud />);
 
@@ -145,24 +195,16 @@ describe('Hud', () => {
     expect(screen.queryByText('Cannon')).not.toBeInTheDocument();
   });
 
-  it('hides the readout entirely when capacity drops to zero', () => {
-    // Pins the guard that caused the bug above, so the trap stays documented.
-    enterGameplay();
-    const { rerender } = render(<Hud />);
-
-    act(() => {
-      GameEvents.emit('ammo:changed', { current: 12, capacity: 12, weapon: 'Cannon' });
-    });
-    rerender(<Hud />);
-    expect(screen.getByText('Cannon')).toBeInTheDocument();
-
-    act(() => {
-      GameEvents.emit('ammo:changed', { current: 0, capacity: 0, weapon: 'MiniGun' });
-    });
-    rerender(<Hud />);
-
-    expect(screen.queryByText('MiniGun')).not.toBeInTheDocument();
-  });
+  // Deleted in T78: `it('hides the readout entirely when capacity drops to zero')`.
+  //
+  // **The audit predicted this deletion.** Under *"Two tests pin defects as
+  // specification"* it recorded that the test pinned the `capacity <= 0` guard
+  // — a guard whose reach was the whole component when its reason was only
+  // "there is no magazine to show" — and that narrowing it "would now fail a
+  // green test". The guard is gone with the magazine it described, so the test
+  // goes with it rather than being adapted. The behaviour it was protecting is
+  // now the case directly above, from the opposite side: an empty bar must
+  // *keep* the readout mounted.
 
   it('shows the results overlay when a level ends', () => {
     enterGameplay();

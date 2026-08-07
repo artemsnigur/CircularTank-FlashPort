@@ -97,20 +97,15 @@ export function modeLabel(mode: string): string {
 }
 
 /**
- * ── Not ported: the reload-bar gate at `drawReloadBars` (`:750-752`) ──────
+ * ── The reload-bar gate at `drawReloadBars` (`:750-752`) — ported in T78 ──
  *
  * `if(countDown > 0) height1 = 0` forces the **primary** reload bar empty for
- * the duration of the countdown. Only the primary: `height2` is computed at
- * `:766` with no countdown branch at all, so the secondary's bar shows its real
- * state throughout. That asymmetry looks like an oversight and is the original's.
+ * the duration of the opening countdown. Only the primary: `height2` is
+ * computed at `:766` with no countdown branch at all, so the secondary's bar
+ * shows its real state throughout. That asymmetry looks like an oversight and
+ * is the original's.
  *
- * **There is nothing here to gate.** This port draws no reload bars — the HUD
- * shows a placeholder magazine count (`GameplayScene.PLACEHOLDER_AMMO`) rather
- * than a reload fill, so the rule has no consumer and is deliberately not
- * exported as one. Shipping it unwired would put it straight onto the
- * "exists + tested but not wired" pile the audit tracks.
- *
- * **What discharges this:** a real reload readout. Whoever builds one owns
- * `:750-752`, and the note is repeated at `PLACEHOLDER_AMMO`, which is where
- * they will be standing.
+ * It lives in `weapons/reloadBars.ts` now that there are bars to gate. The
+ * `countdownRunning` flag it takes is this module's countdown, not a reload
+ * one — the name in `drawReloadBars` is the trap, and it is documented there.
  */

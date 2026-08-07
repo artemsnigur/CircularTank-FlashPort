@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T77**, commit `a2c62a6`, 7 August 2026. Keep it current — it is
+Current as of **T78**, commit `ac2fa47`, 7 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -28,7 +28,7 @@ TypeScript strict + Phaser 3.90 + Zustand + Vitest + Capacitor.
 - **`NewVersion/`** — the port. All npm commands run from here.
 
 **Gate on every commit:** `typecheck`, `lint`, `data:check`, `progress:check`,
-the full suite (**2645 tests, 133 files**), and `smoke`. Work that cannot land green is not
+the full suite (**2657 tests, 134 files**), and `smoke`. Work that cannot land green is not
 committed. Commits go straight to `main` and are pushed at the end of each task.
 
 ### What plays end to end
@@ -297,7 +297,6 @@ be checked against a second mode on the same build before it is believed.
 
 | Item | Needs |
 |---|---|
-| **A real reload readout** | The HUD shows a placeholder magazine count (`GameplayScene.PLACEHOLDER_AMMO`), not the AS3's two reload bars (`PartInterface.as:746-780`). Whoever builds one also owns `:750-752`, which forces the **primary** bar empty for the whole opening countdown — and only the primary; the secondary's is untouched, which is the original's own asymmetry. The rule is deliberately **not** ported ahead of a consumer; reasoning at the foot of `waves/countdownPanel.ts` and at `PLACEHOLDER_AMMO`. |
 | **Sound: 15 silent — 10 need no code, 5 are blocked** | `--sound-sweep` reports **47–48 of 67** (T71; two runs gave 48 and 47, `TankDamaged` the swing). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
 
 ### The 19 silent sounds, individually
@@ -397,6 +396,17 @@ things that are actually open.
   measured, and recorded as **C15** so it is not reported as a regression.
   Tower and Defense are untouched — their rooms already matched the camera.
   Presentation is still owed; see the queue above.
+- **The reload readout** — done (T78). `PLACEHOLDER_AMMO` is gone and the HUD
+  draws the AS3's two cooldown bars (`PartInterface.drawReloadBars`,
+  `:746-778`). **A premise correction came with it:** it was never a placeholder
+  *value* awaiting a real count — `ammo`, `magazine` and `clipSize` appear
+  **zero** times in the AS3's three gameplay files, so the `{ current, capacity }`
+  shape was a placeholder *concept*. `ammo:changed` is retired for
+  `reload:changed`, carrying two 0-1 fills.
+
+  `:750-752`'s "countdown" is the **opening** countdown, already ported in
+  T67/T68 — not a reload one, despite living in `drawReloadBars`. It is display
+  only: no reload timing, no input gating, and it touches the primary alone.
 - **`L1`** — fixed (T77). `sync-assets.mjs` now prunes destination files the run
   would not write, using the same inputs the copy loops use so the authored
   overlay survives by construction. **A scoping correction came with it:**

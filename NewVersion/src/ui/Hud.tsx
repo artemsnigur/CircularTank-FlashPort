@@ -113,18 +113,63 @@ function FlagCounter(): React.ReactElement | null {
   );
 }
 
-function AmmoReadout(): React.ReactElement | null {
-  const ammo = useGameStore((s) => s.ammo);
-  const capacity = useGameStore((s) => s.ammoCapacity);
+/**
+ * The two reload bars and the weapon name —
+ * `PartInterface.drawReloadBars` (`:746-778`).
+ *
+ * **Replaced an invented magazine readout in T78.** It showed `12/12` from
+ * `PLACEHOLDER_AMMO`; the original has no magazine at all (`ammo`, `magazine`
+ * and `clipSize` appear zero times in its three gameplay files). These are
+ * cooldown fills — see `weapons/reloadBars.ts`.
+ *
+ * ── No `capacity <= 0` guard, deliberately ────────────────────────────────
+ * The old component returned null on `capacity <= 0`, and a stray
+ * `capacity: 0` emit once took the **weapon name** down with it — the
+ * guard-scoping case in `CLAUDE.md`. A fill of 0 is a perfectly ordinary state
+ * (just fired, or mid-countdown), so there is nothing here that should hide the
+ * whole readout. The secondary bar is the only conditional part, and it is
+ * conditional on *having a secondary*, which is what `secondaryName` says.
+ */
+function ReloadReadout(): React.ReactElement {
+  const primary = useGameStore((s) => s.reloadPrimary);
+  const secondary = useGameStore((s) => s.reloadSecondary);
   const weapon = useGameStore((s) => s.weapon);
-  if (capacity <= 0) return null;
+  const secondaryName = useGameStore((s) => s.secondaryName);
+
   return (
-    <div className="hud-ammo">
-      <span className="hud-ammo__weapon">{weapon}</span>
-      <span className="hud-ammo__count">
-        {ammo}
-        <span className="hud-ammo__cap">/{capacity}</span>
-      </span>
+    <div className="hud-reload">
+      <div className="hud-reload__bars">
+        <ReloadBar fill={primary} label={`${weapon} reload`} />
+        {secondaryName !== null && (
+          <ReloadBar fill={secondary} label={`${secondaryName} reload`} />
+        )}
+      </div>
+      <div className="hud-reload__names">
+        <span className="hud-reload__weapon">{weapon}</span>
+        {secondaryName !== null && (
+          <span className="hud-reload__secondary">{secondaryName}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One bar. `fill` is 0-1; the AS3 draws it as `height/80` upward from the
+ * bottom (`:764`), which is what `align-self: flex-end` reproduces.
+ */
+function ReloadBar({ fill, label }: { fill: number; label: string }): React.ReactElement {
+  const percent = Math.round(Math.min(1, Math.max(0, fill)) * 100);
+  return (
+    <div
+      className="hud-reload__track"
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={percent}
+    >
+      <div className="hud-reload__fill" style={{ height: `${percent}%` }} />
     </div>
   );
 }
@@ -482,7 +527,7 @@ export function Hud(): React.ReactElement | null {
 
       <div className="hud__row hud__row--bottom">
         <HealthBar />
-        <AmmoReadout />
+        <ReloadReadout />
         {/* PartInterface.as carries bToggleSound in the in-game HUD, not only
             on an options screen — music you cannot silence mid-level is the
             case a toggle exists for. */}

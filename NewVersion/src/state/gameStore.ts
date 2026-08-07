@@ -141,9 +141,13 @@ export interface GameState {
   currency: number;
   health: number;
   maxHealth: number;
-  ammo: number;
-  ammoCapacity: number;
+  /** Primary reload bar fill, 0-1 — `PartInterface.as:750-761`. */
+  reloadPrimary: number;
+  /** Secondary reload bar fill, 0-1 — `:766-772`. */
+  reloadSecondary: number;
   weapon: string;
+  /** Equipped secondary's name, or null when there is none. */
+  secondaryName: string | null;
   wave: number;
   enemiesRemaining: number;
   /** Level mode, so the HUD can show mode-specific counters. */
@@ -209,7 +213,12 @@ export interface GameState {
   setCurrency: (total: number) => void;
   addCurrency: (amount: number) => void;
   setHealth: (health: number, maxHealth?: number) => void;
-  setAmmo: (current: number, capacity: number, weapon: string) => void;
+  setReload: (
+    primary: number,
+    secondary: number,
+    weapon: string,
+    secondaryName: string | null,
+  ) => void;
   setWave: (
     wave: number,
     enemiesRemaining: number,
@@ -244,9 +253,10 @@ const initialRunState = {
   currency: 0,
   health: 100,
   maxHealth: 100,
-  ammo: 0,
-  ammoCapacity: 0,
+  reloadPrimary: 1,
+  reloadSecondary: 1,
   weapon: 'none',
+  secondaryName: null,
   wave: 0,
   enemiesRemaining: 0,
   levelMode: 'Normal',
@@ -298,7 +308,8 @@ export const useGameStore = create<GameState>()((set) => ({
       maxHealth: maxHealth ?? s.maxHealth,
     })),
 
-  setAmmo: (ammo, ammoCapacity, weapon) => set({ ammo, ammoCapacity, weapon }),
+  setReload: (reloadPrimary, reloadSecondary, weapon, secondaryName) =>
+    set({ reloadPrimary, reloadSecondary, weapon, secondaryName }),
   setWave: (wave, enemiesRemaining, levelMode, flagsRemaining) =>
     set({ wave, enemiesRemaining, levelMode, flagsRemaining }),
   setCountdown: (countdown) => set({ countdown }),
