@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T68**, commit `f1c5e20`, 7 August 2026. Keep it current — it is
+Current as of **T70**, commit `725adb5`, 7 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -49,31 +49,30 @@ entry point)`, both deliberately out of scope. Measured by driving, because a
 screen that opens empty and a screen that is not ported are indistinguishable to
 a presence check.
 
-**Sound: 25 of 67 names fired in the sweep at `b2d2193` — and that number is
-currently an artefact of the harness, not a measure of the game.** The audit
-records 39 at `59b9756`. **The game did not regress.** On the *same* build,
-`--baseline` reports `level 1-1 cleared: true`, so enemies spawn, die and drop
-coins, while the sweep reports `peak/frame EnemySquish: 0` — nothing died in it
-at all. T58 made the tutorial gate hold spawning until the player has moved and
-fired, and fixed `--baseline` to move first; **`--sound-sweep` never got the
-same fix**, so most of its window runs on a level that is deliberately not
-spawning. Tracked as **L3** in `BACKLOG.md`.
+**Sound: 41–42 of 67 names fire.** Settled at T69 from a driven
+`--sound-sweep` with `L3` and `L8` both closed. Two consecutive runs gave 41 and
+42, so treat it as a **±1 band around 41** rather than a fixed figure.
 
-**Do not read 39 → 25 as lost wiring**, and do not wire anything in response.
-This is *reach and wiring are separate questions* (rule 9) — the same misreading
-that made ten fully-wired names look unwired in T40.
+**What makes this one trustworthy where three earlier readings were not:**
+**landing evidence 6/6** — `ImpactBullet`, `ImpactLaser`, `ImpactMagic`,
+`ImpactCake`, `EnemySquish` and `Coin` all fire, and every one of them was
+absent from every previous run. The count alone never distinguished "this sound
+is unwired" from "nothing ever triggered it"; that list does.
 
-**Settled T69: the number is 41–42 of 67**, from a driven `--sound-sweep` with
-`L3` and `L8` both closed. Two consecutive runs gave 41 and 42, so treat it as a
-**±1 band around 41** rather than a fixed figure. The evidence that it is real
-rather than another plausible-looking count: **landing evidence 6/6** —
-`ImpactBullet`, `ImpactLaser`, `ImpactMagic`, `ImpactCake`, `EnemySquish` and
-`Coin` all fire, where every one of them was absent before.
+**The earlier figures are history, not a series.** Each was taken with different
+defects present in the harness, so none of them can be compared with another:
 
-**It does not confirm or replace the old 39.** That figure was retired for an
-unrelated reason (`L3`, T65) and was measured on a harness carrying two defects;
-41–42 is the first number taken with both closed, and is the one to track from
-here.
+| Reading | Taken at | Harness state |
+|---|---|---|
+| 39 of 65/67 | `59b9756` (T57) | before `L3` or `L8` were known |
+| 25 of 67 | `b2d2193` (T60) | the tutorial gate left the arena empty (`L3`) |
+| 27 of 67 | T65 | `L3` fixed; the sweep still aimed at a screen constant (`L8`) |
+| **41–42 of 67** | **T69** | **both closed; impacts confirmed landing** |
+
+**41–42 does not confirm or replace 39**, and 39 → 25 was never a regression.
+They are the same quantity measured through two broken instruments and one
+working one. Track 41–42 from here; do not treat any of the others as a floor,
+a target, or a baseline.
 
 ### How to see it
 
@@ -221,6 +220,41 @@ decisive, wrong result and was believed.*
     1-1 under `--baseline`. **The failure looks exactly like lost wiring.** This
     is trap 9's shape one level up: the instrument's reach narrowed while its
     output format stayed identical. (`L3`.)
+12. **A new input gate silently invalidating a harness's timing assumption.**
+    T67 put `moveTank` and `tankAttack` inside the countdown
+    (`PartGameArea.as:2818`, `:2820`), so player input does nothing for the
+    first two seconds of a level. `--sound-sweep` did its move-and-fire in the
+    opening 900 ms (`look.mjs`, the `releasePlay` site) — a timing that had been
+    correct since T65 — so the tutorial's `AimShoot` never completed, `:7153`
+    held spawning, and the arena stayed empty for the whole run.
+
+    **Nothing failed.** No error, no crash, no warning; a plausible 27 of 67 and
+    a normal-looking frame. It was found only by probing `__arena` and noticing
+    the tank had never left its spawn point despite a scripted key press.
+
+    **The lesson generalises past this instance: any feature that gates player
+    input invalidates every harness assumption about *when* input takes
+    effect.** Those assumptions are timing constants scattered through the
+    harness, they are invisible in a diff of the feature, and no test covers
+    them. When you add or change a gate — countdown, pause, cutscene, tutorial
+    hold — re-check the harness's timings rather than assuming they are durable.
+    The fix is to wait on the game's own flag (`__arena.countDownDone`), never
+    on a sleep. (`L8`, and it was **my own countdown work two passes earlier**
+    that broke it.)
+13. **A fallback value that resembled a real reading.** The tank-tracking log
+    fell back to `(640, 400)` when its live read failed — which is also exactly
+    where the tank spawns, so a silently-failed read produced a completely
+    convincing `640..171` trace and was indistinguishable from success.
+
+    Fixed by moving the fallback off-centre **and** returning an explicit
+    `live` flag, so the log reports `10/10 live` and the count of real reads is
+    the claim rather than the coordinates.
+
+    **Generalises: choose a fallback that fails loudly.** A default that looks
+    like a plausible measurement converts a broken instrument into a confident
+    wrong answer — which is the single most repeated failure in this list. If a
+    sentinel cannot be made obviously invalid, report whether the real value was
+    obtained alongside the value itself.
 
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
