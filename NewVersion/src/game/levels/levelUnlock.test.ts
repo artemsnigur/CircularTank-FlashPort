@@ -19,7 +19,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createEmptyProgress, isLevelCleared, recordLevelResult } from './levelProgress';
+import {
+  createEmptyProgress,
+  isLevelCleared,
+  nextLevelAfter,
+  recordLevelResult,
+} from './levelProgress';
 import {
   isLevelUnlocked,
   isWorldUnlocked,
@@ -494,5 +499,62 @@ describe('progress survives a reload', () => {
     const second = new PlayerProfile(new SaveStore(storeName, backend));
     expect(isLevelCleared(second.progress, 1, 1)).toBe(false);
     expect(second.slot.levelSelect.previousLevelWon).toBe(false);
+  });
+});
+
+/**
+ * **Written before the visible-values model, and kept permanently.**
+ *
+ * The AS3 reads `worldsValuesVisibleArrays` in its unlock rules
+ * (`ScreenLevelSelect.as:841`, `:1518`) — a session-only clone that lags the
+ * earned table until `progressLevelButtons` (`:518-545`) has animated the
+ * difference. Porting that faithfully means the unlock reads a table that
+ * something has to advance.
+ *
+ * **If it is not advanced, progression stops dead**, and the scoping pass found
+ * the failure would be worse than that: it would be *intermittent*.
+ * `LevelSelectScene` gates on `mayStartLevel` (`:128`, `:151`), but
+ * `GameplayScene.ts:980` handles `ui:start-game` with no gate at all — so the
+ * results screen's Next-level button would keep working while level select
+ * refused the same level. Two paths, one save, disagreeing.
+ *
+ * These assertions are the guard against that. They are deliberately written
+ * against the *plain* recorded table, so they hold whether or not a second one
+ * exists, and they must never be weakened to accommodate the reveal.
+ */
+describe('a cleared level opens the next one, reveal or no reveal', () => {
+  it('opens the next level the moment the result is recorded', () => {
+    const progress = recordLevelResult(createEmptyProgress(), 1, 1, 'Easy', 1);
+
+    // The record alone is enough. Nothing about an animation may gate this.
+    expect(mayStartLevel(progress, { world: 1, level: 2 })).toBe(true);
+    // …and its counterpart on the same table: the level after that stays shut,
+    // so "everything is open" cannot satisfy the assertion above.
+    expect(mayStartLevel(progress, { world: 1, level: 3 })).toBe(false);
+  });
+
+  it('opens the next world on the last level of the previous one', () => {
+    const last = LEVELS[0].length;
+    const progress = recordLevelResult(createEmptyProgress(), 1, last, 'Easy', 1);
+
+    expect(isWorldUnlocked(progress, 2)).toBe(true);
+    expect(isWorldUnlocked(progress, 3)).toBe(false);
+  });
+
+  /**
+   * The asymmetry itself, stated as an assertion rather than as a comment.
+   *
+   * Both routes into a level must give the same answer for the same save. The
+   * gated one is `mayStartLevel`; the ungated one is `GameplayScene`'s
+   * `ui:start-game` handler, which starts whatever it is given. So the property
+   * that has to hold is that **the gate says yes** — if it ever says no while
+   * the Next button still works, the two have come apart.
+   */
+  it('agrees with the ungated Next-level route about what is playable', () => {
+    const progress = recordLevelResult(createEmptyProgress(), 1, 1, 'Easy', 1);
+    const next = nextLevelAfter(1, 1);
+    expect(next).not.toBeNull();
+    // What the results screen would hand to `ui:start-game`, unchecked.
+    expect(mayStartLevel(progress, { world: next!.world, level: next!.level })).toBe(true);
   });
 });
