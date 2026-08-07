@@ -94,6 +94,7 @@ import type { HitTarget } from '../weapons/bullets';
 import { applyBomb, applyPoison } from '../enemies/statusEffects';
 import { healedTo, isInHealRange } from '../enemies/enemyHealing';
 import { canFireHook } from '../enemies/enemyGrapple';
+import { flameBurnSounds } from '../audio/burningLoop';
 import { impactFeedback } from '../enemies/damageTypes';
 import {
   createExplosion,
@@ -1717,9 +1718,18 @@ export class GameplayScene extends Phaser.Scene {
       }
 
       if (shots.length > 0) {
-        // An empty key means the weapon has no one-shot report — the
-        // Flamethrower drives a sustained loop the port does not have yet.
+        // An empty key means the weapon has no one-shot report. The
+        // Flamethrower is the one such weapon: `:3786-3788` sets
+        // `flameThrowerPlay = true` in the same branch that spawns the
+        // `BulletFire`, so its report is the sustained loop below rather than
+        // a `queue()`.
         if (this.weapon.sound) getSoundManager(this)?.queue(this.weapon.sound);
+        // `:3788`. A **keep-alive, not a start** — `handleLoops` clears
+        // `requested` every frame (`SoundManager.as:1040-1041`), so this has to
+        // re-fire on each firing frame or the loop fades out. Which is why it
+        // sits on the spawn path, exactly where the AS3 puts it: a frame that
+        // produces no round is a frame the original does not re-assert either.
+        if (this.weapon.isFlame) getSoundManager(this)?.keepLoopAlive('FlameThrower');
         const bulletClass = this.weapon.bulletClass ?? 'Bullet';
         // Range is a distance in the table; a flame's life is that distance
         // divided by its speed. See weapons/flames.ts.
@@ -3139,6 +3149,19 @@ export class GameplayScene extends Phaser.Scene {
         continue;
       }
 
+      // `:6261` — the burning loop again, from lava rather than a flame.
+      //
+      // No condition of its own, deliberately. `:6259` gates the sound,
+      // `onLava = true` and the damage on one `if`, and this effect only
+      // exists because `lavaAffects` (`groundHazard.ts`) passed that same
+      // `if` — multiplier and `DamageAddict` exclusion included. Restating
+      // either here would be a second copy of a rule that already has a home,
+      // which is how `countCrowd` and `canAfford` drifted. `sweepHazards`'s
+      // `burned` set is `onLava`'s per-frame dedup, so at most one of these
+      // lands per enemy per frame; re-assertion comes from the enemy still
+      // standing in lava next frame, which is what keeps the loop alive.
+      getSoundManager(this)?.keepLoopAlive('Burning');
+
       enemy.takeDamage(effect.damage);
       if (enemy.health <= 0) this.removeEnemy(enemy, true);
     }
@@ -4356,6 +4379,18 @@ export class GameplayScene extends Phaser.Scene {
       enemy.status.frozenTimer = Math.max(0, enemy.status.frozenTimer - FIRE_THAW_FRAMES);
       if (enemy.status.frozenTimer === 0) enemy.status.frozen = false;
       return;
+    }
+
+    // `:6006` — the burning loop, re-asserted for as long as a flame is on
+    // something that burns. Two of `:6002`'s three gates are already spent by
+    // the time we get here: `frozen == false` is the early return above, and
+    // `theBullet == "[object BulletFire]"` is why `burnEnemy` was called at
+    // all. The rest — the multiplier and `:6004`'s `DamageAddict` exclusion —
+    // is `flameBurnSounds`, which is a module rather than an inline expression
+    // so the exclusion can be driven against real enemy data instead of
+    // grepped for. See `audio/burningLoop.ts`.
+    if (flameBurnSounds(enemy.enemyType, enemy.damageMultipliers.FireLava)) {
+      getSoundManager(this)?.keepLoopAlive('Burning');
     }
 
     this.hitEnemy(enemy, bullet);

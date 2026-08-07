@@ -59,10 +59,14 @@ document were **driven at `b2d2193`**, not counted:
   content: MainMenu 13, LevelSelect 69, Upgrades 35, Bestiary 2, SaveSlots 5,
   Enemies 22, Options 10, Achievements 2. `Premium` and `Credits` report
   `UNREACHABLE (no entry point)` — both deliberately out of scope.
-<!-- docs-check: sound-coverage = 47-48 of 67 -->
-- **Sound — driven. 47–48 of 67 (T71).** `npm run look -- --sound-sweep`, with `L3`
-  and `L8` closed and the sweep extended to the four modes `--baseline` never
-  visits. What makes it trustworthy where the earlier readings were not:
+<!-- docs-check: sound-coverage = 50-51 of 67 -->
+- **Sound — driven. 50–51 of 67 (T80).** `npm run look -- --sound-sweep`, with `L3`
+  and `L8` closed, the sweep extended to the four modes `--baseline` never
+  visits, and — since T80 — `Flamethrower`/`Lava Ball` in its equip lists plus a
+  per-step log of *which* names are new. The last of those is what makes a
+  two-name change legible at all: the total swings ±1 on its own, so it cannot
+  carry a claim this small. What makes it trustworthy where the earlier readings
+  were not:
   **landing evidence 6/6** — `ImpactBullet`, `ImpactLaser`, `ImpactMagic`,
   `ImpactCake`, `EnemySquish` and `Coin` all fire, and every one of them was
   absent from every run before T69.
@@ -1016,7 +1020,8 @@ Small, and none of it blocks anything else:
 | **L1** | `assets:sync` never prunes | small |
 | ~~**L3**~~ | ~~`--sound-sweep` never satisfies the tutorial gate~~ — **fixed T65**; count unmoved, see L8 | done |
 | ~~**L8**~~ | ~~The sweep aims at a screen constant~~ — **fixed T69**; 25 → 41–42 of 67, landing evidence 0/6 → 6/6 | done |
-| **Sound: 14 silent** | **`--sound-sweep` still reports 47–48** and will keep doing so: it drives a *defeat*, and `Award1-3` fire on a **win**. They are confirmed firing by `--medals` instead, which is a different driven mode — so the sweep figure and the trigger-coverage figure have come apart, and neither is wrong. 10 of the 14 are wired and reach-only. The rest: `BossCollision` on enemy-to-enemy collision, `Burning`/`FlameThrower` on an undriven loop channel, `ImpactCrazyCheese` a permanent orphan. Breakdown in `HANDOFF.md` §5 | mostly blocked, not owed |
+| **Sound: 14 silent** | **`--sound-sweep` still reports 47–48** and will keep doing so: it drives a *defeat*, and `Award1-3` fire on a **win**. They are confirmed firing by `--medals` instead, which is a different driven mode — so the sweep figure and the trigger-coverage figure have come apart, and neither is wrong. 10 of the 14 are wired and reach-only. The rest: `Burning`/`FlameThrower` **wired T80**, `ImpactCrazyCheese` a permanent orphan, and `BossCollision` re-filed as the enemy-separation row below. Breakdown in `HANDOFF.md` §5 | mostly blocked, not owed |
+| **Port enemy-enemy separation** | `PartGameArea.as:5174-5221` — the pair loop that pushes two overlapping enemies apart by their relative mass (`:5199-5207` into `pushVelX/Y`, decayed at `:5365-5366`, integrated at `:5370-5385`, gated on `safetyDistance` at `:3354`/`:3358`). **The port has no enemy-enemy collision at all, so enemies interpenetrate on every one of the 405 levels.** That is the reason to build it: it is a visible fidelity gap with player value on its own. The `BossCollision` sound (`:5197`, boss-on-boss only) is a *byproduct* that falls out once the pair loop exists — **building the subsystem in order to unlock one sound would be backwards**, which is why this is filed as movement work and the sound is not listed separately any more | subsystem — touches enemy movement game-wide; **not in the active queue** |
 | ~~**Achievement toasts cover the results panel**~~ | **Fixed T79.** The description was wrong twice: they *were* offset from one another, and the count was not the mechanism — two **centred** overlays were. AS3-derived after all: one toast at a time from a queue (`PartAchievements.as:265`, `:116-117`), top right (`:125-126`). Unblocked the `Achievement` sound (`:120`) | done |
 | ~~**L4**~~ | ~~`npm run look` leaves its vite server alive~~ — **fixed T64** | done |
 | **L5** | 517 stub statuses hand-set where `gen-progress.mjs:256` could derive them | small work, large metric consequence |

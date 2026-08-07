@@ -899,8 +899,28 @@ if (args.soundSweep) {
   const clear = () => page.evaluate(() => globalThis.__soundQueue?.clear());
 
   const fired = new Set();
+  /**
+   * Adds this step's names to the running set and **returns the ones that are
+   * new** (T80).
+   *
+   * The cumulative total alone cannot attribute a name to a step, and that
+   * matters whenever a pass changes the wiring *and* the sweep's own reach in
+   * the same commit — "the count went up" is then joint evidence and says
+   * nothing about which call site ran. `Burning` has two independent sources
+   * (a flame at `:6006`, lava at `:6261`) and they are exercised by different
+   * pairs, so without this the two are indistinguishable in the output.
+   *
+   * It also makes the run-to-run swing legible: `TankDamaged`, `TeleportOut`
+   * and `ReflectBullet` move in and out of the total between runs, which is
+   * what makes the headline figure a poor instrument for a small change.
+   */
   const collect = async () => {
-    for (const n of await names()) fired.add(n);
+    const fresh = [];
+    for (const n of await names()) {
+      if (!fired.has(n)) fresh.push(n);
+      fired.add(n);
+    }
+    return fresh;
   };
 
   /**
@@ -974,15 +994,27 @@ if (args.soundSweep) {
 
   // One page load per primary: `?secondary=` grants a secondary, and the
   // weapon cycle key (Q) walks the equipped slots.
-  const SECONDARIES = ['Grenade', 'Mine', 'Shield', 'Rockets', 'Icicles', 'Crazy Cheese', 'Ice Ball', 'Magic Bunny'];
+  // `Lava Ball` (T80) is the only source of a lava patch, and lava is one of
+  // the two things that assert the `Burning` loop (`:6261`). Placed at index 2
+  // rather than appended so it pairs with a *different* primary than the
+  // Flamethrower below — the two `Burning` sources then get separate page
+  // loads, and a count that moves says which one moved it.
+  const SECONDARIES = ['Grenade', 'Mine', 'Lava Ball', 'Shield', 'Rockets', 'Icicles', 'Crazy Cheese', 'Ice Ball', 'Magic Bunny'];
 
   // Paired with a different primary each pass, via the `?primary=` aid added
   // in T41. Eight weapon sounds plus BorderTiny/BorderBig were silent purely
   // because the Cannon is what a fresh profile equips — unexercised, not
   // unwired, and this is what tells the two apart.
+  //
+  // `Flamethrower` (T80) is the other half of the same gap, and it was a
+  // *reach* gap before it was a wiring one: this list is what the sweep can
+  // equip, and the weapon that asserts `FlameThrower`/`Burning` (`:3788`,
+  // `:6006`) was simply not in it. Both names would have stayed on the silent
+  // list after the wiring landed, which would have read as "still unwired".
   const PRIMARIES = [
     'MiniGun', 'Shotgun', 'Big Cannon', 'Gummy Bear Cannon',
     'Cake Cannon', 'Poison Cannon', 'Magic Cannon', 'Laser Cannon',
+    'Flamethrower',
   ];
 
   for (const [i, secondary] of SECONDARIES.entries()) {
@@ -1062,7 +1094,7 @@ if (args.soundSweep) {
     }
     await page.mouse.up();
     await delay(600);
-    await collect();
+    const fresh = await collect();
 
     // The tracking, stated rather than assumed. A centre list that never
     // moves means `__arena` is not being read and the orbit is fixed again —
@@ -1073,6 +1105,7 @@ if (args.soundSweep) {
     const live = centres.filter((c) => c.live).length;
     console.log(
       `[look] ${primary} + ${secondary}: ${fired.size} names so far` +
+        ` (+${fresh.length}: ${fresh.join(' ') || '-'})` +
         `  | tank x ${xs[0]}..${xs[xs.length - 1]} spread ${spread}, ${live}/${centres.length} live` +
         `, aimed at an enemy ${aimedAtEnemy}/${centres.length}`,
     );
@@ -1118,6 +1151,71 @@ if (args.soundSweep) {
     await delay(600);
     await collect();
     console.log(`[look] isolated ${type}: ${fired.size} names so far`);
+  }
+
+  /**
+   * Lava, driven on its own — the second source of `Burning` (T80).
+   *
+   * `:6261` asserts the loop from an enemy **standing in lava**, which the
+   * orbit-and-fire loop above cannot reliably produce: it throws a ball every
+   * third step and then keeps moving, so the tank is rarely anywhere near its
+   * own patch when an enemy crosses it, and a patch does not bite until
+   * `lifeTime > 15` frames anyway. The first run of this pass showed exactly
+   * that — `Big Cannon + Lava Ball` added `Ball` and `ExplosionSmall` and no
+   * `Burning`, so the throw happened and the contact did not.
+   *
+   * So: throw short, then **stand still**. Enemies home on the tank, which
+   * makes the tank's own feet the one place a crossing is guaranteed. Standing
+   * in the fire is the point, not an accident of the script.
+   */
+  {
+    await page.goto(`${URL}?secondary=Lava%20Ball&primary=Cannon`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /all-enemy test level/i }).click();
+    await releasePlay();
+    await delay(2500);
+    await clear();
+
+    // Three throws in a tight arc just off the tank, so the patches overlap
+    // the ground the enemies have to walk over to reach it.
+    //
+    // `at.live` is logged rather than assumed: `arenaAt()` falls back to a
+    // plausible-looking centre when `__arena` is not published, and a fallback
+    // that resembles a real reading is trap 13. If these throws land somewhere
+    // other than where the log says the tank is, that is the reason.
+    const throws = [];
+    for (const dx of [90, 0, -90]) {
+      const at = await arenaAt();
+      throws.push(`${Math.round(at.x)},${Math.round(at.y)}${at.live ? '' : '(fallback)'}`);
+      await page.mouse.move(at.x + dx, at.y - 60);
+      await page.keyboard.down('Space');
+      await delay(220);
+      await page.keyboard.up('Space');
+      await delay(500);
+    }
+
+    // Then wait, without moving. `Burning` needs contact, not a throw.
+    await burst('lava-burning', 6, 700);
+    await delay(2000);
+
+    // **Read this segment absolutely, not as a delta against the cumulative
+    // set.** The `+N new` log is the wrong instrument here and said so on the
+    // first attempt: `Burning` had already been added by the Flamethrower
+    // pairing above, so this segment reported `+0` whether lava asserted the
+    // loop or not. A name that fires twice is invisible to a set difference.
+    //
+    // The history was cleared before the throws, so what follows is this
+    // segment's own sounds and nothing else.
+    const segment = new Set(await names());
+    await collect();
+    console.log(
+      `[look] isolated Lava Ball: ${fired.size} names so far` +
+        ` | this segment alone: Ball=${segment.has('Ball')}` +
+        ` Burning=${segment.has('Burning')} (${segment.size} names)` +
+        ` | tank at ${throws.join(' ')}`,
+    );
   }
 
   /**

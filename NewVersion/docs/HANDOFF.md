@@ -4,8 +4,8 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T79**, commit `1ec09b5`, 7 August 2026. Keep it current — it is
-part of the deliverable, like the audit.
+Current as of **T80**, 8 August 2026. Keep it current — it is part of the
+deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
 commit it was written **about** rather than **on**; `T60`/`b2d2193` was correct
@@ -49,9 +49,22 @@ entry point)`, both deliberately out of scope. Measured by driving, because a
 screen that opens empty and a screen that is not ported are indistinguishable to
 a presence check.
 
-<!-- docs-check: sound-coverage = 47-48 of 67 -->
-**Sound: 47–48 of 67 names fire** (T71, driven `--sound-sweep`). Two consecutive
-runs gave 48 and 47, `TankDamaged` being the swing — a **±1 band**, as at T69.
+<!-- docs-check: sound-coverage = 50-51 of 67 -->
+**Sound: 50–51 of 67 names fire** (T80, driven `--sound-sweep`). Three
+consecutive runs **on the final T80 harness** gave 50, 50 and 51 — the same ±1
+band, with `ReflectBullet`, `TankDamaged` and `TankEnemyCollision` as the swing.
+Earlier runs in the same pass reported 48 and 49 and are **not** part of that
+band: the harness itself was still changing under them, so they measure a
+different instrument. **16 names were silent in all three runs**, and that
+stable list is the one worth acting on — not the total.
+
+**47–48 → 49–51 is two different gains again, and the total cannot tell them
+apart** — which is why T80 made the sweep log **which** names are new at each
+step. `Burning` and `FlameThrower` were genuinely unwired and are now wired
+(T80); they were *also* unreachable, because `Flamethrower` and `Lava Ball` were
+missing from the sweep's own equip lists. Either fix alone would have left both
+names on the silent list, and the headline count would have read as "still
+unwired" for a wiring change that had landed.
 
 **41–42 → 48 is not a coverage improvement of the same thing.** T69's figure was
 the first taken on a trustworthy harness; T71 then *extended the harness* to
@@ -297,9 +310,15 @@ be checked against a second mode on the same build before it is believed.
 
 | Item | Needs |
 |---|---|
-| **Sound: 14 silent — 10 need no code, 4 are blocked** | `--sound-sweep` reports **47–48 of 67** (T71; two runs gave 48 and 47, `TankDamaged` the swing). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
+| **Sound: 16 silent in the sweep — 14 need no code, 1 is blocked, 1 is permanent** | `--sound-sweep` reports **50–51 of 67** (T80; three runs on the final harness gave 50, 50, 51, with `ReflectBullet`/`TankDamaged`/`TankEnemyCollision` swinging). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
 
-### The 19 silent sounds, individually
+### The 16 silent sounds, individually
+
+**Silent in *all three* T80 runs, which is not the same as silent.**
+`ReflectBullet`, `TankDamaged` and `TankEnemyCollision` each fired in some runs
+and not others; they are reach noise, not gaps, and are listed below with that
+said. Only `BossCollision` (blocked) and `ImpactCrazyCheese` (permanent orphan)
+are silent for a reason other than "this scenario does not go there".
 
 **Evidence grade is stated per row, per rule 8.** *Measured* means the sweep or a
 scan settled it. *Inferred* means the emit site is cited and confirmed present,
@@ -311,7 +330,9 @@ port has (`queue`, `startLoop`, `stopLoop`, `setMusic`, `keepLoopAlive`), not by
 a name grep — the variable-passed music names are exactly what a name grep gets
 wrong, and did.
 
-**Wired — nothing owed. The sweep does not reach the scenario (10):**
+**Wired — nothing owed. The sweep does not reach the scenario (14, counting the
+five struck-through rows in the table below, which are wired *and* measured
+firing by a different driven mode):**
 
 | Sound | Emit site | Grade |
 |---|---|---|
@@ -319,14 +340,15 @@ wrong, and did.
 | `FlagPickup` | `GameplayScene.ts:3965` | inferred — needs the tank to reach a flag |
 | `InterfaceButtonMoney` | `UpgradesScene.ts:243` | **drive attempted and reported failing** — the Buy click did not land; not driven |
 | `Menu` | `MainMenuScene.ts:83` | **measured cause**: gated on a Phaser `POINTER_DOWN` on the canvas (`:79-84`), and the DOM menu overlay intercepts every harness click. Not reachable by this harness without a canvas point clear of the buttons |
-| `ReflectBullet` | `GameplayScene.ts:3906` | inferred — fired in one T69 run, so reach varies |
+| `ReflectBullet` | `GameplayScene.ts:3906` | **measured, intermittently** — fired in two of the three T80 runs and in one T69 run. A swing name: reach varies, the wiring does not |
 | `SpecialReloaded` | `GameplayScene.ts:3444` | inferred — needs a longer window than the sweep gives |
 | `TankShieldCollision` | `GameplayScene.ts:3655` | inferred — needs the shield up at the moment of a hit |
 | `TeleportIn` | `GameplayScene`, T71 | inferred, but its sibling `TeleportOut` **is measured firing through the identical code path** |
 | `WeaponChange` | `GameplayScene.ts:4181` | inferred — needs two owned primaries; `?primary=` equips one |
 | `Win` | `GameplayScene.ts:4022` via `outcomeMusic` | inferred, but `Lose` **is measured firing through the identical function** |
 
-**Blocked — no production emit, and something has to land first (9):**
+**Blocked — no production emit, and something has to land first. Nine rows, and
+after T80 only two are still live:**
 
 | Sound | AS3 site | Blocked on |
 |---|---|---|
@@ -335,9 +357,9 @@ wrong, and did.
 | ~~`Award2`~~ | `ScreenStatus.as:1157` | **fired (T74)** — driven at `2★@334ms` |
 | ~~`Award3`~~ | `ScreenStatus.as:1163` | **fired (T74)** — driven at `3★@652ms` |
 | ~~`Unlock`~~ | `ScreenLevelSelect.as:768`, `:1475` | **fired (T76)** — driven, one per latch |
-| `BossCollision` | `PartGameArea.as:5197` | **enemy-to-enemy collision** — the mass exchange at `:5199-5200` has no port equivalent |
-| `Burning` | loop channel | **nothing in `GameplayScene` starts or stops a loop** — a whole emit path with no caller |
-| `FlameThrower` | loop channel | same |
+| `BossCollision` | `PartGameArea.as:5197` | **enemy-to-enemy collision** — the pair loop at `:5174-5221` has no port equivalent. **Re-filed T80** as `Port enemy-enemy separation` in `BACKLOG.md`, and deliberately **not** as a sound task: enemies interpenetrate on all 405 levels, which is the fidelity gap worth fixing; the sound falls out of it. Not in the active queue |
+| ~~`Burning`~~ | `:6006` (flame), `:6261` (lava) | **fired (T80)** — measured from **both** sources, separately: the flame source on a `Flamethrower`+`Magic Bunny` level (no lava present), the lava source on an isolated `Lava Ball`+`Cannon` level (no flame equipped). Each is the only possible source on its level, so neither reading can be the other one |
+| ~~`FlameThrower`~~ | `:3788` | **fired (T80)** — asserted on the flame-spawn path, so it re-fires every firing frame. It was *also* unreachable until T80 put `Flamethrower` in the sweep's equip list |
 | `ImpactCrazyCheese` | **none** | permanent orphan — no AS3 trigger under any spelling; the audit's argument is exhaustive. **Never wire this.** |
 
 **`Award1-3` closed in T74 and were never on the visible-values model** — the
