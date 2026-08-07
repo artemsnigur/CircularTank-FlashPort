@@ -942,14 +942,28 @@ transcript is not findable, which is the same failure as a count without a list.
       `[Embed]` MP3 wrapper classes and moves only with L5. It is **not** the
       sweep's trigger-firing count, which moves only with L3 — see the box at
       L3. Two unrelated numbers, one word.
-- [ ] **L6 — `ScreenGame`/`PartGameArea` status and justification are coupled,
-      and the justification self-contradicts.** Both prose blocks are generated
-      (`gen-progress.mjs:443-456`), and `ScreenGame`'s says *"Still untouched:
-      the game loop, wave spawning"* while `PartGameArea`'s lists
-      `waves/waveState.ts` as ported two bullets below. The audit records both
-      classes as running the frame loop. **Needs one generator pass, not a hand
-      edit** — editing PROGRESS.md alone is reverted by the next regeneration and
-      fails `progress:check` in the gate. *Lift: small.*
+- [x] **L6 — done (T81).** Filed as a self-contradiction between the two
+      generated prose blocks. It read as one; the fault underneath was
+      **misattribution**, and fixing it as a contradiction would have invited
+      deleting the correct half.
+
+      Wave spawning was never `ScreenGame`'s. Measured: **6** case-insensitive
+      `spawn` hits in `ScreenGame.as`, *all four identifiers statics*
+      (`bossAmountSpawned`, `bossAmountSpawnedFull`, `multiplierSpawnRateHard`,
+      `multiplierSpawnRateMedium`), against **109** in `PartGameArea.as`. The
+      block credited `ScreenGame` with the subsystem next door, which
+      `PartGameArea`'s list two bullets below correctly records as substantially
+      ported.
+
+      **The static count was inverted too**, and only surfaced because the fix
+      required naming what actually remains: of `ScreenGame`'s **131**
+      `public static var`s, **107 are extracted** (80 enemy stat/strength/weakness
+      tables + 27 per-world arrays) and **24** remain — live run state, not the
+      *"~90 remaining"* the block claimed. A number nobody had recomputed since
+      the tables landed.
+
+      Fixed at `gen-progress.mjs:453-467` and regenerated; `PartGameArea`'s prose
+      untouched. `progress:check` green.
 - [ ] **L7 — ~20 absorbed classes stay uncounted under the current mapping
       rule.** `ScreenMenu`, `PartInterface`, `ImageEnemy`, `ButtonEquipSlot`,
       `ButtonSecondary`, `ButtonWeapon` and about fourteen others have their
@@ -1043,7 +1057,7 @@ Small, and none of it blocks anything else:
 | ~~**Achievement toasts cover the results panel**~~ | **Fixed T79.** The description was wrong twice: they *were* offset from one another, and the count was not the mechanism — two **centred** overlays were. AS3-derived after all: one toast at a time from a queue (`PartAchievements.as:265`, `:116-117`), top right (`:125-126`). Unblocked the `Achievement` sound (`:120`) | done |
 | ~~**L4**~~ | ~~`npm run look` leaves its vite server alive~~ — **fixed T64** | done |
 | **L5** | 517 stub statuses hand-set where `gen-progress.mjs:256` could derive them | small work, large metric consequence |
-| **L6** | `ScreenGame`/`PartGameArea` generated prose self-contradicts and is coupled to their status | small, generator pass |
+| ~~**L6**~~ | ~~`ScreenGame`/`PartGameArea` generated prose self-contradicts~~ — **done T81.** Not a contradiction but a **misattribution**: `ScreenGame` was credited with `PartGameArea`'s wave spawning (6 static hits vs 109). Fixing it exposed a second inverted number — 107 of 131 statics extracted, not "~90 remaining" | done |
 | **L7** | ~20 absorbed classes uncounted under the "named port citation" rule | a decision, not work |
 | **F4** | `secondaries.ts`'s header still says "Scope: Mine only" | trivial |
 

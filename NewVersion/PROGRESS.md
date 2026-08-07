@@ -848,8 +848,23 @@ below — everything else hangs off those.
       `enemies/enemyStats.ts` applying the difficulty and tier multipliers
       (the port of `PartGameArea.spawnEnemy`'s stat block)
     - the weapon loadout in `loadout/loadout.ts` with its 3 save fields
-  Still untouched: the game loop, wave spawning, and the ~90 remaining
-  statics that drive them.
+  Still untouched: the screen itself — routing, the display list, and the
+  level-running loop it owns.
+
+  **Not wave spawning, which is `PartGameArea`'s** — `ScreenGame` holds four
+  spawn-related *statics* (`bossAmountSpawned`, `bossAmountSpawnedFull`,
+  `multiplierSpawnRateHard/Medium`) and no spawning logic: 6 case-insensitive
+  `spawn` hits against `PartGameArea`'s 109. This block credited it with the
+  subsystem next door, and read as a contradiction against `PartGameArea`'s
+  own list below, which records that subsystem as substantially ported.
+
+  The static count ran the same way round. Of its **131** `public static var`s,
+  **107 are extracted** — the 40 `enemy*Stats`/`*BStats` tables above *plus*
+  their 40 `*Strengths`/`*Weaknesses` companions, and 27 per-world
+  `levelDataModelW*`/`enemyModelW*`/`flagModelW*` arrays. The **24**
+  left are live run state (`hp`, `money`, `level`, `world`, `currentEnemies`,
+  `enemiesLeft`, `flagsLeft`, the four `reloadTime*`, the weapon slots), not
+  the "~90 remaining" this block used to claim.
 
 - `PartGameArea` — **not started**, and mostly not separable. Ported so far:
     - `enemies/enemySpawn.ts` — the geometry tail of `spawnEnemy`
