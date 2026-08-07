@@ -49,7 +49,8 @@ entry point)`, both deliberately out of scope. Measured by driving, because a
 screen that opens empty and a screen that is not ported are indistinguishable to
 a presence check.
 
-**Sound: 48 of 67 names fire** (T71, driven `--sound-sweep`).
+**Sound: 47–48 of 67 names fire** (T71, driven `--sound-sweep`). Two consecutive
+runs gave 48 and 47, `TankDamaged` being the swing — a **±1 band**, as at T69.
 
 **41–42 → 48 is not a coverage improvement of the same thing.** T69's figure was
 the first taken on a trustworthy harness; T71 then *extended the harness* to
@@ -73,7 +74,7 @@ defects present in the harness, so none of them can be compared with another:
 | 25 of 67 | `b2d2193` (T60) | the tutorial gate left the arena empty (`L3`) |
 | 27 of 67 | T65 | `L3` fixed; the sweep still aimed at a screen constant (`L8`) |
 | 41–42 of 67 | T69 | both closed; impacts confirmed landing — Normal mode only |
-| **48 of 67** | **T71** | **+ four modes driven, + `Freeze` and `TeleportOut` wired** |
+| **47–48 of 67** | **T71** | **+ four modes driven, + `Freeze` and `TeleportOut` wired** |
 
 **41–42 does not confirm or replace 39**, and 39 → 25 was never a regression.
 They are the same quantity measured through two broken instruments and one
@@ -275,11 +276,52 @@ be checked against a second mode on the same build before it is believed.
 | Item | Needs |
 |---|---|
 | **A real reload readout** | The HUD shows a placeholder magazine count (`GameplayScene.PLACEHOLDER_AMMO`), not the AS3's two reload bars (`PartInterface.as:746-780`). Whoever builds one also owns `:750-752`, which forces the **primary** bar empty for the whole opening countdown — and only the primary; the secondary's is untouched, which is the original's own asymmetry. The rule is deliberately **not** ported ahead of a consumer; reasoning at the foot of `waves/countdownPanel.ts` and at `PLACEHOLDER_AMMO`. |
-| **Sound: 19 silent, and 13 of them need no code** | **48 of 67 fire** (T71, driven). Of the 19 left, **10 are wired and reach-only** — `FlagPickup`, `InterfaceButtonMoney` (`UpgradesScene.ts:243`), `Menu` (`MainMenuScene.ts:83`), `Win` (`GameplayScene.ts:4022`), `SpecialReloaded` (`:3444`), `TankShieldCollision` (`:3655`), `WeaponChange` (`:4181`), `ReflectBullet` (`:3906`), plus `TeleportIn` and `BottomCollision` wired in T71 whose scenario the sweep does not reach. **No code change owed for any of those.** The rest are blocked — see below. |
-| **`BossCollision` — blocked on enemy-to-enemy collision** | `PartGameArea.as:5197` fires when a boss shoves another enemy, and the mass exchange it sits in (`enemy1Mass`/`enemy2Mass`, `:5199-5200`) **has no port equivalent**. Previously filed as mode reach, which was wrong: driving a Boss level cannot produce it. Blocked on a subsystem, not a scenario. |
-| **`Achievement`, `Award1-3`, `Unlock` — blocked on the reveal moments** | `PartAchievements.as:120`, `ScreenStatus.as:1151/1157/1163`, `ScreenLevelSelect.as:768`/`:1475`. The medal and unlock reveals are the animation half of the **visible-values model**, which is `G`/`I2`'s one remaining shared item. Five names close together when that lands. |
-| **`Burning`, `FlameThrower` — the loop channel is never driven** | Both assets preload and `SoundManager.keepLoopAlive` exists, but **nothing in `GameplayScene` starts or stops a loop** — a grep for either name in the scene returns nothing. Distinct from the one-shots above: it is a whole emit path with no caller, not a missing trigger. |
+| **Sound: 19 silent — 10 need no code, 9 are blocked** | **47–48 of 67 fire** (T71, driven; two runs gave 48 and 47, `TankDamaged` being the swing). Full list and evidence grade below. |
 | **`L1`** | `assets:sync` never prunes. Re-verified at `b2d2193`: a count of `unlink\|rm(\|rmSync` over `scripts/sync-assets.mjs` returns 0. |
+
+### The 19 silent sounds, individually
+
+**Evidence grade is stated per row, per rule 8.** *Measured* means the sweep or a
+scan settled it. *Inferred* means the emit site is cited and confirmed present,
+but the scenario that reaches it has **not** been driven — a weaker claim, and
+the one that has been wrong before.
+
+The "no emit" rows are measured by an exhaustive scan over every emit form this
+port has (`queue`, `startLoop`, `stopLoop`, `setMusic`, `keepLoopAlive`), not by
+a name grep — the variable-passed music names are exactly what a name grep gets
+wrong, and did.
+
+**Wired — nothing owed. The sweep does not reach the scenario (10):**
+
+| Sound | Emit site | Grade |
+|---|---|---|
+| `BottomCollision` | `GameplayScene.removeEnemy`, T71 | inferred — needs an enemy to cross the Defense line |
+| `FlagPickup` | `GameplayScene.ts:3965` | inferred — needs the tank to reach a flag |
+| `InterfaceButtonMoney` | `UpgradesScene.ts:243` | **drive attempted and reported failing** — the Buy click did not land; not driven |
+| `Menu` | `MainMenuScene.ts:83` | **measured cause**: gated on a Phaser `POINTER_DOWN` on the canvas (`:79-84`), and the DOM menu overlay intercepts every harness click. Not reachable by this harness without a canvas point clear of the buttons |
+| `ReflectBullet` | `GameplayScene.ts:3906` | inferred — fired in one T69 run, so reach varies |
+| `SpecialReloaded` | `GameplayScene.ts:3444` | inferred — needs a longer window than the sweep gives |
+| `TankShieldCollision` | `GameplayScene.ts:3655` | inferred — needs the shield up at the moment of a hit |
+| `TeleportIn` | `GameplayScene`, T71 | inferred, but its sibling `TeleportOut` **is measured firing through the identical code path** |
+| `WeaponChange` | `GameplayScene.ts:4181` | inferred — needs two owned primaries; `?primary=` equips one |
+| `Win` | `GameplayScene.ts:4022` via `outcomeMusic` | inferred, but `Lose` **is measured firing through the identical function** |
+
+**Blocked — no production emit, and something has to land first (9):**
+
+| Sound | AS3 site | Blocked on |
+|---|---|---|
+| `Achievement` | `PartAchievements.as:120` | the in-game achievement toast queue — evaluation runs only at level end |
+| `Award1` | `ScreenStatus.as:1151` | the medal reveal — **visible-values model** |
+| `Award2` | `ScreenStatus.as:1157` | same |
+| `Award3` | `ScreenStatus.as:1163` | same |
+| `Unlock` | `ScreenLevelSelect.as:768` (world), `:1475` (level) | the unlock reveal — **visible-values model** |
+| `BossCollision` | `PartGameArea.as:5197` | **enemy-to-enemy collision** — the mass exchange at `:5199-5200` has no port equivalent |
+| `Burning` | loop channel | **nothing in `GameplayScene` starts or stops a loop** — a whole emit path with no caller |
+| `FlameThrower` | loop channel | same |
+| `ImpactCrazyCheese` | **none** | permanent orphan — no AS3 trigger under any spelling; the audit's argument is exhaustive. **Never wire this.** |
+
+**Five of the nine close together** when the visible-values model lands:
+`Award1-3` and `Unlock` directly, and `Achievement` is adjacent to it.
 
 ### Closed since the previous stamp
 

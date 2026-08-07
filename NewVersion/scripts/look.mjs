@@ -973,8 +973,30 @@ if (args.soundSweep) {
   const afterLoss = fired.size;
   console.log(`[look] defeat: ${afterLoss} names`);
 
-  await page.getByRole('button', { name: /menu/i }).first().click({ force: true }).catch(() => {});
-  await delay(2500);
+  // The results overlay's own exit, not the HUD's — `/menu/i` matches both and
+  // `.first()` took whichever the DOM happened to order first. `.last()` is the
+  // overlay's, which is the one that is actually clickable over it.
+  //
+  // **Failures are reported, not swallowed.** The earlier version had
+  // `.catch(() => {})`, which turned a missed click into "+0 names" and looked
+  // exactly like a sound that does not fire.
+  const menuButtons = page.getByRole('button', { name: /^menu$/i });
+  const menuCount = await menuButtons.count();
+  if (menuCount === 0) console.log('[look] warning: no Menu button after the defeat');
+  else {
+    await menuButtons.last().click();
+    await delay(1500);
+    // **`Menu` music needs a Phaser pointer event, not a DOM one.**
+    // `MainMenuScene.ts:79-84` hangs `setMusic('Menu')` off a one-shot
+    // `POINTER_DOWN` on the canvas — the gesture that unlocks the AudioContext.
+    // Every click the harness makes is on a React button, which never reaches
+    // Phaser's input, so the track was unreachable however many times the
+    // sweep returned to the menu.
+    // Far right, clear of the menu column — the overlay's buttons intercept a
+    // centre click and Playwright reports it rather than silently missing.
+    await page.mouse.click(1250, 400);
+    await delay(2500);
+  }
   await collect();
   console.log(`[look] back to menu: ${fired.size} names (+${fired.size - afterLoss})`);
 
@@ -985,17 +1007,43 @@ if (args.soundSweep) {
    * The dev money top-up makes an affordable row certain.
    */
   const beforeShop = fired.size;
-  await page.getByRole('button', { name: /upgrades/i }).first().click().catch(() => {});
-  await delay(1200);
-  const topUp = page.getByRole('button', { name: /top.?up|\+.*coins/i }).first();
-  if ((await topUp.count()) > 0) {
-    await topUp.click();
-    await delay(400);
-  }
-  const buy = page.getByRole('button', { name: /buy|upgrade/i }).first();
-  if ((await buy.count()) > 0) {
-    await buy.click();
-    await delay(800);
+  const upgrades = page.getByRole('button', { name: /^upgrades$/i });
+  if ((await upgrades.count()) === 0) console.log('[look] warning: no Upgrades button on the menu');
+  else {
+    await upgrades.first().click();
+    await delay(1200);
+
+    // The dev grant — `UpgradesScreen.tsx:186-194`, labelled "Dev: +N coins".
+    // Clicked several times: one grant does not necessarily cover the cheapest
+    // row, and the first attempt failed on a *disabled* Buy button, which
+    // Playwright reports rather than silently skipping.
+    const grant = page.getByRole('button', { name: /^Dev: \+.* coins$/i });
+    if ((await grant.count()) === 0) console.log('[look] warning: no dev grant button');
+    else {
+      for (let i = 0; i < 4; i += 1) {
+        await grant.first().click();
+        await delay(200);
+      }
+    }
+
+    // `aria-label` is `Buy|Upgrade <name> for <cost> coins`
+    // (`UpgradesScreen.tsx:120`), so match that rather than the visible verb.
+    // **Enabled only** — a disabled row means the grant was not enough, which
+    // is a harness problem and must not read as a silent sound.
+    const buy = page.getByRole('button', { name: /^(Buy|Upgrade) .* for \d+ coins$/i });
+    const enabled = [];
+    for (const b of await buy.all()) if (await b.isEnabled()) enabled.push(b);
+    if (enabled.length === 0) console.log('[look] warning: every shop row is unaffordable');
+    else {
+      // Reported, never swallowed: a failed click is a harness problem and must
+      // not be indistinguishable from a sound that does not fire.
+      try {
+        await enabled[0].click({ timeout: 5000 });
+        await delay(900);
+      } catch {
+        console.log('[look] warning: the Buy click did not land — InterfaceButtonMoney not driven');
+      }
+    }
   }
   await collect();
   console.log(`[look] shop: ${fired.size} names (+${fired.size - beforeShop})`);

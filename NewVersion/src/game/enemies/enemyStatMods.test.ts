@@ -435,25 +435,37 @@ describe('immunity', () => {
     expect(scene).not.toMatch(/enemy\.health\s*=[^=]/);
   });
 
-  it('death by decay goes through the shared removal path', () => {
-    // **A source-shape check. It proves the call is written with the right
-    // arguments; it cannot prove the branch is reached.** Flagged inline per
-    // the rule in CLAUDE.md, because the distinction is the whole reason this
-    // repository distrusts this technique.
-    //
-    // The claim: `DamageAddict` bleeds itself to death inside `update`, and the
-    // scene resolves that through the same `removeEnemy(enemy, true)` every
-    // other death uses — so kill count, money drop and wave accounting cannot
-    // tell it apart.
-    //
-    // **The proximity window was removed in T71 after it broke a fourth time
-    // on a correct change** — twenty lines of teleport-sound wiring landed
-    // between `enemy.update(` and the call, and the regex measured the gap in
-    // characters. It has never caught a defect and has now cost four passes,
-    // which is the pattern the audit records under *source-shape assertions*.
-    // What survives is the part that carries meaning: the health test and the
-    // `true`, which is what distinguishes a decay death from a contact one.
+  /**
+   * **A source-shape check. It proves the removal is written this way; it
+   * cannot prove any branch is reached.** Flagged inline per CLAUDE.md.
+   *
+   * ── What this replaced, and why ───────────────────────────────────────────
+   * This was `/enemy\.update\([\s\S]{0,400}?removeEnemy\(enemy, true\)/` — a
+   * proximity window measuring the gap between two calls **in characters**. It
+   * broke four times on correct changes (T35 `shieldWiring`, T36 `killTally`,
+   * T41 `equipWiring`, and T71 when twenty lines of teleport-sound wiring
+   * landed between the two), and caught **zero** defects, because the distance
+   * between two calls is not the property anyone cares about.
+   *
+   * ── The property it was actually protecting ──────────────────────────────
+   * That `DamageAddict`'s self-inflicted death is not resolved by a bespoke
+   * path — kill count, money drop, death blast and wave accounting all hang off
+   * `removeEnemy`, so a second removal site would silently skip all four.
+   *
+   * That is assertable directly: **`removeEnemy` is the only thing that removes
+   * an enemy.** Asserted by counting the two operations that actually do the
+   * removing, which does not drift when unrelated code is added between calls.
+   */
+  it('removeEnemy is the only path that removes an enemy', () => {
     const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
+
+    // Exactly one splice and one destroy, both inside `removeEnemy`. A second
+    // of either is a removal that skips the kill count and the money drop.
+    expect(scene.match(/this\.enemies\.splice\(/g) ?? []).toHaveLength(1);
+    expect(scene.match(/enemy\.destroy\(\)/g) ?? []).toHaveLength(1);
+
+    // And the decay death routes through it with `true`, which is what
+    // separates a kill from a contact suicide.
     expect(scene).toContain('if (enemy.health <= 0) this.removeEnemy(enemy, true);');
   });
 });
