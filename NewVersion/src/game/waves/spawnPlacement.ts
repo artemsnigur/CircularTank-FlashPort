@@ -7,11 +7,26 @@
  *   1. **Off-camera placement.** When the room is bigger than the camera, try
  *      up to 25 random points and take the first that is *not* inside the
  *      centre band the camera can see — so enemies appear from off-screen
- *      rather than popping into view. Skipped during the opening countdown, in
- *      Defense mode, when the room is exactly camera-sized, and for bosses.
+ *      rather than popping into view. Runs **only while the opening countdown
+ *      is still going**, and never in Defense mode, when the room is exactly
+ *      camera-sized, or for a boss.
  *   2. **Edge placement.** The fallback, and the only option in the cases
- *      above. Picks a wall and a point along it. Defense always uses the top
- *      wall; Tower mode restricts each wall to a quarter-length window.
+ *      above — including **every spawn after the countdown ends**. Picks a wall
+ *      and a point along it. Defense always uses the top wall; Tower mode
+ *      restricts each wall to a quarter-length window.
+ *
+ * ── Read `countDownDone` carefully; this comment used to be backwards ─────
+ * `:7245` guards the search with `if(!(countDownDone || …))`, so the search
+ * runs while `countDownDone` is **false** — that is, *during* the countdown —
+ * and stops for good once it flips true. The negation is easy to drop, and
+ * this docstring, `PlacementContext.countDownDone` below and a test name all
+ * asserted the exact opposite for several passes while the **code was right**
+ * throughout. `waveState.ts`'s `countDownDone` docstring had it correct, so the
+ * two files contradicted each other.
+ *
+ * Recorded in `docs/AUDIT-2026-07.md` under *In-code prose*. Corrected in T66,
+ * before the countdown was wired — building from the old wording would have
+ * inverted the feature while leaving every test green.
  *
  * The AS3 checks `wall == 4 || wall == 5`, but wall is `floor(random() * 4) + 1`
  * so 5 is unreachable. Left out rather than reproduced as dead code.
@@ -58,7 +73,13 @@ export interface PlacementContext {
   cameraHeight: number;
   /** Bosses always use edge placement. */
   isBoss?: boolean;
-  /** During the countdown, enemies come from the edges. */
+  /**
+   * `PartGameArea.countDownDone` — false while the opening countdown runs.
+   *
+   * **True disables the off-camera search**, so enemies come from the edges for
+   * the rest of the level (`:7245`, `:7268`). Defaults false, which is the
+   * *pre-countdown* state.
+   */
   countDownDone?: boolean;
   random?: () => number;
 }

@@ -130,7 +130,10 @@ describe('placeWarning', () => {
     expect(placement.offCamera).toBe(false);
   });
 
-  it('skips the search during the countdown', () => {
+  // Renamed in T66, assertion untouched. It said "during the countdown" while
+  // passing `countDownDone: true`, which is *after* it — the same inversion the
+  // module docstring carried. The behaviour asserted was always correct.
+  it('stops searching once the countdown has finished', () => {
     const placement = placeWarning({ ...BIG_ROOM, countDownDone: true, random: () => 0.01 });
     expect(placement.offCamera).toBe(false);
   });
