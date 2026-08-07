@@ -310,6 +310,7 @@ be checked against a second mode on the same build before it is believed.
 
 | Item | Needs |
 |---|---|
+| **`L5` + `L7(b)` — what `PROGRESS.md`'s percentage counts. OPEN AND UNDECIDED; the user is bringing a decision in a separate session.** | **One decision, two items, and they must move together** — `L5` shrinks the denominator, `L7(b)` grows the numerator, so landing either alone publishes a figure that is misleading in a knowable direction. **`L5`:** 517 files carry `[Embed(`, but only **471** are stubs (361 at 15 lines, 110 at 13); the other **46** are real classes up to 547 lines with 17 functions (`ButtonGameSave.as`), so a bare `[Embed(` test would exclude them from the metric permanently. The recorded consequence *"~557 → ~353"* **does not reconcile** with 517 or 471 and should not be relied on: measured, the corrected rule takes 556 → **~85**, i.e. 6.8% → **~39%**. The open question is what the number is *for*. **`L7(b)`:** whether a port module that never names its AS3 class should still count. Neither is code work; **do not guess either** |
 | **Sound: 16 silent in the sweep — 14 need no code, 1 is blocked, 1 is permanent** | `--sound-sweep` reports **50–51 of 67** (T80; three runs on the final harness gave 50, 50, 51, with `ReflectBullet`/`TankDamaged`/`TankEnemyCollision` swinging). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
 
 ### The 16 silent sounds, individually
@@ -399,6 +400,20 @@ things that are actually open.
   exists to correct. **A comment that teaches a corrected error is worse than no
   comment**, and it survived because the correction was written in a new file
   instead of at the old claim.
+- **`L6` — the generated `ScreenGame` prose** — done (T81). Filed as a
+  self-contradiction; the fault was **misattribution**. Wave spawning was never
+  `ScreenGame`'s (6 case-insensitive `spawn` hits, all four identifiers statics,
+  against `PartGameArea`'s 109), and fixing it exposed a second inverted number:
+  **107 of its 131 statics are extracted, 24 remain**, not the "~90 remaining"
+  the block claimed. Fixed at `gen-progress.mjs`, since a hand edit to
+  `PROGRESS.md` is reverted by regeneration and fails the gate.
+- **`L7(a)` — 11 mis-recorded class statuses** — done (T81). **5 flipped, 6 left
+  standing with reasons.** The reusable part: **a `Port target:` header declares
+  intent, not completion.** Four of the six were cited only that way, and
+  `LoadingScreen.tsx:5` says plainly it names the boot stage *"rather than
+  showing an anonymous spinner"* — so `LoadingRing`/`Ball`/`Glow` are
+  deliberately unported, and flipping them would have been false. `L7(b)`
+  remains open — see the queue.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four

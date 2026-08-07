@@ -5,10 +5,10 @@
 
 Tracking the rewrite of 643 decompiled ActionScript 3 classes (`SWFimported/scripts`) into TypeScript/Phaser.
 
-**33 / 556** game classes started · **13** verified · 6 marked not applicable · 81 third-party classes excluded.
+**38 / 556** game classes started · **17** verified · 6 marked not applicable · 81 third-party classes excluded.
 
 ```
-█░░░░░░░░░░░░░░░░░░░░░░░  5.9%
+██░░░░░░░░░░░░░░░░░░░░░░  6.8%
 ```
 
 ## How to use this file
@@ -39,7 +39,7 @@ below — everything else hangs off those.
 
 - [Third-party libraries — do not port](#third-party-libraries--do-not-port) — 0/81
 - [Core systems](#core-systems) — 5/6
-- [Screens and screen parts](#screens-and-screen-parts) — 8/49
+- [Screens and screen parts](#screens-and-screen-parts) — 10/49
 - [Player tank](#player-tank) — 1/6
 - [Enemies](#enemies) — 8/52
 - [Projectiles, weapons and objects](#projectiles-weapons-and-objects) — 10/33
@@ -48,7 +48,7 @@ below — everything else hangs off those.
 - [Particles and effects](#particles-and-effects) — 0/7
 - [Sound and music triggers](#sound-and-music-triggers) — 0/115
 - [Background props and terrain](#background-props-and-terrain) — 0/27
-- [UI widgets](#ui-widgets) — 1/196
+- [UI widgets](#ui-widgets) — 4/196
 - [Uncategorised](#uncategorised) — 0/2
 
 ## Third-party libraries — do not port
@@ -161,9 +161,9 @@ below — everything else hangs off those.
 
 > Map onto Phaser scenes plus React screens. See docs/TEXT_RENDERING.md for the split.
 
-`████░░░░░░░░░░░░░░░░░░░░` 8/49
+`█████░░░░░░░░░░░░░░░░░░░` 10/49
 
-- [ ] `PartAchievements` — not started
+- [x] `PartAchievements` — tested · wired
 - [ ] `PartGameArea` — not started
 - [ ] `ParticleBlack` — not started
 - [ ] `ParticleBlue` — not started
@@ -198,7 +198,7 @@ below — everything else hangs off those.
 - [ ] `ParticleYellow` — not started
 - [ ] `ParticleYellow2` — not started
 - [ ] `PartInfoText` — not started
-- [ ] `PartInterface` — not started
+- [x] `PartInterface` — tested · wired
 - [ ] `PartTutorial` — ported · wired
 - [ ] `ScreenAchievements` — ported · wired
 - [ ] `ScreenEnemies` — ported · wired
@@ -564,7 +564,7 @@ below — everything else hangs off those.
 
 > Most of these become React components rather than Phaser display objects.
 
-`░░░░░░░░░░░░░░░░░░░░░░░░` 1/196 · 1 not applicable
+`░░░░░░░░░░░░░░░░░░░░░░░░` 4/196 · 1 not applicable
 
 - [ ] `ArrowToMenu` — not started
 - [ ] `BackgroundEnemyImage` — not started
@@ -634,11 +634,11 @@ below — everything else hangs off those.
 - [ ] `ButtonEnemyTiny` — not started
 - [ ] `ButtonEnemyTrap` — not started
 - [ ] `ButtonEquip` — not started
-- [ ] `ButtonEquipSlot` — not started
+- [x] `ButtonEquipSlot` — tested · wired
 - [ ] `ButtonEquipSlot1` — not started
 - [ ] `ButtonEquipSlot2` — not started
 - [ ] `ButtonGameDifficulty` — ported · wired
-- [ ] `ButtonGameSave` — not started
+- [x] `ButtonGameSave` — tested · wired
 - [ ] `ButtonGetNow` — not started
 - [ ] `ButtonGetNowMenu` — not started
 - [ ] `ButtonLevel` — not started
@@ -649,7 +649,7 @@ below — everything else hangs off those.
 - [ ] `ButtonLevelGuidePrevious` — not started
 - [ ] `ButtonLevelGuideSelect` — not started
 - [ ] `ButtonLevelGuideUpcoming` — not started
-- [ ] `ButtonLevelSelect` — not started
+- [ ] `ButtonLevelSelect` — ported · wired
 - [ ] `ButtonMenu` — not started
 - [ ] `ButtonMisc` — not started
 - [ ] `ButtonMiscBulletReflect` — not started

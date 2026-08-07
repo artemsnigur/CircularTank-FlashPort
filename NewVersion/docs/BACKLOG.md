@@ -964,13 +964,48 @@ transcript is not findable, which is the same failure as a count without a list.
 
       Fixed at `gen-progress.mjs:453-467` and regenerated; `PartGameArea`'s prose
       untouched. `progress:check` green.
-- [ ] **L7 — ~20 absorbed classes stay uncounted under the current mapping
-      rule.** `ScreenMenu`, `PartInterface`, `ImageEnemy`, `ButtonEquipSlot`,
-      `ButtonSecondary`, `ButtonWeapon` and about fourteen others have their
-      behaviour in a differently-named port module and no citation naming the
-      AS3 class, so T61's "named port citation" rule leaves them `not started`.
-      The rule was chosen to understate rather than overstate. *Relaxing it is a
-      future call and changes ~20 statuses at once; not this pass's.*
+- [x] **L7(a) — done (T81). The premise was wrong for a measurable share.** The
+      entry says these classes have *"no citation naming the AS3 class"*. Matching
+      `<Name>.as` across `src/` — T61's own rule — finds **30** distinct AS3
+      classes cited, **14** of them still `not started`; minus `PartGameArea`,
+      `ScreenGame` and `Main`, which are `not started` deliberately, that left
+      **11 candidates**. So this half was never a decision. It was stale data.
+
+      **Graded per class rather than flipped as a block, and 6 of the 11 did not
+      survive the grading:**
+
+      - **Flipped (5)** — a production module ports named behaviour *and* the
+        class's job is done in the running game: `PartAchievements`
+        (`toastQueue.ts:2`, `:262-274`/`:112-132`), `PartInterface` (12
+        production files, incl. `countdownPanel.ts`, `reloadBars.ts`),
+        `ButtonEquipSlot` (`loadout.ts:59`, `:114` — `onPressHandler`/
+        `onReleaseHandler`), `ButtonGameSave` (`slotSummary.ts:4`, `:215-266`),
+        `ButtonLevelSelect` (`ported`, not `tested` — the grid renders, but the
+        tests cover the unlock rule rather than the button).
+      - **Left `not started` (6), with the reason.** `BackgroundLevelSelect`,
+        `LoadingBall`, `LoadingGlow`, `LoadingRing` are cited only in a
+        **`Port target:` header, which declares intent, not completion** — and
+        `LoadingScreen.tsx:5` says outright that it names the boot stage *"rather
+        than showing an anonymous spinner"*, so the three spinner graphics are
+        deliberately not ported. `ButtonPlayLevel` and `ButtonUpgrades` are cited
+        in `onboarding/mainFlags.ts` as **`Main`'s hint-flag identifiers**; one
+        side-effect (`ButtonPlayLevel.as:76-78`) is reproduced, the buttons are
+        not.
+
+      **A `Port target:` line is not a port citation.** That is the reusable
+      distinction, and it is what stopped this being a flip of 11.
+
+      Effect: **33 → 38 of 556 started, 13 → 17 verified** (5.9% → 6.8%).
+
+- [ ] **L7(b) — the genuinely uncited remainder. STILL OPEN, and coupled to L5.**
+      `ScreenMenu`, `ImageEnemy`, `ButtonSecondary`, `ButtonWeapon` and the rest
+      have their behaviour in a differently-named port module with **no** citation
+      naming the AS3 class (method: `<Name>.as` and bare-name match over `src/`).
+      Relaxing the rule for them is a judgment call, not work.
+
+      **Decide it with L5, not before.** L5 shrinks the denominator (excluding
+      stubs) and L7(b) grows the numerator; landing either alone publishes an
+      intermediate percentage that is misleading in a knowable direction.
 
 ---
 
@@ -1058,7 +1093,7 @@ Small, and none of it blocks anything else:
 | ~~**L4**~~ | ~~`npm run look` leaves its vite server alive~~ — **fixed T64** | done |
 | **L5** | 517 stub statuses hand-set where `gen-progress.mjs:256` could derive them | small work, large metric consequence |
 | ~~**L6**~~ | ~~`ScreenGame`/`PartGameArea` generated prose self-contradicts~~ — **done T81.** Not a contradiction but a **misattribution**: `ScreenGame` was credited with `PartGameArea`'s wave spawning (6 static hits vs 109). Fixing it exposed a second inverted number — 107 of 131 statics extracted, not "~90 remaining" | done |
-| **L7** | ~20 absorbed classes uncounted under the "named port citation" rule | a decision, not work |
+| **L7(a)** ~~done~~ / **L7(b)** open | ~~**(a)** 11 candidates re-graded, 5 flipped, 6 left with reasons — **done T81**; a `Port target:` header is not a port citation~~. **(b)** the genuinely uncited remainder is still open | (a) done · **(b) decide with L5** |
 | **F4** | `secondaries.ts`'s header still says "Scope: Mine only" | trivial |
 
 **Read this next to `docs/HANDOFF.md` §5, not instead of it.** This document
