@@ -214,9 +214,18 @@ export class LevelSelectScene extends Phaser.Scene {
   /**
    * Runs the medal reveal — `ScreenLevelSelect.progressLevelButtons` (`:518`).
    *
-   * One medal per AS3 frame, re-publishing the rows each step so the count-up
-   * is visible, and firing `Unlock` (`:768`, `:1475`) on the step where a level
-   * crosses from no medals to some — the latch opening, not the count rising.
+   * One medal every **seven** AS3 frames — `REVEAL_STEP_FRAMES`, from the icon
+   * placements at `:1378` (`progressTimer` 1, 8, 15) and corroborated by
+   * `progressTimerMax = iconsToAdd * 7 - 7` at `:1371`. **Not one per frame**,
+   * which is what this comment used to say: `:532` sets `progressTimerOn` and
+   * nothing else, and reading that as the pace gives 33ms a medal — a
+   * three-medal reveal over in a tenth of a second, which is no animation at
+   * all. The pace is `REVEAL_STEP_MS` below, and `progressReveal.ts:38-43`
+   * carries the long form of why.
+   *
+   * Each step re-publishes the rows so the count-up is visible, and fires
+   * `Unlock` (`:768`, `:1475`) on the step where a level crosses from no medals
+   * to some — the latch opening, not the count rising.
    *
    * **Nothing here touches an unlock gate.** `publishLevels` reads the earned
    * table for `cleared`/`unlocked` throughout, so a player who never watches

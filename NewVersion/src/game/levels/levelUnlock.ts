@@ -16,10 +16,15 @@
  *
  * ── The table is a parameter, never fetched ───────────────────────────────
  * Nothing here reaches for `PlayerProfile`. That is deliberate and load-bearing:
- * the AS3 reads the *visible* table, not the earned one, and the port does not
- * have a visible table yet (see `ProgressView` below). Keeping the table an
- * argument means adding one later is a change at the call sites rather than a
- * rewrite here.
+ * there are **two** tables — earned (`playerProfile.ts:140`) and the
+ * session-only visible clone (`playerProfile.ts:164`, resynced at `:175`) — and
+ * which one a caller wants differs *within this module*. The gates read earned;
+ * the medal counts read visible. Keeping both an argument is what lets one
+ * function serve both without reaching for a global and guessing.
+ *
+ * That split is a deliberate divergence from the AS3, which reads visible for
+ * both (`ScreenLevelSelect.as:841`, `:1518`) — see `ProgressView` below and
+ * **A6** in `docs/AUDIT-2026-07.md`.
  *
  * ── One rule, two scales ──────────────────────────────────────────────────
  * Levels and worlds are the same sentence at different sizes:
@@ -41,18 +46,27 @@ import { LEVELS, levelsInWorld, WORLD_COUNT } from './levelData';
 import type { LevelMode } from './levelData';
 
 /**
- * The table an unlock rule reads.
+ * A progress table in the role of "what some rule reads".
  *
- * Today this is always the earned progress table. The AS3 reads
- * `worldsValuesVisibleArrays` instead (`ScreenLevelSelect.as:841`, `:1518`) — a
- * session-only clone of the earned table (`SaveManager.as:656`) that lags it
- * until `ScreenStatus` has played the medal-reveal animation. So in the original
- * the next level opens when the reveal finishes; here it opens the moment the
- * result is recorded.
+ * **Both tables exist and both are in use here.** The gates (`cleared`,
+ * `unlocked`) take the earned table; `levelUnlockStates`' `display` parameter
+ * takes the visible one, and `LevelSelectScene.ts:205-210` passes exactly that
+ * pair. The alias names the *role* rather than either table, which is why one
+ * type serves both arguments.
  *
- * That difference is invisible in outcome and only exists while an animation
- * that is not ported would be running. The alias exists so the distinction has a
- * name at the seam where a visible table would arrive.
+ * The AS3 reads `worldsValuesVisibleArrays` for **both** (`ScreenLevelSelect.as:841`
+ * for levels, `:1518` for worlds) — a session-only clone of the earned table
+ * (`SaveManager.as:656`) that lags it until `ScreenStatus` has played the
+ * medal-reveal animation, so there the next level opens when the reveal
+ * finishes.
+ *
+ * **This port splits them deliberately, and it is not a shortcut.** A lagging
+ * gate would contradict the results screen: `GameplayScene.ts:980` starts a
+ * level from `ui:start-game` with no unlock check at all, so the Next-level
+ * button would start a level `LevelSelectScene` refuses — intermittently, and
+ * only until someone watched an animation. Full argument in **A6**,
+ * `docs/AUDIT-2026-07.md`. The cost is that a level shows fewer medals than it
+ * has for the length of one reveal, while already being playable.
  */
 export type ProgressView = ProgressTable;
 

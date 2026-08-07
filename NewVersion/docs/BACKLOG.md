@@ -334,16 +334,19 @@ through with the square page buttons (`handleSquarePages`, `:629`).
       and diverges only within a session. The port has one `ProgressTable` and no
       "visible" copy.
 
-      **The seam for it now exists and is named**, which is the only thing that
-      changed here: `levels/levelUnlock.ts:19-20` records that the AS3 reads the
-      *visible* table where the port reads the earned one, and `:53-55` says the
-      difference is invisible in outcome and exists only while an animation runs.
-      The parameter is already called `ProgressView` (`:117`) so a visible table
-      has somewhere to arrive. That is rule 4 applied correctly — the gap is
-      written where someone will be standing.
+      **Shipped in T76 and closed in T81.** `levels/progressReveal.ts` is the
+      model, `playerProfile.ts:164` is the visible table, and
+      `LevelSelectScene.ts:228`/`:241` run the reveal at one medal per **seven**
+      frames (`:1378`, `:1371`).
 
-      Still shared with I2's world-unlock rule, so still one model change for
-      two consumers. *Lift: small.*
+      **The "one model change for two consumers" premise does not apply, and
+      that is the correction worth keeping.** The two consumers were separated
+      on purpose rather than unified: audit **A6** records that putting the
+      gates on the lagging table would let the results screen's Next-level
+      button start a level `LevelSelectScene` refuses, because
+      `GameplayScene.ts:980` handles `ui:start-game` with no unlock check.
+      Gates read earned; only the medal counts lag. So there was never one
+      change here — there were two rules that look like one.
 
 ---
 
@@ -423,8 +426,9 @@ This is the group covering priorities **(3) all levels/worlds reachable** and
 selectable and carried, and all nine worlds are reachable behind the AS3's own
 unlock rule.
 
-One thread is still open and it is *not* a reach problem — the visible-vs-earned
-table (I2's last bullet), which only affects an animation and is shared with G.
+**Nothing in this group is open.** The last thread — the visible-vs-earned table
+(I2's final bullet) — was never a reach problem and is now a settled divergence
+rather than a gap: see **A6**, and I2 below.
 
 ### I1 — Difficulty selector
 
@@ -467,9 +471,14 @@ table (I2's last bullet), which only affects an animation and is shared with G.
       event and `disabled` on a React button is *presentation, not enforcement* —
       the same argument as `mayStart` (`:126-131`) for levels. That is the
       guard-scoping rule applied without being prompted.
-- [ ] **Still owed, and shared with G:** the rule reads the *earned* table where
-      the AS3 reads the *visible* one. Recorded at `levelUnlock.ts:19-20`. One
-      model change closes this and G's medal reveal together. *Lift: small.*
+- [x] **The earned-vs-visible question — settled, not owed (T76 built it, T81
+      closed the entry).** The rule reads the *earned* table where the AS3 reads
+      the *visible* one, and that is now a **recorded divergence (A6)** rather
+      than a gap: a lagging gate would disagree with the results screen's
+      Next-level button, which starts a level with no unlock check
+      (`GameplayScene.ts:980`). The visible table exists and *is* consumed —
+      just for the medal counts, via `levelUnlockStates`' `display` parameter
+      (`LevelSelectScene.ts:205-210`), not for the gates.
 
 ### I3 — Level unlock, and the world rollover
 
@@ -971,12 +980,20 @@ appearing. That is the reusable part, not the edges themselves.
 ~~I1 difficulty ───────────► 2/3 of ProgressTable reachable~~        done
 ```
 
-**The one edge that survives:**
+**The last edge — and it turned out not to be an edge (closed T81):**
 
 ```
-"visible values" model ────► G medal reveal animation
-                     └─────► I2 world unlock rule (visible vs earned table)
+~~"visible values" model ──► G medal reveal animation~~              shipped T76
+~~                   └────► I2 world unlock rule~~                   never landed — A6
 ```
+
+The second arrow was drawn on the assumption that both consumers wanted the
+visible table. Only one did. The unlock rule deliberately stays on the earned
+table (**A6**), so the model had **one** consumer, not two, and the shared
+dependency this diagram existed to name was not shared. Worth keeping as the
+counter-example to the diagram's own success story: naming a shared dependency
+pays when the dependency is real, and costs a wrong sequencing plan when it is
+assumed.
 
 Still one model change for two consumers, and the seam is already named
 (`levelUnlock.ts:19-20`, `ProgressView` at `:117`).
@@ -1000,8 +1017,9 @@ Three things that look like dependencies and are not:
 given; only the tail of step 5 remains. Struck through for the record:
 
 1. ~~**I3** → **I1** → **I2** + the visible-values model, picking up **L2**.~~
-   Done, in that order — except **the visible-values model, which was deferred
-   out of I2 and is now the only surviving cross-group edge.**
+   Done, in that order. The visible-values model was deferred out of I2, built
+   in T76 and closed in T81 — and the edge back to I2 was never taken, because
+   the unlock rule stays on the earned table (**A6**).
 2. ~~**J** equip slots~~ — done. Not self-contained after all: it changed three
    gameplay rules as well as adding a UI.
 3. ~~**H** counters, the eleven `temp*` flags, evaluation → **G** page stack and
@@ -1015,7 +1033,7 @@ Small, and none of it blocks anything else:
 
 | Item | What | Lift |
 |---|---|---|
-| **G / I2** | The visible-values model — one change, two consumers | small |
+| ~~**G / I2**~~ | ~~The visible-values model — one change, two consumers~~ — **closed T81.** Built in T76; the "one change, two consumers" premise was wrong, because the two consumers are deliberately split (**A6**). Three stale comments corrected | done |
 | **J** | Shop descriptions and stat previews (**data absent too**) | small + an unscoped extraction |
 | **L1** | `assets:sync` never prunes | small |
 | ~~**L3**~~ | ~~`--sound-sweep` never satisfies the tutorial gate~~ — **fixed T65**; count unmoved, see L8 | done |

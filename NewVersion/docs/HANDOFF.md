@@ -387,6 +387,18 @@ things that are actually open.
   `GameplayScene.ts:138`. The collision pass is ported too
   (`resolveCollisions:539`, from `:2603-2664`) and props render. **Nothing is
   owed and no call is needed** — the audit was right and only §5 was stale.
+- **`G`/`I2` — the visible-values model** — built T76, **entry closed T81**, and
+  the recorded scope was wrong in the same way `BossCollision`'s was. It was
+  filed as *"one model change, two consumers"*. There is only ever **one**
+  consumer: the medal counts. The unlock gates deliberately stay on the **earned**
+  table (**A6**) because `GameplayScene.ts:980` starts `ui:start-game` with no
+  unlock check, so a lagging gate would let the results screen's Next-level
+  button start a level `LevelSelectScene` refuses. What actually remained was
+  three stale comments, the worst of them `LevelSelectScene.ts:217` claiming
+  *"one medal per AS3 frame"* — the exact misreading `progressReveal.ts:38-43`
+  exists to correct. **A comment that teaches a corrected error is worse than no
+  comment**, and it survived because the correction was written in a new file
+  instead of at the old claim.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four
