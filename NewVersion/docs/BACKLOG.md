@@ -801,10 +801,11 @@ note under `L8`.
   the pass that found it, which was docs-only.*
 
   > **"Sound coverage" is two permanently unrelated numbers in this project.**
-  > This one — the sweep's **trigger-firing count**, now **47–48 of 67** (T71) —
+  > This one — the sweep's **trigger-firing count**, now **50–51 of 67** (T80) —
   > measures how many sound *names* actually play when the game is driven. `PROGRESS.md`'s **Sound and music triggers
   > 0/115** counts `[Embed]` MP3 *wrapper classes* (`sndBall.as` is 15 lines
-  > around one file) and is pending **L5**. Neither can ever move the other, and
+  > around one file) and, since **L5 decided no change (T82), stays 0/115
+  > permanently**. Neither can ever move the other, and
   > a fix to one will not change the other's figure. Conflating them cost a task
   > prompt once; the note is here so it costs nothing again.
 
@@ -931,17 +932,55 @@ Three decisions surfaced by the T61 status-accuracy pass and deliberately **not
 acted on** there. Logged here because a decision that exists only in a session
 transcript is not findable, which is the same failure as a count without a list.
 
-- [ ] **L5 — stub classification could be derived, and is hand-set.** 517 of the
-      643 rows are `[Embed]` asset stubs; `gen-progress.mjs:256` already reads
-      each `.as` file (only to count lines), so a `[Embed(` test would classify
-      all 517 mechanically. *A mechanism instead of 517 hand-set statuses — but
-      it also decides the metric, so it wants the `not applicable` question
-      answered first (marking them excludes them, dropping the denominator
-      ~557 → ~353). Lift: small; consequence: large.*
-      **The Sound category is the one to watch here:** its `0/115` counts
-      `[Embed]` MP3 wrapper classes and moves only with L5. It is **not** the
-      sweep's trigger-firing count, which moves only with L3 — see the box at
-      L3. Two unrelated numbers, one word.
+- [x] **L5 — DECIDED (T82): no change. The denominator and the stub rule stay
+      as they are.** Closed as a settled judgment call, **not as "fixed"** —
+      nothing was implemented and nothing is owed.
+
+      **The decision.** Both alternatives were measured and both were rejected in
+      favour of the status quo. The reasoning is a property of *when* we are, not
+      of which definition is better: the shape-based rule is more internally
+      honest about how much of the code that matters is ported, but the current
+      count is the one this project has reported throughout, and switching now
+      would **move the headline number without any new porting behind it**. That
+      discontinuity mid-project is worse than the current definition's
+      imprecision. A metric that jumps for definitional reasons stops being
+      readable as progress, which is the only thing it is for.
+
+      **The measurements, kept so the reasoning is traceable rather than
+      re-derived.** Method: `grep -rl '\[Embed('` with no limit, plus a full
+      line-count distribution — not a truncated search.
+
+      | | Files | Denominator | Headline |
+      |---|---|---|---|
+      | **Current rule (kept)** | — | **556** | **6.8%** (38/556) |
+      | Naive `[Embed(` test | 517 contain it | ~39 | ~85% |
+      | Shape-based stub test | 471 are pure stubs — 361 at exactly 15 lines, 110 at 13 | ~85 | ~39% |
+
+      The 46-file gap between 517 and 471 is why the naive test was never the
+      option: those are **real classes that merely contain an `[Embed(`**, up to
+      `ButtonGameSave.as` at 547 lines and 17 functions. A bare `[Embed(` test
+      would exclude them from the metric permanently.
+
+      **The entry's own figure was wrong and is superseded.** It claimed the
+      denominator would drop *"~557 → ~353"*. That reconciles with neither 517
+      nor 471 — it implies marking ~204 rows — and no derivation for it was
+      found. Do not reuse it.
+
+      **`gen-progress.mjs:256` could still derive the classification** — it
+      already reads each file, for a line count. That remains true and is not the
+      reason this is closed; the mechanism was never the hard part. The metric
+      question was, and it is answered: **no change.**
+
+      **The Sound category is the consequence to be clear about.** Its `0/115`
+      counts `[Embed]` MP3 *wrapper classes*, so under this decision it **stays
+      at 0/115 permanently** — those 115 rows are stubs the port will never
+      write, and nothing will ever move them. That is the accepted cost of
+      keeping the denominator. It is **not** the sweep's trigger-firing count
+      (50–51 of 67), which moves independently and has nothing to do with L5.
+      Two unrelated numbers, one word — see the box at L3.
+
+      *Revisit only if the definition itself is being reopened deliberately — not
+      as a side effect of touching the generator.*
 - [x] **L6 — done (T81).** Filed as a self-contradiction between the two
       generated prose blocks. It read as one; the fault underneath was
       **misattribution**, and fixing it as a contradiction would have invited
@@ -997,15 +1036,26 @@ transcript is not findable, which is the same failure as a count without a list.
 
       Effect: **33 → 38 of 556 started, 13 → 17 verified** (5.9% → 6.8%).
 
-- [ ] **L7(b) — the genuinely uncited remainder. STILL OPEN, and coupled to L5.**
+- [x] **L7(b) — DEFERRED alongside L5 (T82). Not processed, and not owed.**
       `ScreenMenu`, `ImageEnemy`, `ButtonSecondary`, `ButtonWeapon` and the rest
       have their behaviour in a differently-named port module with **no** citation
       naming the AS3 class (method: `<Name>.as` and bare-name match over `src/`).
       Relaxing the rule for them is a judgment call, not work.
 
-      **Decide it with L5, not before.** L5 shrinks the denominator (excluding
-      stubs) and L7(b) grows the numerator; landing either alone publishes an
-      intermediate percentage that is misleading in a knowable direction.
+      **It closes with L5 because it was always the other half of one decision.**
+      L5 shrinks the denominator, L7(b) grows the numerator; they were coupled so
+      the headline figure would move once rather than twice. L5 decided **no
+      change**, so moving this half alone would produce exactly the discontinuity
+      that decision exists to avoid — a jump in the number with no new porting
+      behind it.
+
+      Note the asymmetry with **L7(a)**, which *was* processed: those 11 classes
+      were **stale data** under the existing rule, so correcting them changed the
+      number for a real reason. This half needs the rule itself to change, which
+      is the thing that is not changing.
+
+      *Revisit only if L5's decision is revisited. Not before, and not
+      independently.*
 
 ---
 
@@ -1091,9 +1141,9 @@ Small, and none of it blocks anything else:
 | **Port enemy-enemy separation** | `PartGameArea.as:5174-5221` — the pair loop that pushes two overlapping enemies apart by their relative mass (`:5199-5207` into `pushVelX/Y`, decayed at `:5365-5366`, integrated at `:5370-5385`, gated on `safetyDistance` at `:3354`/`:3358`). **The port has no enemy-enemy collision at all, so enemies interpenetrate on every one of the 405 levels.** That is the reason to build it: it is a visible fidelity gap with player value on its own. The `BossCollision` sound (`:5197`, boss-on-boss only) is a *byproduct* that falls out once the pair loop exists — **building the subsystem in order to unlock one sound would be backwards**, which is why this is filed as movement work and the sound is not listed separately any more | subsystem — touches enemy movement game-wide; **not in the active queue** |
 | ~~**Achievement toasts cover the results panel**~~ | **Fixed T79.** The description was wrong twice: they *were* offset from one another, and the count was not the mechanism — two **centred** overlays were. AS3-derived after all: one toast at a time from a queue (`PartAchievements.as:265`, `:116-117`), top right (`:125-126`). Unblocked the `Achievement` sound (`:120`) | done |
 | ~~**L4**~~ | ~~`npm run look` leaves its vite server alive~~ — **fixed T64** | done |
-| **L5** | 517 stub statuses hand-set where `gen-progress.mjs:256` could derive them | small work, large metric consequence |
+| ~~**L5**~~ | ~~517 stub statuses hand-set where `gen-progress.mjs:256` could derive them~~ — **decided T82: no change.** Both alternatives measured (naive `[Embed(` → ~39 denominator; shape-based → ~85, ~39%); the **556** denominator stays, because switching would move the headline without new porting behind it. The entry's own "~557 → ~353" was wrong and is superseded | decided — no change |
 | ~~**L6**~~ | ~~`ScreenGame`/`PartGameArea` generated prose self-contradicts~~ — **done T81.** Not a contradiction but a **misattribution**: `ScreenGame` was credited with `PartGameArea`'s wave spawning (6 static hits vs 109). Fixing it exposed a second inverted number — 107 of 131 statics extracted, not "~90 remaining" | done |
-| **L7(a)** ~~done~~ / **L7(b)** open | ~~**(a)** 11 candidates re-graded, 5 flipped, 6 left with reasons — **done T81**; a `Port target:` header is not a port citation~~. **(b)** the genuinely uncited remainder is still open | (a) done · **(b) decide with L5** |
+| ~~**L7(a)** / **L7(b)**~~ | ~~**(a)** 11 candidates re-graded, 5 flipped, 6 left with reasons — **done T81**; a `Port target:` header is not a port citation. **(b)** the uncited remainder — **deferred T82** alongside L5, since the two were one decision and L5 chose no change~~ | (a) done · (b) deferred with L5 |
 | **F4** | `secondaries.ts`'s header still says "Scope: Mine only" | trivial |
 
 **Read this next to `docs/HANDOFF.md` §5, not instead of it.** This document
