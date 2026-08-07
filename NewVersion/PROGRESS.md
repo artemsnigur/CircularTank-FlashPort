@@ -5,10 +5,10 @@
 
 Tracking the rewrite of 643 decompiled ActionScript 3 classes (`SWFimported/scripts`) into TypeScript/Phaser.
 
-**29 / 557** game classes started · **13** verified · 5 marked not applicable · 81 third-party classes excluded.
+**33 / 556** game classes started · **13** verified · 6 marked not applicable · 81 third-party classes excluded.
 
 ```
-█░░░░░░░░░░░░░░░░░░░░░░░  5.2%
+█░░░░░░░░░░░░░░░░░░░░░░░  5.9%
 ```
 
 ## How to use this file
@@ -39,7 +39,7 @@ below — everything else hangs off those.
 
 - [Third-party libraries — do not port](#third-party-libraries--do-not-port) — 0/81
 - [Core systems](#core-systems) — 5/6
-- [Screens and screen parts](#screens-and-screen-parts) — 5/49
+- [Screens and screen parts](#screens-and-screen-parts) — 8/49
 - [Player tank](#player-tank) — 1/6
 - [Enemies](#enemies) — 8/52
 - [Projectiles, weapons and objects](#projectiles-weapons-and-objects) — 10/33
@@ -48,7 +48,7 @@ below — everything else hangs off those.
 - [Particles and effects](#particles-and-effects) — 0/7
 - [Sound and music triggers](#sound-and-music-triggers) — 0/115
 - [Background props and terrain](#background-props-and-terrain) — 0/27
-- [UI widgets](#ui-widgets) — 0/197
+- [UI widgets](#ui-widgets) — 1/196
 - [Uncategorised](#uncategorised) — 0/2
 
 ## Third-party libraries — do not port
@@ -146,14 +146,14 @@ below — everything else hangs off those.
 `████████████████████░░░░` 5/6 · 5 not applicable
 
 - [x] `Debug` — not applicable
-- [ ] `DifficultyMultipliers` — ported
+- [ ] `DifficultyMultipliers` — ported · wired
 - [x] `FPS` — not applicable
-- [x] `Functions` — tested
+- [x] `Functions` — tested · wired
 - [ ] `Main` — not started
-- [x] `PM_PRNG` — tested
+- [x] `PM_PRNG` — tested · wired
 - [x] `PremiumContentStuff` — not applicable
 - [ ] `SaveManager` — ported · wired
-- [x] `SoundManager` — tested
+- [x] `SoundManager` — tested · wired
 - [x] `SponsorIntro` — not applicable
 - [x] `StatisticsManager` — not applicable
 
@@ -161,7 +161,7 @@ below — everything else hangs off those.
 
 > Map onto Phaser scenes plus React screens. See docs/TEXT_RENDERING.md for the split.
 
-`██░░░░░░░░░░░░░░░░░░░░░░` 5/49
+`████░░░░░░░░░░░░░░░░░░░░` 8/49
 
 - [ ] `PartAchievements` — not started
 - [ ] `PartGameArea` — not started
@@ -199,18 +199,18 @@ below — everything else hangs off those.
 - [ ] `ParticleYellow2` — not started
 - [ ] `PartInfoText` — not started
 - [ ] `PartInterface` — not started
-- [ ] `PartTutorial` — ported
-- [ ] `ScreenAchievements` — ported
-- [ ] `ScreenEnemies` — ported
+- [ ] `PartTutorial` — ported · wired
+- [ ] `ScreenAchievements` — ported · wired
+- [ ] `ScreenEnemies` — ported · wired
 - [ ] `ScreenGame` — not started
 - [ ] `ScreenLevelSelect` — ported · wired
-- [ ] `ScreenLoad` — not started
+- [ ] `ScreenLoad` — ported · wired
 - [ ] `ScreenMenu` — not started
-- [ ] `ScreenOptions` — not started
+- [ ] `ScreenOptions` — ported · wired
 - [ ] `ScreenPremium` — not started
 - [ ] `ScreenSiteLocked` — not started
 - [ ] `ScreenSplash` — not started
-- [ ] `ScreenStatus` — not started
+- [ ] `ScreenStatus` — ported · wired
 - [ ] `ScreenUpgrades` — ported · wired
 
 ## Player tank
@@ -219,7 +219,7 @@ below — everything else hangs off those.
 
 - [ ] `Crosshair` — not started
 - [ ] `CustomCursor` — not started
-- [ ] `Tank` — ported
+- [ ] `Tank` — ported · wired
 - [ ] `TankBody` — not started
 - [ ] `TankShield` — not started
 - [ ] `TankTower` — not started
@@ -564,7 +564,7 @@ below — everything else hangs off those.
 
 > Most of these become React components rather than Phaser display objects.
 
-`░░░░░░░░░░░░░░░░░░░░░░░░` 0/197
+`░░░░░░░░░░░░░░░░░░░░░░░░` 1/196 · 1 not applicable
 
 - [ ] `ArrowToMenu` — not started
 - [ ] `BackgroundEnemyImage` — not started
@@ -637,7 +637,7 @@ below — everything else hangs off those.
 - [ ] `ButtonEquipSlot` — not started
 - [ ] `ButtonEquipSlot1` — not started
 - [ ] `ButtonEquipSlot2` — not started
-- [ ] `ButtonGameDifficulty` — not started
+- [ ] `ButtonGameDifficulty` — ported · wired
 - [ ] `ButtonGameSave` — not started
 - [ ] `ButtonGetNow` — not started
 - [ ] `ButtonGetNowMenu` — not started
@@ -663,7 +663,7 @@ below — everything else hangs off those.
 - [ ] `ButtonMoreWorlds` — not started
 - [ ] `ButtonNextLevel` — not started
 - [ ] `ButtonOptionCheckBox` — not started
-- [ ] `ButtonOptionGraphics` — not started
+- [x] `ButtonOptionGraphics` — not applicable
 - [ ] `ButtonOptionGraphicsHigh` — not started
 - [ ] `ButtonOptionGraphicsLow` — not started
 - [ ] `ButtonOptionGraphicsMedium` — not started
