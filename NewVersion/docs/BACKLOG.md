@@ -59,6 +59,7 @@ document were **driven at `b2d2193`**, not counted:
   content: MainMenu 13, LevelSelect 69, Upgrades 35, Bestiary 2, SaveSlots 5,
   Enemies 22, Options 10, Achievements 2. `Premium` and `Credits` report
   `UNREACHABLE (no entry point)` — both deliberately out of scope.
+<!-- docs-check: sound-coverage = 47-48 of 67 -->
 - **Sound — driven. 47–48 of 67 (T71).** `npm run look -- --sound-sweep`, with `L3`
   and `L8` closed and the sweep extended to the four modes `--baseline` never
   visits. What makes it trustworthy where the earlier readings were not:

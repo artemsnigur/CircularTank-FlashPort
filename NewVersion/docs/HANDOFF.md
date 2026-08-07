@@ -49,6 +49,7 @@ entry point)`, both deliberately out of scope. Measured by driving, because a
 screen that opens empty and a screen that is not ported are indistinguishable to
 a presence check.
 
+<!-- docs-check: sound-coverage = 47-48 of 67 -->
 **Sound: 47–48 of 67 names fire** (T71, driven `--sound-sweep`). Two consecutive
 runs gave 48 and 47, `TankDamaged` being the swing — a **±1 band**, as at T69.
 
@@ -262,6 +263,23 @@ decisive, wrong result and was believed.*
     wrong answer — which is the single most repeated failure in this list. If a
     sentinel cannot be made obviously invalid, report whether the real value was
     obtained alongside the value itself.
+
+14. **A rule that only a person can follow gets broken by the person who wrote
+    it.** `CLAUDE.md` forbids editing a doc with an unchecked scripted replace,
+    because a missed anchor returns the original and reports success. It was
+    then broken twice **by the author of the warning**, in consecutive passes,
+    both times with `sed -i` on `BACKLOG.md`.
+
+    **The tool used is not observable from the result**, so no hook can enforce
+    the rule as written. `npm run docs:check` guards the *hazard* instead: a
+    replace that half-applies leaves a duplicated figure disagreeing between
+    documents, and markers make that a hard failure in `data:check`. It does
+    not check prose against the marker — stated at the script, not implied.
+
+    The general form, and the reason this is trap 14 rather than a footnote:
+    **when a rule has failed twice, stop restating it and find the observable
+    consequence to test.** That is the same move as trap 1's `npm run sweep`
+    and trap 10's port check.
 
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
