@@ -133,9 +133,57 @@ describe('placeWarning', () => {
   // Renamed in T66, assertion untouched. It said "during the countdown" while
   // passing `countDownDone: true`, which is *after* it — the same inversion the
   // module docstring carried. The behaviour asserted was always correct.
+  //
+  // It is now one half of the pair below; kept as its own case because the
+  // pair asserts the *difference* and this asserts the absolute answer.
   it('stops searching once the countdown has finished', () => {
     const placement = placeWarning({ ...BIG_ROOM, countDownDone: true, random: () => 0.01 });
     expect(placement.offCamera).toBe(false);
+  });
+
+  /**
+   * The counterpart pair — the whole feature is that **one flag flips two
+   * placement strategies**, so the two answers are driven on an identical
+   * context with only `countDownDone` moved.
+   *
+   * Asserted together rather than as two facts: "the search never runs" and
+   * "the search always runs" each satisfy one of these on its own, and both
+   * were live states of this port at different times. `random: () => 0.01`
+   * puts the candidate in the top-left corner, comfortably outside the camera
+   * band, so the search succeeds whenever it is allowed to run.
+   */
+  it('searches off-camera during the countdown and edges after it', () => {
+    const context = { ...BIG_ROOM, random: () => 0.01 };
+
+    const during = placeWarning({ ...context, countDownDone: false });
+    const after = placeWarning({ ...context, countDownDone: true });
+
+    expect(during.offCamera, 'during the countdown').toBe(true);
+    expect(after.offCamera, 'after the countdown').toBe(false);
+
+    // And the consequence a player sees: an edge placement is pinned to a wall,
+    // an off-camera one is not. Without this the pair could pass while both
+    // returned the same coordinates.
+    expect(after.wall).toBeGreaterThan(0);
+    expect(during.wall).toBe(0);
+  });
+
+  /**
+   * The flag is not a master switch: it only ever *disables* the search, and
+   * the other disqualifiers outrank it. Driven on the same context so
+   * "countDownDone false means off-camera" cannot be read as unconditional.
+   */
+  it('still refuses the search during the countdown when another rule says no', () => {
+    const context = { ...BIG_ROOM, countDownDone: false, random: () => 0.01 };
+
+    expect(placeWarning({ ...context, mode: 'Defense' }).offCamera).toBe(false);
+    expect(placeWarning({ ...context, mode: 'Boss', isBoss: true }).offCamera).toBe(false);
+    expect(
+      placeWarning({ ...context, roomWidth: AS3_CAMERA_WIDTH }).offCamera,
+    ).toBe(false);
+    // …while the unmodified context still succeeds, so the negatives above are
+    // not passing because nothing ever searches.
+    expect(placeWarning(context).offCamera).toBe(true);
   });
 
   it('places bosses on an edge', () => {

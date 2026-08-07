@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T64**, commit `8536881`, 7 August 2026. Keep it current — it is
+Current as of **T67**, commit `9229b37`, 7 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -74,7 +74,9 @@ baseline. The first number worth recording is the one after `L8`.
 `npm run look` boots the game, drives a scripted sequence and dumps frames to
 `.look/`. **It is a tool, not a test: it asserts nothing.** Modes:
 `--baseline` (the full loop), `--ui`, `--sound`, `--sound-sweep`, `--tutorial`,
-`--particles`, `--money`, `--indicators`, `--secondaries`, `--save`, `--slots`.
+`--particles`, `--money`, `--indicators`, `--secondaries`, `--save`, `--slots`,
+`--countdown` (level 1-2 driven twice on one build, `?countdown=0` reproducing
+the pre-T67 state, dumping spawn coordinates for both).
 
 ---
 
@@ -225,7 +227,7 @@ be checked against a second mode on the same build before it is believed.
 
 | Item | Needs |
 |---|---|
-| **Pre-level countdown** | `spawnWarnings` and the countdown are unported. **Not just a missing feature:** `countDownDone` is read by `spawnPlacement.ts:91` and never written (only ever `false`, `waveState.ts:150`), so the off-camera spawn search runs on *every* spawn where the AS3 runs it only during the countdown. Porting it changes spawn placement game-wide, and it wants its own pass. |
+| **Countdown: UI and beeps** | The timer, the flag and the update gate landed in T67. What remains is presentation: the "3 / 2 / 1 / GO!" text, the `bgText` panel with its mode and objective labels (`PartInterface.as:303-308`), the nine tweens (`:713-721`), the reload bars hidden while `countDown > 0` (`:750-752`), and the two beeps — **both assets already preload** (`audioManifest.ts:53-54`). `tickCountdown` already returns the cues; the scene currently drops them. Small, and purely additive. |
 | **`L8`** | **The sweep aims at a screen constant.** Found by fixing `L3` and watching the count refuse to move. Its cursor orbits `(640, 400)` (`look.mjs:520`) while the tank sits near x 900 after the gate-satisfying move, so every round flies past. Zero hits: no impact sounds, no `EnemySquish`, no `Coin`, arena `60 LEFT` start to finish. **This, not `L3`, is what now blocks a trustworthy sound number.** Needs a design call — aim relative to the tank, or drive it into contact — because the tank's screen position is not exposed to the harness. |
 | **Sound: 28 names not firing** | Six blocked on unported triggers (achievement reveal, level-unlock, countdown, shop purchase, second loadout slot). The rest is scenario reach. `ImpactCrazyCheese` is an orphan asset with no AS3 trigger under any spelling. **Do not re-measure before `L8`.** |
 | **`L1`** | `assets:sync` never prunes. Re-verified at `b2d2193`: a count of `unlink\|rm(\|rmSync` over `scripts/sync-assets.mjs` returns 0. |
@@ -251,6 +253,14 @@ things that are actually open.
   (`resolveCollisions:539`, from `:2603-2664`) and props render. **Nothing is
   owed and no call is needed** — the audit was right and only §5 was stale.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
+- **The pre-level countdown's behaviour half** — landed (T67): the 2000 ms timer,
+  `countDownDone`, the `:288` 1-1 skip, and the update gate that freezes the
+  player while the arena fills. **This was the "changes spawn placement
+  game-wide" item**, and it did: on 198 of 405 levels enemies now arrive at the
+  room edge after the countdown instead of fading in off-screen. Faithful,
+  measured, and recorded as **C15** so it is not reported as a regression.
+  Tower and Defense are untouched — their rooms already matched the camera.
+  Presentation is still owed; see the queue above.
 - **`L3`** — fixed (T65). `--sound-sweep` now moves before firing, mirroring
   `--baseline`. Verified by A/B on the dev level rather than by the count:
   without the move the tutorial stays on step `Move` through the entire firing

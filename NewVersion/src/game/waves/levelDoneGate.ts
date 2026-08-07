@@ -41,6 +41,11 @@ export type GatedSystem =
   | 'tankAttack'
   | 'tankShield'
   | 'flag'
+  /**
+   * The `tempNothingPressed` clear (`:2826-2828`) — not a subsystem, but it is
+   * inside both gates and an achievement reads it, so it needs a side.
+   */
+  | 'inputActivity'
   | 'enemySpawning'
   | 'enemies'
   | 'enemyIndicators'
@@ -71,6 +76,7 @@ const RUNS_WHILE_LEVEL_DONE: Readonly<Record<GatedSystem, boolean>> = {
   tankAttack: false, // `:2818` tankAttack
   tankShield: false, // `:2819` handleTankShield
   flag: false, // `:2822` handleFlag
+  inputActivity: false, // `:2826` the tempNothingPressed clear
   enemySpawning: false, // `:2831` handleWarnings, which calls spawnEnemy `:2461`
   enemies: false, // `:2833` handleEnemies
   enemyIndicators: true, // `:2835` — outside

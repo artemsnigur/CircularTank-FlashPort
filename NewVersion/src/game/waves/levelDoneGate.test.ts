@@ -21,6 +21,7 @@ const INSIDE_THE_GATE: readonly GatedSystem[] = [
   'tankAttack',
   'tankShield',
   'flag',
+  'inputActivity',
   'enemySpawning',
   'enemies',
 ];
@@ -54,7 +55,7 @@ describe('the levelDone partition', () => {
     // otherwise be untested and default to whichever side the author guessed.
     const listed = [...INSIDE_THE_GATE, ...OUTSIDE_THE_GATE];
     expect(new Set(listed).size).toBe(listed.length);
-    expect(listed.length).toBe(18);
+    expect(listed.length).toBe(19);
   });
 });
 

@@ -23,6 +23,9 @@ import { Enemy } from '../entities/Enemy';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
+import { shouldRunDuringCountdown } from '../waves/countdownGate';
+import { countdownSkipped, createCountdown, tickCountdown } from '../waves/countdown';
+import type { CountdownState } from '../waves/countdown';
 import { isAudibleAt } from '../audio/onScreenGate';
 import { musicForMode } from '../audio/musicCue';
 import { secondaryReloadRuns, tutorialHoldsPlay } from '../tutorial/tutorialGates';
@@ -390,6 +393,25 @@ function devTutorialOverride(): boolean {
   return new URLSearchParams(window.location.search).get('tutorial') === '1';
 }
 
+/**
+ * DEV-AID: `?countdown=0` reproduces the **pre-T67** state for comparison.
+ *
+ * Not "skip the countdown" — that is what `PartInterface.as:288` does, and it
+ * sets the flag *true*. This holds it permanently **false**, which is where the
+ * port sat while the countdown was unported: `countDownDone` was declared,
+ * read by `spawnPlacement`, and never written.
+ *
+ * It exists so `npm run look -- --countdown` can drive the same seeded level
+ * either side of the change in one run. Without it the "before" case is only
+ * reachable by checking out an older commit, and a frame compared across two
+ * builds is the trap the audit already records.
+ */
+function devCountdownHeld(): boolean {
+  if (!import.meta.env.DEV) return false;
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('countdown') === '0';
+}
+
 function devSecondaryOverride(): string | null {
   if (!import.meta.env.DEV) return null;
   if (typeof window === 'undefined') return null;
@@ -450,6 +472,32 @@ export class GameplayScene extends Phaser.Scene {
    * quitting uses `createQuitFlags`, a different starting point.
    */
   private levelFlags: LevelAchievementFlags = createLevelFlags();
+
+  /**
+   * The opening countdown — `PartInterface.countDownFunction` (`:702`).
+   *
+   * Ticked every frame and mirrored onto `wave.countDownDone`, which is what
+   * both consumers read: the update partition in `waves/countdownGate.ts` and
+   * the placement rule in `waves/spawnPlacement.ts`.
+   *
+   * Replaced per level in `startWave`, so a retry gets a fresh one.
+   */
+  private countdown: CountdownState = createCountdown(true);
+
+  /**
+   * `this.time.now` at the **first update** after a wave starts — not at
+   * `startWave`, which runs inside `create()`.
+   *
+   * Only the spawn recorder uses it. Stamping it in `startWave` made the
+   * instrument lie: `create()`'s tail (prop layout, texture generation) takes
+   * roughly two seconds on this level, during which the clock advances and the
+   * countdown does not, because `update` is not running yet. A spawn logged at
+   * "4514ms" then read as "the countdown lasted 4.5 seconds" when the countdown
+   * had correctly taken 2000ms of update time.
+   *
+   * Zero means "not stamped yet"; the Phaser clock is never 0 after boot.
+   */
+  private levelStartedAtMs = 0;
   /** The Shield secondary's window — `PartGameArea.shieldOn`/`shieldTimer`. */
   private shield: ShieldState = createShieldState();
   /** The shield ring, parented to nothing — it follows the tank each frame. */
@@ -991,13 +1039,19 @@ export class GameplayScene extends Phaser.Scene {
     // `:2828` — any input at all ends the Idle achievement's run. Movement,
     // aiming and firing all count; the AS3 clears it on the same keyboard and
     // mouse state this reads.
+    // `:2826-2828` — inside the countdown block, so input pressed *during* the
+    // countdown does not clear `tempNothingPressed`. That matters: the Idle
+    // achievement asks for a level cleared without touching anything, and the
+    // AS3 deliberately does not count the two seconds before the player is
+    // allowed to act.
     if (
-      input.up ||
-      input.down ||
-      input.left ||
-      input.right ||
-      this.firePressed ||
-      this.input.activePointer.isDown
+      shouldRunDuringCountdown('inputActivity', this.countdown.done) &&
+      (input.up ||
+        input.down ||
+        input.left ||
+        input.right ||
+        this.firePressed ||
+        this.input.activePointer.isDown)
     ) {
       this.levelFlags.nothingPressed = false;
     }
@@ -1033,15 +1087,56 @@ export class GameplayScene extends Phaser.Scene {
      */
     const levelDone = this.outcome.result !== null;
 
-    if (!destroyed && shouldRun('tankDrive', levelDone)) {
-      // Tower fixes the tank in place — PartGameArea.as:2816 skips moveTank
-      // and calls tankAttack on the next line, so aiming and firing continue.
-      this.player.drive(input, aim, delta, this.levelSpec?.mode !== 'Tower');
-      if (aim) this.crosshair.setPosition(aim.x, aim.y).setVisible(true);
+    /**
+     * `PartInterface.as:702` — the opening countdown, ticked before anything
+     * reads `countDownDone` this frame.
+     *
+     * Mirrored onto the wave so the two consumers see one value: the update
+     * partition below, and `spawnPlacement`, which switches from the
+     * off-camera search to edge placement the moment this flips. Cues are
+     * collected and dropped for now — the "3 / 2 / 1 / GO!" display and its
+     * two beeps are a separate pass.
+     */
+    if (this.levelStartedAtMs === 0) this.levelStartedAtMs = time;
 
-      this.updateFiring(delta);
-      this.updateSecondary(delta);
+    if (!levelDone && !devCountdownHeld()) {
+      this.countdown = tickCountdown(this.countdown, delta).state;
+      // Mirrored onto the wave because that is what `updateWave` hands to
+      // `spawnPlacement`. The scene's own copy is the source of truth, so the
+      // gate below still answers correctly before a wave exists.
+      if (this.wave) this.wave.countDownDone = this.countdown.done;
+    }
+    const countDownDone = this.countdown.done;
+
+    if (!destroyed && shouldRun('tankDrive', levelDone)) {
+      // `:2808` — moveTank, tankAttack and handleTankShield all sit inside the
+      // countdown block, so the player cannot drive, fire or shield until GO!.
+      // `updateSecondary` carries the shield, the mines and the ground
+      // hazards, which are the same side of the same gate (`:2814`, `:2815`,
+      // `:2821`).
+      if (shouldRunDuringCountdown('tankDrive', countDownDone)) {
+        // Tower fixes the tank in place — PartGameArea.as:2816 skips moveTank
+        // and calls tankAttack on the next line, so aiming and firing continue.
+        this.player.drive(input, aim, delta, this.levelSpec?.mode !== 'Tower');
+
+        this.updateFiring(delta);
+        this.updateSecondary(delta);
+      }
+
+      // **Outside the countdown gate, deliberately.** Contact damage rides
+      // `handleEnemies` (`:2833`), which sits *below* the block that closes at
+      // `:2830`. So an enemy that reaches the tank during the countdown still
+      // hurts it, even though the tank can neither move nor raise its shield.
+      // Faithful, and the reason `countdownGate.ts` pins enemy fire against
+      // `tankShield` rather than assuming the whole player half stops.
       this.updateContactDamage(delta);
+    }
+
+    // The crosshair is not in the AS3's gated list — the mouse cursor plainly
+    // keeps moving during the countdown. Kept outside so aiming still reads as
+    // live while firing is held.
+    if (!destroyed && shouldRun('tankDrive', levelDone) && aim) {
+      this.crosshair.setPosition(aim.x, aim.y).setVisible(true);
     }
 
     // No parallax. `createBackground` puts the ground tiles and every prop in
@@ -1130,7 +1225,12 @@ export class GameplayScene extends Phaser.Scene {
     // an enemy killed by a bullet still in flight after the level resolved
     // still detonates — `handleExplosionQueue` is outside too.
     this.flushDeathBlasts();
-    if (shouldRun('flag', levelDone)) this.updateFlag(delta);
+    // `:2824` — `handleFlag` is inside the countdown block too, so flags
+    // cannot be captured before GO!. The tank cannot move to reach one anyway;
+    // the gate is what makes that true rather than incidental.
+    if (shouldRun('flag', levelDone) && shouldRunDuringCountdown('flag', countDownDone)) {
+      this.updateFlag(delta);
+    }
     this.updateOutcome(delta);
     this.emitWaveState();
     this.updateHud(delta);
@@ -1359,6 +1459,30 @@ export class GameplayScene extends Phaser.Scene {
     if (!spec) return;
 
     this.wave = createWaveState(spec);
+
+    // `PartInterface.as:288` — 1-1 with a fresh, incomplete tutorial skips the
+    // countdown outright, so a brand-new player never sees one. Every other
+    // level starts it at 60 AS3 frames.
+    //
+    // The tutorial's own state decides this, which is why it is read here
+    // rather than passed in: `startWave` is the only place that knows both the
+    // level and the profile. `this.profile.tutorial` is the *resolved* state —
+    // the stored preference and the `?tutorial=1` override have both already
+    // been applied to it in `create` (`:745-756`).
+    const tutorial = this.profile.tutorial;
+    this.countdown = createCountdown(
+      countdownSkipped({
+        world,
+        level,
+        tutorialOn: tutorial.on,
+        tutorialCompleted: tutorial.completed,
+        tutorialStepsDone: tutorial.done.length,
+      }),
+    );
+    this.wave.countDownDone = this.countdown.done;
+    // Stamped on the first update, not here — see the field.
+    this.levelStartedAtMs = 0;
+
     // Captured once, so `flagsTaken` is a difference rather than a count the
     // tutorial would have to be told separately.
     this.flagsAtStart = this.wave.flagsLeft;
@@ -1411,6 +1535,7 @@ export class GameplayScene extends Phaser.Scene {
         this.warnings.push(warning);
         this.addWarningMarker(warning);
         registerSpawn(wave);
+        this.recordSpawnDebug(placement, wave.countDownDone);
       }
     }
 
@@ -2614,6 +2739,38 @@ export class GameplayScene extends Phaser.Scene {
    * plausible theories and one wrong fix without ever looking at alpha,
    * position or the display list.
    */
+  /**
+   * DEV-AID: records every spawn placement for `npm run look -- --countdown`.
+   *
+   * The countdown changes *where* enemies come from, and that is invisible to a
+   * screenshot and to any unit test of the scene. `--countdown` runs one seeded
+   * level twice and diffs these lists, so the off-camera/edge split is measured
+   * rather than described.
+   *
+   * Same shape as `__tutorialPanel`: DEV-only, window-only, append-only.
+   */
+  private recordSpawnDebug(
+    placement: { x: number; y: number; wall: number; offCamera: boolean },
+    countDownDone: boolean,
+  ): void {
+    if (!import.meta.env.DEV || typeof window === 'undefined') return;
+    const store = window as unknown as Record<string, unknown>;
+    const list = (store.__spawns as unknown[] | undefined) ?? [];
+    list.push({
+      x: Math.round(placement.x),
+      y: Math.round(placement.y),
+      wall: placement.wall,
+      offCamera: placement.offCamera,
+      countDownDone,
+      // Relative to the first update, not the game clock.
+      atMs: Math.round(this.time.now - this.levelStartedAtMs),
+      // The countdown's own progress, so a reader never has to infer it from
+      // wall time — the two diverge while `create()` is still running.
+      framesLeft: Math.round(this.countdown.framesLeft),
+    });
+    store.__spawns = list;
+  }
+
   private publishTutorialDebug(): void {
     if (!import.meta.env.DEV || typeof window === 'undefined') return;
     const first = this.tutorialSprites[0];

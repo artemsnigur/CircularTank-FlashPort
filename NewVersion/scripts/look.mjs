@@ -34,7 +34,7 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false, tutorial: false, ui: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false, tutorial: false, ui: false, countdown: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
@@ -49,6 +49,7 @@ function parseArgs(argv) {
     if (argv[i] === '--indicators') args.indicators = true;
     if (argv[i] === '--tutorial') args.tutorial = true;
     if (argv[i] === '--ui') args.ui = true;
+    if (argv[i] === '--countdown') args.countdown = true;
   }
   return args;
 }
@@ -406,6 +407,95 @@ if (args.ui) {
   await probe('Credits', click(/credits/i));
 
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
+
+if (args.countdown) {
+  /**
+   * The countdown's effect on **spawn placement**, driven either side of the
+   * change in one run.
+   *
+   * `countDownDone` switches `spawnPlacement` between the off-camera search
+   * (while the countdown runs) and edge placement (for the rest of the level).
+   * Before T67 the flag was never written, so the search ran on *every* spawn.
+   * `?countdown=0` reproduces exactly that, so both cases come from **one
+   * build** — comparing frames across two builds is a trap this project has
+   * already paid for.
+   *
+   * ── Why level 1-2 and not 1-1 ─────────────────────────────────────────
+   * `PartInterface.as:288` skips the countdown outright on 1-1 for a fresh
+   * tutorial, so 1-1 can never show this. 1-2 is world 1, Normal and
+   * 800x600 — bigger than the camera on both axes, so the search is eligible.
+   *
+   * ── Why the tutorial is turned off first ──────────────────────────────
+   * `:7153` holds spawning until `AimShoot` is done, and the countdown blocks
+   * `tankAttack` — so with the tutorial running the player cannot satisfy the
+   * tutorial during the countdown and nothing spawns at all. That interaction
+   * is faithful and is exactly why the AS3 has the 1-1 skip, but it would make
+   * this measurement empty.
+   *
+   * Placement and timing only — per `L8` the sweep cannot reliably land hits,
+   * so nothing here reads kills or combat outcomes.
+   */
+  const spawns = () => page.evaluate(() => globalThis.__spawns ?? []);
+  const clearSpawns = () => page.evaluate(() => { globalThis.__spawns = []; });
+
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+
+  // Tutorial off, once — the options store persists across both runs below.
+  await page.getByRole('button', { name: /^options$/i }).click();
+  await delay(600);
+  const tutorialSwitch = page.getByRole('switch', { name: /tutorial/i });
+  if ((await tutorialSwitch.count()) > 0 && (await tutorialSwitch.first().isChecked())) {
+    await tutorialSwitch.first().click();
+    await delay(300);
+  }
+  await page.getByRole('button', { name: /back|menu/i }).first().click();
+  await delay(600);
+
+  const run = async (label, query) => {
+    await page.goto(`${URL}${query}`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /level select/i }).first().click();
+    await delay(800);
+    await page.getByRole('button', { name: /World 1, level 2, Normal/i }).click();
+    await delay(1200);
+    await clearSpawns();
+    // Long enough for well past the 2s countdown at 1-2's ~42-frame interval.
+    await delay(16_000);
+    const list = await spawns();
+    await page.screenshot({ path: `${args.out}/c-${label}.png` });
+
+    const off = list.filter((s) => s.offCamera).length;
+    const edge = list.length - off;
+    const pct = list.length ? Math.round((edge / list.length) * 100) : 0;
+    console.log(
+      `[countdown] ${label.padEnd(7)} spawns=${String(list.length).padStart(2)} ` +
+        `offCamera=${String(off).padStart(2)} edge=${String(edge).padStart(2)} (${pct}% edge)`,
+    );
+    for (const s of list) {
+      console.log(
+        `             ${s.atMs.toString().padStart(6)}ms  ` +
+          `(${String(s.x).padStart(4)},${String(s.y).padStart(4)})  ` +
+          `${s.offCamera ? 'off-camera' : `edge wall ${s.wall}`}  ` +
+          `countDownDone=${String(s.countDownDone).padEnd(5)} ` +
+          `framesLeft=${s.framesLeft}`,
+      );
+    }
+    return { off, edge, total: list.length };
+  };
+
+  const before = await run('before', '?countdown=0');
+  const after = await run('after', '');
+
+  console.log(
+    `\n[countdown] before: ${before.off}/${before.total} off-camera  ` +
+      `after: ${after.off}/${after.total} off-camera`,
+  );
+  console.log('[countdown] frames -> ' + args.out);
   await browser.close();
   stop();
   process.exit(0);
