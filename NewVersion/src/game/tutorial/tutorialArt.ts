@@ -216,12 +216,48 @@ export const OBJECTIVE_X = 194;
 export const OBJECTIVE_BOTTOM_GAP = 8;
 
 /**
+ * The band at the bottom of the screen this port's HUD owns — **divergence
+ * `A5`**, and the number is the AS3's, not a taste value.
+ *
+ * ── Why a divergence is needed at all ─────────────────────────────────────
+ * The AS3 stage is 640x480 with the play area at 0..400 and an interface strip
+ * at 400..480 (`PartInterface.as:232` sets `bg.y = 400`). `Objective` is placed
+ * at `480 - height - 8` = **408**, i.e. deliberately *inside* that strip — and
+ * it does not collide with the weapon widgets because it clears them **on x**:
+ * the panel spans 194..354 and the weapon cluster starts at `bgWeapon.x = 388`
+ * (`PartInterface.as:234`, `bgWeapon2.x = 474`).
+ *
+ * **This port's HUD row is full-width** — health left, ammo centre, audio and
+ * menu right — so there is no x at which a bottom-anchored panel clears it. The
+ * AS3's y placement therefore cannot be reproduced without the panel landing on
+ * the weapon readout, which is what shipped up to T62.
+ *
+ * ── The number is derived, not chosen ─────────────────────────────────────
+ * `480 - 400` = 80: exactly how much of its screen the original reserved for
+ * interface. Reserving the same band here and seating the panel *above* it is
+ * the closest the port gets to "at the bottom of the play area, clear of the
+ * interface", which is what `:341` means in a layout where the strip exists.
+ *
+ * Deriving it keeps the assertion sourced: `AS3_STAGE_HEIGHT` and
+ * `AS3_CAMERA_HEIGHT` are documentation of the original and nothing reads them
+ * at runtime except this subtraction.
+ */
+export const AS3_STAGE_HEIGHT = 480;
+/** `PartInterface.as:232` — the interface strip starts here. Also the camera height. */
+export const AS3_PLAY_AREA_HEIGHT = 400;
+export const HUD_BAND = AS3_STAGE_HEIGHT - AS3_PLAY_AREA_HEIGHT;
+
+/**
  * Where a panel is drawn, in design units — `:319-398`.
  *
  * `viewportHeight` is live. The AS3 uses the literal 480 because its stage
  * never changed size; this port's does, so passing the frozen number would
  * float `Objective` in mid-air on a tall phone and off the bottom on a short
  * window.
+ *
+ * **`Objective` additionally clears `HUD_BAND`** — see above. That is a
+ * deliberate divergence from `:341`, not a correction to it: the AS3's y is
+ * faithful and unusable here because its HUD was not full-width.
  */
 export function panelPosition(
   id: string,
@@ -229,7 +265,10 @@ export function panelPosition(
 ): { x: number; y: number } {
   const clip = TUTORIAL_CLIPS[id];
   if (id === 'Objective' && clip) {
-    return { x: OBJECTIVE_X, y: viewportHeight - clip.height - OBJECTIVE_BOTTOM_GAP };
+    return {
+      x: OBJECTIVE_X,
+      y: viewportHeight - HUD_BAND - clip.height - OBJECTIVE_BOTTOM_GAP,
+    };
   }
   return { x: PANEL_INSET, y: PANEL_INSET };
 }

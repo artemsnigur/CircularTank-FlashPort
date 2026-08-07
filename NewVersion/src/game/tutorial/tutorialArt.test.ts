@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { TUTORIAL_CLIPS, panelPosition } from './tutorialArt';
+import {
+  AS3_PLAY_AREA_HEIGHT,
+  AS3_STAGE_HEIGHT,
+  HUD_BAND,
+  OBJECTIVE_BOTTOM_GAP,
+  OBJECTIVE_X,
+  TUTORIAL_CLIPS,
+  panelPosition,
+} from './tutorialArt';
 
 /**
  * Offsets read straight out of `assets.swf`'s PlaceObject matrices, as a
@@ -72,11 +80,86 @@ describe('the panel composition', () => {
 
 });
 
+/**
+ * The two extremes of `logicalHeight`, which is `renderHeight / zoom` clamped
+ * to `[400, 1440]` (`config/viewport.ts`). A wide desktop window sits at the
+ * floor and a portrait phone near the ceiling, so a placement rule that is
+ * only checked at one of them is checked on one platform.
+ *
+ * This is the constants-that-became-variables case by name, which is exactly
+ * why both ends are driven rather than the value this machine happens to make.
+ */
+const DESKTOP_FLOOR = 400;
+const PHONE_CEILING = 1440;
+
 describe('panelPosition', () => {
-  it('anchors Objective to the live viewport bottom and the rest top-left', () => {
-    // The AS3's 480 is its frozen stage height — see the module docblock.
-    expect(panelPosition('Move', 400)).toEqual({ x: 16, y: 16 });
-    expect(panelPosition('Objective', 400).y).toBe(400 - TUTORIAL_CLIPS['Objective'].height - 8);
-    expect(panelPosition('Objective', 1000).y).toBe(1000 - TUTORIAL_CLIPS['Objective'].height - 8);
+  /**
+   * **A rule, not a limitation.** `:319` puts eleven of the twelve panels at a
+   * literal (16, 16) and only `Objective` reads a dimension (`:340-341`).
+   *
+   * This is the counterpart the bottom-anchored rule is pinned against: it must
+   * hold at *both* viewport extremes on the *same* call, or "everything is at
+   * 16,16" and "everything is bottom-anchored" would both pass the assertions
+   * below on their own.
+   */
+  it('leaves every panel but Objective at the AS3 inset, at both extremes', () => {
+    expect(panelPosition('Move', DESKTOP_FLOOR)).toEqual({ x: 16, y: 16 });
+    expect(panelPosition('Move', PHONE_CEILING)).toEqual({ x: 16, y: 16 });
+    expect(panelPosition('AimShoot', PHONE_CEILING)).toEqual({ x: 16, y: 16 });
+  });
+
+  /**
+   * **A divergence, not a port.** `PartTutorial.as:341` is
+   * `480 - height - 8` = 408, which is *inside* the AS3's 400..480 interface
+   * strip. That works there because the panel clears the weapon widgets on
+   * **x** — it spans 194..354 and `bgWeapon.x` is 388
+   * (`PartInterface.as:234`). This port's HUD row is full-width, so no x
+   * clears it and the panel has to sit above the band instead.
+   *
+   * Recorded as `A5` in `docs/AUDIT-2026-07.md`. If someone restores the
+   * faithful `viewportHeight - height - 8`, this fails — which is the point.
+   */
+  it('seats Objective clear of the HUD band at both extremes', () => {
+    const height = TUTORIAL_CLIPS['Objective'].height;
+
+    for (const viewport of [DESKTOP_FLOOR, PHONE_CEILING]) {
+      const { y } = panelPosition('Objective', viewport);
+      // Read the constants for the relationship...
+      expect(y).toBe(viewport - HUD_BAND - height - OBJECTIVE_BOTTOM_GAP);
+      // ...and require the actual property: the panel's bottom edge clears
+      // the band the HUD owns. This is what the fix is for, and it survives a
+      // change to any of the three constants above.
+      expect(y + height).toBeLessThanOrEqual(viewport - HUD_BAND);
+    }
+  });
+
+  /**
+   * The live-value rule (rule 7). Transcribing the AS3's frozen 480 would put
+   * the panel at one absolute y on every screen: off the bottom at the desktop
+   * floor and two thirds up a portrait phone.
+   */
+  it('tracks the viewport rather than pinning to a frozen stage height', () => {
+    const low = panelPosition('Objective', DESKTOP_FLOOR).y;
+    const high = panelPosition('Objective', PHONE_CEILING).y;
+    expect(high - low).toBe(PHONE_CEILING - DESKTOP_FLOOR);
+    // The counterpart: the inset panels do *not* move with it.
+    expect(panelPosition('Move', PHONE_CEILING).y).toBe(panelPosition('Move', DESKTOP_FLOOR).y);
+  });
+
+  /**
+   * The magnitude, stated from the source rather than read back out of the
+   * module — a test that copies its expected value out of the code it tests
+   * cannot detect a wrong constant.
+   *
+   * 480 is `PartTutorial.as:341`'s literal (the stage); 400 is
+   * `PartInterface.as:232`'s `bg.y` (where the interface strip starts, and the
+   * camera height). The band is the difference.
+   */
+  it('derives the HUD band from the AS3 stage and play area', () => {
+    expect(AS3_STAGE_HEIGHT).toBe(480);
+    expect(AS3_PLAY_AREA_HEIGHT).toBe(400);
+    expect(HUD_BAND).toBe(80);
+    expect(OBJECTIVE_X).toBe(194);
+    expect(OBJECTIVE_BOTTOM_GAP).toBe(8);
   });
 });

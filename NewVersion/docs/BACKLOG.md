@@ -682,6 +682,15 @@ is the model to follow.
   after the level loads and clear the queue after it. Lift: trivial. Not done in
   the pass that found it, which was docs-only.*
 
+  > **"Sound coverage" is two permanently unrelated numbers in this project.**
+  > This one — the sweep's **trigger-firing count** (39 of 67 at `59b9756`,
+  > unreliable pending L3) — measures how many sound *names* actually play when
+  > the game is driven. `PROGRESS.md`'s **Sound and music triggers 0/115**
+  > counts `[Embed]` MP3 *wrapper classes* (`sndBall.as` is 15 lines around one
+  > file) and is pending **L5**, not L3. Neither can ever move the other, and a
+  > fix to one will not change the other's figure. Conflating them cost a task
+  > prompt once; the note is here so it costs nothing again.
+
 ### L4 — `npm run look` leaves its vite server running
 
 - [ ] **Found the same pass.** After `--ui` exited normally, port 5199 was still
@@ -696,8 +705,17 @@ is the model to follow.
   audit's *stale-server window* section documents, and the strictPort collision
   is the only reason it was noticed.
 
+  **Recurred in T63, one pass after being written down.** A `--tutorial` run
+  leaked 5199 at 03:25:26; the `--baseline` run at 03:32 — after the
+  `tutorialArt.ts` fix at ~03:29 — produced frames anyway rather than failing on
+  the taken port, so it may have been answered by a server older than the change
+  being verified. The frames were discarded and the run repeated on a clean
+  server. **Nothing warned; the run looked completely normal.** That is the whole
+  hazard: a taken `--strictPort` does not announce itself in the output.
+
   *Fix shape: kill the child on exit, including on throw. Lift: trivial.
-  Meanwhile: check the port before trusting any `look` run.*
+  Meanwhile: check the port before trusting any `look` run — and check it
+  **before** the run, because afterwards you cannot tell which server answered.*
 
 ### L5–L7 — PROGRESS.md status mechanics, deferred from T61
 
@@ -712,6 +730,10 @@ transcript is not findable, which is the same failure as a count without a list.
       it also decides the metric, so it wants the `not applicable` question
       answered first (marking them excludes them, dropping the denominator
       ~557 → ~353). Lift: small; consequence: large.*
+      **The Sound category is the one to watch here:** its `0/115` counts
+      `[Embed]` MP3 wrapper classes and moves only with L5. It is **not** the
+      sweep's trigger-firing count, which moves only with L3 — see the box at
+      L3. Two unrelated numbers, one word.
 - [ ] **L6 — `ScreenGame`/`PartGameArea` status and justification are coupled,
       and the justification self-contradicts.** Both prose blocks are generated
       (`gen-progress.mjs:443-456`), and `ScreenGame`'s says *"Still untouched:
