@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T76**, commit `cacfab5`, 7 August 2026. Keep it current — it is
+Current as of **T77**, commit `a2c62a6`, 7 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -28,7 +28,7 @@ TypeScript strict + Phaser 3.90 + Zustand + Vitest + Capacitor.
 - **`NewVersion/`** — the port. All npm commands run from here.
 
 **Gate on every commit:** `typecheck`, `lint`, `data:check`, `progress:check`,
-the full suite (**2637 tests, 132 files**), and `smoke`. Work that cannot land green is not
+the full suite (**2645 tests, 133 files**), and `smoke`. Work that cannot land green is not
 committed. Commits go straight to `main` and are pushed at the end of each task.
 
 ### What plays end to end
@@ -299,7 +299,6 @@ be checked against a second mode on the same build before it is believed.
 |---|---|
 | **A real reload readout** | The HUD shows a placeholder magazine count (`GameplayScene.PLACEHOLDER_AMMO`), not the AS3's two reload bars (`PartInterface.as:746-780`). Whoever builds one also owns `:750-752`, which forces the **primary** bar empty for the whole opening countdown — and only the primary; the secondary's is untouched, which is the original's own asymmetry. The rule is deliberately **not** ported ahead of a consumer; reasoning at the foot of `waves/countdownPanel.ts` and at `PLACEHOLDER_AMMO`. |
 | **Sound: 15 silent — 10 need no code, 5 are blocked** | `--sound-sweep` reports **47–48 of 67** (T71; two runs gave 48 and 47, `TankDamaged` the swing). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
-| **`L1`** | `assets:sync` never prunes. Re-verified at `b2d2193`: a count of `unlink\|rm(\|rmSync` over `scripts/sync-assets.mjs` returns 0. |
 
 ### The 19 silent sounds, individually
 
@@ -398,6 +397,14 @@ things that are actually open.
   measured, and recorded as **C15** so it is not reported as a regression.
   Tower and Defense are untouched — their rooms already matched the camera.
   Presentation is still owed; see the queue above.
+- **`L1`** — fixed (T77). `sync-assets.mjs` now prunes destination files the run
+  would not write, using the same inputs the copy loops use so the authored
+  overlay survives by construction. **A scoping correction came with it:**
+  `registry.test.ts:218` already caught two of the three failure modes the
+  backlog listed — a rename and an upstream deletion both remove the name from
+  *both* source roots. The gap was only a shape dropped from `CURATED_SHAPES`,
+  which stays in `SWFimported/shapes/` and is therefore not a stray, while the
+  eager glob keeps bundling it.
 - **`L8`** — fixed (T69), and it turned out to be two bugs. The aim fix alone
   moved 25 → 32 on one run and 27 on the next, with the good run's whole gain
   arriving at the **homing** Magic Cannon — so the harness now aims at a live

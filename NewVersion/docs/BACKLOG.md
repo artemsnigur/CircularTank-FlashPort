@@ -616,9 +616,35 @@ is the model to follow.
 
 ## Group L — Tooling
 
-### L1 — `assets:sync` never prunes
+### L1 — `assets:sync` never prunes — **FIXED (T77)**
 
-- [ ] `scripts/sync-assets.mjs` copies and **never deletes**: there is no `rm`,
+`sync-assets.mjs` now deletes destination files the run would not have written.
+The rule is `scripts/lib/asset-prune.mjs`, derived from **exactly** the inputs
+the copy loops use, so the authored overlay survives by construction rather than
+by an exemption someone has to keep in step.
+
+**Deletes by default.** `src/assets/` is a build artifact — gitignored and
+reproducible in full by re-running — so nothing tracked can be lost, and leaving
+stale files is the more damaging default because `registry.ts:28` globs the
+folder eagerly. `--dry-run` reports without deleting.
+
+**One correction to the scope below.** Of the three failure modes listed,
+`registry.test.ts:218` **already caught two** — a rename and an upstream
+deletion both remove the name from *both* source roots, so both were strays. The
+one it could not see is **failure mode 2**: a shape dropped from
+`CURATED_SHAPES` is still in `SWFimported/shapes/`, so it is not a stray, while
+the eager glob keeps bundling it. That was the real gap, and it is narrower than
+this entry described.
+
+**Driven.** On a clean tree the run prunes 0. With an orphaned image and a
+de-curated shape planted, `--dry-run` reports both and deletes neither; the real
+run deletes both and every legitimate count returns to its exact prior value
+(images 32, fonts 2, audio 123, shapes 295), with the authored
+`351_upscale.webp` still present.
+
+*Original entry below.*
+
+- [x] `scripts/sync-assets.mjs` copies and **never deletes**: there is no `rm`,
       `unlink`, or prune step anywhere in the file. Every destination file it has
       ever written stays in `src/assets/` until removed by hand.
 

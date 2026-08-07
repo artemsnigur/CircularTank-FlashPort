@@ -14,9 +14,10 @@
  * Copy, not symlink: symlinks on Windows need Developer Mode or elevation, and
  * Vite's watcher handles real files more predictably.
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { orphanedFiles, plannedWrites } from './lib/asset-prune.mjs';
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 
@@ -480,8 +481,61 @@ for (const group of FOLDER_MAP) {
   }
 }
 
+// ── Prune ────────────────────────────────────────────────────────────────
+// Deletes destination files this run would not have written.
+//
+// **Why it deletes by default.** `src/assets/` is a build artifact: gitignored
+// and reproducible in full by re-running this script, so nothing tracked can be
+// lost. Leaving stale files is the more damaging default, because
+// `registry.ts:28` globs the folder **eagerly** — a file nothing references is
+// still bundled and shipped.
+//
+// **The prune set is derived from the same inputs the copy loops use**, not
+// from a separate list. That is what keeps the authored overlay safe: a naive
+// "delete anything not in SWFimported" would remove every authored file on
+// every run, which is the failure `docs/BACKLOG.md` L1 warns about by name.
+//
+// The rule itself is `lib/asset-prune.mjs` so it can be driven without touching
+// a filesystem; this is only the walk and the reporting.
+let pruned = 0;
+const prunedNames = [];
+
+for (const group of FOLDER_MAP) {
+  const dest = join(destRoot, group.to);
+  if (!existsSync(dest)) continue;
+
+  const extractedDir = join(sourceRoot, group.from);
+  const authoredDir = join(AUTHORED_ROOT, group.from);
+  const names = (dir) =>
+    existsSync(dir)
+      ? readdirSync(dir, { withFileTypes: true })
+          .filter((e) => e.isFile())
+          .map((e) => e.name)
+      : [];
+
+  const planned = plannedWrites(
+    names(extractedDir),
+    names(authoredDir),
+    group.curated && !args.all ? CURATED_SHAPES : null,
+  );
+  const orphans = orphanedFiles(names(dest), planned, group.exts);
+
+  for (const name of orphans) {
+    if (!args.dryRun) rmSync(join(dest, name));
+    prunedNames.push(`${group.to}/${name}`);
+  }
+  pruned += orphans.length;
+}
+
+if (pruned > 0) {
+  console.log(`\n  ${args.dryRun ? '[dry run] would prune' : 'pruned'} ${pruned} stale file(s):`);
+  for (const name of prunedNames.slice(0, 20)) console.log(`    - ${name}`);
+  if (prunedNames.length > 20) console.log(`    … and ${prunedNames.length - 20} more`);
+}
+
 console.log(
   `\n${args.dryRun ? '[dry run] ' : ''}${copied} file(s) copied, ${skipped} already current` +
+    (pruned ? `, ${pruned} pruned` : '') +
     (missing ? `, ${missing} source folder(s) missing` : '') +
     '.',
 );
