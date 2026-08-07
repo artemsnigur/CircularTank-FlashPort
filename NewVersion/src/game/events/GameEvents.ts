@@ -102,6 +102,27 @@ export interface GameEventMap {
   'player:damaged': { amount: number; health: number; maxHealth: number };
   'player:healed': { amount: number; health: number; maxHealth: number };
   'ammo:changed': { current: number; capacity: number; weapon: string };
+  /**
+   * The opening countdown's panel — `PartInterface.as:303-308`.
+   *
+   * Emitted while the countdown runs and once more on expiry with
+   * `running: false`, which is what starts the fade-and-slide. The scene owns
+   * the timer; this carries only what the panel draws.
+   *
+   * **`null` means "no panel at all"**, which is not the same as
+   * `running: false`. A level whose countdown was skipped (`:288`) must never
+   * show one, where an expired countdown fades out — one clears, the other
+   * animates.
+   */
+  'countdown:changed': {
+    running: boolean;
+    /** `countDownText` — '', '3', '2', '1' or 'GO!'. */
+    label: string;
+    /** `modeCountText`, e.g. `"Flag Mode"`. */
+    mode: string;
+    /** `objectiveCountText`, e.g. `"Kill 18 Enemies"`. */
+    objective: string;
+  } | null;
   'wave:changed': {
     wave: number;
     enemiesRemaining: number;

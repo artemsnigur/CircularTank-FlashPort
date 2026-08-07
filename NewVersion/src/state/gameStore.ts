@@ -150,6 +150,14 @@ export interface GameState {
   levelMode: string;
   /** Flags still to capture; only shown on a Flag level. */
   flagsRemaining: number;
+  /**
+   * The opening countdown's panel, or null when there is none to draw.
+   *
+   * Kept as one object rather than four fields so the panel mounts and
+   * unmounts on a single value — `AmmoReadout`'s `capacity <= 0` guard is the
+   * cautionary tale for spreading one widget's visibility across several.
+   */
+  countdown: { running: boolean; label: string; mode: string; objective: string } | null;
   achievements: AchievementToast[];
 
   /** Set when a level finishes; null while one is in progress. */
@@ -208,6 +216,7 @@ export interface GameState {
     levelMode: string,
     flagsRemaining: number,
   ) => void;
+  setCountdown: (countdown: GameState['countdown']) => void;
   endLevel: (summary: LevelOutcomeSummary) => void;
   /** Clears the result so the next level starts clean. */
   clearLevelOutcome: () => void;
@@ -242,6 +251,7 @@ const initialRunState = {
   enemiesRemaining: 0,
   levelMode: 'Normal',
   flagsRemaining: 0,
+  countdown: null,
   achievements: [] as AchievementToast[],
   levelOutcome: null as LevelOutcomeSummary | null,
   levelList: null as LevelListing | null,
@@ -291,6 +301,7 @@ export const useGameStore = create<GameState>()((set) => ({
   setAmmo: (ammo, ammoCapacity, weapon) => set({ ammo, ammoCapacity, weapon }),
   setWave: (wave, enemiesRemaining, levelMode, flagsRemaining) =>
     set({ wave, enemiesRemaining, levelMode, flagsRemaining }),
+  setCountdown: (countdown) => set({ countdown }),
   endLevel: (levelOutcome) => set({ levelOutcome }),
   clearLevelOutcome: () => set({ levelOutcome: null }),
   setLevelList: (levelList) => set({ levelList }),

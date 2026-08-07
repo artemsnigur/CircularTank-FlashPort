@@ -456,13 +456,74 @@ if (args.countdown) {
   await page.getByRole('button', { name: /back|menu/i }).first().click();
   await delay(600);
 
-  const run = async (label, query) => {
+  /**
+   * Watches the panel's digit change, reading it from the DOM rather than
+   * sleeping on the clock.
+   *
+   * The countdown starts on the first `update`, which is after `create()`'s
+   * tail — so wall time from the click is not the countdown's own time. Timing
+   * is therefore measured **from the first digit**, which is frame 54, i.e.
+   * 200ms into a 2000ms countdown. Expected gaps from there are 600/600/600.
+   */
+  const watchPanel = async (label) => {
+    const digit = () =>
+      page.evaluate(
+        () => globalThis.document.querySelector('.hud-countdown__digit')?.textContent ?? null,
+      );
+    const seen = [];
+    let last = null;
+    let firstAt = null;
+    const started = Date.now();
+
+    while (Date.now() - started < 8000) {
+      const d = await digit();
+      if (d !== null && d !== '' && d !== last) {
+        const now = Date.now();
+        firstAt ??= now;
+        seen.push({ digit: d, atMs: now - firstAt });
+        await page.screenshot({ path: `${args.out}/c-panel-${seen.length}-${d.replace('!', '')}.png` });
+        last = d;
+        if (d === 'GO!') break;
+      }
+      await delay(25);
+    }
+
+    console.log(`[countdown] ${label} panel digits: ` +
+      seen.map((s) => `${s.digit}@${s.atMs}ms`).join('  '));
+    await delay(1200);
+    await page.screenshot({ path: `${args.out}/c-panel-after-fade.png` });
+    const gone = await page.evaluate(() => {
+      const el = globalThis.document.querySelector('.hud-countdown');
+      return el === null || globalThis.getComputedStyle(el).opacity === '0';
+    });
+    console.log(`[countdown] ${label} panel faded out: ${gone}`);
+
+    // `:726`/`:731`/`:736` queue CountDownBeep1 on each digit and `:741`
+    // queues CountDownBeep2 on GO!. Counted rather than assumed — three and
+    // one, not four of either.
+    const beeps = await page.evaluate(() =>
+      (globalThis.__soundQueue?.names() ?? []).filter((n) => n.startsWith('CountDownBeep')),
+    );
+    const b1 = beeps.filter((n) => n === 'CountDownBeep1').length;
+    const b2 = beeps.filter((n) => n === 'CountDownBeep2').length;
+    console.log(`[countdown] ${label} beeps: CountDownBeep1 x${b1}, CountDownBeep2 x${b2}`);
+    return seen;
+  };
+
+  const run = async (label, query, watch = false) => {
     await page.goto(`${URL}${query}`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
     await page.getByRole('button', { name: /level select/i }).first().click();
     await delay(800);
     await page.getByRole('button', { name: /World 1, level 2, Normal/i }).click();
+    if (watch) await watchPanel(label);
     await delay(1200);
+    // **Watching costs the countdown-window spawn.** `watchPanel` runs for the
+    // whole countdown, so by the time the queue is cleared the one off-camera
+    // placement has already happened and the `after` run reports 0 rather than
+    // 1. That is an artefact of watching, not a change in placement — the
+    // unwatched `before`/`after` pair is the measurement, and T67 recorded it
+    // as 9/9 against 1/8. Do not read `offCamera=0` here as a regression.
     await clearSpawns();
     // Long enough for well past the 2s countdown at 1-2's ~42-frame interval.
     await delay(16_000);
@@ -489,7 +550,7 @@ if (args.countdown) {
   };
 
   const before = await run('before', '?countdown=0');
-  const after = await run('after', '');
+  const after = await run('after', '', true);
 
   console.log(
     `\n[countdown] before: ${before.off}/${before.total} off-camera  ` +

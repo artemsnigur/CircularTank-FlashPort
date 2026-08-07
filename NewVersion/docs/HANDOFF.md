@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T67**, commit `9229b37`, 7 August 2026. Keep it current — it is
+Current as of **T68**, commit `f1c5e20`, 7 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -27,8 +27,8 @@ TypeScript strict + Phaser 3.90 + Zustand + Vitest + Capacitor.
   pre-commit hook enforces that.
 - **`NewVersion/`** — the port. All npm commands run from here.
 
-**Gate on every commit:** `typecheck`, `lint`, `data:check`, the full suite
-(**2580 tests, 126 files**), and `smoke`. Work that cannot land green is not
+**Gate on every commit:** `typecheck`, `lint`, `data:check`, `progress:check`,
+the full suite (**2611 tests, 129 files**), and `smoke`. Work that cannot land green is not
 committed. Commits go straight to `main` and are pushed at the end of each task.
 
 ### What plays end to end
@@ -76,7 +76,8 @@ baseline. The first number worth recording is the one after `L8`.
 `--baseline` (the full loop), `--ui`, `--sound`, `--sound-sweep`, `--tutorial`,
 `--particles`, `--money`, `--indicators`, `--secondaries`, `--save`, `--slots`,
 `--countdown` (level 1-2 driven twice on one build, `?countdown=0` reproducing
-the pre-T67 state, dumping spawn coordinates for both).
+the pre-T67 state, dumping spawn coordinates for both; the second run also
+watches the panel's digit change in the DOM and counts the beeps).
 
 ---
 
@@ -227,7 +228,7 @@ be checked against a second mode on the same build before it is believed.
 
 | Item | Needs |
 |---|---|
-| **Countdown: UI and beeps** | The timer, the flag and the update gate landed in T67. What remains is presentation: the "3 / 2 / 1 / GO!" text, the `bgText` panel with its mode and objective labels (`PartInterface.as:303-308`), the nine tweens (`:713-721`), the reload bars hidden while `countDown > 0` (`:750-752`), and the two beeps — **both assets already preload** (`audioManifest.ts:53-54`). `tickCountdown` already returns the cues; the scene currently drops them. Small, and purely additive. |
+| **A real reload readout** | The HUD shows a placeholder magazine count (`GameplayScene.PLACEHOLDER_AMMO`), not the AS3's two reload bars (`PartInterface.as:746-780`). Whoever builds one also owns `:750-752`, which forces the **primary** bar empty for the whole opening countdown — and only the primary; the secondary's is untouched, which is the original's own asymmetry. The rule is deliberately **not** ported ahead of a consumer; reasoning at the foot of `waves/countdownPanel.ts` and at `PLACEHOLDER_AMMO`. |
 | **`L8`** | **The sweep aims at a screen constant.** Found by fixing `L3` and watching the count refuse to move. Its cursor orbits `(640, 400)` (`look.mjs:520`) while the tank sits near x 900 after the gate-satisfying move, so every round flies past. Zero hits: no impact sounds, no `EnemySquish`, no `Coin`, arena `60 LEFT` start to finish. **This, not `L3`, is what now blocks a trustworthy sound number.** Needs a design call — aim relative to the tank, or drive it into contact — because the tank's screen position is not exposed to the harness. |
 | **Sound: 28 names not firing** | Six blocked on unported triggers (achievement reveal, level-unlock, countdown, shop purchase, second loadout slot). The rest is scenario reach. `ImpactCrazyCheese` is an orphan asset with no AS3 trigger under any spelling. **Do not re-measure before `L8`.** |
 | **`L1`** | `assets:sync` never prunes. Re-verified at `b2d2193`: a count of `unlink\|rm(\|rmSync` over `scripts/sync-assets.mjs` returns 0. |
@@ -253,6 +254,14 @@ things that are actually open.
   (`resolveCollisions:539`, from `:2603-2664`) and props render. **Nothing is
   owed and no call is needed** — the audit was right and only §5 was stale.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
+- **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
+  digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four
+  objects moving the same -168), and both beeps. Driven: digits at
+  `3@0ms 2@585 1@1186 GO!@1783` measured from the first digit — the AS3's
+  600 ms spacing — with `CountDownBeep1 x3, CountDownBeep2 x1` and the panel
+  confirmed faded. **A frame caught what the log could not**: the red objective
+  line overflowed the panel's bottom edge while the digit sequence logged
+  perfectly. The reload-bar half of `:750-752` is not ported — see the queue.
 - **The pre-level countdown's behaviour half** — landed (T67): the 2000 ms timer,
   `countDownDone`, the `:288` 1-1 skip, and the update gate that freezes the
   player while the arena fills. **This was the "changes spawn placement

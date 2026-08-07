@@ -26,6 +26,7 @@ import { shouldRun } from '../waves/levelDoneGate';
 import { shouldRunDuringCountdown } from '../waves/countdownGate';
 import { countdownSkipped, createCountdown, tickCountdown } from '../waves/countdown';
 import type { CountdownState } from '../waves/countdown';
+import { countdownLabel, modeLabel, objectiveText } from '../waves/countdownPanel';
 import { isAudibleAt } from '../audio/onScreenGate';
 import { musicForMode } from '../audio/musicCue';
 import { secondaryReloadRuns, tutorialHoldsPlay } from '../tutorial/tutorialGates';
@@ -319,6 +320,20 @@ function roomFillEnabled(world: number, level: number): boolean {
  * **above zero**: `AmmoReadout` in Hud.tsx returns null on `capacity <= 0`, so
  * emitting a zero capacity unmounts the whole readout, taking the weapon name
  * with it. Both emit sites must use this.
+ */
+/**
+ * Stand-in magazine count. **This port draws no reload bars.**
+ *
+ * Worth knowing before porting anything that gates them: `drawReloadBars`
+ * (`PartInterface.as:746-780`) fills two bars from `reloadTime` and
+ * `reloadTimeSecondary`, and `:750-752` forces the **primary** one empty for
+ * the whole opening countdown — the secondary's is untouched, which is the
+ * original's own asymmetry. None of that is reachable here because there is no
+ * bar to fill; the HUD shows this number instead.
+ *
+ * Whoever builds a real reload readout owns `:750-752` with it. The rule is
+ * deliberately not ported ahead of a consumer — see the foot of
+ * `waves/countdownPanel.ts`.
  */
 const PLACEHOLDER_AMMO = 12;
 
@@ -1100,11 +1115,21 @@ export class GameplayScene extends Phaser.Scene {
     if (this.levelStartedAtMs === 0) this.levelStartedAtMs = time;
 
     if (!levelDone && !devCountdownHeld()) {
-      this.countdown = tickCountdown(this.countdown, delta).state;
+      const wasRunning = !this.countdown.done;
+      const tick = tickCountdown(this.countdown, delta);
+      this.countdown = tick.state;
       // Mirrored onto the wave because that is what `updateWave` hands to
       // `spawnPlacement`. The scene's own copy is the source of truth, so the
       // gate below still answers correctly before a wave exists.
       if (this.wave) this.wave.countDownDone = this.countdown.done;
+
+      // `:726`, `:731`, `:736` are the same beep; `:741` is the second one on
+      // "GO!". The cues come from `tickCountdown` rather than being re-derived
+      // from the frame count, so a stalled frame cannot swallow one.
+      for (const cue of tick.cues) {
+        getSoundManager(this)?.queue(cue === 'GO' ? 'CountDownBeep2' : 'CountDownBeep1');
+      }
+      if (wasRunning) this.publishCountdown();
     }
     const countDownDone = this.countdown.done;
 
@@ -1482,6 +1507,10 @@ export class GameplayScene extends Phaser.Scene {
     this.wave.countDownDone = this.countdown.done;
     // Stamped on the first update, not here — see the field.
     this.levelStartedAtMs = 0;
+    // A skipped countdown (`:288`) publishes nothing, so the panel never
+    // appears for the one level the AS3 hides it on.
+    if (this.countdown.done) GameEvents.emit('countdown:changed', null);
+    else this.publishCountdown();
 
     // Captured once, so `flagsTaken` is a difference rather than a count the
     // tutorial would have to be told separately.
@@ -2739,6 +2768,33 @@ export class GameplayScene extends Phaser.Scene {
    * plausible theories and one wrong fix without ever looking at alpha,
    * position or the display list.
    */
+  /**
+   * Publishes the countdown panel — `PartInterface.as:303-308`.
+   *
+   * Emitted every frame while the countdown runs and once more on the frame it
+   * expires, with `running: false`, which is what starts the fade-and-slide in
+   * `Hud.tsx`. The panel is cleared with `null` when a level starts already
+   * past its countdown, so a skipped one (`:288`) never flashes.
+   */
+  private publishCountdown(): void {
+    const spec = this.levelSpec;
+    if (!spec) return;
+
+    GameEvents.emit('countdown:changed', {
+      running: !this.countdown.done,
+      label: countdownLabel(this.countdown.framesLeft),
+      mode: modeLabel(spec.mode),
+      objective: objectiveText({
+        mode: spec.mode,
+        totalEnemies: spec.totalEnemies,
+        flagCount: spec.flagCount,
+        bossAmount: this.wave?.bossAmount ?? 0,
+        // 1 on every difficulty in the AS3; applied rather than assumed.
+        amountMultiplier: getDifficultyProfile(this.difficulty).amount,
+      }),
+    });
+  }
+
   /**
    * DEV-AID: records every spawn placement for `npm run look -- --countdown`.
    *

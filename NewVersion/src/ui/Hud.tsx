@@ -18,6 +18,11 @@ import { buildStatusPages, initialPageIndex,
 import { AudioToggles } from './AudioToggles';
 import { GameEvents } from '../game/events/GameEvents';
 import { formatNumber } from '../game/core/Functions';
+import {
+  FADE_OUT_MS,
+  SLIDE_OUT_DISTANCE,
+  SLIDE_OUT_MS,
+} from '../game/waves/countdownPanel';
 
 const ACHIEVEMENT_TOAST_MS = 4000;
 
@@ -376,6 +381,50 @@ function AchievementToasts(): React.ReactElement {
   );
 }
 
+/**
+ * The opening countdown panel — `PartInterface.as:303-308`.
+ *
+ * Four things stacked: the `BackgroundText` panel, the big digit, a
+ * `"<Mode> Mode"` label and a red objective line. DOM rather than in-canvas
+ * because every one of them is laid-out text, which is the split
+ * `docs/TEXT_RENDERING.md` sets.
+ *
+ * ── The exit is CSS, and the numbers are the AS3's ────────────────────────
+ * `:713-721` starts eight tweens on expiry: all four objects fade over 20
+ * frames and slide up 168 units over 30. Those are `FADE_OUT_MS`,
+ * `SLIDE_OUT_MS` and `SLIDE_OUT_DISTANCE`, fed to CSS custom properties so the
+ * durations live with the source citation rather than in a stylesheet.
+ *
+ * The panel stays mounted through `running: false` so the transition can play;
+ * the scene stops emitting once it has finished, and the null clears it.
+ */
+function CountdownPanel(): React.ReactElement | null {
+  const countdown = useGameStore((s) => s.countdown);
+  if (!countdown) return null;
+
+  return (
+    <div
+      className={`hud-countdown${countdown.running ? '' : ' hud-countdown--out'}`}
+      style={
+        {
+          '--countdown-fade-ms': `${FADE_OUT_MS}ms`,
+          '--countdown-slide-ms': `${SLIDE_OUT_MS}ms`,
+          '--countdown-slide': `${SLIDE_OUT_DISTANCE}px`,
+        } as React.CSSProperties
+      }
+      // The digit changes four times in two seconds; announcing each one is
+      // noise, and the objective line below carries the meaning.
+      aria-hidden="true"
+    >
+      <div className="hud-countdown__panel">
+        <span className="hud-countdown__digit">{countdown.label}</span>
+        <span className="hud-countdown__mode">{countdown.mode}</span>
+        <span className="hud-countdown__objective">{countdown.objective}</span>
+      </div>
+    </div>
+  );
+}
+
 export function Hud(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
   const inGame = activeScene === 'Gameplay';
@@ -406,6 +455,7 @@ export function Hud(): React.ReactElement | null {
         </button>
       </div>
 
+      <CountdownPanel />
       <LevelOutcomeOverlay />
       <AchievementToasts />
     </div>

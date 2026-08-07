@@ -79,6 +79,10 @@ export function attachStoreBridge(): () => void {
     store.getState().setAmmo(current, capacity, weapon);
   });
 
+  on('countdown:changed', (panel) => {
+    store.getState().setCountdown(panel);
+  });
+
   on('menu:resume-point', (point) => {
     store.getState().setResumePoint(point);
   });
