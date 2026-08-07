@@ -699,6 +699,35 @@ is the model to follow.
   *Fix shape: kill the child on exit, including on throw. Lift: trivial.
   Meanwhile: check the port before trusting any `look` run.*
 
+### L5–L7 — PROGRESS.md status mechanics, deferred from T61
+
+Three decisions surfaced by the T61 status-accuracy pass and deliberately **not
+acted on** there. Logged here because a decision that exists only in a session
+transcript is not findable, which is the same failure as a count without a list.
+
+- [ ] **L5 — stub classification could be derived, and is hand-set.** 517 of the
+      643 rows are `[Embed]` asset stubs; `gen-progress.mjs:256` already reads
+      each `.as` file (only to count lines), so a `[Embed(` test would classify
+      all 517 mechanically. *A mechanism instead of 517 hand-set statuses — but
+      it also decides the metric, so it wants the `not applicable` question
+      answered first (marking them excludes them, dropping the denominator
+      ~557 → ~353). Lift: small; consequence: large.*
+- [ ] **L6 — `ScreenGame`/`PartGameArea` status and justification are coupled,
+      and the justification self-contradicts.** Both prose blocks are generated
+      (`gen-progress.mjs:443-456`), and `ScreenGame`'s says *"Still untouched:
+      the game loop, wave spawning"* while `PartGameArea`'s lists
+      `waves/waveState.ts` as ported two bullets below. The audit records both
+      classes as running the frame loop. **Needs one generator pass, not a hand
+      edit** — editing PROGRESS.md alone is reverted by the next regeneration and
+      fails `progress:check` in the gate. *Lift: small.*
+- [ ] **L7 — ~20 absorbed classes stay uncounted under the current mapping
+      rule.** `ScreenMenu`, `PartInterface`, `ImageEnemy`, `ButtonEquipSlot`,
+      `ButtonSecondary`, `ButtonWeapon` and about fourteen others have their
+      behaviour in a differently-named port module and no citation naming the
+      AS3 class, so T61's "named port citation" rule leaves them `not started`.
+      The rule was chosen to understate rather than overstate. *Relaxing it is a
+      future call and changes ~20 statuses at once; not this pass's.*
+
 ---
 
 ## Dependencies
@@ -770,6 +799,9 @@ Small, and none of it blocks anything else:
 | **L1** | `assets:sync` never prunes | small |
 | **L3** | `--sound-sweep` never satisfies the tutorial gate | trivial |
 | **L4** | `npm run look` leaves its vite server alive | trivial |
+| **L5** | 517 stub statuses hand-set where `gen-progress.mjs:256` could derive them | small work, large metric consequence |
+| **L6** | `ScreenGame`/`PartGameArea` generated prose self-contradicts and is coupled to their status | small, generator pass |
+| **L7** | ~20 absorbed classes uncounted under the "named port citation" rule | a decision, not work |
 | **F4** | `secondaries.ts`'s header still says "Scope: Mine only" | trivial |
 
 **Read this next to `docs/HANDOFF.md` §5, not instead of it.** This document
