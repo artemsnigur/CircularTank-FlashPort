@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T71**, commit `a552bfc`, 7 August 2026. Keep it current — it is
+Current as of **T76**, commit `cacfab5`, 7 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -28,7 +28,7 @@ TypeScript strict + Phaser 3.90 + Zustand + Vitest + Capacitor.
 - **`NewVersion/`** — the port. All npm commands run from here.
 
 **Gate on every commit:** `typecheck`, `lint`, `data:check`, `progress:check`,
-the full suite (**2611 tests, 129 files**), and `smoke`. Work that cannot land green is not
+the full suite (**2637 tests, 132 files**), and `smoke`. Work that cannot land green is not
 committed. Commits go straight to `main` and are pushed at the end of each task.
 
 ### What plays end to end
@@ -93,7 +93,8 @@ the pre-T67 state, dumping spawn coordinates for both; the second run also
 watches the panel's digit change in the DOM and counts the beeps),
 `--medals` (a **real** 1-1 clear at full health — not the dev jump, which banks
 nothing and therefore always shows 0 medals — watching the stamp-in and the
-`Award1-3` cues).
+`Award1-3` cues), `--unlock` (wins 1-1, then watches the level-select medal
+count-up, the `Unlock` latch, and whether 1-2 stays selectable throughout).
 
 ---
 
@@ -297,7 +298,7 @@ be checked against a second mode on the same build before it is believed.
 | Item | Needs |
 |---|---|
 | **A real reload readout** | The HUD shows a placeholder magazine count (`GameplayScene.PLACEHOLDER_AMMO`), not the AS3's two reload bars (`PartInterface.as:746-780`). Whoever builds one also owns `:750-752`, which forces the **primary** bar empty for the whole opening countdown — and only the primary; the secondary's is untouched, which is the original's own asymmetry. The rule is deliberately **not** ported ahead of a consumer; reasoning at the foot of `waves/countdownPanel.ts` and at `PLACEHOLDER_AMMO`. |
-| **Sound: 16 silent — 10 need no code, 6 are blocked** | `--sound-sweep` reports **47–48 of 67** (T71; two runs gave 48 and 47, `TankDamaged` the swing). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
+| **Sound: 15 silent — 10 need no code, 5 are blocked** | `--sound-sweep` reports **47–48 of 67** (T71; two runs gave 48 and 47, `TankDamaged` the swing). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
 | **`L1`** | `assets:sync` never prunes. Re-verified at `b2d2193`: a count of `unlink\|rm(\|rmSync` over `scripts/sync-assets.mjs` returns 0. |
 
 ### The 19 silent sounds, individually
@@ -335,7 +336,7 @@ wrong, and did.
 | ~~`Award1`~~ | `ScreenStatus.as:1151` | **fired (T74)** — driven at `1★@0ms` |
 | ~~`Award2`~~ | `ScreenStatus.as:1157` | **fired (T74)** — driven at `2★@334ms` |
 | ~~`Award3`~~ | `ScreenStatus.as:1163` | **fired (T74)** — driven at `3★@652ms` |
-| `Unlock` | `ScreenLevelSelect.as:768` (world), `:1475` (level) | the unlock reveal — **visible-values model** |
+| ~~`Unlock`~~ | `ScreenLevelSelect.as:768`, `:1475` | **fired (T76)** — driven, one per latch |
 | `BossCollision` | `PartGameArea.as:5197` | **enemy-to-enemy collision** — the mass exchange at `:5199-5200` has no port equivalent |
 | `Burning` | loop channel | **nothing in `GameplayScene` starts or stops a loop** — a whole emit path with no caller |
 | `FlameThrower` | loop channel | same |

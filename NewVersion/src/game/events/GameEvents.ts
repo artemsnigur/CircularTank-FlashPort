@@ -240,6 +240,16 @@ export interface GameEventMap {
    * `selectedWorld = 0` (`ScreenLevelSelect.changeToWorldsFunction`), which is
    * how one screen holds two views.
    */
+  /**
+   * A level's latch just opened during the medal reveal —
+   * `ScreenLevelSelect.as:768` / `:1475`, where `spawnLockParticle` sits one
+   * line from the `Unlock` push.
+   *
+   * Emitted only on the step a level crosses from **no** medals to some, not on
+   * every medal counted up. The sound and this are a pair; either alone is the
+   * bug the pairing test exists to catch.
+   */
+  'levels:unlock-flash': { world: number; level: number };
   'worlds:listed': {
     selected: number;
     worlds: Array<{

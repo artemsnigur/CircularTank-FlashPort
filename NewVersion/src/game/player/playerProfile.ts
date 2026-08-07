@@ -31,7 +31,7 @@ import { EMPTY_SAVE_STRING } from '../save/saveString';
 import type { SaveSlotData } from '../save/saveSlot';
 import type { UpgradeState } from '../upgrades/upgradeState';
 import type { LoadoutState } from '../loadout/loadout';
-import { nextLevelAfter, recordLevelResult } from '../levels/levelProgress';
+import { cloneProgress, nextLevelAfter, recordLevelResult } from '../levels/levelProgress';
 import { discoverEnemies } from '../enemies/enemyKnowledge';
 import { updateAchievements } from '../achievements/achievementState';
 import type { AchievementValueSource } from '../achievements/achievementState';
@@ -79,6 +79,11 @@ export class PlayerProfile {
     this.store = store;
     this.slotNumber = slotNumber;
     this.data = PlayerProfile.load(store, slotNumber);
+    // `SaveManager.as:656` / `:1453` — re-cloned from the earned table on every
+    // load, never read back from the save. Assigned here rather than as a field
+    // initialiser because those run before the constructor body, when `data` is
+    // still undefined.
+    this.visible = cloneProgress(this.data.levelSelect.progress);
   }
 
   /**
@@ -134,6 +139,46 @@ export class PlayerProfile {
 
   get progress(): ProgressTable {
     return this.data.levelSelect.progress;
+  }
+
+  /**
+   * The **visible** progress table — `ScreenLevelSelect.worldsValuesVisibleArrays`.
+   *
+   * A lagging clone of `progress` that the level-select reveal animates toward.
+   * `ScreenStatus.as:356` snapshots it *before* `:357-359` raises the earned
+   * slot, so it holds the pre-result state and the difference is exactly what
+   * `progressLevelButtons` (`:518-545`) counts up.
+   *
+   * ── Session-only, deliberately ────────────────────────────────────────────
+   * **Not in `SaveSlotData` and never serialised.** `SaveManager.as:656` and
+   * `:1453` re-clone it from the earned table on every load, so the original
+   * does not persist it either: a player who quits mid-reveal sees the medals
+   * already settled next session, and that is faithful.
+   *
+   * Kept outside `this.data` for that reason — putting it there would drag it
+   * into the codec and make "never saved" a convention rather than a
+   * consequence of where it lives.
+   */
+  private visible: ProgressTable;
+
+  get visibleProgress(): ProgressTable {
+    return this.visible;
+  }
+
+  /**
+   * Ends the reveal — the visible table catches up with the earned one.
+   *
+   * Called when the level-select animation finishes, which is the moment the
+   * AS3's `progressTimerOn` clears. Idempotent: syncing an already-synced table
+   * is a no-op, so a second call cannot skip a pending reveal.
+   */
+  syncVisibleProgress(): void {
+    this.visible = cloneProgress(this.data.levelSelect.progress);
+  }
+
+  /** One step of the reveal — see `levels/progressReveal.ts`. */
+  setVisibleProgress(table: ProgressTable): void {
+    this.visible = table;
   }
 
   get achievements(): AchievementSaveData {
@@ -225,6 +270,16 @@ export class PlayerProfile {
     const discovery = upcoming
       ? discoverEnemies(this.data.knownEnemies, upcoming.world, upcoming.level)
       : null;
+
+    // `ScreenStatus.as:356` — snapshot the visible table from the earned one
+    // **before** `:357-359` raises the slot. The order is the mechanism: after
+    // this line the two differ by exactly this result, which is what the reveal
+    // animates.
+    //
+    // It is a refresh, not just a hold. A reveal that never ran leaves the
+    // visible table lagging by more than one level, and the AS3 discards that
+    // here rather than animating a backlog.
+    this.visible = cloneProgress(this.data.levelSelect.progress);
 
     this.data = {
       ...this.data,

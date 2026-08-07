@@ -21,6 +21,8 @@ import {
 } from '../levels/levelUnlock';
 import { chooseDifficulty, getDifficulty, publishDifficulty } from '../levels/difficultyService';
 import { Worlds } from '../config/constants';
+import { getSoundManager } from '../audio/soundService';
+import { pendingReveals, REVEAL_STEP_MS, stepReveal } from '../levels/progressReveal';
 
 /** `selectedWorld = 0` — the picker itself, not a world. See `selectWorld`. */
 const PICKER = 0;
@@ -41,6 +43,9 @@ export class LevelSelectScene extends Phaser.Scene {
    * game, not the last grid they happened to look at.
    */
   private selectedWorld = PICKER;
+
+  /** The medal reveal's ticker, or null when nothing is animating. */
+  private revealTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor() {
     super(SceneKeys.LevelSelect);
@@ -63,6 +68,7 @@ export class LevelSelectScene extends Phaser.Scene {
     this.selectedWorld = PICKER;
     this.publishWorlds();
     publishDifficulty(this);
+    this.startReveal();
 
     const offStart = GameEvents.subscribe(
       'ui:start-game',
@@ -97,6 +103,10 @@ export class LevelSelectScene extends Phaser.Scene {
       offWorld();
       offGoto();
       GameEvents.off('viewport:changed', onResize);
+      // A reveal left running past a scene teardown would tick against a dead
+      // scene and re-publish into nothing.
+      this.revealTimer?.remove();
+      this.revealTimer = null;
       GameEvents.emit('scene:shutdown', { key: SceneKeys.LevelSelect });
     });
 
@@ -190,7 +200,69 @@ export class LevelSelectScene extends Phaser.Scene {
     GameEvents.emit('levels:listed', {
       world,
       worldName: Worlds[world - 1] ?? `World ${world}`,
-      levels: levelUnlockStates(profile.progress, world, getDifficulty(this)),
+      // Gates from the earned table, medal counts from the visible one. The
+      // split is the divergence documented at `levelUnlockStates`.
+      levels: levelUnlockStates(
+        profile.progress,
+        world,
+        getDifficulty(this),
+        profile.visibleProgress,
+      ),
+    });
+  }
+
+  /**
+   * Runs the medal reveal — `ScreenLevelSelect.progressLevelButtons` (`:518`).
+   *
+   * One medal per AS3 frame, re-publishing the rows each step so the count-up
+   * is visible, and firing `Unlock` (`:768`, `:1475`) on the step where a level
+   * crosses from no medals to some — the latch opening, not the count rising.
+   *
+   * **Nothing here touches an unlock gate.** `publishLevels` reads the earned
+   * table for `cleared`/`unlocked` throughout, so a player who never watches
+   * this can still enter the level. That is the regression the assertions in
+   * `levelUnlock.test.ts` guard, written before this existed.
+   */
+  private startReveal(): void {
+    const profile = getPlayerProfile(this);
+    const [first] = pendingReveals(profile.progress, profile.visibleProgress);
+    if (!first) return;
+
+    // Open the grid the reveal is happening in, rather than leaving the picker
+    // up while medals count up behind it. `ScreenStatus` returns the player to
+    // the world they were playing (`:352`'s `ScreenGame.world`), so arriving on
+    // that grid is the faithful entry as well as the only way to see this.
+    this.selectedWorld = first.world;
+    this.publishWorlds();
+    this.publishLevels();
+
+    this.revealTimer?.remove();
+    this.revealTimer = this.time.addEvent({
+      delay: REVEAL_STEP_MS,
+      loop: true,
+      callback: () => {
+        const step = stepReveal(profile.progress, profile.visibleProgress);
+        if (!step.moved) {
+          // Settled. Sync so a second visit does not replay it.
+          profile.syncVisibleProgress();
+          this.revealTimer?.remove();
+          this.revealTimer = null;
+          return;
+        }
+
+        profile.setVisibleProgress(step.visible);
+        if (step.unlocked) {
+          // `:768`/`:1475` — the sound and the particle are pushed together,
+          // one line apart. Emitted as a pair for the same reason.
+          getSoundManager(this)?.queue('Unlock');
+          GameEvents.emit('levels:unlock-flash', {
+            world: step.moved.world,
+            level: step.moved.level,
+          });
+        }
+        this.publishLevels();
+        this.publishWorlds();
+      },
     });
   }
 }

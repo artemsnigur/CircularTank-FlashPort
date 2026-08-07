@@ -34,7 +34,7 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false, tutorial: false, ui: false, countdown: false, medals: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false, tutorial: false, ui: false, countdown: false, medals: false, unlock: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
@@ -51,6 +51,7 @@ function parseArgs(argv) {
     if (argv[i] === '--ui') args.ui = true;
     if (argv[i] === '--countdown') args.countdown = true;
     if (argv[i] === '--medals') args.medals = true;
+    if (argv[i] === '--unlock') args.unlock = true;
   }
   return args;
 }
@@ -407,6 +408,112 @@ if (args.ui) {
   await probe('Premium', click(/premium|more games/i));
   await probe('Credits', click(/credits/i));
 
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
+
+if (args.unlock) {
+  /**
+   * The level-select medal reveal — `ScreenLevelSelect.progressLevelButtons`
+   * (`:518-545`) and the `Unlock` pushes at `:768` / `:1475`.
+   *
+   * Wins 1-1 on a real run (the dev jump banks nothing, so it would leave the
+   * tables identical and nothing to reveal), then goes to level select and
+   * watches the medal count on the 1-1 row climb.
+   *
+   * **Also checks the asymmetry the scoping pass found.** The gates read the
+   * earned table while only the display lags, so the Next-level button and
+   * level select must agree about 1-2 being playable *while the reveal is still
+   * running*. That is asserted here by reading the row's disabled state.
+   */
+  // `LevelSelectScreen.tsx:287` — `Level N, <mode>, V of 3 on <difficulty>`.
+  // The dev jump's cells use `World W, level N, <mode>`, which is a different
+  // element: reading that one returned 0 forever while the reveal ran fine.
+  const medalsOnRow = () =>
+    page.evaluate(() => {
+      const cell = globalThis.document.querySelector('[aria-label^="Level 1,"]');
+      const label = cell?.getAttribute('aria-label') ?? '';
+      const m = /,\s*(\d+) of 3 on/.exec(label);
+      return m ? Number(m[1]) : -1;
+    });
+
+  await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await delay(1200);
+  const slot = page.getByRole('button', { name: /new game|slot 1/i });
+  if ((await slot.count()) > 0) {
+    await slot.first().click();
+    await delay(1200);
+  }
+
+  await page
+    .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+    .catch(() => console.log('[look] warning: countdown never reported done'));
+  await page.keyboard.down('d');
+  await delay(600);
+  await page.keyboard.up('d');
+  await delay(200);
+  await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+  await page.mouse.down();
+  await delay(400);
+  await page.mouse.up();
+
+  await page.mouse.down();
+  let won = false;
+  for (let i = 0; i < 260 && !won; i += 1) {
+    const a = await page.evaluate(() => globalThis.__arena ?? null);
+    const target = a?.enemies?.[0];
+    if (target) await page.mouse.move(target.screen.x, target.screen.y);
+    else if (a?.tank?.screen) await page.mouse.move(a.tank.screen.x + 200, a.tank.screen.y);
+    await delay(120);
+    won = await page.evaluate(
+      () => globalThis.document.querySelector('.level-outcome__medals') !== null,
+    );
+  }
+  await page.mouse.up();
+  console.log(`[look] 1-1 won: ${won}`);
+
+  await page.evaluate(() => globalThis.__soundQueue?.clear());
+
+  // Straight to level select, where the reveal runs.
+  const toSelect = page.getByRole('button', { name: /level select/i });
+  if ((await toSelect.count()) === 0) console.log('[look] warning: no Level select button');
+  else await toSelect.first().click();
+
+  const seen = [];
+  let last = -1;
+  let firstAt = null;
+  const started = Date.now();
+  while (Date.now() - started < 6000) {
+    const n = await medalsOnRow();
+    if (n >= 0 && n !== last) {
+      const now = Date.now();
+      firstAt ??= now;
+      seen.push({ medals: n, atMs: now - firstAt });
+      await page.screenshot({ path: `${args.out}/u-reveal-${seen.length}-${n}.png` });
+      last = n;
+    }
+    await delay(20);
+  }
+
+  const unlockSounds = await page.evaluate(() =>
+    (globalThis.__soundQueue?.names() ?? []).filter((n) => n === 'Unlock'),
+  );
+
+  // The asymmetry check: is 1-2 startable from level select at this point?
+  const nextEnabled = await page.evaluate(() => {
+    const cell = globalThis.document.querySelector('[aria-label^="Level 2,"]');
+    if (!cell) return null;
+    // A locked row is labelled "Level 2, locked" and is disabled.
+    return !cell.hasAttribute('disabled') && !/locked/.test(cell.getAttribute('aria-label') ?? '');
+  });
+
+  console.log(`[look] reveal: ${seen.map((s) => `${s.medals}★@${s.atMs}ms`).join('  ') || 'none'}`);
+  console.log(`[look] Unlock sounds: ${unlockSounds.length}`);
+  console.log(`[look] level 1-2 selectable during/after the reveal: ${nextEnabled}`);
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
   await browser.close();
   stop();

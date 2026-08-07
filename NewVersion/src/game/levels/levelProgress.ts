@@ -67,6 +67,20 @@ export function createEmptyProgress(): ProgressTable {
 }
 
 /**
+ * A deep copy — `ScreenLevelSelect.clone` (`:37`, `:294`, `:581`) and
+ * `SaveManager.as:656`.
+ *
+ * **Deep to the row.** The AS3's `clone` round-trips through a `ByteArray`, so
+ * every `LevelValues` is a fresh array; a shallow `[...table]` would leave the
+ * visible and earned tables sharing rows, and `recordLevelResult` writing to
+ * one would silently move the other. That is the whole mechanism defeated by a
+ * spread, and it would look correct in every test that only reads one table.
+ */
+export function cloneProgress(table: ProgressTable): ProgressTable {
+  return table.map((world) => world.map((values) => [...values] as LevelValues));
+}
+
+/**
  * `ScreenLevelSelect.getLevelValues(world, level, difficulty)` — best medal
  * count visible at the given difficulty. 1-based world and level.
  *

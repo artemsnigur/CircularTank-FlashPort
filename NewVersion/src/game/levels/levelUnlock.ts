@@ -300,10 +300,25 @@ export interface LevelUnlockState {
  * An unknown world yields an empty list rather than throwing: a blank grid is a
  * better failure than a crashed screen.
  */
+/**
+ * @param display the table the **medal counts** are read from, when it differs
+ * from the one the gates are read from.
+ *
+ * This is the visible/earned split — `ScreenLevelSelect.as:841` reads the
+ * visible table for both. **This port deliberately splits them**: the gates
+ * stay on `view` (earned) and only the displayed medals lag, because
+ * `GameplayScene.ts:980` starts a level from `ui:start-game` with no unlock
+ * check, so a gate that lagged would disagree with the results screen's
+ * Next-level button. See `levels/progressReveal.ts` and the audit.
+ *
+ * Defaults to `view`, so a caller without a reveal gets the earned counts and
+ * nothing changes.
+ */
 export function levelUnlockStates(
   view: ProgressView,
   world: number,
   difficulty: Difficulty,
+  display: ProgressView = view,
 ): LevelUnlockState[] {
   // Indexed straight off the generated table; levelData.ts is regenerated from
   // the AS3, so helpers must not be added to it by hand.
@@ -316,7 +331,8 @@ export function levelUnlockStates(
       mode: spec.mode,
       cleared: isLevelCleared(view, world, level),
       unlocked: isLevelUnlocked(view, world, level),
-      value: getLevelValues(view, world, level, difficulty),
+      // The only field that lags — see `display` above.
+      value: getLevelValues(display, world, level, difficulty),
     };
   });
 }
