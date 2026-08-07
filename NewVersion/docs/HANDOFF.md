@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T78**, commit `ac2fa47`, 7 August 2026. Keep it current — it is
+Current as of **T79**, commit `1ec09b5`, 7 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -28,7 +28,7 @@ TypeScript strict + Phaser 3.90 + Zustand + Vitest + Capacitor.
 - **`NewVersion/`** — the port. All npm commands run from here.
 
 **Gate on every commit:** `typecheck`, `lint`, `data:check`, `progress:check`,
-the full suite (**2657 tests, 134 files**), and `smoke`. Work that cannot land green is not
+the full suite (**2662 tests, 135 files**), and `smoke`. Work that cannot land green is not
 committed. Commits go straight to `main` and are pushed at the end of each task.
 
 ### What plays end to end
@@ -297,7 +297,7 @@ be checked against a second mode on the same build before it is believed.
 
 | Item | Needs |
 |---|---|
-| **Sound: 15 silent — 10 need no code, 5 are blocked** | `--sound-sweep` reports **47–48 of 67** (T71; two runs gave 48 and 47, `TankDamaged` the swing). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
+| **Sound: 14 silent — 10 need no code, 4 are blocked** | `--sound-sweep` reports **47–48 of 67** (T71; two runs gave 48 and 47, `TankDamaged` the swing). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
 
 ### The 19 silent sounds, individually
 
@@ -330,7 +330,7 @@ wrong, and did.
 
 | Sound | AS3 site | Blocked on |
 |---|---|---|
-| `Achievement` | `PartAchievements.as:120` | the in-game achievement toast queue — evaluation runs only at level end |
+| ~~`Achievement`~~ | `PartAchievements.as:120` | **fired (T79)** — the toast queue is built; the sound is bound to a toast being *shown*, not earned |
 | ~~`Award1`~~ | `ScreenStatus.as:1151` | **fired (T74)** — driven at `1★@0ms` |
 | ~~`Award2`~~ | `ScreenStatus.as:1157` | **fired (T74)** — driven at `2★@334ms` |
 | ~~`Award3`~~ | `ScreenStatus.as:1163` | **fired (T74)** — driven at `3★@652ms` |
@@ -344,20 +344,6 @@ wrong, and did.
 scoping pass found `:1147-1163` is driven by `countTime` over `medalsForHp`, not
 by either progress table. **The visible-values model now closes exactly one
 name, `Unlock`**, and `Achievement` is adjacent to it rather than on it.
-
-### Found while driving T74: achievement toasts cover the results panel
-
-`.look/m-medal-2.png` — **six toasts stacked over the results overlay, hiding
-the medal row they are celebrating.** The DOM measurement was unaffected (the
-star count was read from the element, not the pixels), which is exactly why this
-needed a frame.
-
-**Partly a dev-aid artefact and partly real.** `?primary=` grants maxed upgrades
-(`devPrimaryOverride` → `maxedUpgradeState`), which trips six "maxed"
-achievements on one clear — an ordinary run unlocks one or two. But the stacking
-has no bound and no offset from the panel, so **two is already enough to cover
-the title**. Not fixed here; it belongs with the toast component, not the medal
-timing.
 
 ### Closed since the previous stamp
 
@@ -396,6 +382,17 @@ things that are actually open.
   measured, and recorded as **C15** so it is not reported as a regression.
   Tower and Defense are untouched — their rooms already matched the camera.
   Presentation is still owed; see the queue above.
+- **The achievement toast overlap** — fixed (T79), and the recorded description
+  was wrong in both halves. They were **not** un-offset (`.hud-toasts` is a flex
+  column with a gap, so toasts never overlapped each other) and the uncapped
+  count was not the mechanism. **Two centred overlays were**: the toast column
+  grew down from top-centre into the centred results panel.
+
+  It is also **AS3-derived**, against the note that said it belonged to the
+  component: `PartAchievements` shows **one at a time** from a queue (`:265`,
+  `:116-117`) at **top right** (`:125-126`). Both ported; the stacking problem
+  disappears with them. **This unblocked the `Achievement` sound** (`:120`),
+  which was filed as blocked on exactly this queue.
 - **The reload readout** — done (T78). `PLACEHOLDER_AMMO` is gone and the HUD
   draws the AS3's two cooldown bars (`PartInterface.drawReloadBars`,
   `:746-778`). **A premise correction came with it:** it was never a placeholder

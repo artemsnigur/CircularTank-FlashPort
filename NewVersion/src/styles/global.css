@@ -491,11 +491,19 @@ code {
 
 /* ── Toasts ──────────────────────────────────────────────────────────────── */
 
+/* Top right, 16px in — PartAchievements.as:125-126 sets
+   `theXPos = 640 - image.width - 16` and `theYPos = 16` on the AS3's 640-wide
+   stage. The port had this centred, which is what put it over the results
+   panel: both were centred overlays. Only one toast shows at a time (`:265`),
+   so there is no column left to bound. */
 .hud-toasts {
   position: absolute;
-  top: calc(var(--safe-top) + 3.5rem);
-  left: 50%;
-  transform: translateX(-50%);
+  /* Below the top HUD row, not at `:126`'s y = 16. The AS3's interface sits in
+     a bottom strip, so its top-right corner is empty; this port has the wave
+     counter there, and a faithful y put the toast straight through it. Same
+     class as A5 — a faithful coordinate against a differently-shaped HUD. */
+  top: calc(var(--safe-top) + 4.75rem);
+  right: calc(var(--safe-right) + 1rem);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;

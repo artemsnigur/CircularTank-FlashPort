@@ -232,6 +232,50 @@ describe('Hud', () => {
     expect(screen.getByText('240')).toBeInTheDocument();
   });
 
+  /**
+   * **The T74 regression, pinned by its symptom.**
+   *
+   * Six achievements landing on one clear (which `?primary=`'s maxed upgrades
+   * produce) rendered a centred toast column straight through the centred
+   * results panel, hiding the title it was celebrating.
+   *
+   * Asserted as a **pair on one render**: exactly one toast is on screen *and*
+   * the results title is present. Either half alone passes a wrong fix —
+   * capping the stack at three keeps the title covered, and hiding toasts
+   * entirely keeps the title visible while losing the feature.
+   */
+  it('keeps the results title visible with six achievements at once', () => {
+    enterGameplay();
+    const { rerender } = render(<Hud />);
+
+    act(() => {
+      for (const id of ['a1', 'a2', 'a3', 'a4', 'a5', 'a6']) {
+        GameEvents.emit('achievement:unlocked', { id, title: `Award ${id}` });
+      }
+      GameEvents.emit('level:ended', {
+        result: 'won',
+        world: 1,
+        level: 3,
+        kills: 12,
+        currency: 240,
+        nextLevel: { world: 1, level: 4 },
+        medals: 3,
+        newAchievements: [],
+        newEnemies: [],
+      });
+    });
+    rerender(<Hud />);
+
+    // One toast, not six — `PartAchievements.as:265`.
+    expect(screen.getAllByText('Achievement unlocked')).toHaveLength(1);
+    expect(screen.getByText('Award a1')).toBeInTheDocument();
+    expect(screen.queryByText('Award a2')).not.toBeInTheDocument();
+
+    // …and the panel the toasts used to bury is intact.
+    expect(screen.getByText('Level Cleared')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   it('offers the next level after a win', () => {
     enterGameplay();
     const { rerender } = render(<Hud />);

@@ -23,6 +23,7 @@ import {
   SLIDE_OUT_DISTANCE,
   SLIDE_OUT_MS,
 } from '../game/waves/countdownPanel';
+import { showingToast } from '../game/achievements/toastQueue';
 import {
   medalCuesBetween,
   medalRevealDurationMs,
@@ -441,31 +442,59 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
   );
 }
 
-function AchievementToasts(): React.ReactElement {
-  const achievements = useGameStore((s) => s.achievements);
+/**
+ * The achievement toast — `PartAchievements` (`:112-132`, `:262-274`).
+ *
+ * **One at a time, top right.** `:265` dequeues only when nothing is showing
+ * and `:116-117` splices the head off, so six achievements earned together
+ * produce six sequential toasts. `:125-126` right-aligns it 16px from the edge.
+ *
+ * The port previously rendered the whole queue as a centred column, which grew
+ * downward into the centred results panel — the T74 finding. Neither the
+ * stacking nor the count was the mechanism: **two centred overlays were**, and
+ * the AS3 has neither.
+ */
+function AchievementToasts(): React.ReactElement | null {
+  const queue = useGameStore((s) => s.achievements);
   const dismiss = useGameStore((s) => s.dismissAchievement);
+  const showing = showingToast(queue);
+
+  const showingId = showing?.id ?? null;
 
   useEffect(() => {
-    if (achievements.length === 0) return;
-    const timers = achievements.map((a) =>
-      window.setTimeout(() => dismiss(a.id), Math.max(0, a.at + ACHIEVEMENT_TOAST_MS - Date.now())),
+    if (!showing) return;
+    // Only the head runs a timer. Dismissing it promotes the next, which is
+    // what `:265`'s `achievementCurrent == ""` check does in the original.
+    const id = window.setTimeout(
+      () => dismiss(showing.id),
+      Math.max(0, showing.at + ACHIEVEMENT_TOAST_MS - Date.now()),
     );
-    return () => {
-      for (const t of timers) window.clearTimeout(t);
-    };
-  }, [achievements, dismiss]);
+    return () => window.clearTimeout(id);
+  }, [showing, dismiss]);
+
+  useEffect(() => {
+    // `:120` — `SoundManager.sfxArray.push("Achievement")` sits inside
+    // `showAchievementFromQueue`, so the sound is bound to a toast being
+    // **shown**, not to one being earned. A toast that arrives behind another
+    // therefore sounds when it is promoted, not when it was unlocked.
+    //
+    // Keyed on the id so a re-render with the same head does not re-sound it.
+    if (showingId === null) return;
+    GameEvents.emit('ui:sound', { name: 'Achievement' });
+  }, [showingId]);
+
+  if (!showing) return null;
 
   return (
     <div className="hud-toasts" aria-live="polite">
-      {achievements.map((a) => (
-        <div key={a.id} className="hud-toast">
-          <span className="hud-toast__eyebrow">Achievement unlocked</span>
-          <span className="hud-toast__title">{a.title}</span>
-        </div>
-      ))}
+      <div className="hud-toast" key={showing.id}>
+        <span className="hud-toast__eyebrow">Achievement unlocked</span>
+        <span className="hud-toast__title">{showing.title}</span>
+      </div>
     </div>
   );
 }
+
 
 /**
  * The opening countdown panel — `PartInterface.as:303-308`.

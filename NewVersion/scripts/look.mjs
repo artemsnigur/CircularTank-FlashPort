@@ -625,7 +625,9 @@ if (args.medals) {
   }
 
   const awards = await page.evaluate(() =>
-    (globalThis.__soundQueue?.names() ?? []).filter((n) => n.startsWith('Award')),
+    (globalThis.__soundQueue?.names() ?? []).filter(
+      (n) => n.startsWith('Award') || n === 'Achievement',
+    ),
   );
 
   console.log(`[look] final: "${label}"`);
