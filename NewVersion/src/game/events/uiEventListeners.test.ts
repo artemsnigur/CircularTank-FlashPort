@@ -84,8 +84,27 @@ const PAIRS: { screen: string; scene: string }[] = [
  * behind a naming convention. If an entry here ever needs the game to react, it
  * belongs in a scene and comes off this list.
  */
-const UI_ONLY: Readonly<Record<string, string>> = {
-  'ui:slot-picker': 'opens/closes the save-slot overlay; bridge sets slotPickerOpen',
+const UI_ONLY: Readonly<Record<string, { handler: string; why: string }>> = {
+  'ui:slot-picker': {
+    handler: 'src/state/bridge.ts',
+    why: 'opens/closes the save-slot overlay; the bridge sets slotPickerOpen',
+  },
+  /**
+   * Added T74 with the medal stamp-in, which emits `Award1-3` from the results
+   * overlay.
+   *
+   * **The handler is named per entry rather than assumed to be the bridge.**
+   * This one is answered by the sound service, installed once at module scope
+   * and alive for every scene — so a scene subscription would be the wrong
+   * shape, not a missing one. Verifying against the named file keeps the
+   * exemption honest: it still has to point at something that actually
+   * subscribes, which is the property that stops this list becoming a way to
+   * silence the contract.
+   */
+  'ui:sound': {
+    handler: 'src/game/audio/soundService.ts',
+    why: 'one-shot SFX from DOM controls; the sound service queues it globally',
+  },
 };
 
 describe('the screen/scene event contract', () => {
@@ -117,15 +136,21 @@ describe('the screen/scene event contract', () => {
     }
   });
 
-  it('every UI-only event is actually handled by the bridge', () => {
+  it('every UI-only event is actually handled by the module it names', () => {
     // The exemption is only safe while something answers these. Without this,
     // adding a name to UI_ONLY would be a way to silence the contract rather
     // than satisfy it.
-    const bridge = read('src/state/bridge.ts');
-    for (const event of Object.keys(UI_ONLY)) {
+    //
+    // Checked against the **named** handler rather than always the bridge:
+    // these events are exempt because a *scene* is the wrong listener, not
+    // because the bridge is the only alternative. Hard-coding the bridge would
+    // have forced `ui:sound` to either lie about its handler or stay outside
+    // the list — the guard being narrower than the thing it guards, which is
+    // trap 9's shape.
+    for (const [event, { handler }] of Object.entries(UI_ONLY)) {
       expect(
-        subscribed(bridge).has(event),
-        `${event} is exempt from the scene contract but the bridge does not handle it either.`,
+        subscribed(read(handler)).has(event),
+        `${event} is exempt from the scene contract but ${handler} does not handle it either.`,
       ).toBe(true);
     }
   });

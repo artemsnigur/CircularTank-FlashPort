@@ -34,7 +34,7 @@ const PORT = 5199;
 const URL = `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
-  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false, tutorial: false, ui: false, countdown: false };
+  const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false, tutorial: false, ui: false, countdown: false, medals: false };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--out') args.out = resolve(argv[i + 1]);
     if (argv[i] === '--hold') args.hold = Number(argv[i + 1]);
@@ -50,6 +50,7 @@ function parseArgs(argv) {
     if (argv[i] === '--tutorial') args.tutorial = true;
     if (argv[i] === '--ui') args.ui = true;
     if (argv[i] === '--countdown') args.countdown = true;
+    if (argv[i] === '--medals') args.medals = true;
   }
   return args;
 }
@@ -406,6 +407,123 @@ if (args.ui) {
   await probe('Premium', click(/premium|more games/i));
   await probe('Credits', click(/credits/i));
 
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
+}
+
+if (args.medals) {
+  /**
+   * All three medal stamps — `ScreenStatus.as:1147-1163`.
+   *
+   * `--baseline` clears 1-1 with damage taken, so it earns one medal and
+   * exercises one of the three stamps. Three medals need `hp >= 95` (`:246`),
+   * which means clearing without being touched: the dev jump's "Arrive fully
+   * upgraded" plus a long-range primary, aiming at enemies before they close.
+   *
+   * Times are measured **from the first star**, because the overlay's mount is
+   * what starts the clock and that is not the same instant as the last kill.
+   */
+  const arena = async () => {
+    const a = await page.evaluate(() => globalThis.__arena ?? null);
+    return a?.tank?.screen ? { ...a.tank.screen, enemies: a.enemies ?? [] } : null;
+  };
+
+  /**
+   * A **real** run, not the dev jump.
+   *
+   * `GameplayScene.ts:4126-4128` reads `this.banking?.medals ?? 0`, and
+   * `bankLevelOutcome` is skipped entirely on a sandbox run — so every dev-jump
+   * clear reports "0 of 3 medals" however well it went. That is documented
+   * behaviour at the site, not a defect, and it makes the dev jump useless for
+   * observing this. Diagnosed by driving one and reading the label.
+   */
+  await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await delay(1200);
+  // The slot picker, when a fresh profile shows it.
+  const slot = page.getByRole('button', { name: /new game|slot 1/i });
+  if ((await slot.count()) > 0) {
+    await slot.first().click();
+    await delay(1200);
+  }
+
+  await page
+    .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+    .catch(() => console.log('[look] warning: countdown never reported done'));
+
+  // Move, then fire — `:7153` holds spawning until the tutorial's `AimShoot` is
+  // done, and 1-1 is where the tutorial starts. Without this the level never
+  // spawns and never clears, which is `L3` in a third place.
+  await page.keyboard.down('d');
+  await delay(600);
+  await page.keyboard.up('d');
+  await delay(200);
+  await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+  await page.mouse.down();
+  await delay(400);
+  await page.mouse.up();
+  await delay(400);
+
+  // Fire continuously and keep the cursor on the nearest enemy, so they die at
+  // range rather than on the tank.
+  await page.mouse.down();
+  let cleared = false;
+  for (let i = 0; i < 260 && !cleared; i += 1) {
+    const a = await arena();
+    if (a) {
+      const target = a.enemies?.[0];
+      if (target) await page.mouse.move(target.screen.x, target.screen.y);
+      else await page.mouse.move(a.x + 200, a.y);
+    }
+    await delay(120);
+    cleared = await page.evaluate(
+      () => globalThis.document.querySelector('.level-outcome__medals') !== null,
+    );
+    if (i % 40 === 0) {
+      const hud = await page.evaluate(() =>
+        globalThis.document.body.innerText.replace(/\s+/g, ' ').slice(0, 90),
+      );
+      console.log(`[look]   i=${i} enemies=${a?.enemies?.length ?? 'n/a'} hud="${hud}"`);
+    }
+  }
+  await page.mouse.up();
+
+  const stars = () =>
+    page.evaluate(() => {
+      const el = globalThis.document.querySelector('.level-outcome__medals span');
+      return el ? (el.textContent ?? '').split('★').length - 1 : -1;
+    });
+  const label = await page.evaluate(
+    () =>
+      globalThis.document.querySelector('.level-outcome__medals')?.getAttribute('aria-label') ?? '',
+  );
+
+  const seen = [];
+  let last = -1;
+  let firstAt = null;
+  const started = Date.now();
+  while (Date.now() - started < 4000) {
+    const n = await stars();
+    if (n > 0 && n !== last) {
+      const now = Date.now();
+      firstAt ??= now;
+      seen.push({ stars: n, atMs: now - firstAt });
+      await page.screenshot({ path: `${args.out}/m-medal-${n}.png` });
+      last = n;
+    }
+    await delay(20);
+  }
+
+  const awards = await page.evaluate(() =>
+    (globalThis.__soundQueue?.names() ?? []).filter((n) => n.startsWith('Award')),
+  );
+
+  console.log(`[look] final: "${label}"`);
+  console.log(`[look] stamps: ${seen.map((s) => `${s.stars}★@${s.atMs}ms`).join('  ') || 'none'}`);
+  console.log(`[look] award sounds: ${awards.join(' ') || 'none'}`);
   console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
   await browser.close();
   stop();
@@ -1243,6 +1361,45 @@ if (args.baseline) {
   console.log(`[look] level 1-1 cleared: ${cleared}`);
   await burst('b-06-win-coins', 10, 100);
   await page.mouse.up();
+
+  /**
+   * The medal stamp-in — `ScreenStatus.as:1147-1163`, 10/20/30 AS3 frames.
+   *
+   * Watched by reading the star count out of the DOM as it changes, because the
+   * whole reveal is over in one second and the results capture below sits at
+   * +1500ms — it would only ever photograph the settled state. Times are
+   * measured **from the first star**, since the overlay's own mount is what
+   * starts the clock and that is not the same instant as the win.
+   */
+  {
+    const stars = () =>
+      page.evaluate(() => {
+        const el = globalThis.document.querySelector('.level-outcome__medals span');
+        return el ? (el.textContent ?? '').split('★').length - 1 : -1;
+      });
+    const seen = [];
+    let last = -1;
+    let firstAt = null;
+    const started = Date.now();
+    while (Date.now() - started < 4000) {
+      const n = await stars();
+      if (n > 0 && n !== last) {
+        const now = Date.now();
+        firstAt ??= now;
+        seen.push({ stars: n, atMs: now - firstAt });
+        await page.screenshot({ path: `${args.out}/b-06b-medal-${n}.png` });
+        last = n;
+      }
+      await delay(20);
+    }
+    const awards = await page.evaluate(() =>
+      (globalThis.__soundQueue?.names() ?? []).filter((n) => n.startsWith('Award')),
+    );
+    console.log(
+      `[look] medal stamp-in: ${seen.map((s) => `${s.stars}★@${s.atMs}ms`).join('  ') || 'none seen'}`,
+    );
+    console.log(`[look] award sounds: ${awards.join(' ') || 'none'}`);
+  }
 
   // The results stack opens on its LAST page, so step back to the results.
   await delay(1500);

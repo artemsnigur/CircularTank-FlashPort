@@ -90,7 +90,10 @@ a target, or a baseline.
 `--particles`, `--money`, `--indicators`, `--secondaries`, `--save`, `--slots`,
 `--countdown` (level 1-2 driven twice on one build, `?countdown=0` reproducing
 the pre-T67 state, dumping spawn coordinates for both; the second run also
-watches the panel's digit change in the DOM and counts the beeps).
+watches the panel's digit change in the DOM and counts the beeps),
+`--medals` (a **real** 1-1 clear at full health — not the dev jump, which banks
+nothing and therefore always shows 0 medals — watching the stamp-in and the
+`Award1-3` cues).
 
 ---
 
@@ -294,7 +297,7 @@ be checked against a second mode on the same build before it is believed.
 | Item | Needs |
 |---|---|
 | **A real reload readout** | The HUD shows a placeholder magazine count (`GameplayScene.PLACEHOLDER_AMMO`), not the AS3's two reload bars (`PartInterface.as:746-780`). Whoever builds one also owns `:750-752`, which forces the **primary** bar empty for the whole opening countdown — and only the primary; the secondary's is untouched, which is the original's own asymmetry. The rule is deliberately **not** ported ahead of a consumer; reasoning at the foot of `waves/countdownPanel.ts` and at `PLACEHOLDER_AMMO`. |
-| **Sound: 19 silent — 10 need no code, 9 are blocked** | **47–48 of 67 fire** (T71, driven; two runs gave 48 and 47, `TankDamaged` being the swing). Full list and evidence grade below. |
+| **Sound: 16 silent — 10 need no code, 6 are blocked** | `--sound-sweep` reports **47–48 of 67** (T71; two runs gave 48 and 47, `TankDamaged` the swing). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
 | **`L1`** | `assets:sync` never prunes. Re-verified at `b2d2193`: a count of `unlink\|rm(\|rmSync` over `scripts/sync-assets.mjs` returns 0. |
 
 ### The 19 silent sounds, individually
@@ -329,17 +332,33 @@ wrong, and did.
 | Sound | AS3 site | Blocked on |
 |---|---|---|
 | `Achievement` | `PartAchievements.as:120` | the in-game achievement toast queue — evaluation runs only at level end |
-| `Award1` | `ScreenStatus.as:1151` | the medal reveal — **visible-values model** |
-| `Award2` | `ScreenStatus.as:1157` | same |
-| `Award3` | `ScreenStatus.as:1163` | same |
+| ~~`Award1`~~ | `ScreenStatus.as:1151` | **fired (T74)** — driven at `1★@0ms` |
+| ~~`Award2`~~ | `ScreenStatus.as:1157` | **fired (T74)** — driven at `2★@334ms` |
+| ~~`Award3`~~ | `ScreenStatus.as:1163` | **fired (T74)** — driven at `3★@652ms` |
 | `Unlock` | `ScreenLevelSelect.as:768` (world), `:1475` (level) | the unlock reveal — **visible-values model** |
 | `BossCollision` | `PartGameArea.as:5197` | **enemy-to-enemy collision** — the mass exchange at `:5199-5200` has no port equivalent |
 | `Burning` | loop channel | **nothing in `GameplayScene` starts or stops a loop** — a whole emit path with no caller |
 | `FlameThrower` | loop channel | same |
 | `ImpactCrazyCheese` | **none** | permanent orphan — no AS3 trigger under any spelling; the audit's argument is exhaustive. **Never wire this.** |
 
-**Five of the nine close together** when the visible-values model lands:
-`Award1-3` and `Unlock` directly, and `Achievement` is adjacent to it.
+**`Award1-3` closed in T74 and were never on the visible-values model** — the
+scoping pass found `:1147-1163` is driven by `countTime` over `medalsForHp`, not
+by either progress table. **The visible-values model now closes exactly one
+name, `Unlock`**, and `Achievement` is adjacent to it rather than on it.
+
+### Found while driving T74: achievement toasts cover the results panel
+
+`.look/m-medal-2.png` — **six toasts stacked over the results overlay, hiding
+the medal row they are celebrating.** The DOM measurement was unaffected (the
+star count was read from the element, not the pixels), which is exactly why this
+needed a frame.
+
+**Partly a dev-aid artefact and partly real.** `?primary=` grants maxed upgrades
+(`devPrimaryOverride` → `maxedUpgradeState`), which trips six "maxed"
+achievements on one clear — an ordinary run unlocks one or two. But the stacking
+has no bound and no offset from the panel, so **two is already enough to cover
+the title**. Not fixed here; it belongs with the toast component, not the medal
+timing.
 
 ### Closed since the previous stamp
 

@@ -23,6 +23,11 @@ import {
   SLIDE_OUT_DISTANCE,
   SLIDE_OUT_MS,
 } from '../game/waves/countdownPanel';
+import {
+  medalCuesBetween,
+  medalRevealDurationMs,
+  medalsShownAt,
+} from '../game/waves/medalReveal';
 
 const ACHIEVEMENT_TOAST_MS = 4000;
 
@@ -125,12 +130,48 @@ function AmmoReadout(): React.ReactElement | null {
 }
 
 /** Medals earned, always three glyphs so the panel height does not jump. */
+/**
+ * The medals, stamped in one at a time — `ScreenStatus.as:1147-1163`.
+ *
+ * ── The animation must never change the outcome ───────────────────────────
+ * `aria-label` carries the **final** count from the first render, not the
+ * count currently showing. A screen reader announcing "1 of 3 medals" and then
+ * "2 of 3" as the icons arrive would turn a presentation detail into a
+ * different result; the visual reveal is `aria-hidden` for the same reason.
+ *
+ * The timer only decides how many of the earned medals are *drawn*. `value` is
+ * `medalsForHp`'s output and is never recomputed here.
+ */
 function MedalRow({ value }: { value: number }): React.ReactElement {
+  const [shown, setShown] = useState(() => medalsShownAt(0, value));
+
+  useEffect(() => {
+    // Reset for a new result, then walk the stamps. `startedAt` rather than a
+    // frame count: the elapsed-time model is what makes the cue times the AS3's
+    // regardless of how often this ticks — the same substitution
+    // `tickCountdown` makes, and `flames.ts:38-42` before it.
+    const startedAt = performance.now();
+    let previous = 0;
+    setShown(medalsShownAt(0, value));
+
+    const id = window.setInterval(() => {
+      const elapsed = performance.now() - startedAt;
+      for (const cue of medalCuesBetween(previous, elapsed, value)) {
+        GameEvents.emit('ui:sound', { name: cue });
+      }
+      previous = elapsed;
+      setShown(medalsShownAt(elapsed, value));
+      if (elapsed >= medalRevealDurationMs(value)) window.clearInterval(id);
+    }, 40);
+
+    return () => window.clearInterval(id);
+  }, [value]);
+
   return (
     <p className="level-outcome__medals" aria-label={`${value} of 3 medals`}>
       <span aria-hidden="true">
-        {'★'.repeat(value)}
-        {'☆'.repeat(Math.max(0, 3 - value))}
+        {'★'.repeat(shown)}
+        {'☆'.repeat(Math.max(0, 3 - shown))}
       </span>
     </p>
   );
