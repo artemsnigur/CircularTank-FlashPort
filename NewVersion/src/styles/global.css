@@ -109,20 +109,50 @@ body {
 
 /* ── Screens ─────────────────────────────────────────────────────────────── */
 
+/*
+ * Every DOM screen. Centred when the content fits, scrolled when it does not.
+ *
+ * ── Why `safe`, and what it fixes ────────────────────────────────────────
+ * This was plain `justify-content: center`, and a flex container centring
+ * content **taller than itself** pushes the overflow out of *both* ends. The
+ * bottom half is scrollable; the top half is not, because `scrollTop` cannot go
+ * negative. So the first rows of a long list were rendered above the scroll
+ * origin and could not be reached by any means — that is the "weapons can't all
+ * be bought" defect, and it also cost the main menu its last hint line, level
+ * select its dev grid, and the achievements board its final row.
+ *
+ * `safe` is the keyword for exactly this: alignment falls back to `start` when
+ * the content overflows, so nothing is ever placed out of reach. Where it is not
+ * supported the whole declaration is dropped and `justify-content` reverts to
+ * `flex-start` — which is also safe, so the failure mode is a screen that is
+ * top-aligned rather than one that eats content.
+ *
+ * `min-height: 0` is the companion `flex: 1` needs: without it a flex item will
+ * not shrink below its content height, and the scroll container never engages.
+ *
+ * `.screen--shop` had its own `overflow-y: auto` and a sticky header, added when
+ * the Back button scrolled away. That treated the symptom — the rule above was
+ * still pushing rows off the top — so the scrolling lives here now and every
+ * screen gets it.
+ */
 .screen {
   pointer-events: auto;
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: safe center;
+  overflow-y: auto;
   gap: 1rem;
   padding: 1.5rem;
   text-align: center;
 }
 
+/* The menu sits low, but `flex-end` overflows upward for the same reason
+   `center` overflowed both ways — `safe` keeps the top reachable. */
 .screen--menu {
-  justify-content: flex-end;
+  justify-content: safe flex-end;
   padding-bottom: 3rem;
 }
 
@@ -1029,9 +1059,8 @@ code {
 }
 
 /* Shop — ScreenUpgrades. */
-.screen--shop {
-  overflow-y: auto;
-}
+/* Scrolling is on `.screen` now, so nothing is needed here. Kept as a marker
+   because the sticky header below is shop-specific. */
 
 /* The shop scrolls, and its header scrolls with it — with 28 upgrade rows the
    Back button left the viewport entirely and there was no way out. Pinned so

@@ -52,6 +52,10 @@ function parseArgs(argv) {
     if (argv[i] === '--countdown') args.countdown = true;
     if (argv[i] === '--medals') args.medals = true;
     if (argv[i] === '--unlock') args.unlock = true;
+    // `--viewport 390x844` — an iPhone-ish portrait. The overflow class of bug
+    // is viewport-dependent by definition, so a desktop-only pass proves the
+    // least interesting case: a tall window is where content fits.
+    if (argv[i] === '--viewport') args.viewport = argv[++i];
   }
   return args;
 }
@@ -155,7 +159,15 @@ if (!(await serverUp(URL, 60_000))) {
 }
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+const viewportArg = /^(\d+)x(\d+)$/.exec(args.viewport ?? '');
+const viewport = viewportArg
+  ? { width: Number(viewportArg[1]), height: Number(viewportArg[2]) }
+  : { width: 1280, height: 800 };
+if (args.viewport && !viewportArg) {
+  throw new Error(`--viewport wants WIDTHxHEIGHT, got "${args.viewport}"`);
+}
+console.log(`[look] viewport ${viewport.width}x${viewport.height}`);
+const page = await browser.newPage({ viewport });
 const problems = [];
 page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
 page.on('console', (m) => {
@@ -401,8 +413,55 @@ if (args.ui) {
     let controls = 0;
     for (const role of roles) controls += await page.getByRole(role).count();
     const text = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim();
+
+    // **Reachability, not just presence.** A centred flex container that
+    // overflows puts its first rows *above* its own scroll origin, where no
+    // amount of scrolling reaches them — which is how the shop's top weapons
+    // became unbuyable. `chars` counts them happily, because they are in the
+    // DOM; only geometry can tell that nobody can get to them.
+    //
+    // Measured by parking the container at the top and asking whether anything
+    // still sits above its client edge.
+    const reach = await page.evaluate(() => {
+      // `globalThis.` because this body is serialised into the page — the
+      // same reason the `__arena` reads elsewhere in this file are written that
+      // way; Node's lint has no `document`.
+      const el = globalThis.document.querySelector('.screen');
+      if (!el) return null;
+      el.scrollTop = 0;
+      const box = el.getBoundingClientRect();
+      let above = 0;
+      let below = 0;
+      for (const child of el.children) {
+        const r = child.getBoundingClientRect();
+        // 1px of tolerance for sub-pixel layout.
+        if (r.top < box.top - 1) above += 1;
+        if (r.bottom > box.bottom + 1) below += 1;
+      }
+      return {
+        above,
+        below,
+        scrollable: el.scrollHeight > el.clientHeight,
+        overflow: el.scrollHeight - el.clientHeight,
+      };
+    });
+
     await shot(`ui-${label.toLowerCase().replace(/[^a-z]/g, '')}`);
-    console.log(`[ui] ${label.padEnd(16)} controls=${String(controls).padStart(3)} chars=${String(text.length).padStart(4)}`);
+    // `above` must always be 0. `below` is fine when the screen scrolls — that
+    // content is reachable — and only a problem when it does not.
+    const verdict = reach === null
+      ? 'no .screen'
+      : reach.above > 0
+        ? `UNREACHABLE ${reach.above} above origin`
+        : reach.below > 0 && !reach.scrollable
+          ? `CLIPPED ${reach.below} below, no scroll`
+          : reach.scrollable
+            ? `ok (scrolls ${reach.overflow}px)`
+            : 'ok (fits)';
+    console.log(
+      `[ui] ${label.padEnd(16)} controls=${String(controls).padStart(3)} ` +
+        `chars=${String(text.length).padStart(4)}  ${verdict}`,
+    );
   };
 
   const click = (re) => async () => {
