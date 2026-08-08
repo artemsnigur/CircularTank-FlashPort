@@ -17,7 +17,15 @@
  *                         these four are unused in the decompiled sources
  *   3-5 reserved (always 0 in every row)
  *   6  level mode         "Normal" | "Flag" | "Tower" | "Defense" | "Boss"
- *   7  difficulty tier    1-10, scales enemy stats
+ *   7  upgrade limit      1-10, the highest upgrade level this level allows.
+ *                         **Not a difficulty tier**, which is what this map used
+ *                         to say. Both AS3 reads name it `selectedUpgradeLimit`
+ *                         (`ScreenGame.as:365`, `ScreenLevelSelect.as:1203`) and
+ *                         there is no third read by that grep; its range is
+ *                         exactly 1..10 across all 405 rows, matching
+ *                         `MAX_UPGRADE_LEVEL`. Enemy tiers are a different thing
+ *                         entirely — the "1"/"2"/"3"/"B" suffix on the enemy
+ *                         model, already ported as `enemyLevel`.
  *   8  world theme        "Desert" | "Grass" | ...
  *   9  PRNG seed          feeds PM_PRNG for deterministic prop placement
  */
@@ -146,7 +154,7 @@ for (let w = 1; w <= WORLD_COUNT; w += 1) {
   let rowIndex = -1;
   for (const m of body.matchAll(rowRe)) {
     rowIndex += 1;
-    const [, width, height, r2, r3, r4, r5, mode, tier, theme, seed] = m;
+    const [, width, height, r2, r3, r4, r5, mode, upgradeLimit, theme, seed] = m;
     if (Number(r2) !== 0 || Number(r3) !== 0 || Number(r4) !== 0 || Number(r5) !== 0) {
       reservedAlwaysZero = false;
     }
@@ -158,7 +166,7 @@ for (let w = 1; w <= WORLD_COUNT; w += 1) {
       roomWidth: Number(width),
       roomHeight: Number(height),
       mode,
-      tier: Number(tier),
+      upgradeLimit: Number(upgradeLimit),
       theme,
       seed: Number(seed),
       totalEnemies: enemyRow?.totalEnemies ?? 0,
@@ -226,8 +234,20 @@ out.push('  /** Room size in design units; the camera scrolls within this. */');
 out.push('  roomWidth: number;');
 out.push('  roomHeight: number;');
 out.push('  mode: LevelMode;');
-out.push('  /** Difficulty tier 1-10, independent of the player-chosen difficulty. */');
-out.push('  tier: number;');
+out.push('  /**');
+out.push('   * levelDataModel column 7 — the highest upgrade level this level allows.');
+out.push('   *');
+out.push('   * **Not a difficulty tier.** Both AS3 reads name it `selectedUpgradeLimit`');
+out.push('   * (`ScreenGame.as:365`, `ScreenLevelSelect.as:1203`), and its range across');
+out.push('   * all 405 rows is exactly 1..10 — `MAX_UPGRADE_LEVEL`. Enemy tiers are the');
+out.push('   * separate `enemyLevel` suffix on the enemy model.');
+out.push('   *');
+out.push('   * **Nothing reads this yet.** The mechanic it belongs to — temporarily');
+out.push('   * downgrading over-levelled upgrades to fit the cap, announced by the');
+out.push('   * "Upgrade Limit" notice in `WindowOk` — is unported. Kept anyway: dropping');
+out.push('   * a column whose meaning is known is how `enemyModel[1]` was nearly lost.');
+out.push('   */');
+out.push('  upgradeLimit: number;');
 out.push('  theme: LevelTheme;');
 out.push('  /**');
 out.push('   * Seed for PM_PRNG. Determines background prop placement, so it must be');
@@ -263,7 +283,7 @@ for (const levels of worlds) {
       .join(', ');
     out.push(
       `    { roomWidth: ${l.roomWidth}, roomHeight: ${l.roomHeight}, mode: ${q(l.mode)}, ` +
-        `tier: ${l.tier}, theme: ${q(l.theme)}, seed: ${l.seed}, ` +
+        `upgradeLimit: ${l.upgradeLimit}, theme: ${q(l.theme)}, seed: ${l.seed}, ` +
         `totalEnemies: ${l.totalEnemies}, spawnInterval: ${l.spawnInterval}, ` +
         `enemies: [${enemies}], ` +
         `flagCount: ${l.flagCount}, flagMoney: ${l.flagMoney} },`,

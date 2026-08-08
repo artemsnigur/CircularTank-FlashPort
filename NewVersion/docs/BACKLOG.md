@@ -926,6 +926,46 @@ of *live* reads is reported beside the coordinates: `10/10 live`.
   > combination of luck and timing that build happened to produce. Treat the
   > next post-`L8` number as the first trustworthy one, and do not "restore" 39.
 
+### L10 — Modal dialogs — **SCOPED AND DECLINED (T83). Do not build.**
+
+Scoped as "a self-contained modal system (`WindowOk`, `ButtonWindow`,
+`ButtonConfirm`, `ButtonCancel`, 512 lines) wired to unguarded destructive
+actions". **Every part of that framing is wrong**, and the four classes are not
+one system — they are two unrelated things.
+
+**1. `ButtonConfirm`/`ButtonCancel` are already ported.** Their only AS3 users
+are `ButtonGameSave.as:16` and `:60` — the save-slot delete prompt — and the
+port already implements it, in-row, citing the same source: `SaveSlotScreen.tsx:28-31`
+carries the `confirming` row state and `:56-79` renders Confirm/Cancel, with
+`makePage2` (`:373`) named. The AS3 **flips the row into a second page rather
+than opening a dialog**, so a modal here would not just duplicate an existing
+confirmation path, it would be *less* faithful than what ships.
+
+**2. `WindowOk` is not a confirmation dialog at all.** It is a one-button
+informational notice with exactly two `type`s and a `moreWindowsArray` queue so
+several can show in sequence (`WindowOk.as:94`, `:112-113`):
+
+- **"Choose Difficulty"** (`:87`, `:149`) — already handled, differently: the
+  port highlights the difficulty picker instead (`difficultyHintPending` →
+  `difficulty--hint`, `LevelSelectScreen.tsx:126-131`).
+- **"Upgrade Limit"** (`:66`, `:124-146`) — genuinely unported, and **blocked**.
+  Its text announces a *mechanic*: *"The upgrade(s) will be temporarily
+  downgraded to fit the level's upgrade limit."* The port has no upgrade-limit
+  mechanic (no match for `upgradeLimit`/`upgradeCap`/`levelLimit` in `src/`).
+
+So the only real gap is downstream of an unported gameplay subsystem — **the
+BossCollision shape again.** Building the notice to unlock the modal would be
+backwards; the cap mechanic is the thing with player value, and the notice falls
+out of it. Also note the notice carries a "Don't show this message again"
+checkbox bound to `ScreenOptions.optionWindowULOn`, so it needs a seventh
+gameplay option too.
+
+**Re-filed as: "Port per-level upgrade caps"** — not in the active queue. It
+needs `ScreenLevelSelect.as:1006-1019` (the over-limit test across primaries,
+secondaries and misc), the temporary downgrade itself, and only then the notice.
+
+---
+
 ### L9 — The permanently-zero categories, labelled — **DONE (T83)**
 
 A consequence of `L5`'s decision, written down where it will be read. **205 rows

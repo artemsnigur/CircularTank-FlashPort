@@ -445,6 +445,25 @@ things that are actually open.
   written down. Latent until T80 gave the loops their first callers. This is the
   "a guarantee is only worth what enforces it" rule arriving from a new
   direction: the enforcement lived in the *original's UI*, not in its audio code.
+- **Modal dialogs** — **scoped and declined (T83), no code written.** The four
+  classes are two unrelated things, and neither is owed. `ButtonConfirm`/
+  `ButtonCancel` serve only `ButtonGameSave`'s slot-delete prompt, which the port
+  **already implements in-row** (`SaveSlotScreen.tsx:56-79`, citing `makePage2`
+  `:373`) — a modal would have duplicated a confirmation path *and* been less
+  faithful. `WindowOk` is a one-button **notice**, not a confirm dialog: its
+  "Choose Difficulty" type is already handled as a picker highlight, and its
+  "Upgrade Limit" type is blocked on an unported mechanic. Re-filed in
+  `BACKLOG.md` as **"Port per-level upgrade caps"**, out of the active queue.
+- **`LevelSpec.tier` was `upgradeLimit` all along** — renamed (T83). Found while
+  scoping the above. `levelDataModel` column 7 was extracted as *"difficulty tier
+  1-10, scales enemy stats"*; both AS3 reads name it `selectedUpgradeLimit`
+  (`ScreenGame.as:365`, `ScreenLevelSelect.as:1203`), no read anywhere calls it a
+  tier, and its range across all 405 rows is exactly 1..10 — `MAX_UPGRADE_LEVEL`.
+  **No live bug, because nothing consumed it** (checked exhaustively: all 50
+  `tier` hits in `src/` are enemy tiers or medal tiers). The hazard was the
+  docstring *inviting* a wrong wiring — enemy-stat scaling by a number that means
+  an upgrade cap. An inert field with a confident wrong name is the quiet version
+  of the `enemyModel[1]` trap.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four

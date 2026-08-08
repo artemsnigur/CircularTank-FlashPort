@@ -109,7 +109,10 @@ function devSpec(enemies: LevelSpec['enemies'], totalEnemies: number): LevelSpec
     roomHeight: 960,
     // Normal, so clearing the arena ends it and the outcome path is exercised.
     mode: 'Normal',
-    tier: 1,
+    // Nominal: nothing reads it yet, and the mechanic it belongs to (per-level
+    // upgrade caps) is unported. 1 is the most restrictive real value, so a dev
+    // level never claims a laxer cap than any shipped one.
+    upgradeLimit: 1,
     theme: 'Desert',
     seed: 1,
     totalEnemies,

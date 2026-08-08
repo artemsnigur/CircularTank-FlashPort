@@ -38,7 +38,10 @@ describe('level data', () => {
       roomWidth: 800,
       roomHeight: 600,
       mode: 'Normal',
-      tier: 1,
+      // levelDataModel column 7. Named `tier` until T83, when both AS3 reads
+      // turned out to call it `selectedUpgradeLimit` (`ScreenGame.as:365`,
+      // `ScreenLevelSelect.as:1203`) and nothing anywhere calls it a tier.
+      upgradeLimit: 1,
       theme: 'Desert',
       seed: 610309764,
       // enemyModelW1[0] is [10, 45.53, "Basic1", 10]. Column 1 is the base
