@@ -250,3 +250,93 @@ describe('a bounce re-arms a Crazy Cheese rather than strengthening it', () => {
  * `worldView` inside its per-frame loop — is checked there, next to the
  * behaviour it supports.
  */
+
+describe('a bounced round faces where it is now going', () => {
+  /**
+   * `:2012` rewrites `rotation` from the heading right after a bounce, outside
+   * the per-class branches, so it applies to every bouncing round. The port had
+   * always computed the new heading here and never drawn it — reported against
+   * the Gummy Bear, but missing for all of them.
+   *
+   * **The values are the specific post-bounce headings, not "it changed".**
+   * A naive fix that flips a sign, mirrors about the wrong axis, or leaves the
+   * spawn angle in place produces a different number for at least one of these.
+   */
+  it('mirrors about the vertical on a side hit', () => {
+    // Travelling right-and-down at 30 degrees, hitting a left/right wall: the
+    // x component inverts, so the heading becomes left-and-down.
+    expect(reflect(30, 'side')).toBe(150);
+    // …and the sign is preserved going the other way, which is why the AS3
+    // spells this as two branches rather than one modulo.
+    expect(reflect(-30, 'side')).toBe(-150);
+  });
+
+  it('mirrors about the horizontal on a top or bottom hit', () => {
+    // Same 30 degrees into a floor or ceiling: the y component inverts instead.
+    expect(reflect(30, 'endCap')).toBe(-30);
+    expect(reflect(-30, 'endCap')).toBe(30);
+  });
+
+  it('reverses on a corner', () => {
+    expect(reflect(30, 'corner')).toBe(210);
+  });
+
+  /**
+   * The counterpart that makes the three above mean something: the same input
+   * gives three *different* answers, one per edge.
+   *
+   * Without this, an implementation that returned the same value for every edge
+   * — a single flip applied regardless of which wall was hit — would satisfy at
+   * most one assertion above and could look like a rounding quibble. Here it
+   * fails outright.
+   */
+  it('gives three different headings for the three edges', () => {
+    const headings = new Set([
+      reflect(30, 'side'),
+      reflect(30, 'endCap'),
+      reflect(30, 'corner'),
+    ]);
+    expect(headings.size, 'side, endCap and corner must differ').toBe(3);
+  });
+
+  /**
+   * Two side bounces return the original heading — a mirror is its own inverse.
+   *
+   * This catches a fix that rotates by a fixed amount per bounce instead of
+   * reflecting: `+90` twice would pass "it changed" both times and never come
+   * home.
+   */
+  it('returns to the original heading after two identical bounces', () => {
+    expect(reflect(reflect(30, 'side'), 'side')).toBe(30);
+    expect(reflect(reflect(30, 'endCap'), 'endCap')).toBe(30);
+  });
+
+  /**
+   * The heading a bounce produces must match the velocity it produces, or the
+   * sprite points somewhere the round is not going.
+   *
+   * Driven through the real `bounceAgainstCamera` rather than `reflect` alone,
+   * because that is the seam: the two are computed separately and nothing else
+   * requires them to agree.
+   */
+  it('keeps the drawn heading and the new velocity pointing the same way', () => {
+    const camera: CameraBounds = { left: 0, top: 0, width: 200, height: 200 };
+    // Heading right-and-down at 45, just past the right wall.
+    const speed = Math.SQRT2;
+    const bounced = bounceAgainstCamera(
+      { x: 205, y: 100, xVel: 1, yVel: 1, radius: 2, rotation: 45 },
+      camera,
+    );
+
+    expect(bounced, 'should have bounced off the right wall').not.toBeNull();
+
+    const { xVel, yVel, rotation } = bounced!.state;
+    const fromVelocity = (Math.atan2(yVel, xVel) * 180) / Math.PI;
+    // Same direction, allowing for equivalent representations of one angle.
+    const difference = Math.abs(((rotation - fromVelocity) % 360 + 360) % 360);
+    expect(difference === 0 || difference === 360, `rotation ${rotation} vs velocity ${fromVelocity}`).toBe(
+      true,
+    );
+    expect(Math.hypot(xVel, yVel)).toBeCloseTo(speed, 6);
+  });
+});

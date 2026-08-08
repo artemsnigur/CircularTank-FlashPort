@@ -178,6 +178,18 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     else this.setDisplaySize(spec.radius * 4, spec.radius * 4).setTint(0xffe9a8);
     this.setDepth(12);
 
+    // Face the way it is travelling — `:3907` sets `rotation` at spawn from the
+    // fire angle, and Flash draws the clip at that angle.
+    //
+    // This was missing for **every** bullet, not just the one it was reported
+    // on. It was invisible until T85: while every round was the same circle,
+    // rotation could not be seen. Real directional art made a latent gap
+    // visible, which is worth separating from "T85 broke it".
+    //
+    // `setAngle` takes degrees, which is what `BulletState.rotation` already
+    // holds — no conversion, and no second unit to keep straight.
+    this.setAngle(spec.rotation);
+
     scene.add.existing(this);
   }
 
@@ -386,6 +398,16 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     // Keep the live (possibly grown) radius rather than the spawn value.
     this.motion = { ...step.state, radius: this.radius };
     this.setPosition(this.motion.x, this.motion.y);
+    // `:2012` — the AS3 rewrites `rotation` from the heading immediately after
+    // a bounce, and it does so *outside* the per-class branches, so it applies
+    // to every bouncing round. `reflect` (`bulletBounce.ts:131`) has always
+    // computed the new heading; nothing was drawing it.
+    //
+    // Applied every frame rather than only on the bounce event: the state is
+    // the single source of the heading, so reading it unconditionally cannot
+    // fall out of step with it. A homing round re-aims mid-flight (`:1750`),
+    // which an on-bounce-only update would miss.
+    this.setAngle(this.motion.rotation);
     return true;
   }
 

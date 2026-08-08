@@ -505,6 +505,19 @@ things that are actually open.
   had the mechanic** — this closed a visual-only gap. `BulletBomb` + `ObjectMine`
   (two-layer composites) and `BulletLaser` (drawn as a line primitive, not a
   sprite) are deferred — `BACKLOG.md` M1.
+- **Projectiles did not face their heading** — fixed (T88). Reported against the
+  Gummy Bear; it was missing for **every** bullet. **Nothing was broken — it was
+  never wired**, and it could not be seen until T85 gave rounds directional art:
+  a circle looks identical at every angle. Worth separating from "T85 broke it".
+  The model side was already complete — `BulletState.rotation`, and `reflect`
+  (`bulletBounce.ts:131`) computing the post-bounce heading for all three edges —
+  so this was two `setAngle` calls, matching `:3907` (spawn) and `:2012` (after a
+  bounce, applied outside the per-class branches so it covers every bouncing
+  round). Applied every frame from the state rather than on the bounce event, so
+  a homing round that re-aims mid-flight (`:1750`) follows too. The Flamethrower
+  keeps its `:3949` random draw angle, which is deliberately *not* its travel
+  direction — wiring the general rule without that exception would have made
+  flame puffs all point the same way.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four

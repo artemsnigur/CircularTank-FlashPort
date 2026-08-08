@@ -327,3 +327,76 @@ describe('the loop closes: Cannon versus a Basic enemy', () => {
     expect(applyBulletDamage(enemy.health, stats.damage).killed).toBe(true);
   });
 });
+
+describe('the angle a round is drawn at', () => {
+  const stats = { reloadTimeMax: 13, damage: 7, explosionRadius: 30 };
+
+  /**
+   * `:3907` — a round is drawn at the angle it was fired at. Nothing in the
+   * port read this until the projectile art landed and made it visible.
+   *
+   * Driven at several turret angles rather than one, because "returns 0" passes
+   * a single-angle test and is exactly what a spawn-time default looks like.
+   */
+  it('matches the turret angle it was fired at', () => {
+    for (const towerRotation of [0, 45, 90, -135]) {
+      const bullets = fire(createFiringState(), CANNON, stats, {
+        x: 320,
+        y: 480,
+        towerRotation,
+      });
+      expect(bullets[0].rotation, `turret at ${towerRotation}`).toBe(towerRotation);
+    }
+  });
+
+  /**
+   * …and it agrees with the velocity, which is the pairing that matters: a
+   * round drawn at an angle it is not travelling along is the defect this
+   * closes, just in the other direction.
+   */
+  it('agrees with the velocity it was given', () => {
+    for (const towerRotation of [0, 45, 90, -135]) {
+      const [bullet] = fire(createFiringState(), CANNON, stats, {
+        x: 320,
+        y: 480,
+        towerRotation,
+      });
+      const fromVelocity = (Math.atan2(bullet.yVel, bullet.xVel) * 180) / Math.PI;
+      expect(fromVelocity, `turret at ${towerRotation}`).toBeCloseTo(bullet.rotation, 6);
+    }
+  });
+
+  /**
+   * The Flamethrower is the exception, and it is deliberate: `:3949` overwrites
+   * `rotation` with a fresh `Math.random() * 360` **after** the velocity is
+   * computed, so puffs scatter instead of all pointing along the turret.
+   *
+   * Pinned as a pair against the Cannon on the same turret angle. Asserting
+   * only "the flame is random" would also pass if every weapon were randomised,
+   * which would break the rule above for all eleven others.
+   */
+  it('scatters the Flamethrower and only the Flamethrower', () => {
+    const flamethrower = getWeapon('Flamethrower')!;
+    const flameStats = { reloadTimeMax: 2, damage: 3, explosionRadius: 0, flameRange: 100 };
+
+    const angles = new Set<number>();
+    for (let i = 0; i < 12; i += 1) {
+      const [bullet] = fire(createFiringState(), flamethrower, flameStats, {
+        x: 320,
+        y: 480,
+        towerRotation: 0,
+      });
+      if (bullet) angles.add(bullet.rotation);
+    }
+
+    // Twelve draws landing on one angle would mean the override never ran.
+    expect(angles.size, 'flame rotations should vary').toBeGreaterThan(1);
+    // The counterpart: the Cannon at the same turret angle does not vary.
+    const cannon = fire(createFiringState(), CANNON, stats, {
+      x: 320,
+      y: 480,
+      towerRotation: 0,
+    });
+    expect(cannon[0].rotation, 'the Cannon stays on the turret angle').toBe(0);
+  });
+});

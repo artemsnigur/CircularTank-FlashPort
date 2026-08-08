@@ -828,10 +828,21 @@ export function fire(
         ? spec.muzzleOffset
         : spec.muzzleOffset + spec.bulletRadius;
 
+    // `:3949` — the Flamethrower is the one weapon whose *drawn* angle is not
+    // its travel angle: it takes a fresh `Math.random() * 360` after the
+    // velocity is computed, so a burst of flame puffs is randomly oriented
+    // rather than all pointing the same way. Every other weapon draws along
+    // its heading (`:3907`).
+    //
+    // Velocity still comes from `radians` above, so this changes appearance
+    // only — which is exactly what the AS3 does by writing `rotation` after
+    // `xVel`/`yVel`.
+    const drawRotation = spec.isFlame ? random() * 360 : rotation;
+
     bullets.push({
       x: x + Math.cos(muzzleRadians) * offset,
       y: y + Math.sin(muzzleRadians) * offset,
-      rotation,
+      rotation: drawRotation,
       xVel: Math.cos(radians) * spec.bulletSpeed + inheritX,
       yVel: Math.sin(radians) * spec.bulletSpeed + inheritY,
       speed: spec.bulletSpeed,
