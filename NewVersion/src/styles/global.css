@@ -24,43 +24,44 @@
  * `src/game` are world and effect colours tied to art, not UI chrome, and
  * theming them would change how the game reads rather than how the shell looks.
  *
- * Values below are the **dark** theme. The light palette replaces this block
- * and nothing else — that is the point of moving them here first.
+ * The palette is warm-neutral and light. It replaced the previous dark values
+ * by editing **this block and nothing else**, which is what moving them here
+ * first bought.
  */
 :root {
-  /* Chrome. */
-  --bg: #12161f;
-  --surface: #1b1710;
-  --surface-sunken: #0e1218;
-  --panel: rgba(14, 18, 26, 0.86);
-  --panel-border: rgba(255, 255, 255, 0.12);
-  --border: rgba(255, 255, 255, 0.12);
-  --text: #e8edf7;
-  --text-dim: #96a0b4;
-  --text-faint: #6c7383;
-  --text-on-accent: #1b1710;
-  /* Content sitting on a strongly-coloured or dark surface — the countdown
-     panel, a reload bar fill, a destructive hover. Stays near-white in both
-     themes, because those surfaces stay dark in both. */
-  --on-strong: #ffffff;
+  /* Chrome — warm neutral, low contrast, quiet. */
+  --bg: #F0EEE6;
+  --surface: #FAF9F5;
+  --surface-sunken: #E8E4D9;
+  --panel: #FAF9F5;
+  --panel-border: #DDD8CC;
+  --border: #DDD8CC;
+  --text: #1F1E1D;
+  --text-dim: #6B6862;
+  --text-faint: #9A968D;
+  --text-on-accent: #FFFFFF;
+  /* Content on a strongly-coloured or dark surface. The countdown panel and the
+     reload bars sit over the arena, which stays dark in either theme. */
+  --on-strong: #FFFFFF;
 
-  /* Signal. Each of these means something; none is decoration. */
-  --accent: #ffd34d;
-  --accent-ink: #241c02;
-  --danger: #ff6b5e;
-  --danger-soft: #ffb4b4;
-  --danger-deep: #7a2222;
-  --danger-ink: #3a0b06;
-  --ok: #66d99a;
-  --ok-ink: #06301b;
-  --warn: #ffc65c;
-  --warn-ink: #3a2a00;
-  --info: #6ee7ff;
+  /* Signal. The only saturated colour in the UI, and each carries meaning:
+     nothing here is decoration. */
+  --accent: #CC785C;
+  --accent-ink: #FFFFFF;
+  --danger: #B4472E;
+  --danger-soft: #C97A66;
+  --danger-deep: #8F3A22;
+  --danger-ink: #FFFFFF;
+  --ok: #5C7F52;
+  --ok-ink: #FFFFFF;
+  --warn: #B8862F;
+  --warn-ink: #FFFFFF;
+  --info: #4A7C8C;
 
-  /* Medal tiers — kept distinguishable from each other above all. */
-  --medal-bronze: #cd8b62;
-  --medal-silver: #cdd3d8;
-  --medal-gold: #ffd34d;
+  /* Medal tiers — distinguishable from each other above all else. */
+  --medal-bronze: #A9714B;
+  --medal-silver: #9A9A94;
+  --medal-gold: #C9A227;
 
   /* ── Type scale ────────────────────────────────────────────────────────
      Replacing 20 locally-chosen sizes.
@@ -99,7 +100,7 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
 
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 *,
@@ -208,6 +209,23 @@ body {
  */
 .screen {
   pointer-events: auto;
+  /*
+   * Opaque, and that is a consequence of the light palette rather than taste.
+   *
+   * A `.screen` is a full-screen menu drawn **over the live Phaser canvas**. On
+   * the dark theme it could be transparent and still read, because the DOM text
+   * was light and the arena behind it was dark. Inverting the palette inverted
+   * that: dark text over a dark arena left the eyebrow, the ghost buttons and
+   * the audio toggles nearly invisible.
+   *
+   * `.screen--levels` already carried a scrim for exactly this reason. Making it
+   * the rule rather than one screen's workaround is what stops the next screen
+   * rediscovering it.
+   *
+   * The in-game HUD is deliberately **not** a `.screen` — it must stay
+   * transparent over the arena, and keeps a dark surface of its own.
+   */
+  background: var(--bg);
   flex: 1;
   min-height: 0;
   display: flex;
@@ -229,7 +247,7 @@ body {
 
 .screen--levels {
   justify-content: flex-start;
-  background: rgba(10, 13, 19, 0.82);
+  /* Inherits the opaque background from `.screen` now. */
   backdrop-filter: blur(2px);
 }
 
@@ -275,7 +293,7 @@ kbd,
 code {
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 0.85em;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-sunken);
   border-radius: 4px;
   padding: 0.1em 0.35em;
 }
@@ -362,7 +380,7 @@ code {
   width: min(18rem, 70vw);
   height: 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--surface-sunken);
   overflow: hidden;
 }
 
@@ -550,7 +568,7 @@ code {
 .hud-reload__track {
   width: 0.4rem;
   height: 100%;
-  background: rgb(255 255 255 / 18%);
+  background: var(--surface);
   border-radius: 2px;
   display: flex;
   flex-direction: column;
@@ -767,7 +785,7 @@ code {
   font-size: var(--text-3xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--surface-sunken);
 }
 
 .pill--ok {
@@ -803,7 +821,7 @@ code {
   padding: 1.5rem 1.75rem;
   border-radius: 12px;
   background: var(--surface);
-  border: 1px solid rgb(255 255 255 / 12%);
+  border: 1px solid var(--border);
   text-align: center;
 }
 
@@ -839,8 +857,8 @@ code {
   padding: 1.5rem 1.75rem;
   border-radius: 12px;
   background: var(--surface);
-  border: 1px solid rgb(255 255 255 / 22%);
-  box-shadow: 0 12px 40px rgb(0 0 0 / 55%);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 40px rgb(31 30 29 / 10%);
   text-align: center;
 }
 
@@ -953,7 +971,7 @@ code {
   min-height: 2.2rem;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
-  background: rgb(255 255 255 / 5%);
+  background: var(--surface);
   color: var(--text);
   font: inherit;
   font-size: var(--text-md);
@@ -984,9 +1002,9 @@ code {
   min-width: 1.9rem;
   min-height: 1.9rem;
   padding: 0.2rem 0.5rem;
-  border: 1px solid rgb(255 255 255 / 20%);
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgb(255 255 255 / 5%);
+  background: var(--surface);
   color: var(--text-dim);
   font: inherit;
   font-size: var(--text-2xs);
@@ -1020,9 +1038,9 @@ code {
   width: 100%;
   min-height: 5.5rem;
   padding: 0.55rem 0.4rem;
-  border: 1px solid rgb(255 255 255 / 18%);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
-  background: rgb(255 255 255 / 5%);
+  background: var(--surface);
   color: var(--text);
   font: inherit;
   cursor: pointer;
@@ -1032,8 +1050,8 @@ code {
 
 .world-grid__cell--locked {
   border-style: dashed;
-  border-color: rgb(255 255 255 / 10%);
-  background: rgb(255 255 255 / 2%);
+  border-color: var(--border);
+  background: var(--surface);
   color: var(--text-dim);
   cursor: default;
 }
@@ -1088,9 +1106,9 @@ code {
 
 .difficulty__button {
   padding: 0.3rem 0.9rem;
-  border: 1px solid rgb(255 255 255 / 18%);
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgb(255 255 255 / 4%);
+  background: var(--surface);
   color: var(--text-dim);
   font: inherit;
   font-size: var(--text-xs);
@@ -1173,10 +1191,14 @@ code {
 .shop-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-radius: 8px;
-  background: rgb(255 255 255 / 4%);
+  background: var(--surface);
+  /* `--surface` sits only a few percent above `--bg`, which is the point of a
+     quiet palette — but it means a card needs a hairline to exist at all. On
+     the dark theme the fill alone was enough. */
+  border: 1px solid var(--border);
 }
 
 .shop-row__info {
@@ -1204,7 +1226,10 @@ code {
   width: 6px;
   height: 12px;
   border-radius: 2px;
-  background: rgb(255 255 255 / 12%);
+  /* An empty pip has to read as a *recess*. On the dark theme it was a lighter
+     surface against a darker row; inverted, `--surface` on a `--surface` row is
+     the same colour and the whole meter disappeared. */
+  background: var(--surface-sunken);
 }
 
 .shop-row__pip--filled {
@@ -1215,8 +1240,8 @@ code {
   min-width: 6.5rem;
   padding: 0.35rem 0.6rem;
   border-radius: 6px;
-  border: 1px solid rgb(255 255 255 / 18%);
-  background: rgb(255 255 255 / 6%);
+  border: 1px solid var(--border);
+  background: var(--surface);
   color: inherit;
   font: inherit;
   cursor: pointer;
@@ -1278,12 +1303,12 @@ code {
   gap: 0.75rem;
   padding: 0.4rem 0.6rem;
   border-radius: 6px;
-  background: rgb(255 255 255 / 4%);
+  background: var(--surface);
   border-left: 3px solid transparent;
 }
 .enemies__row--implemented { border-left-color: rgb(140 230 140 / 70%); }
 .enemies__row--partial { border-left-color: rgb(255 176 58 / 70%); }
-.enemies__row--data-only { border-left-color: rgb(255 255 255 / 15%); }
+.enemies__row--data-only { border-left-color: var(--border); }
 .enemies__name { min-width: 8rem; font-size: var(--text-sm); }
 .enemies__traits { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
 .enemies__tag {
@@ -1301,8 +1326,8 @@ code {
   flex: none;
   padding: 0.2rem 0.5rem;
   border-radius: 5px;
-  border: 1px solid rgb(255 255 255 / 18%);
-  background: rgb(255 255 255 / 6%);
+  border: 1px solid var(--border);
+  background: var(--surface);
   color: inherit;
   font: inherit;
   font-size: var(--text-3xs);
@@ -1316,7 +1341,7 @@ code {
 .dev-jump {
   margin-top: 1.5rem;
   padding: 0.75rem;
-  border: 1px dashed rgb(255 255 255 / 25%);
+  border: 1px dashed var(--border);
   border-radius: 6px;
   opacity: 0.85;
 }
@@ -1340,7 +1365,7 @@ code {
 .dev-jump__world {
   min-width: 2rem;
   padding: 0.3rem 0.5rem;
-  border: 1px solid rgb(255 255 255 / 25%);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: transparent;
   color: inherit;
@@ -1370,7 +1395,7 @@ code {
   gap: 0.1rem;
   width: 100%;
   padding: 0.3rem 0.15rem;
-  border: 1px solid rgb(255 255 255 / 20%);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: transparent;
   color: inherit;
@@ -1421,7 +1446,7 @@ code {
 
 .audio-toggles__button {
   padding: 0.35rem 0.6rem;
-  border: 1px solid rgb(255 255 255 / 30%);
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: transparent;
   color: inherit;
@@ -1503,15 +1528,15 @@ code {
   gap: 0.75rem;
   padding: 0.45rem 0.6rem;
   border-radius: 6px;
-  background: rgb(255 255 255 / 4%);
+  background: var(--surface);
   border-left: 3px solid rgb(140 230 140 / 70%);
 }
 .bestiary-row__name { min-width: 8rem; font-size: var(--text-sm); }
 .bestiary-row__text { font-size: var(--text-2xs); color: var(--text-dim); }
 
 .bestiary-row--locked {
-  border-left-color: rgb(255 255 255 / 12%);
-  background: rgb(255 255 255 / 2%);
+  border-left-color: var(--border);
+  background: var(--surface);
 }
 /* The silhouette: dim the whole row and blank the name to "???". Deliberately
    not `filter: blur()` on real text — the string is simply never sent. */
@@ -1535,7 +1560,7 @@ code {
 
 .slot-grid li { position: relative; }
 .slot-grid__delete { position: absolute; top: 0.5rem; right: 0.6rem; width: 1.9rem; height: 1.9rem;
-  border-radius: 50%; cursor: pointer; background: rgba(0,0,0,0.45); color: var(--danger-soft);
+  border-radius: 50%; cursor: pointer; background: var(--surface-sunken); color: var(--danger);
   border: 1px solid rgba(255,180,180,0.4); font-size: var(--text-sm); line-height: 1; }
 .slot-grid__delete:hover { background: var(--danger-deep); color: var(--on-strong); }
 .slot-grid__cell--confirm { align-items: center; gap: 0.6rem; }
@@ -1575,8 +1600,8 @@ code {
   display: grid;
   place-items: center;
   border-radius: 4px;
-  border: 1px solid rgb(255 255 255 / 35%);
-  background: rgb(0 0 0 / 30%);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
   font-size: var(--text-xs);
   line-height: 1;
 }
@@ -1627,8 +1652,8 @@ code {
   width: 8.5rem;
   padding: 0.4rem 0.5rem;
   border-radius: 8px;
-  border: 1px solid rgb(255 255 255 / 12%);
-  background: rgb(0 0 0 / 35%);
+  border: 1px solid var(--border);
+  background: var(--surface);
   opacity: 0.45;
   text-align: center;
 }
