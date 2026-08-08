@@ -15,6 +15,7 @@
  */
 import type { SlotSummary } from '../save/slotSummary';
 import type { AchievementListing } from '../achievements/achievementListing';
+import type { ResistanceBadge } from '../enemies/resistanceIcons';
 import type { GameplayOptions } from '../options/gameplayOptions';
 import Phaser from 'phaser';
 import type { Difficulty, SceneKey } from '../config/constants';
@@ -364,6 +365,14 @@ export interface GameEventMap {
       displayName: string;
       /** Absent until met, so an unmet entry leaks nothing about itself. */
       description?: string;
+      /**
+       * Resistance badges — `ScreenEnemies.as:329-451`. **Empty means unmet**,
+       * not "resists nothing": a met enemy with no strengths still carries the
+       * frame-1 "none" badge the AS3 adds at `:385-391`, so the two states stay
+       * distinguishable without a second flag.
+       */
+      strengths: ResistanceBadge[];
+      weaknesses: ResistanceBadge[];
       known: boolean;
     }>;
     knownCount: number;

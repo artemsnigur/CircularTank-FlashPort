@@ -1580,6 +1580,72 @@ code {
 .bestiary-row__name { min-width: 8rem; font-size: var(--text-sm); }
 .bestiary-row__text { font-size: var(--text-2xs); color: var(--text-dim); }
 
+/* Resistance badges — ScreenEnemies.as' two icon rows. */
+.bestiary-row__resist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  /* The row is `align-items: baseline`, which would hang the badges off the
+     text baseline and let them spill into the row below. Centred and pushed
+     right instead — the AS3 puts them at x 434 on a 640 stage, i.e. the right
+     third, so this is the same reading of the layout without the frozen
+     coordinate (rule 7). */
+  margin-left: auto;
+  align-self: center;
+}
+.resistance-row {
+  display: flex;
+  align-items: center;
+  /* `:378` places these at a 38px pitch on a 30px badge, so the gap is 8. */
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.resistance-row__label {
+  font-size: var(--text-3xs);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  /* Fixed so the two rows' badges line up under each other. */
+  min-width: 4.5rem;
+}
+.resistance-icon {
+  position: relative;
+  display: inline-block;
+  flex: none;
+}
+.resistance-icon__layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* `ScreenEnemies.as:380` — `addText(iconS, ..., 16777215, "N%", 16, 50, -25, 2)`:
+   the percentage is a child of the *icon*, centred on it, in white. Drawn below
+   the badge instead, it both misread the original and overflowed into the next
+   bestiary row, since the badge is absolutely positioned inside a 30px box. */
+.resistance-icon__percent {
+  position: absolute;
+  /* `h`/`w` in `addText` are the field's height and width, not a font size:
+     `:380` makes a 50x14 field at (-25, +2) on a centre-registered ~30px
+     badge, so the text sits across the **lower** band and leaves the glyph
+     above it visible. Centring it vertically — the first attempt here — put it
+     straight over the glyph, which is the one part of the badge that carries
+     the meaning. 57%/-3% is that 2..16 band as a fraction of the box. */
+  inset: 57% 0 -3%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-3xs);
+  font-weight: 700;
+  color: #fff;
+  /* The badges are mid-tone, so white alone is legible on some and not others.
+     A dark halo rather than a different colour: the AS3's white is the thing
+     being ported, and re-tinting per badge would invent artwork. */
+  text-shadow: 0 1px 2px rgb(0 0 0 / 75%), 0 0 3px rgb(0 0 0 / 60%);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
 .bestiary-row--locked {
   border-left-color: var(--border);
   background: var(--surface);

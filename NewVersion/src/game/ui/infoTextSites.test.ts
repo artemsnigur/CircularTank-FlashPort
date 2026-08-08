@@ -132,10 +132,11 @@ describe('the table covers the source', () => {
     expect([...found].sort()).toEqual([...INFO_TEXT_SITES.map((s) => s.source)].sort());
   });
 
-  it('has exactly two sites wired, and says what the rest wait on', () => {
+  it('has the wired sites recorded, and says what the rest wait on', () => {
     const wired = INFO_TEXT_SITES.filter((s) => s.status === 'wired');
     expect(wired.map((s) => s.source)).toEqual([
       'ButtonUpgradeInfo.as:163',
+      'IconStrongWeak.as:48',
       'Achievement.as:99',
     ]);
     // Every unwired row must carry a reason — a blank note is the "documented

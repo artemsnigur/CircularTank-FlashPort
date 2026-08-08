@@ -22,6 +22,9 @@
  */
 
 import { BESTIARY, INITIAL_KNOWN_ENEMIES } from './bestiaryData';
+import { ENEMY_STATS } from './enemyStatsData';
+import { resistanceBadges } from './resistanceIcons';
+import type { ResistanceBadge } from './resistanceIcons';
 import { getLevel } from '../levels/levelData';
 
 const DISPLAY_NAME_BY_ID = new Map(BESTIARY.map((e) => [e.id, e.displayName]));
@@ -102,6 +105,16 @@ export interface BestiaryRow {
   displayName: string;
   /** Absent until met — an unmet entry must not describe itself. */
   description?: string;
+  /**
+   * Resistance badges — `ScreenEnemies.as:329-451`, one row each.
+   *
+   * **Empty means unmet, never "resists nothing".** A met enemy with no
+   * strengths still carries a single frame-1 "none" badge (`:385-391`), so the
+   * screen can tell the two apart from the array alone and needs no second
+   * flag to decide whether to draw the row.
+   */
+  strengths: ResistanceBadge[];
+  weaknesses: ResistanceBadge[];
   known: boolean;
 }
 
@@ -127,10 +140,23 @@ export function buildBestiaryListing(known: readonly string[]): BestiaryListing 
   return {
     entries: BESTIARY.map((entry) => {
       const met = isEnemyKnown(known, entry.id);
+      // Resistances are withheld on exactly the same condition as the
+      // description, and for the same reason: what an unmet enemy resists is
+      // the substance of what the bestiary is hiding. Sending the badges and
+      // letting the component skip them would put the answer in the store,
+      // where the screen's own docstring says it must not be.
+      //
+      // `resistanceBadges` always returns at least one badge — the "none"
+      // placeholder at `ScreenEnemies.as:385-391` — so an empty array here
+      // means *unknown*, never "has no strengths". The two are different
+      // states and the screen renders them differently.
+      const stats = met ? ENEMY_STATS[entry.id] : undefined;
       return {
         id: entry.id,
         displayName: entry.displayName,
         ...(met ? { description: entry.description } : {}),
+        strengths: stats ? resistanceBadges(stats.strengths, 'strength') : [],
+        weaknesses: stats ? resistanceBadges(stats.weaknesses, 'weakness') : [],
         known: met,
       };
     }),

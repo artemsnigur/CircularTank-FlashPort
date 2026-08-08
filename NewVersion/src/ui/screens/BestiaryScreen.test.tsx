@@ -21,14 +21,33 @@ function enterBestiary(): void {
   });
 }
 
-/** Two met, one not — enough to show both branches at once. */
+/**
+ * Three rows covering the three states the screen has to tell apart: met with
+ * resistances, met with none (the frame-1 placeholder), and unmet (no badges
+ * at all). The middle one is the case an `entry.strengths.length > 0` guard
+ * would get wrong if the listing ever stopped sending the placeholder.
+ */
 function publishSample(): void {
   act(() => {
     GameEvents.emit('bestiary:listed', {
       entries: [
-        { id: 'Basic', displayName: 'Basic', description: 'The most boring enemy.', known: true },
-        { id: 'Fast', displayName: 'Fast', description: 'Moves quickly.', known: true },
-        { id: 'Ghost', displayName: 'Ghost', known: false },
+        {
+          id: 'Basic',
+          displayName: 'Basic',
+          description: 'The most boring enemy.',
+          strengths: [{ frame: 1, damageType: null, label: 'None', percent: '' }],
+          weaknesses: [{ frame: 1, damageType: null, label: 'None', percent: '' }],
+          known: true,
+        },
+        {
+          id: 'Fast',
+          displayName: 'Fast',
+          description: 'Moves quickly.',
+          strengths: [{ frame: 2, damageType: 'Explosions', label: 'Explosions', percent: '25%' }],
+          weaknesses: [{ frame: 16, damageType: 'Food', label: 'Food', percent: '75%' }],
+          known: true,
+        },
+        { id: 'Ghost', displayName: 'Ghost', strengths: [], weaknesses: [], known: false },
       ],
       knownCount: 2,
       total: 3,

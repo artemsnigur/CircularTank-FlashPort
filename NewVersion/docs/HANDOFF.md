@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T99**, commit `cfd5a3e`, 8 August 2026. Keep it current — it is
+Current as of **T100**, commit `b0dd120`, 9 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -28,7 +28,7 @@ TypeScript strict + Phaser 3.90 + Zustand + Vitest + Capacitor.
 - **`NewVersion/`** — the port. All npm commands run from here.
 
 **Gate on every commit:** `typecheck`, `lint`, `data:check`, `progress:check`,
-the full suite (**2706 tests, 139 files**), and `smoke`. Work that cannot land green is not
+the full suite (**2810 tests, 146 files**), and `smoke`. Work that cannot land green is not
 committed. Commits go straight to `main` and are pushed at the end of each task.
 
 ### What plays end to end
@@ -112,7 +112,10 @@ count-up, the `Unlock` latch, and whether 1-2 stays selectable throughout),
 **measures the panel's box against the cursor** — the corner it opened toward,
 not merely that a `.info-text` node exists; also holds a hover for 1200ms and
 then leaves, because a panel that opens and never closes photographs exactly
-like a correct one).
+like a correct one), `--resistances` (the bestiary's badges, with `?known=all`
+so all 20 rows are revealed — it **counts the image layers that actually
+loaded** per badge, because a badge whose middle layer 404s still renders as a
+clean disc, which is exactly what the "none" badge is supposed to look like).
 
 ---
 
@@ -384,9 +387,35 @@ against the cursor rather than asserting the node exists.
 | Step | State |
 |---|---|
 | **1 — core + Achievement rich text** | **Done.** But the "16 sites" it was scoped as is **2** — see the audit's "reachable surface" entry. Shop rows and achievement cells are wired; twelve sites are recorded as redundant, unported or deferred, with a reason each |
-| **2 — `EnemyStrengthsWeaknesses`** | Open. 3 sites (`ImageEnemy.as:174`, `:178`, `IconStrongWeak.as:48`). Unblocked |
+| **2 — `EnemyStrengthsWeaknesses`** | **Done (T100), but for one of its three sites.** `IconStrongWeak.as:48` is wired — the bestiary's badges. `ImageEnemy.as:174`/`:178` are the *tooltip* variant and stay blocked: their only consumer is the level-select enemy roster (`ScreenLevelSelect.as:1128`), which this port does not have. See below |
 | **3 — `AllEnemiesInLevel`** | Open. `ButtonNextLevel.as:208`. Unblocked |
 | **4 — Level Guide's 4 sites** | Blocked on the Level Guide itself, which does not exist |
+
+**Step 2 split into two halves that the brief treated as one.** The task was
+scoped as "wire `addStrengthsAndWeaknessIcons`, lands on the Enemies screen".
+Reading the source first (rule 1) found three corrections, and they change what
+shipped:
+
+- **The screen is the Bestiary.** `BestiaryScreen.tsx` is the port of
+  `ScreenEnemies.as` — its own docstring says so. `EnemiesScreen.tsx` is a
+  port-progress dev board with no AS3 counterpart. Wiring badges into it would
+  have been the "add a second element instead of finding the first" mistake.
+- **Two icon classes, not one, and they are not interchangeable.**
+  `IconStrongWeak2` (1018) is used *only* by `PartInfoText.addStrengthsAndWeaknessIcons`
+  (`:404`, `:456`); `IconStrongWeak` (1033) is used by `ScreenEnemies` ×4 and
+  `ScreenStatus` ×4, placed inline with its own tooltip. The badge artwork
+  differs on 6 of the 16 glyphs.
+- **`addStrengthsAndWeaknessIcons` has no live consumer, and the inline icons
+  do.** Its `"Normal"` caller is the panel's `EnemyStrengthsWeaknesses` type,
+  reached only from `ImageEnemy`, which appears only at `ScreenLevelSelect.as:1128` —
+  a per-level enemy roster this port has not built. So the shared rule
+  (`resistanceIcons.ts`) is ported and driven through the bestiary; the panel
+  variant waits for its screen rather than being built for nobody.
+
+Both clips' shapes are synced regardless, which is the precedent the projectile
+pass set: the six shapes unique to the undrawn clip are present **by intent**,
+and `resistanceIcons.test.ts` pins that set exactly so "unused" and "missing"
+cannot be confused.
 
 **One finding this pass turned up and did not act on, because it is a different
 subsystem.** `ButtonUpgradeInfo.as:33` pushes `InterfaceButtonOver1` when the
@@ -504,7 +533,7 @@ things that are actually open.
   therefore walkable by script. `scripts/gen-sprite-shapes.mjs` now emits the
   mapping; `sync-assets.mjs` derives its curated ids from it rather than
   hand-listing them. Passes (b) rendering and (c) animation are **not started**
-  — see `BACKLOG.md` M1, including the one real decision in (c).
+  — see `BACKLOG.md` M4, including the one real decision in (c).
 - **Projectile art, pass (b) — rendering** — landed (T85). Every weapon draws
   its own art; the shared `particle-dot` circle and the blanket
   `setTint(0xffe9a8)` are gone from the projectile path. **The size question was
@@ -515,7 +544,7 @@ things that are actually open.
   now come from the SWF's authored dimensions × that matrix; the collision
   radius is untouched, as the two were always separate quantities. The three
   grenades render as three distinct shapes, closing the infidelity pass (a)
-  found. Pass (c) animation is **not started** — `BACKLOG.md` M1.
+  found. Pass (c) animation is **not started** — `BACKLOG.md` M4.
 - **Trap: an oversampled texture plus `setScale`** — hit again in T85 and caught
   before it shipped. `manifest.ts` already warns that a raster oversampled 4×
   must be divided at the draw, and that it *"shipped wrong for one pass"* in the
@@ -533,7 +562,7 @@ things that are actually open.
   mislead: the AS3 scales damage x1/x3/x4 by bounce stage and **the port already
   had the mechanic** — this closed a visual-only gap. `BulletBomb` + `ObjectMine`
   (two-layer composites) and `BulletLaser` (drawn as a line primitive, not a
-  sprite) are deferred — `BACKLOG.md` M1.
+  sprite) are deferred — `BACKLOG.md` M4.
 - **Projectiles did not face their heading** — fixed (T88). Reported against the
   Gummy Bear; it was missing for **every** bullet. **Nothing was broken — it was
   never wired**, and it could not be seen until T85 gave rounds directional art:

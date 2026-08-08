@@ -1045,7 +1045,14 @@ the original, reproduced.
 
 ---
 
-### M1 — Projectile art — **CLOSED (T84 mapping, T85 render, T87/T98 frames)**
+### M4 — Projectile art — **CLOSED (T84 mapping, T85 render, T87/T98 frames)**
+
+> **Renumbered T100.** This was filed as `M1`, which was already taken by
+> the tank damage tint at `:600`. Two live entries under one id is the kind
+> of record defect that survives because both rows read fine on their own —
+> it only bites the reader who follows a reference. `HANDOFF.md` referred to
+> "`BACKLOG.md` M1" for the projectile work in three places, all of which
+> pointed at the wrong section.
 
 **The art was never missing.** All 24 weapons render as one shared circle
 (`particle-dot` = `shapes/1.svg`), and the T83 audit concluded the real art
@@ -1148,7 +1155,7 @@ a line primitive, so there is no layer to animate, and the current rendering is
 faithful in effect. Revisit only with `NineSlice` and the frame-widening
 together (see the T87 assessment).
 
-**M1 is closed.**
+**M4 is closed.**
 
 **Adjacent, not taken:** the same mapping resolves all 474 sprites, so enemies,
 UI and props are one call away. That is a much larger commitment and the
@@ -1444,6 +1451,7 @@ Small, and none of it blocks anything else:
 | ~~**L6**~~ | ~~`ScreenGame`/`PartGameArea` generated prose self-contradicts~~ — **done T81.** Not a contradiction but a **misattribution**: `ScreenGame` was credited with `PartGameArea`'s wave spawning (6 static hits vs 109). Fixing it exposed a second inverted number — 107 of 131 statics extracted, not "~90 remaining" | done |
 | ~~**L7(a)** / **L7(b)**~~ | ~~**(a)** 11 candidates re-graded, 5 flipped, 6 left with reasons — **done T81**; a `Port target:` header is not a port citation. **(b)** the uncited remainder — **deferred T82** alongside L5, since the two were one decision and L5 chose no change~~ | (a) done · (b) deferred with L5 |
 | **F4** | `secondaries.ts`'s header still says "Scope: Mine only" | trivial |
+| ~~**M5**~~ | ~~PartInfoText — the hover panel~~ — **steps 1-2 closed (T99, T100).** Step 1 wired the shop rows and achievement cells; step 2 the bestiary's resistance badges. The "16 sites" and "2 live sites on the Enemies screen" framings were both wrong — see `infoTextSites.ts`, which records all 20 AS3 call sites with a live/redundant/no-consumer/deferred verdict each, checked against the source. Steps 3-4 (`AllEnemiesInLevel`, Level Guide) remain | steps 1-2 done |
 
 **Read this next to `docs/HANDOFF.md` §5, not instead of it.** This document
 covers what was visible when the enemies landed; the live queue — the `Objective`

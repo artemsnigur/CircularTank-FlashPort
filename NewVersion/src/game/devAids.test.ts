@@ -42,6 +42,9 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
   ],
   'src/game/levels/devLevels.ts': ['QA levels for enemy behaviour'],
   'src/game/scenes/UpgradesScene.ts': ['money top-up'],
+  // T100: a fresh profile knows only `Basic`, which has no resistances, so the
+  // bestiary's 16 typed badges cannot be photographed without one.
+  'src/game/scenes/BestiaryScene.ts': ['reveal the whole bestiary via ?known=all'],
   'src/ui/screens/LevelSelectScreen.tsx': ['jump to any level'],
   'src/ui/screens/UpgradesScreen.tsx': ['catalogue top-up'],
   'src/ui/DiagnosticsPanel.tsx': ['pipeline diagnostics panel'],
@@ -92,6 +95,9 @@ describe('dev aids are enumerable', () => {
     // recorder, the pair `--countdown` needs to measure a placement change
     // that no screenshot and no unit test can see. 24 since T69 — the live
     // tank position, without which the sweep fires at where the tank was.
-    expect(total).toBe(24);
+    // 25 since T100 — `?known=all`, without which the bestiary shows one met
+    // enemy that happens to have no resistances at all, so `--resistances`
+    // would photograph the empty badge twice and call it coverage.
+    expect(total).toBe(25);
   });
 });

@@ -26,6 +26,30 @@ import { GameEvents } from '../events/GameEvents';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import { getPlayerProfile } from '../player/playerProfile';
 import { buildBestiaryListing } from '../enemies/enemyKnowledge';
+import { BESTIARY } from '../enemies/bestiaryData';
+
+/**
+ * DEV-AID: reveal the whole bestiary, from `?known=all`.
+ *
+ * A fresh profile knows exactly one enemy — `Basic` — which has **no**
+ * strengths and no weaknesses. So the default state renders only the frame-1
+ * "none" badge, and the 16 typed badges cannot be photographed at all without
+ * playing far enough to meet the enemies that have them.
+ *
+ * That is the gap T99 recorded and could not close for achievements ("no dev
+ * aid to grant one on a fresh profile"). Here it is one line, and the alternative
+ * — the harness writing a hand-serialised save into `localStorage` — would
+ * couple the look script to the save format for no gain.
+ *
+ * DEV builds only, and it does not touch the profile: nothing is written, so a
+ * run with the flag leaves the save exactly as it found it.
+ */
+function devKnownEnemies(): string[] | null {
+  if (!import.meta.env.DEV) return null;
+  if (typeof window === 'undefined') return null;
+  if (new URLSearchParams(window.location.search).get('known') !== 'all') return null;
+  return BESTIARY.map((entry) => entry.displayName);
+}
 
 export class BestiaryScene extends Phaser.Scene {
   private backdrop!: Phaser.GameObjects.TileSprite;
@@ -72,6 +96,9 @@ export class BestiaryScene extends Phaser.Scene {
   private publishBestiary(): void {
     // The listing is built by a pure function so the withholding rule is
     // testable without standing up a scene — see enemyKnowledge.test.ts.
-    GameEvents.emit('bestiary:listed', buildBestiaryListing(getPlayerProfile(this).slot.knownEnemies));
+    GameEvents.emit(
+      'bestiary:listed',
+      buildBestiaryListing(devKnownEnemies() ?? getPlayerProfile(this).slot.knownEnemies),
+    );
   }
 }

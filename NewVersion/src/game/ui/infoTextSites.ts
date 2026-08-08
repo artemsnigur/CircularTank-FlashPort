@@ -15,13 +15,14 @@
  * against the source lines; a screen that opens the wrong way now needs two
  * edits that disagree, not one that drifts.
  *
- * ── The reachable surface is 2 sites, not 16 ──────────────────────────────
+ * ── The reachable surface is 3 sites, not 16 ──────────────────────────────
  * Step 1 was scoped as "14 core + 2 rich text". The count is right about the
- * AS3 and wrong about this port: of the 14 plain-text sites, **one** has a live
- * consumer here. Four are icon buttons whose tooltip is the button's own name,
- * which this port renders as a visible text label; the rest hang off screens or
- * features that are not ported (Credits, Armor Games online saves) or are
- * deferred (Level Guide, EnemyStrengthsWeaknesses).
+ * AS3 and wrong about this port: of the 14 plain-text sites, **two** have a
+ * live consumer here — the shop row and, since step 2, the bestiary's
+ * resistance badges. Four are icon buttons whose tooltip is the button's own
+ * name, which this port renders as a visible text label; the rest hang off
+ * screens or features that are not ported (Credits, Armor Games online saves)
+ * or are deferred (Level Guide, `EnemyStrengthsWeaknesses`).
  *
  * That is recorded per row rather than in a report, because the person who
  * builds the Level Guide or the Credits screen is the one who needs it, and
@@ -61,6 +62,15 @@ export const INFO_TEXT_SITES: readonly InfoTextSite[] = Object.freeze([
     note: 'Shop rows — UpgradesScreen.tsx. Text from ButtonUpgradeInfo.as, 28 strings.',
   },
   {
+    source: 'IconStrongWeak.as:48',
+    showLeft: false,
+    showTop: false,
+    status: 'wired',
+    // `theText` is set by the owner beside the frame (`ScreenEnemies.as:339-374`),
+    // which is why the label lives in `resistanceIcons.ts` rather than here.
+    note: 'Resistance badges on the bestiary — ResistanceIcon.tsx. Label per damage type.',
+  },
+  {
     source: 'Achievement.as:99',
     showLeft: true,
     showTop: false,
@@ -87,7 +97,6 @@ export const INFO_TEXT_SITES: readonly InfoTextSite[] = Object.freeze([
   // ── Deferred, with the thing each waits on ──────────────────────────────
   { source: 'ImageEnemy.as:174', showLeft: false, showTop: false, special: 'EnemyStrengthsWeaknesses', status: 'deferred', note: 'PartInfoText step 2. `right`/`bottom` are initialised false at ImageEnemy.as:168-169 and never reassigned.' },
   { source: 'ImageEnemy.as:178', showLeft: false, showTop: false, special: 'EnemyStrengthsWeaknesses', status: 'deferred', note: 'Same, with " Boss" appended to the name.' },
-  { source: 'IconStrongWeak.as:48', showLeft: false, showTop: false, status: 'deferred', note: 'Step 2 — `theText` is set by whatever owns the icon.' },
   { source: 'ButtonNextLevel.as:208', showLeft: false, showTop: false, special: 'AllEnemiesInLevel', status: 'deferred', note: 'PartInfoText step 3 — lists the enemies waiting in the level it leads to.' },
   { source: 'ButtonLevelGuideInfo.as:64', showLeft: false, showTop: false, special: 'AllEnemiesInLevel', status: 'deferred', note: 'Step 4 — blocked on the Level Guide itself.' },
   { source: 'ButtonLevelGuideAutoSelect.as:38', showLeft: false, showTop: false, status: 'deferred', note: 'Step 4 — blocked on the Level Guide.' },

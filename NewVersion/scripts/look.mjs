@@ -58,6 +58,7 @@ function parseArgs(argv) {
     if (argv[i] === '--viewport') args.viewport = argv[++i];
     if (argv[i] === '--overlays') args.overlays = true;
     if (argv[i] === '--tooltips') args.tooltips = true;
+    if (argv[i] === '--resistances') args.resistances = true;
   }
   return args;
 }
@@ -454,6 +455,110 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.resistances) {
+  /**
+   * The bestiary's strength/weakness badges — `ScreenEnemies.as:329-451`.
+   *
+   * ── What a screenshot alone cannot tell you here ──────────────────────────
+   * A badge is three stacked SVGs. If one layer fails to resolve the icon still
+   * renders — just wrong, and plausibly so, because the two outer layers carry
+   * the colour and the middle one carries the meaning. A frame that dropped its
+   * glyph would photograph as a clean empty disc, which is also what the "none"
+   * badge is *supposed* to look like.
+   *
+   * So this counts the layers that actually loaded (`naturalWidth > 0`, which
+   * is false for a 404'd image) and reports them alongside the label, instead
+   * of trusting the picture.
+   */
+  // `?known=all` reveals the whole bestiary. Without it a fresh profile knows
+  // only `Basic`, which has no resistances at all, so the 16 typed badges are
+  // simply not on the page and the run would photograph the empty case twice
+  // and report it as coverage.
+  await page.goto(`${URL}?known=all`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /bestiary/i }).first().click({ timeout: 4000 });
+  await delay(900);
+
+  const rows = await page.evaluate(() => {
+    const out = [];
+    for (const row of globalThis.document.querySelectorAll('.bestiary-row')) {
+      const name = row.querySelector('.bestiary-row__name')?.textContent ?? '?';
+      const groups = [...row.querySelectorAll('.resistance-row')].map((r) => ({
+        label: r.querySelector('.resistance-row__label')?.textContent ?? '',
+        badges: [...r.querySelectorAll('.resistance-icon')].map((b) => ({
+          name: b.getAttribute('aria-label'),
+          // The check a picture cannot make: did every layer actually load?
+          layers: [...b.querySelectorAll('img')].length,
+          loaded: [...b.querySelectorAll('img')].filter((i) => i.naturalWidth > 0).length,
+          box: Math.round(b.getBoundingClientRect().width),
+        })),
+      }));
+      out.push({ name, locked: row.className.includes('locked'), groups });
+    }
+    return out;
+  });
+
+  console.log(`[res] bestiary rows: ${rows.length}`);
+  let broken = 0;
+  for (const row of rows) {
+    if (row.groups.length === 0) {
+      console.log(`[res] ${row.name.padEnd(16)} ${row.locked ? 'locked, no badges (correct)' : 'NO BADGES (wrong — met enemy)'}`);
+      continue;
+    }
+    for (const g of row.groups) {
+      const cells = g.badges
+        .map((b) => {
+          if (b.loaded !== b.layers) broken += 1;
+          return `${b.name} [${b.loaded}/${b.layers} layers, ${b.box}px]`;
+        })
+        .join('  ');
+      console.log(`[res] ${row.name.padEnd(16)} ${g.label.padEnd(10)} ${cells}`);
+    }
+  }
+  console.log(
+    broken === 0
+      ? '[res] every badge layer resolved'
+      : `[res] ${broken} badge(s) with a layer that did not load`,
+  );
+
+  await shot('res-bestiary');
+
+  // Hover one badge: `IconStrongWeak.as:48` gives each its own tooltip, and the
+  // "none" badge deliberately has none (`ScreenEnemies.as:385-391` builds it
+  // with no `pText`). Both halves, because either alone is satisfiable wrongly.
+  const named = page.locator('.resistance-icon[aria-label="Explosions 25%"]').first();
+  if ((await named.count()) > 0) {
+    await named.scrollIntoViewIfNeeded();
+    const b = await named.boundingBox();
+    await page.mouse.move(Math.round(b.x + b.width / 2), Math.round(b.y + b.height / 2));
+    await delay(400);
+    const tip = await page.evaluate(
+      () => globalThis.document.querySelector('.info-text')?.textContent ?? null,
+    );
+    console.log(`[res] hover a typed badge:  tooltip=${JSON.stringify(tip)} (want "Explosions")`);
+    await shot('res-badge-tooltip');
+  } else {
+    console.log('[res] no "Explosions 25%" badge on screen — nothing hovered');
+  }
+
+  const none = page.locator('.resistance-icon[aria-label="None"]').first();
+  if ((await none.count()) > 0) {
+    await none.scrollIntoViewIfNeeded();
+    const b = await none.boundingBox();
+    await page.mouse.move(Math.round(b.x + b.width / 2), Math.round(b.y + b.height / 2));
+    await delay(400);
+    const tip = await page.evaluate(
+      () => globalThis.document.querySelector('.info-text')?.textContent ?? null,
+    );
+    console.log(`[res] hover the none badge: tooltip=${JSON.stringify(tip)} (want null)`);
+  }
+
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
 }
 
 if (args.tooltips) {

@@ -14,6 +14,7 @@
  */
 import { create } from 'zustand';
 import type { AchievementListing } from '../game/achievements/achievementListing';
+import type { ResistanceBadge } from '../game/enemies/resistanceIcons';
 import { DEFAULT_GAMEPLAY_OPTIONS } from '../game/options/gameplayOptions';
 import type { GameplayOptions } from '../game/options/gameplayOptions';
 import type { Difficulty, SceneKey } from '../game/config/constants';
@@ -65,6 +66,15 @@ export interface BestiaryListing {
     id: string;
     displayName: string;
     description?: string;
+    /**
+     * Badges for the two resistance rows — `ScreenEnemies.as:329-451`.
+     *
+     * Empty **only** when the enemy is unmet. A met enemy with no strengths
+     * still carries one badge, the frame-1 "none" placeholder the AS3 adds at
+     * `:385-391`, so the screen never has to guess which case it is looking at.
+     */
+    strengths: ResistanceBadge[];
+    weaknesses: ResistanceBadge[];
     known: boolean;
   }>;
   knownCount: number;

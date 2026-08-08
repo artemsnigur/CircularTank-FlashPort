@@ -198,6 +198,11 @@ describe('the selector covers every interactive role in the tree', () => {
     // the *trigger* on roll-over (`ButtonUpgradeInfo.as:33`), never by
     // `PartInfoText`, which has no sound of its own.
     'tooltip',
+    // `img` is a picture. The resistance badges carry one *and* a hover
+    // tooltip, so "hoverable" and "a control" come apart here — and the AS3
+    // agrees: `IconStrongWeak.as` has no `sfxArray.push` anywhere, unlike every
+    // `Button*` class, which pushes `InterfaceButtonOver1` on roll-over.
+    'img',
   ]);
 
   it('finds the roles actually used, so this is not vacuous', () => {

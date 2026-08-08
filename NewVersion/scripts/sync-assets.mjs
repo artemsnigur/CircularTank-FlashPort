@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { orphanedFiles, plannedWrites } from './lib/asset-prune.mjs';
 import { shapeIdsForSprites } from './lib/sprite-shapes.mjs';
 import { PROJECTILE_SPRITE_IDS } from './lib/projectile-sprites.mjs';
+import { ICON_SPRITE_IDS } from './lib/icon-sprites.mjs';
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 
@@ -378,6 +379,16 @@ const CURATED_SHAPES = new Set([
  * pass (c) needs no asset work.
  */
 for (const id of shapeIdsForSprites(PROJECTILE_SPRITE_IDS)) {
+  CURATED_SHAPES.add(`${id}.svg`);
+}
+
+/**
+ * Strength/weakness badges — derived the same way, from `ICON_SPRITE_IDS`.
+ *
+ * 27 shapes across the two clips: 15 shared, 6 unique to each. Both are copied
+ * although only `IconStrongWeak` (1033) is drawn today; see `icon-sprites.mjs`.
+ */
+for (const id of shapeIdsForSprites(ICON_SPRITE_IDS)) {
   CURATED_SHAPES.add(`${id}.svg`);
 }
 
