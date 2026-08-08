@@ -926,6 +926,56 @@ of *live* reads is reported beside the coordinates: `10/10 live`.
   > combination of luck and timing that build happened to produce. Treat the
   > next post-`L8` number as the first trustworthy one, and do not "restore" 39.
 
+### M1 — Projectile art — pass (a) done (T84), (b) and (c) not started
+
+**The art was never missing.** All 24 weapons render as one shared circle
+(`particle-dot` = `shapes/1.svg`), and the T83 audit concluded the real art
+could not be located. That conclusion was wrong, and the way it was wrong is
+worth keeping: **a failed lookup was read as absence.** `shapes/251.svg` does
+not exist, so `BulletRocket`'s art looked gone — but `symbol251` is a
+**DefineSprite** id and JPEXS keys its exports by **DefineShape** id. Sprite 251
+places shape 250, and `250.svg` has been on disk the whole time.
+
+Two things went unchecked in that audit: the SWF itself ships in the repo
+(`SWFimported/scripts/_assets/assets.swf`, the exact file every `[Embed]`
+names), and it is uncompressed, so the tag table walks with plain reads — no
+JPEXS, no GUI, no network.
+
+**Pass (a) — the mapping, landed T84, no visual change.**
+
+- `scripts/gen-sprite-shapes.mjs` walks the tag table and emits
+  `scripts/lib/sprite-shapes.mjs`: 474 sprites, their `frameCount`, and the
+  character ids each places. Precedent for parsing a binary in-repo rather than
+  shelling out: `scripts/lib/mp3-probe.mjs`.
+- `sync-assets.mjs` now **derives** its projectile shape ids via
+  `shapeIdsForSprites(PROJECTILE_SPRITES)` instead of hand-listing 43 numbers.
+  The hand-maintained part is the 26 *sprite* ids, each checkable against its
+  class's `[Embed]`; the shapes underneath cannot drift.
+- Verified on disk: `src/assets/shapes/` went 295 → **338**, exactly +43, none
+  missing.
+
+**Facts the mapping settled, each pinned in `gen-sprite-shapes.test.mjs`:**
+
+| | |
+|---|---|
+| Cannon / MiniGun / Big Cannon / Shotgun | **all place shape 215** — the port's "primaries look identical" is *faithful* for these four, and giving them distinct art would invent a difference the AS3 lacks |
+| The three grenades | **1180 / 1178 / 1176, distinct** — so the port's single tint at `GameplayScene.ts:2269` *is* an infidelity |
+| `BulletBomb` | 10 shapes across **16 frames** — two different numbers, both pinned, because conflating them is the mistake this data invites |
+| `ObjectMine` | 2 shapes across **30 frames** |
+| Tag walk vs JPEXS | both find **1015** shapes — an independent cross-check that the walk did not stop early |
+
+**Still open:** pass (b) manifest entries + `Bullet.ts` texture lookup (the
+blanket `setTint(0xffe9a8)` at `:138` goes with it), then pass (c) animation for
+the 7 multi-shape projectiles. Neither started, and **(c) carries a real
+decision**: `BulletBomb`'s 16 frames are plainly a countdown, so a static frame
+0 loses information the original conveyed.
+
+**Adjacent, not taken:** the same mapping resolves all 474 sprites, so enemies,
+UI and props are one call away. That is a much larger commitment and the
+bullet-only slice is the disciplined stop.
+
+---
+
 ### L10 — Modal dialogs — **SCOPED AND DECLINED (T83). Do not build.**
 
 Scoped as "a self-contained modal system (`WindowOk`, `ButtonWindow`,

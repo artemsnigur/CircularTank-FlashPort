@@ -464,6 +464,18 @@ things that are actually open.
   docstring *inviting* a wrong wiring — enemy-stat scaling by a number that means
   an upgrade cap. An inert field with a confident wrong name is the quiet version
   of the `enemyModel[1]` trap.
+- **Projectile art, pass (a) — the sprite→shape mapping** — landed (T84), no
+  visual change. **The art was never missing**: `symbolN` in an `[Embed]` is a
+  **sprite** id and JPEXS keys its SVGs by **shape** id, so `shapes/251.svg`
+  not existing was read as "BulletRocket has no art" when sprite 251 simply
+  places shape 250. All 43 shapes the 26 projectile classes need were already
+  extracted. **This is trap-family "a failed lookup is not absence"**, and I
+  made it myself in the T83 audit — the fix was to check the two things I had
+  not: that `assets.swf` ships in the repo, and that it is uncompressed and
+  therefore walkable by script. `scripts/gen-sprite-shapes.mjs` now emits the
+  mapping; `sync-assets.mjs` derives its curated ids from it rather than
+  hand-listing them. Passes (b) rendering and (c) animation are **not started**
+  — see `BACKLOG.md` M1, including the one real decision in (c).
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four

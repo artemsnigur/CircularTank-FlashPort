@@ -18,6 +18,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'no
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { orphanedFiles, plannedWrites } from './lib/asset-prune.mjs';
+import { shapeIdsForSprites } from './lib/sprite-shapes.mjs';
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 
@@ -366,6 +367,55 @@ const CURATED_SHAPES = new Set([
   '1584.svg',
   '1586.svg',
 ]);
+
+/**
+ * The 26 projectile sprites, by SWF character id — the `symbolN` in each
+ * class's `[Embed]`.
+ *
+ * These are **sprite** ids, not shape ids, which is the whole point: the shapes
+ * they place are what has to be synced, and nothing in the extraction records
+ * that link. `shapeIdsForSprites` resolves it from the generated mapping, so
+ * this list stays the thing a human can check against the AS3 (`grep symbol=`
+ * in each class) while the shape ids underneath are derived and cannot drift.
+ *
+ * Hand-listing the shapes instead would mean 43 magic numbers with no stated
+ * origin — and the first time a sprite gained a frame, the list would be
+ * silently short.
+ */
+const PROJECTILE_SPRITES = [
+  // Primaries — PartGameArea `new Bullet*()`, one per weapon.
+  264, // Bullet            — Cannon
+  217, // BulletSmall       — MiniGun
+  247, // BulletBig         — Big Cannon
+  221, // BulletFire        — Flamethrower
+  216, // BulletShotgun     — Shotgun
+  236, // BulletBomb        — Timed Bomb Cannon
+  225, // BulletGummyBear   — Gummy Bear Cannon
+  255, // BulletPoison      — Poison Cannon
+  259, // BulletLaser       — Laser Cannon
+  242, // BulletCake        — Cake Cannon
+  240, // BulletCakePiece   — Cake Cannon fragments
+  244, // BulletPenetrate   — Penetration Cannon
+  246, // BulletMagic       — Magic Cannon
+  // Secondaries.
+  253, // BulletIcicle      — Icicles
+  249, // BulletPoisonSpike — Poison Spikes
+  251, // BulletRocket      — Rockets
+  263, // BulletIceball     — Ice Ball
+  261, // BulletLavaball    — Lava Ball
+  238, // BulletCrazyCheese — Crazy Cheese
+  214, // BulletMagicBunny  — Magic Bunny
+  1181, // ObjectGrenade       — Grenade
+  1179, // ObjectIceGrenade    — Ice Grenade
+  1177, // ObjectPoisonGrenade — Poison Grenade
+  1143, // ObjectMine          — Mine
+  1141, // ObjectGroundIce     — Ice Ball ground patch
+  1137, // ObjectGroundLava    — Lava Ball ground patch
+];
+
+for (const id of shapeIdsForSprites(PROJECTILE_SPRITES)) {
+  CURATED_SHAPES.add(`${id}.svg`);
+}
 
 function parseArgs(argv) {
   const args = { source: null, all: false, force: false, dryRun: false };
