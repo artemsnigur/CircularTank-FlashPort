@@ -530,15 +530,11 @@ which two owned weapons are actually in the tank. The secondary has one slot.
       three gameplay rules, so it was not the pure UI addition this entry
       assumed — see the commit for the level-start re-derive, the toggle
       rewrite, and the reload cost of a switch.
-- [ ] **Still open, and wider than this entry implies:** per-upgrade description
-      text and stat previews on the shop screen. Re-checked at `b2d2193` —
-      `ui/screens/UpgradesScreen.tsx` has **no** description or preview rendering,
-      and `upgrades/upgradeData.ts` carries **no `description` field at all**, so
-      the data is absent as well as the UI. This entry called it "cosmetic;
-      separable", which is true of the rendering and understates the extraction:
-      the strings have to come out of `ScreenUpgrades.as` first.
-      *Lift: small for the render, unknown for the extraction until someone reads
-      the AS3 table. Do not scope it as pure UI.*
+- [x] **Moved out of this group (T90).** The shop-preview work was the last open
+      bullet here and had nothing to do with equip slots — it only lived in
+      Group J because it was noticed while writing it up, and the summary table
+      then inherited the letter **J** for it, pointing readers at a closed group.
+      It is now **M2**, below. **Group J itself is closed.**
 
 ---
 
@@ -926,6 +922,47 @@ of *live* reads is reported beside the coordinates: `10/10 live`.
   > combination of luck and timing that build happened to produce. Treat the
   > next post-`L8` number as the first trustworthy one, and do not "restore" 39.
 
+### M2 — Shop stat previews — extraction landed (T90), render not started
+
+**Filed as "shop descriptions and stat previews (data absent too), small + an
+unscoped extraction". Three of those four claims were wrong.**
+
+- **There are no descriptions.** `ScreenUpgrades.as` has no description table.
+  What the shop shows is *computed stat previews*, assembled inline.
+- **The data is not absent.** The numbers are the upgrade stat tracks
+  `gen-upgrades.mjs` already extracts into `upgradeData.ts`. What was missing is
+  the **formatting**.
+- **Not small.** 158 assignments across `:783`-`:1597`, ~815 lines of a
+  1856-line class, 21 distinct labels, 28 upgrades.
+- **Not `J`.** See above; that letter pointed at a closed group.
+
+**Pass A(a) — the extraction — is done and verified.**
+`scripts/lib/parse-upgrade-previews.mjs` reads the block and yields, per line:
+category, upgrade index, slot, label, track, transform, read offsets and units.
+`scripts/parse-upgrade-previews.test.mjs` pins **all 21 labels** against the AS3
+line each was read from, plus the three corrections below.
+
+**The model, which is more than the flat "158 tuples" this was scoped as:**
+
+| Piece | Detail |
+|---|---|
+| Transforms | **6**: `raw`, `perSecond` (×30), `percent`, `seconds1` (÷30, 1dp), `seconds2` (÷30, 2dp), `damagePerSecond` (×30, 2dp) |
+| Index offsets | **3**: `[level-1]` current, `[level]` next, `[level+1]` next-when-unowned — and which pair applies is `statsIncludeLevelZero` (`gen-upgrades.mjs:12-22`, `Tank.as:64`), already solved |
+| Attribution | per-upgrade **override** inside `if(selectedX == N)`, or the category **default** in the `else` |
+| Slots | 5 lines per upgrade; `""` clears an unused one, which the renderer needs |
+
+**Three defects hand-verification caught**, each of which left a plausible-looking
+parser: measure-then-set scaffolding (`:857` assigns a bare label so `:858` can
+size a column) being read as a display line; the `[level+1]` form (4 uses)
+unmodelled; and category defaults misread as 10 unattributed upgrades. All three
+are pinned.
+
+**Still open — A(b), the render.** `UpgradesScreen.tsx` shows no previews and
+`ShopCatalogue.upgrades` carries no stat fields, so the payload needs widening
+too. No UI changed in A(a) by design.
+
+---
+
 ### M1 — Projectile art — pass (a) done (T84), (b) and (c) not started
 
 **The art was never missing.** All 24 weapons render as one shared circle
@@ -1304,7 +1341,7 @@ Small, and none of it blocks anything else:
 | Item | What | Lift |
 |---|---|---|
 | ~~**G / I2**~~ | ~~The visible-values model — one change, two consumers~~ — **closed T81.** Built in T76; the "one change, two consumers" premise was wrong, because the two consumers are deliberately split (**A6**). Three stale comments corrected | done |
-| **J** | Shop descriptions and stat previews (**data absent too**) | small + an unscoped extraction |
+| **M2** | ~~J~~ Shop stat previews. **Extraction done T90**; render open. Not descriptions (none exist), data was already present, and the block is 815 AS3 lines — the row's original framing was wrong on all three | render: small |
 | **L1** | `assets:sync` never prunes | small |
 | ~~**L3**~~ | ~~`--sound-sweep` never satisfies the tutorial gate~~ — **fixed T65**; count unmoved, see L8 | done |
 | ~~**L8**~~ | ~~The sweep aims at a screen constant~~ — **fixed T69**; 25 → 41–42 of 67, landing evidence 0/6 → 6/6 | done |

@@ -518,6 +518,17 @@ things that are actually open.
   keeps its `:3949` random draw angle, which is deliberately *not* its travel
   direction — wiring the general rule without that exception would have made
   flame puffs all point the same way.
+- **Shop stat previews, extraction (A(a))** — landed (T90), no UI change.
+  **The filed description was wrong in three of four claims**: there are no
+  "descriptions" in `ScreenUpgrades.as` at all (the shop computes *stat
+  previews* inline), the data was never absent (they read the same tracks
+  `upgradeData.ts` already holds), and the block is 158 assignments over ~815
+  lines rather than "small". It was also filed under **J**, a closed group;
+  re-filed as **M2**. Hand-verification found three defects a
+  plausible-looking parser had — measure-then-set scaffolding read as a display
+  line, an unmodelled `[level+1]` index form, and category defaults misread as
+  missing upgrades. All 21 labels are pinned against the AS3 line each was read
+  from. Render half (A(b)) **not started**.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four
