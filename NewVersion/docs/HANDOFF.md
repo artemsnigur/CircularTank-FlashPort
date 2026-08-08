@@ -4,8 +4,8 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T80**, 8 August 2026. Keep it current — it is part of the
-deliverable, like the audit.
+Current as of **T88**, commit `249388e`, 8 August 2026. Keep it current — it is
+part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
 commit it was written **about** rather than **on**; `T60`/`b2d2193` was correct
@@ -28,7 +28,7 @@ TypeScript strict + Phaser 3.90 + Zustand + Vitest + Capacitor.
 - **`NewVersion/`** — the port. All npm commands run from here.
 
 **Gate on every commit:** `typecheck`, `lint`, `data:check`, `progress:check`,
-the full suite (**2662 tests, 135 files**), and `smoke`. Work that cannot land green is not
+the full suite (**2706 tests, 139 files**), and `smoke`. Work that cannot land green is not
 committed. Commits go straight to `main` and are pushed at the end of each task.
 
 ### What plays end to end
