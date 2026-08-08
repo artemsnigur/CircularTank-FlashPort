@@ -388,6 +388,11 @@ export interface GameEventMap {
       slot: 1 | 2 | null;
       /** Secondaries: whether this is the equipped one. */
       equipped: boolean;
+      /**
+       * Five stat-preview lines in slot order — `ScreenUpgrades`' `infoText1-5`.
+       * `''` clears an unused line and must be carried, not filtered.
+       */
+      previews: string[];
     }>;
   };
   'ui:goto': { key: SceneKey };

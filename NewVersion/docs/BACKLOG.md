@@ -922,7 +922,7 @@ of *live* reads is reported beside the coordinates: `10/10 live`.
   > combination of luck and timing that build happened to produce. Treat the
   > next post-`L8` number as the first trustworthy one, and do not "restore" 39.
 
-### M2 — Shop stat previews — extraction landed (T90), render not started
+### M2 — Shop stat previews — **CLOSED (T90 extraction, T91 render)**
 
 **Filed as "shop descriptions and stat previews (data absent too), small + an
 unscoped extraction". Three of those four claims were wrong.**
@@ -957,9 +957,29 @@ size a column) being read as a display line; the `[level+1]` form (4 uses)
 unmodelled; and category defaults misread as 10 unattributed upgrades. All three
 are pinned.
 
-**Still open — A(b), the render.** `UpgradesScreen.tsx` shows no previews and
-`ShopCatalogue.upgrades` carries no stat fields, so the payload needs widening
-too. No UI changed in A(a) by design.
+**Pass A(b) — the render — landed T91. M2 is closed.**
+
+`upgrades/upgradePreview.ts` applies the six transforms and picks the index;
+`ShopCatalogue.upgrades[].previews` carries all five lines (blanks included, so
+a cleared slot cannot leave the previous upgrade's text on screen);
+`UpgradesScreen.tsx` renders them.
+
+**Two off-by-ones the hand-computed expectations caught**, neither of which any
+"it rendered something" test would have:
+
+- **Track indices are one lower in the port.** `upgradeArray<Name>` is
+  `[prices, ...tracks]` and `UpgradeSpec.stats` drops prices, so emitting the
+  AS3 number made `"Damage:"` read the *explosion* track — the Cannon printed
+  30 where it deals 7.
+- **`unitUnowned` was dead.** It was detected by looking for a `[level + 1]`
+  read, which only the misc section has, so the field carried the Shield quirk
+  in name only. Now found by comparing units across branches, restricted to
+  single-value rows (a two-value row concatenates the unit twice and looked like
+  an anomaly).
+
+**One divergence recorded rather than corrected:** `:1445` prints the Shield's
+duration as `" HP"` when unowned where `:1252`/`:1332` say `" Sec"`. A typo in
+the original, reproduced.
 
 ---
 
@@ -1341,7 +1361,7 @@ Small, and none of it blocks anything else:
 | Item | What | Lift |
 |---|---|---|
 | ~~**G / I2**~~ | ~~The visible-values model — one change, two consumers~~ — **closed T81.** Built in T76; the "one change, two consumers" premise was wrong, because the two consumers are deliberately split (**A6**). Three stale comments corrected | done |
-| **M2** | ~~J~~ Shop stat previews. **Extraction done T90**; render open. Not descriptions (none exist), data was already present, and the block is 815 AS3 lines — the row's original framing was wrong on all three | render: small |
+| ~~**M2**~~ | ~~J — shop stat previews~~ — **closed.** Extraction T90, render T91. Not descriptions (none exist), data was already present, and the block is 815 AS3 lines — the row's original framing was wrong on all three | done |
 | **L1** | `assets:sync` never prunes | small |
 | ~~**L3**~~ | ~~`--sound-sweep` never satisfies the tutorial gate~~ — **fixed T65**; count unmoved, see L8 | done |
 | ~~**L8**~~ | ~~The sweep aims at a screen constant~~ — **fixed T69**; 25 → 41–42 of 67, landing evidence 0/6 → 6/6 | done |

@@ -1338,6 +1338,22 @@ code {
 /* ── Volume sliders — SliderObject.as, one per channel ────────────────────
    A grid rather than flex so both readouts line up under each other however
    wide the labels are; the middle column takes the slack. */
+/* Shop stat previews — ScreenUpgrades' five infoText lines. */
+.shop-row__stats {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.shop-row__stat {
+  font-size: 0.7rem;
+  opacity: 0.75;
+  /* Tabular figures so the current/next pair stays aligned between rows. */
+  font-variant-numeric: tabular-nums;
+}
+
 .volume-sliders {
   display: flex;
   flex-direction: column;

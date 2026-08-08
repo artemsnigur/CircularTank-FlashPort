@@ -77,7 +77,11 @@ describe('every label extracts the values on its AS3 line', () => {
     [795, 'Reload: ', 'misc', 4, 1, 'seconds1', [-1], [' Sec/Kill']],
     [803, 'Acceleration: ', 'misc', 1, 2, 'perSecond', [0], [' PX/Sec']],
     [959, 'Damage: ', 'primary', 4, 2, 'damagePerSecond', [-1], [' HP', '/Sec']],
-    [975, 'Explosion: ', null, null, 3, 'raw', [-1], [' PX']],
+    // A **default**: no `selectedWeapon ==` guard, so it applies to every
+    // primary. Its category comes from the table it reads
+    // (`upgradeArraysArray2`), not from a guard — which is what keeps the
+    // secondary-only defaults off primaries.
+    [975, 'Explosion: ', 'primary', null, 3, 'raw', [-1], [' PX']],
     [979, 'Range: ', 'primary', 4, 3, 'raw', [-1], [' PX']],
     [983, 'Bullets: ', 'primary', 5, 4, 'raw', [-1], []],
     [987, 'Poison Dmg: ', 'primary', 8, 4, 'raw', [-1], [' HP/Sec']],
@@ -91,7 +95,8 @@ describe('every label extracts the values on its AS3 line', () => {
     [1301, 'Rockets: ', 'secondary', 8, 4, 'raw', [-1], []],
     [1305, 'Lava Dmg: ', 'secondary', 10, 4, 'raw', [-1], [' HP/Sec']],
     [1317, 'Spikes: ', 'secondary', 6, 5, 'raw', [-1], []],
-    [1321, 'Trail Time: ', null, null, 5, 'seconds2', [-1], [' Sec']],
+    // The secondary-only default — `upgradeArraysArray3`.
+    [1321, 'Trail Time: ', 'secondary', null, 5, 'seconds2', [-1], [' Sec']],
   ];
 
   it.each(cases)(

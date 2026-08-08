@@ -142,9 +142,20 @@ export function parseUpgradePreviews(source, range) {
       const isScaffold = !isClear && strings.length === 1 && !expression.includes('+');
       if (isScaffold) continue;
 
+      // The category comes from the table the expression reads, not from the
+      // guard: `upgradeArraysArray1/2/3` are misc/primary/secondary
+      // (`gen-upgrades.mjs`). A **default** line has no `selectedX ==` guard,
+      // so the guard cannot say which section it is in — and `Freeze:` and
+      // `Trail Time:` are secondary-only defaults that a line-range or
+      // guard-based reading would hand to primaries as well.
+      const table = /upgradeArraysArray(\d)/.exec(expression);
+      const tableCategory = table
+        ? { 1: 'misc', 2: 'primary', 3: 'secondary' }[table[1]]
+        : null;
+
       out.push({
         line: i + 1,
-        category: active?.category ?? null,
+        category: tableCategory ?? active?.category ?? null,
         upgradeIndex: active?.index ?? null,
         slot,
         label: isClear ? null : (strings[0] ?? null),

@@ -117,6 +117,15 @@ export interface ShopCatalogue {
     slot: 1 | 2 | null;
     /** Secondaries: whether this is the equipped one. */
     equipped: boolean;
+    /**
+     * The five stat-preview lines, in slot order — `ScreenUpgrades`' five
+     * `infoText` fields.
+     *
+     * **Always five entries, and `''` is meaningful**: it clears a line this
+     * upgrade does not use. Sending only the non-empty ones would let the
+     * previously selected upgrade's line survive on screen.
+     */
+    previews: string[];
   }>;
   /**
    * Upgrades that exist in the original but are not sold, because their effects

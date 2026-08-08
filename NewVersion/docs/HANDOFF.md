@@ -529,6 +529,15 @@ things that are actually open.
   line, an unmodelled `[level+1]` index form, and category defaults misread as
   missing upgrades. All 21 labels are pinned against the AS3 line each was read
   from. Render half (A(b)) **not started**.
+- **Shop stat previews, render (A(b))** — landed (T91); **M2 closed**. The shop
+  now shows each upgrade's stats and what the next level would give. **Two
+  off-by-ones were caught by computing the expected strings by hand** rather
+  than from a run: the port's stat tracks sit one lower than the AS3's (prices
+  occupy index 0 there), so `"Damage:"` was reading the explosion track and
+  printing 30 for a 7-damage Cannon; and `unitUnowned` was dead code, detected
+  via an index form only the misc section uses, so it claimed to carry a quirk
+  it never carried. One divergence recorded, not corrected: `:1445` labels the
+  Shield's duration `" HP"` when unowned.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four

@@ -99,6 +99,24 @@ function UpgradeRow({ row }: { row: ShopRow }): React.ReactElement {
         </span>
       </div>
 
+      {/*
+        The five stat lines — `ScreenUpgrades`' `infoText1-5`. An empty string
+        clears a line this upgrade does not use, so those are skipped here
+        rather than rendered as blank rows; the *array* still carries all five
+        so the scene and the screen cannot disagree about which slot is which.
+      */}
+      {row.previews.some((line) => line !== '') && (
+        <ul className="shop-row__stats">
+          {row.previews.map((line, i) =>
+            line === '' ? null : (
+              <li key={i} className="shop-row__stat">
+                {line}
+              </li>
+            ),
+          )}
+        </ul>
+      )}
+
       <EquipControls row={row} />
 
       <div className="shop-row__meter" aria-hidden="true">

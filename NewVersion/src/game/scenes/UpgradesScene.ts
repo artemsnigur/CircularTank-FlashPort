@@ -43,6 +43,7 @@ import {
 import { getSoundManager } from '../audio/soundService';
 import { equipPrimary, equipSecondary, NO_WEAPON } from '../loadout/loadout';
 import type { LoadoutState } from '../loadout/loadout';
+import { previewLines } from '../upgrades/upgradePreview';
 
 /**
  * Which slot holds a named primary, or null.
@@ -136,6 +137,11 @@ export class UpgradesScene extends Phaser.Scene {
           // `ScreenGame.equippedWeapons` holds "Big Cannon", not "BigCannon".
           slot: slotHolding(loadout, spec.name),
           equipped: spec.category === 'secondary' && loadout.secondaryWeapon === spec.name,
+          // The five stat lines, computed here because this is where the level
+          // and the stat tracks both are. `spec.index` is 0-based; the AS3's
+          // `selectedMisc`/`selectedWeapon`/`selectedSecondary` are 1-based, so
+          // the +1 is the same offset `upgradePreviewData` records.
+          previews: previewLines(spec, spec.category, spec.index + 1, level),
         };
       }),
       withheld: withheldUpgrades().length,
