@@ -24,6 +24,8 @@ import type { BulletSpec } from '../weapons/firing';
 import type { BulletState } from '../weapons/bullets';
 import { damageTypeOf } from '../enemies/damageTypes';
 import type { DamageType } from '../enemies/enemyStatsData';
+import { PROJECTILE_ART } from '../../assets/projectileArt';
+import type { ProjectileArt } from '../../assets/projectileArt';
 
 export class Bullet extends Phaser.GameObjects.Sprite {
   /**
@@ -44,6 +46,9 @@ export class Bullet extends Phaser.GameObjects.Sprite {
 
   /** AS3 class name, kept so cake fragments can be told from the parent. */
   private readonly bulletClassName: string;
+
+  /** Resolved art, or null when this class has no entry — see the constructor. */
+  private readonly art: ProjectileArt | null;
 
   private motion: BulletState;
   private readonly roomWidth: number;
@@ -112,7 +117,13 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     bulletClass = 'Bullet',
     flame: { lifetimeMax: number; rangeMultiplier: number } | null = null,
   ) {
-    super(scene, spec.x, spec.y, 'particle-dot');
+    // Real art, keyed by AS3 class — `PROJECTILE_ART`, generated from the SWF.
+    // Falls back to the old shared circle only for a class with no entry, which
+    // is a bug rather than a state to design around: `projectileArt.test.ts`
+    // pins that every class the scene can construct has one.
+    const art = PROJECTILE_ART[bulletClass] ?? null;
+    super(scene, spec.x, spec.y, art?.key ?? 'particle-dot');
+    this.art = art;
 
     this.motion = { ...spec };
     this.damageType = damageTypeOf(bulletClass);
@@ -133,10 +144,27 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     this.roomWidth = roomWidth;
     this.roomHeight = roomHeight;
 
-    // Cannon rounds are radius 2; render a little larger so they read at speed.
-    this.setDisplaySize(spec.radius * 4, spec.radius * 4)
-      .setTint(0xffe9a8)
-      .setDepth(12);
+    // Drawn at the original's own dimensions — the shape's authored size times
+    // its placement matrix, both read out of `assets.swf`.
+    //
+    // This replaces `radius * 4` square plus a flat `0xffe9a8` tint. That pair
+    // was reasonable while every round was the same circle and the audit
+    // recorded the 4x as **unsourced polish**; with real art it is actively
+    // wrong. Shape 215 is the proof: Cannon, MiniGun, Big Cannon and Shotgun
+    // all place it, and the AS3 tells them apart *only* by a non-uniform
+    // matrix — 8x4, 16x3, 12x6, 16x3. A uniform square renders three of the
+    // four identically, so keeping `radius * 4` would have thrown away the
+    // distinction this pass exists to restore.
+    //
+    // `setDisplaySize` is an absolute size, so the 4x oversampled raster needs
+    // no compensating divide here. That divide belongs to `setScale`, which is
+    // relative to the texture — see `UNIT_RASTER_SCALE` in the manifest.
+    //
+    // The collision radius is untouched and still `spec.radius`: visual size
+    // and hit size were always separate quantities, in the original too.
+    if (art) this.setDisplaySize(art.width, art.height);
+    else this.setDisplaySize(spec.radius * 4, spec.radius * 4).setTint(0xffe9a8);
+    this.setDepth(12);
 
     scene.add.existing(this);
   }
@@ -280,7 +308,19 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     const next = advanceFlame(this.flame, deltaMs, crowd);
     if (!next) return false;
     this.flame = next;
-    this.setScale(next.scale);
+    // Grown from the **authored** size, not with `setScale`.
+    //
+    // `next.scale` starts at 1 and is a multiplier on the symbol's own size
+    // (`flames.ts:170`), so with a 1:1 texture `setScale` was equivalent. It is
+    // not any more: `projectile-218` is rasterised at 4x, and `setScale` is
+    // relative to the *texture*, so it would draw the flame four times too
+    // large. This is the `UNIT_RASTER_SCALE` trap named in the manifest, and it
+    // shipped once already in the particle draw.
+    //
+    // Multiplying the authored dimensions keeps it absolute and therefore
+    // resolution-independent — change the raster scale and nothing here moves.
+    if (this.art) this.setDisplaySize(this.art.width * next.scale, this.art.height * next.scale);
+    else this.setScale(next.scale);
     return true;
   }
 

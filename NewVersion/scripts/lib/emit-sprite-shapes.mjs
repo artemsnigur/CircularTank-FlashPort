@@ -17,11 +17,23 @@
 export function renderSpriteShapes(sprites, shapeIds) {
   const ids = [...sprites.keys()].sort((a, b) => a - b);
 
+  // Fixed 16.16 divided by 65536 gives long decimals for thirds (1.3333333…);
+  // 6 places is well past SVG raster precision and keeps the generated file
+  // diff-stable.
+  const round = (n) => Number(n.toFixed(6));
+
   const rows = ids.map((id) => {
-    const { frameCount, places } = sprites.get(id);
+    const { frameCount, places, scales } = sprites.get(id);
     // Placement order, duplicates collapsed — see the header note below.
     const unique = [...new Set(places)];
-    return `  ${id}: { frameCount: ${frameCount}, places: [${unique.join(', ')}] },`;
+    const scaleEntries = unique
+      .filter((shapeId) => scales.has(shapeId))
+      .map((shapeId) => {
+        const { scaleX, scaleY } = scales.get(shapeId);
+        return `${shapeId}: [${round(scaleX)}, ${round(scaleY)}]`;
+      });
+    const scaleField = scaleEntries.length > 0 ? `, scales: { ${scaleEntries.join(', ')} }` : '';
+    return `  ${id}: { frameCount: ${frameCount}, places: [${unique.join(', ')}]${scaleField} },`;
   });
 
   const placed = new Set(ids.flatMap((id) => sprites.get(id).places));
@@ -50,7 +62,15 @@ export function renderSpriteShapes(sprites, shapeIds) {
  * either number as the other is wrong in both directions.
  */
 
-/** @type {Readonly<Record<number, { frameCount: number, places: number[] }>>} */
+/**
+ * \`scales\` is the **first** placement matrix seen for each shape, as
+ * \`[scaleX, scaleY]\`. It is how the original tells apart clips that share a
+ * shape: sprite 264 (Cannon) places shape 215 at 0.5 x 1.333 while 217
+ * (MiniGun) places the same shape at 1 x 1. Absent when the placement carried
+ * no matrix, which means identity.
+ *
+ * @type {Readonly<Record<number, { frameCount: number, places: number[], scales?: Record<number, [number, number]> }>>}
+ */
 export const SPRITE_SHAPES = Object.freeze({
 ${rows.join('\n')}
 });

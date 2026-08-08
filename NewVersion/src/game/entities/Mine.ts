@@ -11,6 +11,7 @@
  */
 import Phaser from 'phaser';
 import type { MineState } from '../weapons/secondaries';
+import { PROJECTILE_ART } from '../../assets/projectileArt';
 
 /** Below enemies (10) and the tank, above the ground tile (0). */
 const MINE_DEPTH = 4;
@@ -24,12 +25,14 @@ export class Mine extends Phaser.GameObjects.Sprite {
   private pulse: Phaser.Tweens.Tween | null = null;
 
   constructor(scene: Phaser.Scene, spec: MineState) {
-    super(scene, spec.x, spec.y, 'particle-dot');
+    // `ObjectMine` — sprite 1143. It places two shapes across 30 frames (a
+    // slow blink); this draws frame 1, and the alpha pulse below stands in for
+    // the rest until animation lands in pass (c).
+    const art = PROJECTILE_ART.ObjectMine;
+    super(scene, spec.x, spec.y, art.key);
     this.spec = spec;
 
-    this.setDisplaySize(spec.radius * 2, spec.radius * 2)
-      .setTint(0x3a3f47)
-      .setDepth(MINE_DEPTH);
+    this.setDisplaySize(art.width, art.height).setDepth(MINE_DEPTH);
 
     scene.add.existing(this);
 

@@ -964,11 +964,32 @@ JPEXS, no GUI, no network.
 | `ObjectMine` | 2 shapes across **30 frames** |
 | Tag walk vs JPEXS | both find **1015** shapes — an independent cross-check that the walk did not stop early |
 
-**Still open:** pass (b) manifest entries + `Bullet.ts` texture lookup (the
-blanket `setTint(0xffe9a8)` at `:138` goes with it), then pass (c) animation for
-the 7 multi-shape projectiles. Neither started, and **(c) carries a real
-decision**: `BulletBomb`'s 16 frames are plainly a countdown, so a static frame
-0 loses information the original conveyed.
+**Pass (b) — rendering, landed T85.** Every projectile now draws its own art.
+
+- `scripts/gen-projectile-art.mjs` → `src/assets/projectileArt.ts`: per class, a
+  texture key and a **display size in design units**. 26 classes, 23 distinct
+  textures (one representative shape each; the other 20 shapes are animation
+  frames pass (c) will use, synced but not preloaded).
+- `Bullet.ts` looks the class up instead of hard-coding `particle-dot`, and the
+  blanket `setTint(0xffe9a8)` is gone. The `Object*` sites are wired too —
+  `Mine.ts`, and the grenade/ball/hazard spawns in `GameplayScene`.
+
+**Size comes from the SWF, not from `bulletRadius`, and the measurement is why.**
+Shape 215's four sharers are distinguished *only* by a non-uniform placement
+matrix — Cannon 0.5×1.333, Big Cannon 0.75×2, MiniGun and Shotgun 1×1 — which
+against a 16×3 authored shape gives **8×4, 12×6, 16×3, 16×3**. The port's old
+uniform `radius * 4` square could not express that and drew three of the four
+identically. Collision radius is untouched; visual and hit size were always
+separate quantities.
+
+**The grenade infidelity is closed** — 1180/1178/1176 now render as three
+distinct grenades (driven: green vs cyan), replacing one shared tint.
+
+**Still open — pass (c), animation.** Seven sprites place several shapes:
+`BulletFire` 3, `BulletGummyBear` 3, `BulletLaser` 3, `BulletBomb` 10 across 16
+frames, `ObjectMine` 2 across 30, and both ground hazards 3. **(c) carries a
+real decision**: `BulletBomb`'s frames are plainly a countdown, so a static
+frame 0 loses information the original conveyed.
 
 **Adjacent, not taken:** the same mapping resolves all 474 sprites, so enemies,
 UI and props are one call away. That is a much larger commitment and the

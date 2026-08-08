@@ -96,6 +96,7 @@ import { healedTo, isInHealRange } from '../enemies/enemyHealing';
 import { canFireHook } from '../enemies/enemyGrapple';
 import { flameBurnSounds } from '../audio/burningLoop';
 import { impactFeedback } from '../enemies/damageTypes';
+import { PROJECTILE_ART } from '../../assets/projectileArt';
 import {
   createExplosion,
   explosionSound,
@@ -244,6 +245,18 @@ const ENEMY_BULLET_DEPTH = 11;
 /** The shield ring, just above the tank and below enemy fire. */
 const SHIELD_DEPTH = 9.5;
 /** Thrown grenades roll on the ground, under everything that moves. */
+/**
+ * Which `Object*` clip a thrown grenade is — `:4001-4056` spawns one of three.
+ *
+ * Port-side knowledge, so it lives here rather than in the generated art table:
+ * the SWF knows the three sprites exist, not which secondary throws which.
+ */
+const GRENADE_CLASS: Readonly<Record<string, string>> = {
+  Grenade: 'ObjectGrenade',
+  'Ice Grenade': 'ObjectIceGrenade',
+  'Poison Grenade': 'ObjectPoisonGrenade',
+};
+
 const GRENADE_DEPTH = 1;
 /** Below everything — the AS3 keeps trails in their own `groundLayer`. */
 const HAZARD_DEPTH = 0;
@@ -2265,10 +2278,14 @@ export class GameplayScene extends Phaser.Scene {
       radius: GRENADE_RADIUS,
     });
 
+    // `ObjectGrenade` / `ObjectIceGrenade` / `ObjectPoisonGrenade` — three
+    // **distinct** shapes in the SWF (1180 / 1178 / 1176). The port drew all
+    // three with one green tint, which pass (a) established was a real
+    // infidelity rather than a faithful collapse. See `projectileArt.ts`.
+    const art = PROJECTILE_ART[GRENADE_CLASS[this.secondary?.name ?? ''] ?? 'ObjectGrenade'];
     const sprite = this.add
-      .image(state.x, state.y, 'particle-dot')
-      .setDisplaySize(state.radius * 3, state.radius * 3)
-      .setTint(0xb8d96a)
+      .image(state.x, state.y, art.key)
+      .setDisplaySize(art.width, art.height)
       .setDepth(GRENADE_DEPTH);
 
     this.grenades.push({
@@ -2361,10 +2378,11 @@ export class GameplayScene extends Phaser.Scene {
       trailLife: this.secondaryStats.duration,
     });
 
+    // The thrown ball itself is a `BulletIceball` / `BulletLavaball`.
+    const ballArt = PROJECTILE_ART[type === 'Ice' ? 'BulletIceball' : 'BulletLavaball'];
     const sprite = this.add
-      .image(state.x, state.y, 'particle-dot')
-      .setDisplaySize(state.radius * 2, state.radius * 2)
-      .setTint(type === 'Ice' ? 0x8fd8f2 : 0xff7a3c)
+      .image(state.x, state.y, ballArt.key)
+      .setDisplaySize(ballArt.width, ballArt.height)
       .setDepth(GRENADE_DEPTH);
 
     this.balls.push({ state, sprite });
@@ -2444,10 +2462,14 @@ export class GameplayScene extends Phaser.Scene {
       payload: state.payload,
     });
 
+    // `ObjectGroundIce` / `ObjectGroundLava`. Sized by the patch's own live
+    // radius rather than the art's authored size: a lava patch **grows**
+    // (`:7057`), so its clip is scaled at runtime in the original too, and a
+    // fixed authored size would freeze it.
+    const hazardArt = PROJECTILE_ART[hazard.type === 'Ice' ? 'ObjectGroundIce' : 'ObjectGroundLava'];
     const sprite = this.add
-      .image(hazard.x, hazard.y, 'particle-dot')
+      .image(hazard.x, hazard.y, hazardArt.key)
       .setDisplaySize(hazard.radius * 2, hazard.radius * 2)
-      .setTint(hazard.type === 'Ice' ? 0x9fe0f5 : 0xd8431a)
       .setDepth(HAZARD_DEPTH);
 
     this.hazards.push({ hazard, sprite });

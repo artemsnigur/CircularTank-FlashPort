@@ -223,6 +223,19 @@ async function driveSecondary(name) {
   await page.getByRole('button', { name: /play|continue/i }).first().click();
   await delay(2500);
 
+  // ── Move *before* firing (T85) ───────────────────────────────────────────
+  // A fresh profile has the tutorial on, and `:7153` holds the arena until the
+  // player has moved **and** fired. This routine used to fire first and move
+  // afterwards, so every "fired" frame was taken with the gate still shut —
+  // the frames showed the `WASD TO MOVE` panel and no projectile at all, and
+  // read as "the weapon does not fire". Same ordering fault `--baseline` fixed
+  // in T58 and `--sound-sweep` in T65 (`L3`); it survived here because nothing
+  // had needed these frames to show a projectile until the art landed.
+  await page.keyboard.down('d');
+  await delay(700);
+  await page.keyboard.up('d');
+  await delay(200);
+
   await page.locator('canvas').hover({ position: { x: 900, y: 260 } });
   await page.mouse.move(900, 260);
   await shot(`s-${slug}-0-before`);

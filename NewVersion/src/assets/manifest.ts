@@ -5,6 +5,7 @@
  * loader. Once level data is ported, per-world manifests should replace it.
  */
 import { audioUrl, imageUrl, shapeUrl } from './registry';
+import { PROJECTILE_SHAPE_FILES } from './projectileArt';
 
 export interface ImageAsset {
   key: string;
@@ -470,6 +471,23 @@ export const SAMPLE_FONTS = [
     note: 'Flash-embedded Arial (3130 glyphs, 821 KB). See docs/TEXT_RENDERING.md.',
   },
 ] as const;
+
+/**
+ * Projectile art — one raster per distinct shape, `PROJECTILE_ART` picks which.
+ *
+ * Built from the generated table rather than hand-listed: the key, file and
+ * raster size all come from `assets.swf`, so a hand-written entry here could
+ * disagree with the mapping that resolved it. See `scripts/gen-projectile-art.mjs`.
+ *
+ * **23 entries, not the 43 shapes the sync copies.** A class draws one
+ * representative shape until animation lands, and the other 20 are the frames
+ * it does not draw yet. They are synced so pass (c) needs no asset work, but
+ * preloading textures nothing references would make them look wired when they
+ * are not — which is the exact confusion this project keeps paying for.
+ */
+export const PROJECTILE_SHAPES: readonly ShapeAsset[] = PROJECTILE_SHAPE_FILES.map((entry) =>
+  shape(entry.key, entry.file, entry.width, entry.height, 'Projectile art from assets.swf'),
+);
 
 export type SampleFontFamily = (typeof SAMPLE_FONTS)[number]['family'];
 

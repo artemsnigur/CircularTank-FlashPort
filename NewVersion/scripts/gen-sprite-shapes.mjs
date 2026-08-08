@@ -98,6 +98,69 @@ const SHAPE_TAGS = new Set([2, 22, 32, 83, 46, 84]);
 
 /** PlaceObject2/3 flag bit for "this placement names a character id". */
 const PLACE_HAS_CHARACTER = 0x02;
+/** …and for "a MATRIX follows the character id". */
+const PLACE_HAS_MATRIX = 0x04;
+
+/** A big-endian bit reader — SWF packs its variable-width fields MSB first. */
+function bitReader(buffer, offset) {
+  let byte = offset;
+  let bit = 0;
+
+  const unsigned = (count) => {
+    let value = 0;
+    for (let i = 0; i < count; i += 1) {
+      value = (value << 1) | ((buffer[byte] >> (7 - bit)) & 1);
+      bit += 1;
+      if (bit === 8) {
+        bit = 0;
+        byte += 1;
+      }
+    }
+    return value;
+  };
+
+  const signed = (count) => {
+    if (count === 0) return 0;
+    const value = unsigned(count);
+    // Two's complement over an arbitrary width.
+    return value & (1 << (count - 1)) ? value - (1 << count) : value;
+  };
+
+  return { unsigned, signed };
+}
+
+/**
+ * The scale half of a MATRIX record.
+ *
+ * **This is load-bearing, not decoration.** The four weapons that share shape
+ * 215 are told apart *by this matrix and nothing else*: Cannon places it at
+ * 0.5x1.333, Big Cannon at 0.75x2.0, MiniGun and Shotgun at 1x1. Drop the
+ * matrix and three of the four become the same picture, which is a fidelity
+ * loss the port would then have no way to express — its own sizing is uniform.
+ *
+ * Rotation and translation are read past but discarded: every projectile
+ * placement measured has an identity rotation and a zero offset, and a bullet
+ * is positioned by the game rather than by its clip.
+ */
+function readMatrixScale(buffer, offset) {
+  const bits = bitReader(buffer, offset);
+  let scaleX = 1;
+  let scaleY = 1;
+
+  if (bits.unsigned(1)) {
+    const n = bits.unsigned(5);
+    // Fixed 16.16.
+    scaleX = bits.signed(n) / 65536;
+    scaleY = bits.signed(n) / 65536;
+  }
+  if (bits.unsigned(1)) {
+    const n = bits.unsigned(5);
+    bits.signed(n);
+    bits.signed(n);
+  }
+
+  return { scaleX, scaleY };
+}
 
 /**
  * Start of the tag table.
@@ -142,7 +205,7 @@ function walkTags(buffer, start, end, owner, sprites, shapeIds) {
     if (code === TAG_DEFINE_SPRITE) {
       const id = buffer.readUInt16LE(body);
       const frameCount = buffer.readUInt16LE(body + 2);
-      const entry = { frameCount, places: [] };
+      const entry = { frameCount, places: [], scales: new Map() };
       sprites.set(id, entry);
       // A sprite's tags live inside its own body, so the recursion bound is
       // this tag's end, not the file's.
@@ -151,15 +214,24 @@ function walkTags(buffer, start, end, owner, sprites, shapeIds) {
       shapeIds.add(buffer.readUInt16LE(body));
     } else if (owner !== null) {
       if (code === TAG_PLACE_OBJECT) {
-        // PlaceObject (v1) always carries a character id first.
-        owner.places.push(buffer.readUInt16LE(body));
+        // PlaceObject (v1) always carries a character id, then a MATRIX.
+        const id = buffer.readUInt16LE(body);
+        owner.places.push(id);
+        owner.scales.set(id, readMatrixScale(buffer, body + 4));
       } else if (code === TAG_PLACE_OBJECT_2 || code === TAG_PLACE_OBJECT_3) {
         const flags = buffer[body];
         // PlaceObject2: flags(1) + depth(2). PlaceObject3 adds a second flag
         // byte, so its character id sits two bytes further in.
         const idOffset = body + 1 + (code === TAG_PLACE_OBJECT_2 ? 2 : 4);
         if (flags & PLACE_HAS_CHARACTER) {
-          owner.places.push(buffer.readUInt16LE(idOffset));
+          const id = buffer.readUInt16LE(idOffset);
+          owner.places.push(id);
+          // First placement wins: a clip that re-places the same character on a
+          // later frame is animating it, and frame 1 is the representative this
+          // port draws until animation lands.
+          if (flags & PLACE_HAS_MATRIX && !owner.scales.has(id)) {
+            owner.scales.set(id, readMatrixScale(buffer, idOffset + 2));
+          }
         }
       }
     }

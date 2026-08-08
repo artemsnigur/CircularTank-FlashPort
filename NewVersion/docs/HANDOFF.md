@@ -476,6 +476,24 @@ things that are actually open.
   mapping; `sync-assets.mjs` derives its curated ids from it rather than
   hand-listing them. Passes (b) rendering and (c) animation are **not started**
   — see `BACKLOG.md` M1, including the one real decision in (c).
+- **Projectile art, pass (b) — rendering** — landed (T85). Every weapon draws
+  its own art; the shared `particle-dot` circle and the blanket
+  `setTint(0xffe9a8)` are gone from the projectile path. **The size question was
+  measured, not assumed, and the measurement changed the design**: shape 215's
+  four sharers are told apart *only* by a non-uniform placement matrix (Cannon
+  0.5×1.333, Big Cannon 0.75×2), which the port's uniform `radius * 4` square
+  structurally could not express — it drew three of the four identically. Sizes
+  now come from the SWF's authored dimensions × that matrix; the collision
+  radius is untouched, as the two were always separate quantities. The three
+  grenades render as three distinct shapes, closing the infidelity pass (a)
+  found. Pass (c) animation is **not started** — `BACKLOG.md` M1.
+- **Trap: an oversampled texture plus `setScale`** — hit again in T85 and caught
+  before it shipped. `manifest.ts` already warns that a raster oversampled 4×
+  must be divided at the draw, and that it *"shipped wrong for one pass"* in the
+  particle code. The flame's growth used `setScale`, which is relative to the
+  **texture**, so a 4× raster would have drawn flames four times too large. The
+  fix is to stay absolute — `setDisplaySize(authored × scale)` — which is
+  resolution-independent, so changing the raster scale moves nothing.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four

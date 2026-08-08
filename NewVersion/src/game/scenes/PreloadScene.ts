@@ -11,6 +11,7 @@ import {
   SAMPLE_AUDIO,
   SAMPLE_IMAGES,
   SAMPLE_SHAPES,
+  PROJECTILE_SHAPES,
   PARTICLE_SHAPES,
   UNIT_SHAPES,
   PROP_SHAPES,
@@ -83,6 +84,15 @@ export class PreloadScene extends Phaser.Scene {
     }
 
     for (const asset of UNIT_SHAPES) {
+      this.load.svg(asset.key, asset.url, { width: asset.width, height: asset.height });
+    }
+
+    // Projectile art. Rasterised at 4x its authored size like the unit shapes,
+    // but **no matching division at the draw**: `Bullet` uses `setDisplaySize`,
+    // which is an absolute size and does not care what resolution the texture
+    // is. `UNIT_RASTER_SCALE`'s divide-at-the-draw rule applies to `setScale`,
+    // which is relative to the texture — see the note above it.
+    for (const asset of PROJECTILE_SHAPES) {
       this.load.svg(asset.key, asset.url, { width: asset.width, height: asset.height });
     }
 
