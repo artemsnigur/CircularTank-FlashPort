@@ -922,6 +922,58 @@ of *live* reads is reported beside the coordinates: `10/10 live`.
   > combination of luck and timing that build happened to produce. Treat the
   > next post-`L8` number as the first trustworthy one, and do not "restore" 39.
 
+### M3 — UI redesign — **CLOSED (T92-T96)**
+
+Two things were bundled in one request and they were independent — the same
+shape as `BossCollision` and `L1`, where a filed item hid two problems.
+
+**The functional half, fixed first and alone (T92).** "Weapons in the shop are
+cut off and cannot all be purchased" was `justify-content: center` on `.screen`
+(`global.css`): a centred flex container pushes content taller than itself out of
+*both* ends, and the top half is unreachable because `scrollTop` cannot go
+negative. `.screen--shop` already had `overflow-y: auto` and a sticky header —
+symptom treatment, defeated by the rule above.
+
+It affected **six screens, not the one reported**. Four were visible in frames;
+Bestiary and Enemies were found by the reachability probe added to `--ui`, which
+measures children above the scroll origin rather than counting DOM text. Fixed
+with `justify-content: safe center` plus `overflow-y`/`min-height: 0` on the
+shared rule, and pinned as an invariant over every page-level selector so a
+per-screen fix cannot pass.
+
+**The visual half (T93-T96).** `#12161f` → `#F0EEE6` warm neutral; gold accent →
+clay `#CC785C`; a 10-step type scale and a 4px spacing scale.
+
+**Colour had three homes, and each sweep only found one of them:**
+
+| Family | Count | Why the previous grep missed it |
+|---|---|---|
+| Hex literals | 24 | — (found in the audit) |
+| `rgb(255 255 255 / N%)` | 34 | space-separated; the audit grepped the comma form |
+| Arbitrary-channel tints | 19 | `rgb(255 209 102 / 12%)` — the *retired* gold, baked inline |
+
+Plus `--surface`, **referenced six times and never defined**, so its fallback
+did all the work silently. Now: zero literal colours outside `:root`, bar two
+arena scrims and two shadows.
+
+**The recurring fault worth carrying:** `opacity` used as a disabled state. It
+dims against a dark panel and disappears against bone. It hid the shop's
+unaffordable prices and the locked achievements — and a price you cannot afford
+still has to be readable.
+
+**Structural findings, not colour choices:** screens had to become *opaque*
+(they render over the live canvas, and dark-on-dark is invisible), and the reload
+widget needed a surface of its own — it was the only HUD element without one,
+which is survivable as white-on-dark and not otherwise, because the arena is
+nine world themes and no single colour is legible against all of them.
+
+**Deliberately untouched:** the 33 `0x......` canvas colours (world art, not
+chrome), the results overlay (already light cards over a scrim), and phone
+horizontal overflow (desktop-first). The 640x400 backdrop patch remains
+undiagnosed and unrelated — see `HANDOFF.md`.
+
+---
+
 ### M2 — Shop stat previews — **CLOSED (T90 extraction, T91 render)**
 
 **Filed as "shop descriptions and stat previews (data absent too), small + an

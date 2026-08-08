@@ -550,6 +550,25 @@ things that are actually open.
   recurring fault across all of them was `opacity` used as a disabled state,
   which dims on dark and disappears on bone. **Canvas colours are deliberately
   untouched**: the 33 `0x......` values in `src/game` are world art, not chrome.
+
+  **Two things are deliberately still open, and neither is a loose end:**
+
+  - **Phone-viewport horizontal overflow.** At 390px the shop rows clip weapon
+    names on the left and Buy buttons on the right — the same "cannot buy it"
+    symptom as the defect above, on the other axis. Deferred on the standing
+    desktop-first rule in `CLAUDE.md`, not because it is small.
+  - **The 640x400 backdrop patch is still undiagnosed** and is unrelated to any
+    of this. My T83 guess that it was a frozen stage constant was **wrong**:
+    `MainMenuScene.ts:45-49` sizes the backdrop from live camera values and
+    `:222` resizes it. It needs a live measurement of `camera.width`/`zoom` at
+    the moment of a frame, not a third guess from reading. Mostly moot on menus
+    now that screens are opaque, but it will still show wherever the canvas is
+    visible.
+
+  One deviation from the approved spec, flagged when it was made: the type scale
+  gained two steps **below** the agreed 0.75rem floor. 28 sites sat under it —
+  pips, meters, HUD counters — and snapping them up by as much as 36% would have
+  re-created the overflow T92 had just removed.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four
