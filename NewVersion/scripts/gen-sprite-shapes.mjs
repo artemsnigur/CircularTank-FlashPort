@@ -84,6 +84,8 @@ const TAG_PLACE_OBJECT = 4;
 const TAG_PLACE_OBJECT_2 = 26;
 const TAG_PLACE_OBJECT_3 = 70;
 const TAG_DEFINE_SPRITE = 39;
+const TAG_SHOW_FRAME = 1;
+const TAG_REMOVE_OBJECT_2 = 28;
 
 /**
  * Every tag that defines a shape — the four `DefineShape` versions and the two
@@ -205,7 +207,10 @@ function walkTags(buffer, start, end, owner, sprites, shapeIds) {
     if (code === TAG_DEFINE_SPRITE) {
       const id = buffer.readUInt16LE(body);
       const frameCount = buffer.readUInt16LE(body + 2);
-      const entry = { frameCount, places: [], scales: new Map() };
+      const entry = { frameCount, places: [], scales: new Map(), timeline: [] };
+      // Depth -> shape currently on it, so a ShowFrame can be resolved to what
+      // is actually visible rather than to whatever was placed most recently.
+      entry.stage = new Map();
       sprites.set(id, entry);
       // A sprite's tags live inside its own body, so the recursion bound is
       // this tag's end, not the file's.
@@ -216,23 +221,39 @@ function walkTags(buffer, start, end, owner, sprites, shapeIds) {
       if (code === TAG_PLACE_OBJECT) {
         // PlaceObject (v1) always carries a character id, then a MATRIX.
         const id = buffer.readUInt16LE(body);
+        const depth = buffer.readUInt16LE(body + 2);
         owner.places.push(id);
+        owner.stage.set(depth, id);
         owner.scales.set(id, readMatrixScale(buffer, body + 4));
       } else if (code === TAG_PLACE_OBJECT_2 || code === TAG_PLACE_OBJECT_3) {
         const flags = buffer[body];
         // PlaceObject2: flags(1) + depth(2). PlaceObject3 adds a second flag
         // byte, so its character id sits two bytes further in.
-        const idOffset = body + 1 + (code === TAG_PLACE_OBJECT_2 ? 2 : 4);
+        const depthOffset = body + (code === TAG_PLACE_OBJECT_2 ? 1 : 2);
+        const depth = buffer.readUInt16LE(depthOffset);
+        const idOffset = depthOffset + 2;
         if (flags & PLACE_HAS_CHARACTER) {
           const id = buffer.readUInt16LE(idOffset);
           owner.places.push(id);
-          // First placement wins: a clip that re-places the same character on a
-          // later frame is animating it, and frame 1 is the representative this
-          // port draws until animation lands.
+          owner.stage.set(depth, id);
+          // First placement wins for scale: a clip that re-places the same
+          // character later is animating it, and frame 1 is the reference.
           if (flags & PLACE_HAS_MATRIX && !owner.scales.has(id)) {
             owner.scales.set(id, readMatrixScale(buffer, idOffset + 2));
           }
         }
+      } else if (code === TAG_REMOVE_OBJECT_2) {
+        owner.stage.delete(buffer.readUInt16LE(body));
+      } else if (code === TAG_SHOW_FRAME) {
+        // Everything visible on this frame, by depth — **not** just one shape.
+        //
+        // `BulletBomb` is the case that forces this: depth 1 holds a static
+        // body and depth 3 a 16-frame ping-pong over it, so reading a single
+        // "current shape" reports the body on every frame and the clip looks
+        // static. `ObjectMine` is the same shape of thing, adding a second
+        // layer half way through its cycle.
+        const depths = [...owner.stage.keys()].sort((a, b) => a - b);
+        owner.timeline.push(depths.map((depth) => owner.stage.get(depth)));
       }
     }
 

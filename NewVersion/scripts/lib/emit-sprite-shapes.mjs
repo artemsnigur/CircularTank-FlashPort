@@ -33,7 +33,19 @@ export function renderSpriteShapes(sprites, shapeIds) {
         return `${shapeId}: [${round(scaleX)}, ${round(scaleY)}]`;
       });
     const scaleField = scaleEntries.length > 0 ? `, scales: { ${scaleEntries.join(', ')} }` : '';
-    return `  ${id}: { frameCount: ${frameCount}, places: [${unique.join(', ')}]${scaleField} },`;
+
+    // The per-frame picture as a list of layers, emitted only when it varies.
+    // A clip whose every frame draws the same thing is not an animation, and a
+    // 30-long array of identical entries would suggest otherwise.
+    const { timeline } = sprites.get(id);
+    const asText = timeline.map((layers) => `[${layers.join(', ')}]`);
+    const varies = new Set(asText).size > 1;
+    const timelineField = varies ? `, timeline: [${asText.join(', ')}]` : '';
+
+    return (
+      `  ${id}: { frameCount: ${frameCount}, places: [${unique.join(', ')}]` +
+      `${scaleField}${timelineField} },`
+    );
   });
 
   const placed = new Set(ids.flatMap((id) => sprites.get(id).places));
