@@ -12,6 +12,7 @@ import { AchievementsScreen } from './ui/screens/AchievementsScreen';
 import { DiagnosticsPanel } from './ui/DiagnosticsPanel';
 import { installButtonSounds } from './ui/buttonSounds';
 import { useEffect, useRef } from 'react';
+import { InfoText } from './ui/InfoText';
 
 /**
  * App shell.
@@ -55,6 +56,13 @@ export function App(): React.ReactElement {
         <AchievementsScreen />
         <Hud />
         <DiagnosticsPanel />
+        {/*
+          One panel for the whole app. The AS3 gives each of its eight screens
+          its own `PartInfoText` and hands it to that screen's buttons as
+          `pText`; a single mounted panel is the same arrangement without the
+          plumbing. Last so it paints over everything it describes.
+        */}
+        <InfoText />
       </div>
     </div>
   );

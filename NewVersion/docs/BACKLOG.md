@@ -981,6 +981,16 @@ unscoped extraction". Three of those four claims were wrong.**
 
 - **There are no descriptions.** `ScreenUpgrades.as` has no description table.
   What the shop shows is *computed stat previews*, assembled inline.
+
+  > **Corrected T99.** True of `ScreenUpgrades.as`, and wrong about the game.
+  > **28 per-upgrade descriptions exist** — 4 misc, 12 primary, 12 secondary —
+  > in `ButtonUpgradeInfo.as:34-160`, the *tooltip trigger* rather than the
+  > screen. They are now extracted by `scripts/gen-upgrade-descriptions.mjs`
+  > and shown on hover. The original finding stands as far as it looked; the
+  > mistake was stating a whole-game absence from a single-file sweep, which is
+  > the "say by what method" rule exactly.
+
+
 - **The data is not absent.** The numbers are the upgrade stat tracks
   `gen-upgrades.mjs` already extracts into `upgradeData.ts`. What was missing is
   the **formatting**.

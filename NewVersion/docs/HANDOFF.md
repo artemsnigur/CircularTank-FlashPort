@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T88**, commit `249388e`, 8 August 2026. Keep it current — it is
+Current as of **T99**, commit `cfd5a3e`, 8 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -107,7 +107,12 @@ watches the panel's digit change in the DOM and counts the beeps),
 `--medals` (a **real** 1-1 clear at full health — not the dev jump, which banks
 nothing and therefore always shows 0 medals — watching the stamp-in and the
 `Award1-3` cues), `--unlock` (wins 1-1, then watches the level-select medal
-count-up, the `Unlock` latch, and whether 1-2 stays selectable throughout).
+count-up, the `Unlock` latch, and whether 1-2 stays selectable throughout),
+`--overlays`, `--tooltips` (hovers shop rows and achievement cells and
+**measures the panel's box against the cursor** — the corner it opened toward,
+not merely that a `.info-text` node exists; also holds a hover for 1200ms and
+then leaves, because a panel that opens and never closes photographs exactly
+like a correct one).
 
 ---
 
@@ -367,6 +372,30 @@ after T80 only two are still live:**
 scoping pass found `:1147-1163` is driven by `countTime` over `medalsForHp`, not
 by either progress table. **The visible-values model now closes exactly one
 name, `Unlock`**, and `Achievement` is adjacent to it rather than on it.
+
+### PartInfoText — step 1 landed (T99), steps 2-4 open
+
+The hover panel is built and wired. `src/game/ui/infoTextPlacement.ts` is the
+geometry, `infoTextState.ts` the per-frame keep-alive, `infoTextSites.ts` the
+table of all 20 AS3 call sites, and `src/ui/InfoText.tsx` the single mounted
+panel. Driven by `npm run look -- --tooltips`, which measures the panel's box
+against the cursor rather than asserting the node exists.
+
+| Step | State |
+|---|---|
+| **1 — core + Achievement rich text** | **Done.** But the "16 sites" it was scoped as is **2** — see the audit's "reachable surface" entry. Shop rows and achievement cells are wired; twelve sites are recorded as redundant, unported or deferred, with a reason each |
+| **2 — `EnemyStrengthsWeaknesses`** | Open. 3 sites (`ImageEnemy.as:174`, `:178`, `IconStrongWeak.as:48`). Unblocked |
+| **3 — `AllEnemiesInLevel`** | Open. `ButtonNextLevel.as:208`. Unblocked |
+| **4 — Level Guide's 4 sites** | Blocked on the Level Guide itself, which does not exist |
+
+**One finding this pass turned up and did not act on, because it is a different
+subsystem.** `ButtonUpgradeInfo.as:33` pushes `InterfaceButtonOver1` when the
+cursor enters a shop row — the AS3 plays a sound on row hover. This port's rows
+are `<li>`s and make no sound; only the Buy button inside them is audible. That
+is a gap in the *button sound* coverage, not in the tooltip, and widening T99 to
+cover it would have been scope creep. `buttonSounds.test.ts` now excludes
+`role="tooltip"` explicitly, with the AS3 line saying why the panel itself is
+correctly silent.
 
 ### Closed since the previous stamp
 

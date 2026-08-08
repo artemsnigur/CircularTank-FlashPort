@@ -57,6 +57,7 @@ function parseArgs(argv) {
     // least interesting case: a tall window is where content fits.
     if (argv[i] === '--viewport') args.viewport = argv[++i];
     if (argv[i] === '--overlays') args.overlays = true;
+    if (argv[i] === '--tooltips') args.tooltips = true;
   }
   return args;
 }
@@ -453,6 +454,138 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.tooltips) {
+  /**
+   * The hover panel — `PartInfoText.as`, ported in T99.
+   *
+   * ── Why a screenshot alone is not the evidence here ───────────────────────
+   * A tooltip is exactly the class of thing a DOM assertion lies about: the
+   * `.info-text` node existing proves the request reached the panel, not that
+   * it is on screen, not that it is in the right corner, and not that it stays
+   * up. So each probe **measures the panel's box against the cursor** and
+   * checks the corner the AS3 asks for, then screenshots.
+   *
+   * The keep-alive gets its own check for the same reason. A panel that opens
+   * on `mouseenter` and never closes photographs identically to a correct one;
+   * only holding still for several frames and *then* leaving separates them.
+   */
+  const panel = () =>
+    page.evaluate(() => {
+      const el = globalThis.document.querySelector('.info-text');
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const runs = [...el.querySelectorAll('.info-text__run')].map((s) => ({
+        style: (s.className.match(/info-text__run--(\w+)/) ?? [])[1] ?? '?',
+        size: globalThis.getComputedStyle(s).fontSize,
+        text: s.textContent.slice(0, 28),
+      }));
+      return {
+        x: Math.round(r.left), y: Math.round(r.top),
+        w: Math.round(r.width), h: Math.round(r.height),
+        runs,
+      };
+    });
+
+  /**
+   * Reads the corner the panel actually opened toward, from its box relative
+   * to the cursor. This is the assertion the screenshot cannot make: `left`
+   * means the panel extends rightward *from* the cursor (`showLeft` true),
+   * per `placeInfoText`'s `:368-385`.
+   */
+  const cornerOf = (box, mx, my) =>
+    box === null
+      ? 'none'
+      : `${box.x + box.w / 2 > mx ? 'left' : 'right'}/${box.y + box.h / 2 > my ? 'top' : 'bottom'}`;
+
+  const open = async (label, go) => {
+    await page.goto(URL, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await go();
+    await delay(700);
+    console.log(`[tip] --- ${label} ---`);
+  };
+
+  const hover = async (name, target, expect) => {
+    // **Scroll first.** `boundingBox()` reports document coordinates, so a row
+    // below the fold returns a y outside the viewport and `mouse.move` lands on
+    // nothing — which read as "NO PANEL" on the first run and looked exactly
+    // like a broken tooltip. The shop scrolls; half its 28 rows are off-screen.
+    await target.scrollIntoViewIfNeeded();
+    await delay(150);
+    const box = await target.boundingBox();
+    if (!box) { console.log(`[tip] ${name.padEnd(18)} NO TARGET`); return null; }
+    const mx = Math.round(box.x + box.width / 2);
+    const my = Math.round(box.y + box.height / 2);
+    await page.mouse.move(mx, my);
+    // Several frames, not one: the panel is raised by a per-frame re-assert,
+    // so a single frame after the move can land before the first tick.
+    await delay(400);
+    const got = await panel();
+    const corner = cornerOf(got, mx, my);
+    await shot(`tip-${name}`);
+    console.log(
+      `[tip] ${name.padEnd(18)} ${got ? `box=${got.w}x${got.h} at ${got.x},${got.y}` : 'NO PANEL'}` +
+        `  cursor=${mx},${my}  corner=${corner}${expect ? ` (want ${expect})` : ''}` +
+        `${got && corner !== expect && expect ? '  ← MISMATCH' : ''}`,
+    );
+    if (got) console.log(`[tip] ${''.padEnd(18)} runs=${JSON.stringify(got.runs)}`);
+    return { mx, my, got };
+  };
+
+  // ── Shop rows — `ButtonUpgradeInfo.as:56` passes `false, false` ──────────
+  await open('Upgrades', async () => {
+    await page.getByRole('button', { name: /upgrades/i }).first().click({ timeout: 4000 });
+  });
+  const rows = page.locator('.shop-row');
+  console.log(`[tip] shop rows: ${await rows.count()}`);
+  await hover('shop-first', rows.first(), 'right/top');
+  await hover('shop-mid', rows.nth(Math.floor((await rows.count()) / 2)), 'right/top');
+
+  // Keep-alive, driven as a pair. Holding still must keep it; leaving must
+  // close it. Either half alone is satisfied by a stuck panel or a dead one.
+  const held = await hover('shop-hold', rows.first(), 'right/top');
+  if (held) {
+    await delay(1200);
+    const still = await panel();
+    console.log(`[tip] after 1200ms held:  ${still ? 'STILL SHOWING (correct)' : 'GONE (wrong)'}`);
+    await page.mouse.move(5, 5);
+    await delay(400);
+    const gone = await panel();
+    console.log(`[tip] after leaving:      ${gone ? 'STILL SHOWING (wrong)' : 'GONE (correct)'}`);
+    await shot('tip-shop-left');
+  }
+
+  // ── Achievements — `Achievement.as:99` passes `true,false`, and is the only
+  // site with styled sub-ranges.
+  //
+  // `left/bottom` is the expectation because `showTop` is **false** there: the
+  // panel opens up-and-right. The first run of this probe asserted `left/top`
+  // from the scoping note's "true, true" and reported a mismatch against
+  // correct code — the AS3 line settled it, which is rule 1 doing its job in
+  // the direction it is least comfortable.
+  await open('Achievements', async () => {
+    await page.getByRole('button', { name: /achievements/i }).first().click({ timeout: 4000 });
+  });
+  const cells = page.locator('.achievements__cell');
+  console.log(`[tip] achievement cells: ${await cells.count()}`);
+  await hover('ach-first', cells.first(), 'left/bottom');
+  await hover('ach-mid', cells.nth(Math.floor((await cells.count()) / 2)), 'left/bottom');
+
+  // The third run — the difficulty note — only exists on an *earned*
+  // achievement (`Achievement.as:60-79`), and a fresh profile has none. Said
+  // plainly rather than left as a silent gap: the three-run split is pinned in
+  // `infoText.test.ts`, and this pass drives two of the three styles.
+  const earned = page.locator('.achievements__cell--earned');
+  const earnedCount = await earned.count();
+  if (earnedCount > 0) await hover('ach-earned', earned.first(), 'left/bottom');
+  else console.log('[tip] no earned achievement on a fresh profile — note run not driven here');
+
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
 }
 
 if (args.ui) {

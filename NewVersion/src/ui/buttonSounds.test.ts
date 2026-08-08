@@ -193,6 +193,11 @@ describe('the selector covers every interactive role in the tree', () => {
     'list',
     // `alert` is an announcement, not a control — it takes no input.
     'alert',
+    // `tooltip` is output too, and `pointer-events: none` at that. The AS3
+    // agrees about where the sound belongs: `InterfaceButtonOver1` is pushed by
+    // the *trigger* on roll-over (`ButtonUpgradeInfo.as:33`), never by
+    // `PartInfoText`, which has no sound of its own.
+    'tooltip',
   ]);
 
   it('finds the roles actually used, so this is not vacuous', () => {

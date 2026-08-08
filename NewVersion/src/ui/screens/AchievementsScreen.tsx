@@ -26,6 +26,9 @@
  */
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
+import { useInfoText } from '../useInfoText';
+import { siteCorner } from '../../game/ui/infoTextSites';
+import type { AchievementEntry } from '../../game/achievements/achievementListing';
 
 /** The extent of `achievementPlacementArray`, in AS3 stage units. */
 const BOARD = { minX: 55, maxX: 355, minY: 120, maxY: 400 };
@@ -34,6 +37,57 @@ const fraction = (value: number, min: number, max: number): number =>
   ((value - min) / (max - min)) * 100;
 
 const DIFFICULTY_LABEL: Record<number, string> = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
+
+/**
+ * One achievement, with the hover panel `Achievement.as:92-105` gives it.
+ *
+ * `:81` composes the tooltip as `title + "
+" + description + difficultyText`,
+ * and `:99` passes the two lengths so the panel can style the first and last
+ * runs — the title in the display face, the difficulty note smaller. That is
+ * the whole of the "Achievement" special type (`PartInfoText.as:195-205`); it
+ * styles sub-ranges rather than drawing anything structured.
+ *
+ * `showLeft` is `true` here and `false` on the results screen (`:103`, gated on
+ * `onStatusScreen`) — a fixed corner per context, not a computed one.
+ */
+function AchievementCell({ entry }: { entry: AchievementEntry }): React.ReactElement {
+  const note =
+    entry.earned && entry.difficultyMatters && entry.difficulty !== null
+      ? `
+
+(${DIFFICULTY_LABEL[entry.difficulty] ?? 'Earned'})`
+      : '';
+  const text = `${entry.title}
+${entry.description}${note}`;
+
+  // `Achievement.as:99` — the board branch. `:103` is the same cell on the
+  // level-complete status screen and opens the other way horizontally; both
+  // are recorded in `infoTextSites.ts`, and only this one has a consumer.
+  const hover = useInfoText({
+    text,
+    ...siteCorner('Achievement.as:99'),
+    titleLength: entry.title.length,
+    noteLength: note.length,
+  });
+
+  return (
+    <li
+      className={`achievements__cell${entry.earned ? ' achievements__cell--earned' : ''}`}
+      style={{
+        left: `${fraction(entry.x, BOARD.minX, BOARD.maxX)}%`,
+        top: `${fraction(entry.y, BOARD.minY, BOARD.maxY)}%`,
+      }}
+      {...hover}
+    >
+      <h3 className="achievements__title">{entry.title}</h3>
+      <p className="achievements__goal">{entry.description}</p>
+      {note !== '' && (
+        <p className="achievements__difficulty">{DIFFICULTY_LABEL[entry.difficulty!]}</p>
+      )}
+    </li>
+  );
+}
 
 export function AchievementsScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
@@ -62,22 +116,7 @@ export function AchievementsScreen(): React.ReactElement | null {
 
       <ul className="achievements__grid">
         {entries.map((entry) => (
-          <li
-            key={entry.id}
-            className={`achievements__cell${entry.earned ? ' achievements__cell--earned' : ''}`}
-            style={{
-              left: `${fraction(entry.x, BOARD.minX, BOARD.maxX)}%`,
-              top: `${fraction(entry.y, BOARD.minY, BOARD.maxY)}%`,
-            }}
-          >
-            <h3 className="achievements__title">{entry.title}</h3>
-            <p className="achievements__goal">{entry.description}</p>
-            {entry.earned && entry.difficultyMatters && entry.difficulty !== null && (
-              <p className="achievements__difficulty">
-                {DIFFICULTY_LABEL[entry.difficulty] ?? 'Earned'}
-              </p>
-            )}
-          </li>
+          <AchievementCell key={entry.id} entry={entry} />
         ))}
       </ul>
     </div>

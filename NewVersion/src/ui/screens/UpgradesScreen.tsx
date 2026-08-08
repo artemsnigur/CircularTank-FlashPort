@@ -11,6 +11,9 @@
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 import { formatNumber } from '../../game/core/Functions';
+import { useInfoText } from '../useInfoText';
+import { siteCorner } from '../../game/ui/infoTextSites';
+import { UPGRADE_DESCRIPTIONS } from '../../game/upgrades/upgradeDescriptionData';
 
 const CATEGORY_LABELS: Record<string, string> = {
   primary: 'Primary weapons',
@@ -90,8 +93,22 @@ function UpgradeRow({ row }: { row: ShopRow }): React.ReactElement {
   const maxed = row.cost === null;
   const label = maxed ? 'MAX' : `${formatNumber(row.cost ?? 0)}`;
 
+  // The corner comes from `infoTextSites.ts`, which pins it against
+  // `ButtonUpgradeInfo.as:163` rather than restating it here. The first wiring
+  // did restate it — `showTop: false`, cited to `:56`, a description string
+  // rather than the call — and the panel opened upward over the row above the
+  // one it described. Two booleans four lines from their text is exactly the
+  // constant a test cannot check while the code is its own source.
+  const info = UPGRADE_DESCRIPTIONS.find(
+    (d) => d.category === row.category && d.index === row.index + 1,
+  );
+  const hover = useInfoText({
+    text: info?.text ?? row.name,
+    ...siteCorner('ButtonUpgradeInfo.as:163'),
+  });
+
   return (
-    <li className="shop-row">
+    <li className="shop-row" {...hover}>
       <div className="shop-row__info">
         <span className="shop-row__name">{row.name}</span>
         <span className="shop-row__level">

@@ -141,6 +141,9 @@ export class UpgradesScene extends Phaser.Scene {
           // and the stat tracks both are. `spec.index` is 0-based; the AS3's
           // `selectedMisc`/`selectedWeapon`/`selectedSecondary` are 1-based, so
           // the +1 is the same offset `upgradePreviewData` records.
+          // 0-based here, 1-based in the AS3 selectors — the same offset the
+          // preview and description tables are keyed by.
+          index: spec.index,
           previews: previewLines(spec, spec.category, spec.index + 1, level),
         };
       }),

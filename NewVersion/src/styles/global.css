@@ -1477,6 +1477,38 @@ code {
 /* ── Volume sliders — SliderObject.as, one per channel ────────────────────
    A grid rather than flex so both readouts line up under each other however
    wide the labels are; the middle column takes the slack. */
+/* The hover panel — PartInfoText.as. Fixed at the cursor with a 16px gap; the
+   corner is chosen per trigger, because the original has no edge-flip. */
+.info-text {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  max-width: 272px;
+  padding: var(--space-4);
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 24px rgb(31 30 29 / 12%);
+  text-align: left;
+  white-space: pre-wrap;
+  color: var(--text);
+}
+.info-text__run--title {
+  /* `textFormat2` (:36) is "JG" — the extracted display face. */
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  display: block;
+}
+.info-text__run--body {
+  font-size: var(--text-sm);
+}
+.info-text__run--note {
+  /* `textFormat3` (:38) — Arial 11 against the body's 14. */
+  font-size: var(--text-2xs);
+  color: var(--text-dim);
+  display: block;
+}
+
 /* Shop stat previews — ScreenUpgrades' five infoText lines. */
 .shop-row__stats {
   list-style: none;
