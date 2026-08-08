@@ -94,11 +94,24 @@ const CATEGORIES = [
   {
     id: 'achievements',
     title: 'Achievements',
+    note:
+      '**Permanently 0/38 — this is not a backlog.** 37 of the 38 are 13/15-line ' +
+      '`[Embed]` art stubs that will never flip. The only real class is ' +
+      '`Achievement.as` (120 lines), a roll-over badge MovieClip whose data and ' +
+      'state already live in `achievements/achievementData.ts`, ' +
+      '`achievementState.ts` and `achievementListing.ts`, with `ScreenAchievements` ' +
+      'wired. **The subsystem is done; the number cannot move.** Same artifact as ' +
+      'the audio category below.',
     match: (_p, name) => /^Achievement/.test(name),
   },
   {
     id: 'tutorial',
     title: 'Tutorial',
+    note:
+      '**Permanently 0/25 — this is not a backlog.** All 25 are 15-line `[Embed]` ' +
+      'art stubs; there is no real class here at all. The tutorial logic is ' +
+      '`PartTutorial`, ported and wired at `src/game/tutorial/`. **Nothing in this ' +
+      'category is owed.**',
     match: (_p, name) => /^(Tutorial|GlowTutorial|ShadowTutorial)/.test(name),
   },
   {
@@ -118,6 +131,11 @@ const CATEGORIES = [
   {
     id: 'background',
     title: 'Background props and terrain',
+    note:
+      '**Permanently 0/27 — this is not a backlog.** All 27 are 15-line `[Embed]` ' +
+      'art stubs; there is no real class here. Placement is ' +
+      '`levels/backgroundProps.ts` (the `D1` decision, tested and wired) and the art ' +
+      'mapping is `levels/propArt.ts`. **Nothing in this category is owed.**',
     match: (_p, name) => /^(BGObject|GameBG|BackgroundBottom|InterfaceBG|TopLayer)/.test(name),
   },
   {
@@ -309,6 +327,21 @@ lines.push('');
 lines.push('Use `not applicable` for classes that will deliberately never be ported — asset');
 lines.push('stubs, dead code, third-party telemetry, or anything the engine already provides.');
 lines.push('They are excluded from every total, so the percentages stay meaningful.');
+lines.push('');
+lines.push('### Four categories are permanently zero — read them as done, not as backlog');
+lines.push('');
+lines.push('**205 rows in this file can never move**, and they are *not* marked');
+lines.push('`not applicable`: **Sound 0/115, UI-widget stubs, Achievements 0/38,');
+lines.push('Tutorial 0/25, Background props 0/27.** They are `[Embed]` art and audio');
+lines.push('wrapper classes with no code in them. In each case the subsystem they belong');
+lines.push('to is ported and wired — the stubs are the *assets*, which this port loads');
+lines.push('through `src/assets/registry.ts` instead of as classes.');
+lines.push('');
+lines.push('They stay counted because **`L5` decided the denominator does not change**');
+lines.push('(`docs/BACKLOG.md`): reclassifying them would move the headline number with no');
+lines.push('new porting behind it, and a metric that jumps for definitional reasons stops');
+lines.push('reading as progress. The cost of that decision is these four permanent zeros,');
+lines.push('and it is recorded here so no future pass reads them as work owed.');
 lines.push('');
 lines.push('Append ` · wired` to a `ported`/`tested` line once the class actually does');
 lines.push('its job in the running game — not merely when something imports it. A sweep');

@@ -22,6 +22,21 @@ Use `not applicable` for classes that will deliberately never be ported — asse
 stubs, dead code, third-party telemetry, or anything the engine already provides.
 They are excluded from every total, so the percentages stay meaningful.
 
+### Four categories are permanently zero — read them as done, not as backlog
+
+**205 rows in this file can never move**, and they are *not* marked
+`not applicable`: **Sound 0/115, UI-widget stubs, Achievements 0/38,
+Tutorial 0/25, Background props 0/27.** They are `[Embed]` art and audio
+wrapper classes with no code in them. In each case the subsystem they belong
+to is ported and wired — the stubs are the *assets*, which this port loads
+through `src/assets/registry.ts` instead of as classes.
+
+They stay counted because **`L5` decided the denominator does not change**
+(`docs/BACKLOG.md`): reclassifying them would move the headline number with no
+new porting behind it, and a metric that jumps for definitional reasons stops
+reading as progress. The cost of that decision is these four permanent zeros,
+and it is recorded here so no future pass reads them as work owed.
+
 Append ` · wired` to a `ported`/`tested` line once the class actually does
 its job in the running game — not merely when something imports it. A sweep
 found 22 modules that were ported, tested and called by nothing, and wiring
@@ -323,6 +338,8 @@ below — everything else hangs off those.
 
 ## Achievements
 
+> **Permanently 0/38 — this is not a backlog.** 37 of the 38 are 13/15-line `[Embed]` art stubs that will never flip. The only real class is `Achievement.as` (120 lines), a roll-over badge MovieClip whose data and state already live in `achievements/achievementData.ts`, `achievementState.ts` and `achievementListing.ts`, with `ScreenAchievements` wired. **The subsystem is done; the number cannot move.** Same artifact as the audio category below.
+
 `░░░░░░░░░░░░░░░░░░░░░░░░` 0/38
 
 - [ ] `Achievement` — not started
@@ -365,6 +382,8 @@ below — everything else hangs off those.
 - [ ] `AchievementTrapMine` — not started
 
 ## Tutorial
+
+> **Permanently 0/25 — this is not a backlog.** All 25 are 15-line `[Embed]` art stubs; there is no real class here at all. The tutorial logic is `PartTutorial`, ported and wired at `src/game/tutorial/`. **Nothing in this category is owed.**
 
 `░░░░░░░░░░░░░░░░░░░░░░░░` 0/25
 
@@ -529,6 +548,8 @@ below — everything else hangs off those.
 - [ ] `sndWeaponShotgun` — not started
 
 ## Background props and terrain
+
+> **Permanently 0/27 — this is not a backlog.** All 27 are 15-line `[Embed]` art stubs; there is no real class here. Placement is `levels/backgroundProps.ts` (the `D1` decision, tested and wired) and the art mapping is `levels/propArt.ts`. **Nothing in this category is owed.**
 
 `░░░░░░░░░░░░░░░░░░░░░░░░` 0/27
 

@@ -926,6 +926,35 @@ of *live* reads is reported beside the coordinates: `10/10 live`.
   > combination of luck and timing that build happened to produce. Treat the
   > next post-`L8` number as the first trustworthy one, and do not "restore" 39.
 
+### L9 — The permanently-zero categories, labelled — **DONE (T83)**
+
+A consequence of `L5`'s decision, written down where it will be read. **205 rows
+in `PROGRESS.md` can never move**, and nothing said so: a reader arriving at
+`Achievements 0/38` had no way to tell "nobody has started" from "there is
+nothing here".
+
+Measured (stub = contains `[Embed(` **and** ≤15 lines; method stated because the
+rule misclassifies anything longer, e.g. the two 24-line font wrappers):
+
+| Category | Rows | Real classes | Where the logic actually lives |
+|---|---|---|---|
+| **Achievements** | 0/38 | **1** — `Achievement.as`, 120 lines, a roll-over badge MovieClip | `achievements/achievementData.ts`, `achievementState.ts`, `achievementListing.ts`; `ScreenAchievements` wired |
+| **Tutorial** | 0/25 | **0** | `PartTutorial`'s port at `src/game/tutorial/` |
+| **Background props** | 0/27 | **0** | `levels/backgroundProps.ts` (the `D1` decision) + `levels/propArt.ts` |
+| Sound *(already labelled)* | 0/115 | 0 | `assets/audioManifest.ts` + `audio/SoundManager.ts` |
+
+In every case **the subsystem is ported and wired**; the rows are the *assets*,
+which this port loads through `src/assets/registry.ts` rather than as classes.
+
+Labelled at `gen-progress.mjs` — the category `note:` fields and a new section in
+the file's own preamble — **not by hand in `PROGRESS.md`**, which regeneration
+reverts and `progress:check` then fails. Same lesson as `L6`.
+
+**This is bookkeeping, not a reclassification.** Marking them `not applicable`
+would move the headline number, which is exactly what `L5` decided against.
+
+---
+
 ### L5–L7 — PROGRESS.md status mechanics, deferred from T61
 
 Three decisions surfaced by the T61 status-accuracy pass and deliberately **not
