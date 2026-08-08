@@ -59,6 +59,7 @@ function parseArgs(argv) {
     if (argv[i] === '--overlays') args.overlays = true;
     if (argv[i] === '--tooltips') args.tooltips = true;
     if (argv[i] === '--resistances') args.resistances = true;
+    if (argv[i] === '--next-level') args.nextLevel = true;
   }
   return args;
 }
@@ -455,6 +456,186 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.nextLevel) {
+  /**
+   * The Next Level button's roster preview — `ButtonNextLevel.as:208`, the
+   * `"AllEnemiesInLevel"` branch of `PartInfoText`.
+   *
+   * ── This needs a real win, and there is no shortcut ───────────────────────
+   * The button only exists on the results overlay, and only when the outcome
+   * carries a next level. Nothing can be seeded: the dev level jump banks
+   * nothing, so it produces an overlay with `nextLevel: null` and no button at
+   * all. So 1-1 is actually cleared, the same way `--medals` does it.
+   *
+   * What is checked, beyond a screenshot: the rows the panel draws are compared
+   * against **level 1-2's real roster** read out of the page, and every enemy
+   * image is checked for `naturalWidth > 0` — a missing enemy clip renders as a
+   * gap in the row, which reads as a layout bug rather than a missing asset.
+   */
+  const arenaOf = () => page.evaluate(() => globalThis.__arena ?? null);
+
+  /**
+   * Reads the hovered panel back. Shared by both scenarios below.
+   *
+   * Checks `naturalWidth > 0` on every image — the enemy clip *and* each badge
+   * layer. A missing enemy clip leaves a gap in the row that reads as a layout
+   * bug rather than a missing asset, and a missing badge layer renders as a
+   * plain disc, which is what a real badge nearly looks like.
+   */
+  const readPanel = () =>
+    page.evaluate(() => {
+      const el = globalThis.document.querySelector('.info-text');
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return {
+        box: `${Math.round(r.width)}x${Math.round(r.height)} at ${Math.round(r.left)},${Math.round(r.top)}`,
+        summary: (el.querySelector('.info-text__run--body')?.textContent ?? '').split('\n'),
+        heading: el.querySelector('.info-text__enemies-heading')?.textContent ?? null,
+        rows: [...el.querySelectorAll('.enemy-line')].map((row) => ({
+          amount: row.querySelector('.enemy-line__amount')?.textContent ?? '',
+          lvl: row.querySelector('.enemy-line__level')?.textContent ?? '',
+          art: [...row.querySelectorAll('.enemy-line__art')].map((i) => i.naturalWidth > 0),
+          badges: [...row.querySelectorAll('.resistance-icon')].map((bd) => ({
+            name: bd.getAttribute('aria-label'),
+            loaded: [...bd.querySelectorAll('img')].filter((i) => i.naturalWidth > 0).length,
+            layers: [...bd.querySelectorAll('img')].length,
+          })),
+        })),
+      };
+    });
+
+  const reportPanel = (label, panel) => {
+    if (!panel) {
+      console.log(`[next] ${label}: NO PANEL on hover`);
+      return;
+    }
+    console.log(`[next] ${label}: panel ${panel.box}`);
+    for (const line of panel.summary) console.log(`[next]   ${line}`);
+    console.log(`[next] heading=${JSON.stringify(panel.heading)} rows=${panel.rows.length}`);
+    let broken = 0;
+    for (const row of panel.rows) {
+      if (row.art.length === 0 || row.art.some((ok) => !ok)) broken += 1;
+      const badges = row.badges
+        .map((bd) => {
+          if (bd.loaded !== bd.layers) broken += 1;
+          return `${bd.name}[${bd.loaded}/${bd.layers}]`;
+        })
+        .join(' ');
+      console.log(
+        `[next]   ${row.amount.padEnd(8)} ${row.lvl.padEnd(6)} art=${row.art} ${badges}`,
+      );
+    }
+    console.log(
+      broken === 0 ? '[next] every image resolved' : `[next] ${broken} image(s) failed to load`,
+    );
+  };
+
+  await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await delay(1200);
+  const slot1 = page.getByRole('button', { name: /new game|slot 1/i });
+  if ((await slot1.count()) > 0) {
+    await slot1.first().click();
+    await delay(1200);
+  }
+  await page
+    .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+    .catch(() => console.log('[look] warning: countdown never reported done'));
+
+  // Move then fire, in that order — the tutorial gate at `:7153` holds spawning
+  // until both are done, and firing first is the ordering fault that cost
+  // `--secondaries` its evidence.
+  await page.keyboard.down('d');
+  await delay(600);
+  await page.keyboard.up('d');
+  await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+  await page.mouse.down();
+  await delay(400);
+  await page.mouse.up();
+  await delay(300);
+
+  await page.mouse.down();
+  let done = false;
+  for (let i = 0; i < 260 && !done; i += 1) {
+    const a = await arenaOf();
+    const target = a?.enemies?.[0];
+    if (target) await page.mouse.move(target.screen.x, target.screen.y);
+    else if (a) await page.mouse.move(a.tank?.screen?.x ?? 640, a.tank?.screen?.y ?? 400);
+    await delay(120);
+    done = await page.evaluate(
+      () => globalThis.document.querySelector('.level-outcome__actions') !== null,
+    );
+  }
+  await page.mouse.up();
+  await delay(400);
+
+  const hoverNext = async (label, shotName) => {
+    const next = page.getByRole('button', { name: /next level/i });
+    if ((await next.count()) === 0) {
+      console.log(`[next] ${label}: NO BUTTON — level did not complete, or nextLevel was null`);
+      await shot(`${shotName}-no-button`);
+      return;
+    }
+    const b = await next.first().boundingBox();
+    await page.mouse.move(Math.round(b.x + b.width / 2), Math.round(b.y + b.height / 2));
+    // Several frames: the panel is raised by a per-frame re-assert.
+    await delay(500);
+    reportPanel(label, await readPanel());
+    await shot(shotName);
+  };
+
+  await hoverNext('1-1 -> 1-2', 'next-preview');
+
+  // ── A roster with resistances ────────────────────────────────────────────
+  // 1-2's enemies are Basic and Fast, and **neither has a single strength or
+  // weakness**, so the run above draws no badges at all and proves nothing
+  // about them. The first level whose roster carries any is 1-13 (`Strong`),
+  // so this jumps to 1-12 and wins it. Same trap as `?known=all` on the
+  // bestiary: the default path is not a representative sample.
+  await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /level select/i }).first().click();
+  await delay(800);
+  const cell = page.getByRole('button', { name: /^World 1, level 12,/i });
+  if ((await cell.count()) === 0) {
+    console.log('[next] dev jump cell for 1-12 not found — skipping the badge scenario');
+  } else {
+    await cell.first().click();
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => console.log('[look] warning: countdown never reported done'));
+    await page.keyboard.down('d');
+    await delay(500);
+    await page.keyboard.up('d');
+    await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+    await page.mouse.down();
+    let cleared = false;
+    // 1-12 is a 24-enemy Tower level and takes appreciably longer than 1-1;
+    // the first run of this budgeted 400 ticks (~44s) and stopped with 11 still
+    // alive and the tank at full health — which reported as "level did not
+    // complete" and looked exactly like a broken jump. The frame said
+    // otherwise. Budget from what the level actually needs.
+    for (let i = 0; i < 1100 && !cleared; i += 1) {
+      const a = await arenaOf();
+      const t = a?.enemies?.[0];
+      if (t) await page.mouse.move(t.screen.x, t.screen.y);
+      await delay(110);
+      cleared = await page.evaluate(
+        () => globalThis.document.querySelector('.level-outcome__actions') !== null,
+      );
+    }
+    await page.mouse.up();
+    await delay(400);
+    await hoverNext('1-12 -> 1-13', 'next-preview-badges');
+  }
+
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
 }
 
 if (args.resistances) {

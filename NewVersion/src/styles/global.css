@@ -1502,6 +1502,66 @@ code {
 .info-text__run--body {
   font-size: var(--text-sm);
 }
+/* The "AllEnemiesInLevel" rows — PartInfoText.as:222-294. */
+.info-text__enemies {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 0.6rem;
+}
+.info-text__enemies-heading {
+  font-size: var(--text-2xs);
+  color: var(--text-dim);
+  margin-bottom: 0.15rem;
+}
+.enemy-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* `:275` — `enemyObject.y = ... + 28 * i`, one row per 28px. */
+  min-height: 28px;
+}
+/* `:264` — `addText(..., enemyAmount, 12, 80, -8, ...)`: a fixed 80-wide field,
+   so the icons line up down the column instead of following the text width. */
+.enemy-line__amount {
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  min-width: 3.5rem;
+  text-align: right;
+  color: var(--text);
+}
+.enemy-line__art {
+  /* **Sized in CSS, not left to the image.** The panel measures itself in a
+     layout effect, and an <img> with no dimensions is 0x0 until it loads — so
+     an unsized icon would make the panel measure short on first show and jump
+     once the SVGs arrived. */
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  /* `:273` — `enemyIcon.rotation = 90`. The enemy art points along its own
+     +x axis, which is the same reason T88 had to rotate projectiles. */
+  transform: rotate(90deg);
+  flex: none;
+}
+.enemy-line__level {
+  font-size: var(--text-3xs);
+  color: var(--text-faint);
+  letter-spacing: 0.03em;
+  min-width: 2.6rem;
+}
+.enemy-line__badges {
+  display: flex;
+  align-items: center;
+  /* `:451` — the "Small" variant steps 28px on a 22px badge. */
+  gap: 6px;
+}
+/* A panel carrying enemy rows is wider than a text tooltip: `:294` sets
+   `requiredMinWidth = 100 + widest row`. Expressed as a cap that the rows can
+   push against rather than a computed width, since the panel measures itself. */
+.info-text:has(.info-text__enemies) {
+  max-width: 420px;
+}
+
 .info-text__run--note {
   /* `textFormat3` (:38) — Arial 11 against the body's 14. */
   font-size: var(--text-2xs);

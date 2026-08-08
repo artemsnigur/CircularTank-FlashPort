@@ -12,6 +12,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { cursor, keepAlive } from './infoTextChannel';
 import { achievementRuns, placeInfoText } from '../game/ui/infoTextPlacement';
+import { ResistanceIcon } from './ResistanceIcon';
+import { shapeUrl } from '../assets/registry';
 import type { InfoTextRequest } from '../game/ui/infoTextState';
 
 /**
@@ -121,6 +123,40 @@ export function InfoText(): React.ReactElement | null {
           {run.text}
         </span>
       ))}
+
+      {/*
+        `:227` appends "\n\nEnemies:" before the rows. Kept as a real heading
+        element rather than concatenated into the text, because the text is
+        what `achievementRuns` slices by character offset — folding a heading
+        into it would make those offsets depend on which branch ran.
+      */}
+      {showing.enemyRows && showing.enemyRows.length > 0 && (
+        <span className="info-text__enemies">
+          <span className="info-text__enemies-heading">Enemies:</span>
+          {showing.enemyRows.map((row, i) => (
+            <span key={`${row.type}-${row.level}-${i}`} className="enemy-line">
+              <span className="enemy-line__amount">{row.amountLabel}</span>
+              {row.shape !== undefined && (
+                <img
+                  className="enemy-line__art"
+                  src={shapeUrl(`${row.shape}.svg`)}
+                  alt=""
+                  aria-hidden="true"
+                />
+              )}
+              <span className="enemy-line__level">{row.levelLabel}</span>
+              <span className="enemy-line__badges">
+                {/* `:285` passes one `xStart` and lays strengths then
+                    weaknesses along it, so they share a row rather than
+                    splitting into two as the bestiary's do. */}
+                {[...row.strengths, ...row.weaknesses].map((badge, j) => (
+                  <ResistanceIcon key={j} badge={badge} variant="panel" />
+                ))}
+              </span>
+            </span>
+          ))}
+        </span>
+      )}
     </div>
   );
 }

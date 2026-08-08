@@ -137,6 +137,7 @@ describe('the table covers the source', () => {
     expect(wired.map((s) => s.source)).toEqual([
       'ButtonUpgradeInfo.as:163',
       'IconStrongWeak.as:48',
+      'ButtonNextLevel.as:208',
       'Achievement.as:99',
     ]);
     // Every unwired row must carry a reason — a blank note is the "documented

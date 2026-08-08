@@ -24,6 +24,14 @@ import {
   SLIDE_OUT_MS,
 } from '../game/waves/countdownPanel';
 import { showingToast } from '../game/achievements/toastQueue';
+import { bossCount, levelPreview } from '../game/levels/levelPreview';
+import { getLevel } from '../game/levels/levelData';
+import { objectiveText } from '../game/waves/countdownPanel';
+import { getDifficultyProfile } from '../game/config/difficultyMultipliers';
+import { siteCorner } from '../game/ui/infoTextSites';
+import { useInfoText } from './useInfoText';
+import type { LevelRef } from '../game/levels/levelProgress';
+import type { Difficulty } from '../game/config/constants';
 import {
   medalCuesBetween,
   medalRevealDurationMs,
@@ -248,6 +256,69 @@ function MedalRow({ value }: { value: number }): React.ReactElement {
  *
  * Full reasoning in `docs/AUDIT-2026-07.md`.
  */
+/**
+ * The Next Level button and its preview panel — `ButtonNextLevel.as`.
+ *
+ * `:335` composes a six-line summary and `:208` hands it to the panel with
+ * `"AllEnemiesInLevel"`, which appends one line per enemy type in the level the
+ * button leads to. That is the whole of the special type: a roster preview, so
+ * the player can see what is coming before committing.
+ *
+ * **The coordinates come from the outcome, not from arithmetic here.** `:191-207`
+ * computes the next level inline — `level + 1`, rolling to the next world, and
+ * `0` when there is none. This port already had that rule wrong once by
+ * duplicating it in the view (it sent `level + 1`, which is wrong at a world
+ * boundary), so the scene owns it and this reads `outcome.nextLevel`. The AS3's
+ * `nextLevel = 0` branch has no equivalent: a null here hides the button.
+ */
+function NextLevelButton({
+  next,
+  difficulty,
+  onPlay,
+}: {
+  next: LevelRef;
+  difficulty: Difficulty;
+  onPlay: () => void;
+}): React.ReactElement {
+  const spec = getLevel(next.world, next.level);
+  const preview = spec
+    ? levelPreview(
+        next.world,
+        next.level,
+        difficulty,
+        // The same objective rule the countdown panel prints, rather than a
+        // second copy — `ScreenGame.setObjectiveCountText` is one function and
+        // `ButtonNextLevel.as:310-334` inlines it. Two copies here would be the
+        // "one rule, two copies" shape the audit already tracks.
+        objectiveText({
+          mode: spec.mode,
+          totalEnemies: spec.totalEnemies,
+          flagCount: spec.flagCount,
+          bossAmount: bossCount(spec),
+          amountMultiplier: getDifficultyProfile(difficulty).amount,
+        }),
+        spec.upgradeLimit,
+      )
+    : null;
+
+  const hover = useInfoText({
+    text: preview?.summary ?? '',
+    ...siteCorner('ButtonNextLevel.as:208'),
+    enemyRows: preview?.rows,
+  });
+
+  return (
+    <button
+      type="button"
+      className="hud__button hud__button--primary"
+      onClick={onPlay}
+      {...hover}
+    >
+      Next level ›
+    </button>
+  );
+}
+
 function LevelOutcomeOverlay(): React.ReactElement | null {
   const outcome = useGameStore((s) => s.levelOutcome);
   const clearLevelOutcome = useGameStore((s) => s.clearLevelOutcome);
@@ -347,13 +418,11 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
 
             <div className="level-outcome__actions">
               {outcome.nextLevel !== null && (
-                <button
-                  type="button"
-                  className="hud__button hud__button--primary"
-                  onClick={playNext}
-                >
-                  Next level ›
-                </button>
+                <NextLevelButton
+                  next={outcome.nextLevel}
+                  difficulty={difficulty}
+                  onPlay={playNext}
+                />
               )}
               <button type="button" className="hud__button" onClick={retry}>
                 {outcome.result === 'won' ? 'Replay' : 'Retry'}

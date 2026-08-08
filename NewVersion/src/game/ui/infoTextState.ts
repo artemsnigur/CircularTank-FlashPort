@@ -24,6 +24,7 @@
  * no event to clear it. The keep-alive has no such state — nothing re-asserts,
  * so it closes on the next frame.
  */
+import type { LevelPreviewRow } from '../levels/levelPreview';
 
 export interface InfoTextRequest {
   /** The tooltip body. */
@@ -38,6 +39,16 @@ export interface InfoTextRequest {
    */
   titleLength?: number;
   noteLength?: number;
+  /**
+   * `:222-294` — the `"AllEnemiesInLevel"` branch's enemy lines, appended below
+   * the text.
+   *
+   * The AS3 grows the panel for them (`additionalHeight += 28` per row,
+   * `requiredMinWidth = 100 + widest`); here the rows are laid out in flow and
+   * the panel measures itself, so the extra size falls out of the same
+   * `getBoundingClientRect` the plain tooltips already use.
+   */
+  enemyRows?: readonly LevelPreviewRow[];
 }
 
 /**

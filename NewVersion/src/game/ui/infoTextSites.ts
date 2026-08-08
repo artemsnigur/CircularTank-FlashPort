@@ -15,7 +15,7 @@
  * against the source lines; a screen that opens the wrong way now needs two
  * edits that disagree, not one that drifts.
  *
- * ── The reachable surface is 3 sites, not 16 ──────────────────────────────
+ * ── The reachable surface is 4 sites, not 20 ──────────────────────────────
  * Step 1 was scoped as "14 core + 2 rich text". The count is right about the
  * AS3 and wrong about this port: of the 14 plain-text sites, **two** have a
  * live consumer here — the shop row and, since step 2, the bestiary's
@@ -71,6 +71,14 @@ export const INFO_TEXT_SITES: readonly InfoTextSite[] = Object.freeze([
     note: 'Resistance badges on the bestiary — ResistanceIcon.tsx. Label per damage type.',
   },
   {
+    source: 'ButtonNextLevel.as:208',
+    showLeft: false,
+    showTop: false,
+    special: 'AllEnemiesInLevel',
+    status: 'wired',
+    note: 'Next-level preview on the results overlay — Hud.tsx NextLevelButton.',
+  },
+  {
     source: 'Achievement.as:99',
     showLeft: true,
     showTop: false,
@@ -97,7 +105,6 @@ export const INFO_TEXT_SITES: readonly InfoTextSite[] = Object.freeze([
   // ── Deferred, with the thing each waits on ──────────────────────────────
   { source: 'ImageEnemy.as:174', showLeft: false, showTop: false, special: 'EnemyStrengthsWeaknesses', status: 'deferred', note: 'PartInfoText step 2. `right`/`bottom` are initialised false at ImageEnemy.as:168-169 and never reassigned.' },
   { source: 'ImageEnemy.as:178', showLeft: false, showTop: false, special: 'EnemyStrengthsWeaknesses', status: 'deferred', note: 'Same, with " Boss" appended to the name.' },
-  { source: 'ButtonNextLevel.as:208', showLeft: false, showTop: false, special: 'AllEnemiesInLevel', status: 'deferred', note: 'PartInfoText step 3 — lists the enemies waiting in the level it leads to.' },
   { source: 'ButtonLevelGuideInfo.as:64', showLeft: false, showTop: false, special: 'AllEnemiesInLevel', status: 'deferred', note: 'Step 4 — blocked on the Level Guide itself.' },
   { source: 'ButtonLevelGuideAutoSelect.as:38', showLeft: false, showTop: false, status: 'deferred', note: 'Step 4 — blocked on the Level Guide.' },
   { source: 'ButtonLevelGuideAutoSelect.as:104', showLeft: false, showTop: false, status: 'deferred', note: 'Step 4 — blocked on the Level Guide.' },

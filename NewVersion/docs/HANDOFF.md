@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T100**, commit `b0dd120`, 9 August 2026. Keep it current — it is
+Current as of **T101**, commit `059eee7`, 9 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -28,7 +28,7 @@ TypeScript strict + Phaser 3.90 + Zustand + Vitest + Capacitor.
 - **`NewVersion/`** — the port. All npm commands run from here.
 
 **Gate on every commit:** `typecheck`, `lint`, `data:check`, `progress:check`,
-the full suite (**2810 tests, 146 files**), and `smoke`. Work that cannot land green is not
+the full suite (**2825 tests, 147 files**), and `smoke`. Work that cannot land green is not
 committed. Commits go straight to `main` and are pushed at the end of each task.
 
 ### What plays end to end
@@ -115,7 +115,11 @@ then leaves, because a panel that opens and never closes photographs exactly
 like a correct one), `--resistances` (the bestiary's badges, with `?known=all`
 so all 20 rows are revealed — it **counts the image layers that actually
 loaded** per badge, because a badge whose middle layer 404s still renders as a
-clean disc, which is exactly what the "none" badge is supposed to look like).
+clean disc, which is exactly what the "none" badge is supposed to look like),
+`--next-level` (clears 1-1 and hovers the Next Level button, then **jumps to
+1-12 and clears that too** — 1-2's roster is Basic and Fast, neither of which
+has a single resistance, so the first run draws no badges at all and proves
+nothing about them; 1-13 is the earliest roster that does).
 
 ---
 
@@ -388,8 +392,25 @@ against the cursor rather than asserting the node exists.
 |---|---|
 | **1 — core + Achievement rich text** | **Done.** But the "16 sites" it was scoped as is **2** — see the audit's "reachable surface" entry. Shop rows and achievement cells are wired; twelve sites are recorded as redundant, unported or deferred, with a reason each |
 | **2 — `EnemyStrengthsWeaknesses`** | **Done (T100), but for one of its three sites.** `IconStrongWeak.as:48` is wired — the bestiary's badges. `ImageEnemy.as:174`/`:178` are the *tooltip* variant and stay blocked: their only consumer is the level-select enemy roster (`ScreenLevelSelect.as:1128`), which this port does not have. See below |
-| **3 — `AllEnemiesInLevel`** | Open. `ButtonNextLevel.as:208`. Unblocked |
+| **3 — `AllEnemiesInLevel`** | **Done (T101)** for its live site, `ButtonNextLevel.as:208` — the Next Level button on the results overlay. `ButtonLevelGuideInfo.as:64` is the same special type on the Level Guide and stays blocked with the rest of step 4 |
 | **4 — Level Guide's 4 sites** | Blocked on the Level Guide itself, which does not exist |
+
+**Status: `PartInfoText` is *open*, not "closed except for a dependency" — and
+the distinction is not pedantry.** Every reachable site is wired: 4 of the 20
+call sites have a live consumer and all 4 are done. But "closed except for X"
+would claim the remaining work is *only* the four Level Guide triggers, and
+that is not what is left. `PartInfoText.as` still has an unported branch —
+`addStrengthsAndWeaknessIcons`' `"Normal"` mode (`:446-453`), the full-size
+badges the panel draws for `EnemyStrengthsWeaknesses` — because its consumer
+`ImageEnemy` lives on a level-select enemy roster this port has not built.
+That is a **fifth** blocked thing, on a different dependency from the Level
+Guide, and a "closed except for the Level Guide" line would hide it.
+
+So: **all live sites wired; three separate dependencies outstanding** — the
+Level Guide (4 sites), the level-select enemy roster (2 sites plus the
+`"Normal"` icon branch), and the level-complete status screen
+(`Achievement.as:103`). `infoTextSites.ts` carries the per-row verdict, and it
+is the thing to read rather than a summary adjective.
 
 **Step 2 split into two halves that the brief treated as one.** The task was
 scoped as "wire `addStrengthsAndWeaknessIcons`, lands on the Enemies screen".

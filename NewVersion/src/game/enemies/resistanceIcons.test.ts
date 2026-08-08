@@ -208,14 +208,20 @@ describe('the icon clips', () => {
   });
 
   /**
-   * `IconStrongWeak2` is synced and undrawn on purpose — its only caller is the
-   * hover panel's `EnemyStrengthsWeaknesses` type, whose own consumer
-   * (`ImageEnemy`, on the level-select roster) does not exist in this port yet.
+   * The six shapes that belong to `IconStrongWeak2` alone.
    *
-   * Pinned as an exact set rather than a count, so "unused" and "missing"
-   * cannot be confused: if a future pass draws it, this test says so.
+   * **T100 pinned these as "synced and undrawn by intent"; T101 draws them.**
+   * The next-level preview calls `addStrengthsAndWeaknessIcons(type, "Small",
+   * …)`, which constructs 1018 unconditionally (`PartInfoText.as:404`, `:456`),
+   * so the clip T100 copied on the projectile precedent — copy the whole clip,
+   * the pass that draws it needs no asset work — is now the one the panel uses.
+   * That precedent paid for itself exactly one pass later.
+   *
+   * Still pinned as an exact set rather than a count: the two clips must not
+   * quietly converge, because they differ on precisely these six glyphs and a
+   * site drawing the wrong one looks entirely correct.
    */
-  it('has exactly six shapes unique to the undrawn clip', () => {
+  it('has exactly six shapes unique to the panel clip', () => {
     const drawnByScreen = new Set(RESISTANCE_ICON_CLIPS.IconStrongWeak.frames.flat());
     const panelOnly = [...new Set(RESISTANCE_ICON_CLIPS.IconStrongWeak2.frames.flat())]
       .filter((id) => !drawnByScreen.has(id))
