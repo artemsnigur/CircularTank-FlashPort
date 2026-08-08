@@ -550,12 +550,23 @@ code {
    (:764 draws from `80 - height`). `justify-content: flex-end` on the fill
    reproduces that direction; the width is scaled up from 4px because the AS3's
    bar sat on a 640-wide stage. */
+/*
+ * The reload widget was the one HUD element with no surface of its own — it sat
+ * raw on the arena, which was survivable when it was white-on-dark and is not
+ * now. The arena is nine different world themes (sand, concrete, hell, blue
+ * dirt…), so **no single colour is legible against all of them**; the answer is
+ * the one the coin and level readouts already use, which is to carry a surface.
+ */
 .hud-reload {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-1);
   font-family: var(--font-display);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 .hud-reload__bars {
@@ -568,7 +579,8 @@ code {
 .hud-reload__track {
   width: 0.4rem;
   height: 100%;
-  background: var(--surface);
+  /* A recess inside the widget's own surface, not the same tone as it. */
+  background: var(--surface-sunken);
   border-radius: 2px;
   display: flex;
   flex-direction: column;
@@ -578,7 +590,9 @@ code {
 
 .hud-reload__fill {
   width: 100%;
-  background: var(--on-strong);
+  /* Was white — invisible against a light track. The fill is a *reading*, so it
+     takes the accent that every other live value uses. */
+  background: var(--accent);
   /* No transition: the fill is republished every frame from the live cooldown,
      so easing it would show a value the game is not at. */
 }
@@ -589,7 +603,7 @@ code {
   font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--text-dim);
+  color: var(--text);
 }
 
 .hud-reload__secondary {

@@ -538,6 +538,18 @@ things that are actually open.
   via an index form only the misc section uses, so it claimed to carry a quirk
   it never carried. One divergence recorded, not corrected: `:1445` labels the
   Shield's duration `" HP"` when unowned.
+- **UI redesign** — landed T92-T96. Two things were bundled in the request and
+  they were independent: a **functional defect** (shop weapons unreachable) and a
+  **visual redesign**. The defect was `justify-content: center` on `.screen`
+  stranding content above an unreachable scroll origin — **six screens, not the
+  one reported** — and it was fixed first, alone. The redesign then went
+  bg `#12161f` → `#F0EEE6` warm-neutral, accent gold → clay `#CC785C`.
+  **Colour now has exactly one home** (`:root` in `global.css`); it previously
+  had three families the audit's grep missed one by one — 24 hex literals, 34
+  `rgb(255 255 255 / N%)` alphas, and 19 arbitrary-channel semantic tints. The
+  recurring fault across all of them was `opacity` used as a disabled state,
+  which dims on dark and disappears on bone. **Canvas colours are deliberately
+  untouched**: the 33 `0x......` values in `src/game` are world art, not chrome.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four
