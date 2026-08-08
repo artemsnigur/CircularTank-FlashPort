@@ -56,6 +56,7 @@ function parseArgs(argv) {
     // is viewport-dependent by definition, so a desktop-only pass proves the
     // least interesting case: a tall window is where content fits.
     if (argv[i] === '--viewport') args.viewport = argv[++i];
+    if (argv[i] === '--overlays') args.overlays = true;
   }
   return args;
 }
@@ -380,6 +381,78 @@ if (args.save) {
   await browser.close();
   stop();
   process.exit(0);
+}
+
+if (args.overlays) {
+  /*
+   * The two-layer projectiles — `BulletBomb` and `ObjectMine`.
+   *
+   * Both draw a static body with a second shape animating over it, and both
+   * loop from spawn rather than following any game state. A single screenshot
+   * cannot tell an animation from a static overlay, so each is captured as a
+   * burst spanning more than one full cycle: the bomb's is 16 frames (~533ms)
+   * and the mine's 30 (~1s).
+   *
+   * The mine is the easier read of the two — it sits still, so successive
+   * frames differ only by the blink.
+   */
+  // Local copies rather than the sound sweep's — those are scoped inside its
+  // own block. Both gates still apply: `:7153` holds the arena until the
+  // tutorial's move-and-fire is done, and since T67 the countdown blocks
+  // `moveTank`/`tankAttack` for its two seconds.
+  const readArena = async () => {
+    // The tank's screen position lives at `__arena.tank.screen`, not on the
+    // root — reading the root gave an object with no `x`, which Playwright
+    // rejected as invalid mouse coordinates rather than silently centring.
+    const arena = await page.evaluate(() => globalThis.__arena ?? null);
+    const screen = arena?.tank?.screen;
+    return screen ? { ...screen, live: true } : { x: 640, y: 400, live: false };
+  };
+
+  const openLevel = async (query) => {
+    await page.goto(`${URL}${query}`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /all-enemy test level/i }).click();
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => console.log('[look] warning: countdown never reported done'));
+    // Move then fire, in that order — the tutorial gate needs both, and firing
+    // first is the ordering fault that cost `--secondaries` its evidence.
+    await page.keyboard.down('d');
+    await delay(600);
+    await page.keyboard.up('d');
+    await page.mouse.move(760, 400);
+    await page.mouse.down();
+    await delay(200);
+    await page.mouse.up();
+    await delay(800);
+  };
+
+  // ── ObjectMine: drop one, step away, watch it blink ──────────────────────
+  await openLevel('?secondary=Mine&primary=Cannon');
+  await page.keyboard.down('Space');
+  await delay(220);
+  await page.keyboard.up('Space');
+  // Move off the drop point: a mine spawns at the tank's own centre and is
+  // completely hidden underneath it otherwise — the trap `--secondaries`
+  // documents.
+  await page.keyboard.down('a');
+  await delay(900);
+  await page.keyboard.up('a');
+  await delay(300);
+  // ~1.4 cycles at 30fps, sampled well inside each phase.
+  await burst('ov-mine', 8, 130);
+  console.log('[look] mine blink: 8 frames over ~1040ms (cycle is 1000ms)');
+
+  // ── BulletBomb: fire and follow the round ────────────────────────────────
+  await openLevel('?secondary=Mine&primary=Timed%20Bomb%20Cannon');
+  const at = await readArena();
+  await page.mouse.move(at.x + 260, at.y - 40);
+  await page.mouse.down();
+  await delay(120);
+  await burst('ov-bomb', 8, 70);
+  await page.mouse.up();
+  console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
 }
 
 if (args.ui) {

@@ -479,11 +479,15 @@ export const SAMPLE_FONTS = [
  * raster size all come from `assets.swf`, so a hand-written entry here could
  * disagree with the mapping that resolved it. See `scripts/gen-projectile-art.mjs`.
  *
- * **23 entries, not the 43 shapes the sync copies.** A class draws one
- * representative shape until animation lands, and the other 20 are the frames
- * it does not draw yet. They are synced so pass (c) needs no asset work, but
- * preloading textures nothing references would make them look wired when they
- * are not — which is the exact confusion this project keeps paying for.
+ * **41 entries and no orphans.** Every texture here is referenced by
+ * `PROJECTILE_ART`, `PROJECTILE_VARIANTS` or `PROJECTILE_OVERLAYS`, and
+ * `projectileArt.test.ts` fails if one stops being — preloading a texture
+ * nothing draws makes it look wired when it is not, which is the confusion this
+ * project keeps paying for.
+ *
+ * The two shapes still not here are `BulletLaser`'s second and third frames.
+ * The port draws the beam as a line primitive rather than a sprite, so it has
+ * no layer to animate; declined rather than deferred (`BACKLOG.md` M1).
  */
 export const PROJECTILE_SHAPES: readonly ShapeAsset[] = PROJECTILE_SHAPE_FILES.map((entry) =>
   shape(entry.key, entry.file, entry.width, entry.height, 'Projectile art from assets.swf'),

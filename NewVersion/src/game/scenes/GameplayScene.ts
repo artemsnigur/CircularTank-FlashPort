@@ -3567,6 +3567,11 @@ export class GameplayScene extends Phaser.Scene {
       }
     }
 
+    // The blink is a clip loop, not a reaction to anything — `ObjectMine` has no
+    // frame control anywhere in the AS3 — so it advances every frame a mine
+    // exists, before any detonation check that might remove it.
+    for (const mine of this.mines) mine.update(deltaMs);
+
     if (this.mines.length === 0) return;
 
     // `:1058` — a mine does not detonate on an invisible or teleporting enemy.

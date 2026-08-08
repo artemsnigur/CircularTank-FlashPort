@@ -89,6 +89,75 @@ export const PROJECTILE_VARIANTS: Readonly<Record<string, readonly ProjectileArt
   ],
 });
 
+/**
+ * The moving layer, for the two clips that draw two shapes at once.
+ *
+ * One entry per timeline frame at 30fps, `null` where the clip shows only its
+ * body. Both loop from the start; neither is tied to game state.
+ *
+ *   BulletBomb   a 16-frame ping-pong over a static body — **not** a fuse
+ *                countdown. The countdown is a separate `WarningTimedBomb`
+ *                indicator driven by `bombTimer / bombTimerMax`
+ *                (`PartGameArea.as:2531`, `:2542`), already wired.
+ *   ObjectMine   a 30-frame blink: body alone for 15 frames, then a second
+ *                shape on top for 15. A plain idle loop — the AS3 contains no
+ *                frame control for a mine at all, so there is no armed or
+ *                triggered state to follow.
+ */
+export const PROJECTILE_OVERLAYS: Readonly<Record<string, readonly (ProjectileArt | null)[]>> =
+  Object.freeze({
+  BulletBomb: [
+    { key: 'projectile-227', width: 13.35, height: 9.5 },
+    { key: 'projectile-228', width: 14.5, height: 8.65 },
+    { key: 'projectile-229', width: 14.7, height: 7.8 },
+    { key: 'projectile-230', width: 14.05, height: 8.85 },
+    { key: 'projectile-231', width: 15.95, height: 9.5 },
+    { key: 'projectile-232', width: 14.65, height: 8.65 },
+    { key: 'projectile-233', width: 14.8, height: 9.55 },
+    { key: 'projectile-234', width: 14.6, height: 11.55 },
+    { key: 'projectile-235', width: 15.55, height: 12.05 },
+    { key: 'projectile-234', width: 14.6, height: 11.55 },
+    { key: 'projectile-233', width: 14.8, height: 9.55 },
+    { key: 'projectile-232', width: 14.65, height: 8.65 },
+    { key: 'projectile-231', width: 15.95, height: 9.5 },
+    { key: 'projectile-230', width: 14.05, height: 8.85 },
+    { key: 'projectile-229', width: 14.7, height: 7.8 },
+    { key: 'projectile-228', width: 14.5, height: 8.65 },
+  ],
+  ObjectMine: [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+    { key: 'projectile-1142', width: 20, height: 20 },
+  ],
+});
+
 /** One raster per distinct shape, for the preloader. */
 export const PROJECTILE_SHAPE_FILES: readonly {
   key: string;
@@ -102,6 +171,7 @@ export const PROJECTILE_SHAPE_FILES: readonly {
   { key: 'projectile-1138', file: '1138.svg', width: 160, height: 160 },
   { key: 'projectile-1139', file: '1139.svg', width: 160, height: 160 },
   { key: 'projectile-1140', file: '1140.svg', width: 160, height: 160 },
+  { key: 'projectile-1142', file: '1142.svg', width: 80, height: 80 },
   { key: 'projectile-1176', file: '1176.svg', width: 52.2, height: 67.6 },
   { key: 'projectile-1178', file: '1178.svg', width: 52.2, height: 67.6 },
   { key: 'projectile-1180', file: '1180.svg', width: 52.2, height: 67.6 },
@@ -114,6 +184,15 @@ export const PROJECTILE_SHAPE_FILES: readonly {
   { key: 'projectile-223', file: '223.svg', width: 84, height: 46.4 },
   { key: 'projectile-224', file: '224.svg', width: 84, height: 46.4 },
   { key: 'projectile-226', file: '226.svg', width: 47, height: 47 },
+  { key: 'projectile-227', file: '227.svg', width: 53.4, height: 38 },
+  { key: 'projectile-228', file: '228.svg', width: 58, height: 34.6 },
+  { key: 'projectile-229', file: '229.svg', width: 58.8, height: 31.2 },
+  { key: 'projectile-230', file: '230.svg', width: 56.2, height: 35.4 },
+  { key: 'projectile-231', file: '231.svg', width: 63.8, height: 38 },
+  { key: 'projectile-232', file: '232.svg', width: 58.6, height: 34.6 },
+  { key: 'projectile-233', file: '233.svg', width: 59.2, height: 38.2 },
+  { key: 'projectile-234', file: '234.svg', width: 58.4, height: 46.2 },
+  { key: 'projectile-235', file: '235.svg', width: 62.2, height: 48.2 },
   { key: 'projectile-237', file: '237.svg', width: 84, height: 66 },
   { key: 'projectile-239', file: '239.svg', width: 44, height: 35 },
   { key: 'projectile-241', file: '241.svg', width: 84, height: 84 },

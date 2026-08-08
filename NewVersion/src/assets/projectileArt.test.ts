@@ -8,7 +8,12 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { PROJECTILE_ART, PROJECTILE_SHAPE_FILES, PROJECTILE_VARIANTS } from './projectileArt';
+import {
+  PROJECTILE_ART,
+  PROJECTILE_OVERLAYS,
+  PROJECTILE_SHAPE_FILES,
+  PROJECTILE_VARIANTS,
+} from './projectileArt';
 import { bounceGummy } from '../game/weapons/foodRounds';
 import { PROJECTILE_SHAPES } from './manifest';
 
@@ -256,5 +261,119 @@ describe('frames the AS3 selects rather than plays', () => {
     expect(damages).toEqual([10, 30, 40]);
     expect(state.stage).toBe(3);
     expect(PROJECTILE_VARIANTS.BulletGummyBear[state.stage - 1]).toBeDefined();
+  });
+});
+
+describe('the two clips that draw two shapes at once', () => {
+  /**
+   * Exactly two, and the membership is the claim. `BulletLaser` is the third
+   * animated clip and is deliberately absent — the port draws the beam as a
+   * line primitive, so there is no layer to overlay.
+   */
+  it('has overlays for exactly BulletBomb and ObjectMine', () => {
+    expect(Object.keys(PROJECTILE_OVERLAYS).sort()).toEqual(['BulletBomb', 'ObjectMine']);
+  });
+
+  /**
+   * **The ping-pong, asserted as a sequence rather than a length.**
+   *
+   * A naive implementation that plays 227→235 and restarts would also be "16
+   * frames of animation" and would visibly stutter at the wrap. The second half
+   * must be the first half reversed, minus the endpoints — which is what makes
+   * it a ping-pong and not a loop.
+   */
+  it('plays BulletBomb out and back, not out and restart', () => {
+    const keys = PROJECTILE_OVERLAYS.BulletBomb.map((f) => f!.key);
+    expect(keys).toHaveLength(16);
+    expect(keys.every((k) => k !== null)).toBe(true);
+
+    // Out: 227..235 is nine frames; back: 234..228 is seven.
+    expect(keys.slice(0, 9)).toEqual([
+      'projectile-227', 'projectile-228', 'projectile-229', 'projectile-230',
+      'projectile-231', 'projectile-232', 'projectile-233', 'projectile-234',
+      'projectile-235',
+    ]);
+    // The return leg mirrors the outward one, stopping short of both ends so no
+    // frame is held for two ticks.
+    expect(keys.slice(9)).toEqual(keys.slice(1, 8).reverse());
+  });
+
+  /**
+   * **The blink, asserted as two phases of equal length.**
+   *
+   * Half the cycle shows the body alone. A fix that made the overlay permanent
+   * would satisfy "the mine has an overlay" and never blink; one that alternated
+   * every frame would flicker. Both fail here.
+   */
+  it('shows ObjectMine bare for exactly half its cycle', () => {
+    const frames = PROJECTILE_OVERLAYS.ObjectMine;
+    expect(frames).toHaveLength(30);
+
+    const bare = frames.filter((f) => f === null).length;
+    expect(bare, 'body-only frames').toBe(15);
+
+    // Contiguous, not alternating: the first 15 dark, the rest lit.
+    expect(frames.slice(0, 15).every((f) => f === null)).toBe(true);
+    expect(frames.slice(15).every((f) => f !== null)).toBe(true);
+    expect(new Set(frames.slice(15).map((f) => f!.key))).toEqual(
+      new Set(['projectile-1142']),
+    );
+  });
+
+  /**
+   * The base and the overlay are different shapes, and both are loaded.
+   *
+   * A composite drawn from one texture would be a plausible-looking mistake:
+   * the sprite would animate and nothing would obviously be wrong, but the body
+   * would vanish behind its own overlay.
+   */
+  it('keeps the base and overlay as separate loaded textures', () => {
+    const loaded = new Set(PROJECTILE_SHAPES.map((a) => a.key));
+
+    for (const name of ['BulletBomb', 'ObjectMine']) {
+      const base = PROJECTILE_ART[name].key;
+      const overlayKeys = new Set(
+        PROJECTILE_OVERLAYS[name].filter((f) => f !== null).map((f) => f!.key),
+      );
+
+      expect(overlayKeys.has(base), `${name} overlay must not reuse its base`).toBe(false);
+      expect(loaded.has(base), `${name} base loaded`).toBe(true);
+      for (const key of overlayKeys) {
+        expect(loaded.has(key), `${name} overlay ${key} loaded`).toBe(true);
+      }
+    }
+  });
+
+  /** Overlay frames keep authored sizing, not a uniform box. */
+  it('sizes overlay frames individually', () => {
+    const widths = new Set(
+      PROJECTILE_OVERLAYS.BulletBomb.map((f) => `${f!.width}x${f!.height}`),
+    );
+    // The nine bomb shapes differ in size; one box for all of them would mean
+    // the sizing was reset rather than carried through from the SWF.
+    expect(widths.size).toBeGreaterThan(1);
+  });
+});
+
+describe('no preloaded projectile texture is unreferenced', () => {
+  /**
+   * The orphan check, as a rule rather than a count.
+   *
+   * Pass (b) shipped 23 textures with 20 more synced-but-unloaded on purpose;
+   * (c) consumed them. From here a texture that stops being drawn should fail
+   * rather than sit in the preload budget forever looking wired.
+   */
+  it('draws every texture the manifest loads', () => {
+    const referenced = new Set<string>();
+    for (const art of Object.values(PROJECTILE_ART)) referenced.add(art.key);
+    for (const frames of Object.values(PROJECTILE_VARIANTS)) {
+      for (const f of frames) referenced.add(f.key);
+    }
+    for (const frames of Object.values(PROJECTILE_OVERLAYS)) {
+      for (const f of frames) if (f) referenced.add(f.key);
+    }
+
+    const orphans = PROJECTILE_SHAPES.map((a) => a.key).filter((k) => !referenced.has(k));
+    expect(orphans, 'loaded but never drawn').toEqual([]);
   });
 });

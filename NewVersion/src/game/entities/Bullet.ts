@@ -25,6 +25,7 @@ import type { BulletState } from '../weapons/bullets';
 import { damageTypeOf } from '../enemies/damageTypes';
 import type { DamageType } from '../enemies/enemyStatsData';
 import { PROJECTILE_ART, PROJECTILE_VARIANTS } from '../../assets/projectileArt';
+import { ProjectileOverlay } from './ProjectileOverlay';
 import type { ProjectileArt } from '../../assets/projectileArt';
 
 export class Bullet extends Phaser.GameObjects.Sprite {
@@ -49,6 +50,9 @@ export class Bullet extends Phaser.GameObjects.Sprite {
 
   /** Resolved art, or null when this class has no entry — see the constructor. */
   private readonly art: ProjectileArt | null;
+
+  /** The moving second layer, for `BulletBomb`; null for every other round. */
+  private overlay: ProjectileOverlay | null = null;
 
   private motion: BulletState;
   private readonly roomWidth: number;
@@ -191,6 +195,10 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     this.setAngle(spec.rotation);
 
     scene.add.existing(this);
+
+    // `BulletBomb` draws a static body with a ping-pong above it, so it needs a
+    // companion sprite. Every other round is a single layer and gets null.
+    this.overlay = ProjectileOverlay.create(scene, bulletClass, spec.x, spec.y, 12);
   }
 
   // `x`/`y` are deliberately not overridden: they are accessors on Phaser's
@@ -341,6 +349,20 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     this.setTexture(art.key).setDisplaySize(art.width, art.height);
   }
 
+  /**
+   * Tears the companion layer down with the round.
+   *
+   * `Bullet` had no destroy override before this, because a single sprite needs
+   * none. The overlay is a *second* scene object that nothing else owns, so
+   * without this every bomb fired would leave one behind — the same leak
+   * `Mine.destroy` already guards its blink tween against.
+   */
+  override destroy(fromScene?: boolean): void {
+    this.overlay?.destroy();
+    this.overlay = null;
+    super.destroy(fromScene);
+  }
+
   advanceFlameLife(deltaMs: number, crowd: number): boolean {
     if (!this.flame) return true;
     const next = advanceFlame(this.flame, deltaMs, crowd);
@@ -398,6 +420,7 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     // Keep the live (possibly grown) radius rather than the spawn value.
     this.motion = { ...step.state, radius: this.radius };
     this.setPosition(this.motion.x, this.motion.y);
+    this.overlay?.update(deltaMs, this.motion.x, this.motion.y);
     // `:2012` — the AS3 rewrites `rotation` from the heading immediately after
     // a bounce, and it does so *outside* the per-class branches, so it applies
     // to every bouncing round. `reflect` (`bulletBounce.ts:131`) has always

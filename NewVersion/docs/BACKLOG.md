@@ -1035,7 +1035,7 @@ the original, reproduced.
 
 ---
 
-### M1 — Projectile art — pass (a) done (T84), (b) and (c) not started
+### M1 — Projectile art — **CLOSED (T84 mapping, T85 render, T87/T98 frames)**
 
 **The art was never missing.** All 24 weapons render as one shared circle
 (`particle-dot` = `shapes/1.svg`), and the T83 audit concluded the real art
@@ -1117,19 +1117,28 @@ correctly** (`foodRounds.ts:45-56`, written back to `motion` at
 `Bullet.ts:387`). So this was a visual-only gap and the frame now follows the
 same stage the damage does.
 
-**Still open, deferred:** `BulletBomb` and `ObjectMine` are **two-layer
-composites** — Bomb is a static body (226) under a 16-frame ping-pong
-(227→235→228), Mine is a base (702) with a second layer (1142) appearing for
-frames 16-30. Both need an overlay sprite per instance. `BulletLaser` is a
-separate question: the port draws it as a Phaser `line`, not a sprite.
+**Pass (c) completed T98 — the two-layer composites.** `BulletBomb` (static body
+226 under a 16-frame ping-pong 227→235→228) and `ObjectMine` (base 702 with 1142
+over it for frames 16-30) each get a companion sprite, `entities/ProjectileOverlay.ts`,
+which follows its owner and cycles its own texture. Neither consults game state:
+both loop from spawn at 30fps.
 
-**`BulletBomb` is not a fuse countdown.** The countdown is a *separate*
-`WarningTimedBomb` indicator driven by `bombTimer / bombTimerMax` (`:2531`,
-`:2542`), already ported and wired. The bullet's 16 frames just loop while it
-flies; tying them to fuse time would invent a mechanic.
+**`BulletBomb` is not a fuse countdown**, which is the reading its frames invite.
+The countdown is a *separate* `WarningTimedBomb` indicator driven by
+`bombTimer / bombTimerMax` (`:2531`, `:2542`), already wired. **`ObjectMine` is a
+plain idle blink** — the AS3 contains no frame control for a mine anywhere, and
+nothing touches the instance beyond position, radius, damage and explosion
+radius, so there is no armed or triggered state to follow. It replaced a 700ms
+alpha yoyo that faded the *whole* mine, which the original never does.
 
-**12 frame textures remain unreferenced** — Bomb's 227-235, Mine's 1142,
-Laser's 257-258 — synced but not preloaded, pending those two items.
+**No orphans left.** 41 textures preloaded, every one drawn, pinned by a test
+that fails if one stops being. The two shapes still unused are `BulletLaser`'s
+second and third frames — **declined, not deferred**: the port draws the beam as
+a line primitive, so there is no layer to animate, and the current rendering is
+faithful in effect. Revisit only with `NineSlice` and the frame-widening
+together (see the T87 assessment).
+
+**M1 is closed.**
 
 **Adjacent, not taken:** the same mapping resolves all 474 sprites, so enemies,
 UI and props are one call away. That is a much larger commitment and the

@@ -41,10 +41,14 @@
  * out as `PROJECTILE_VARIANTS`, an ordered list the caller picks from using the
  * state that drives the choice.
  *
- * `PROJECTILE_ART` still carries frame 1 for every class, which is what the
- * three genuinely animated ones (`BulletBomb`, `ObjectMine`, `BulletLaser`)
- * draw until their pass lands. Those three are multi-layer composites, which is
- * why they are not here yet.
+ * `PROJECTILE_ART` carries frame 1 for every class — for `BulletBomb` and
+ * `ObjectMine` that is the **base** layer, which never changes; their moving
+ * half goes out as `PROJECTILE_OVERLAYS`, one entry per timeline frame, `null`
+ * where the clip shows the body alone.
+ *
+ * `BulletLaser` is the third animated clip and is deliberately absent: the port
+ * draws the beam as a line primitive rather than a sprite, so it has no layer to
+ * overlay. Declined rather than deferred — see `docs/BACKLOG.md` M1.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -122,6 +126,7 @@ const round = (n) => Number(n.toFixed(2));
 
 const classes = [];
 const variants = [];
+const overlays = [];
 const shapeFiles = new Map();
 const problems = [];
 
@@ -192,6 +197,44 @@ for (const [className, spriteId] of Object.entries(PROJECTILE_SPRITES)) {
     }
     variants.push({ className, frames });
   }
+
+  // ── A second layer ────────────────────────────────────────────────────
+  // Two clips draw *two* shapes at once: a static body with an animated
+  // overlay above it. `timeline` is per-depth for exactly this, so the base is
+  // layer 0 and the overlay layer 1 — absent on a frame where the clip shows
+  // the body alone, which is how `ObjectMine` blinks.
+  const timeline = sprite.timeline;
+  if (timeline && timeline.some((layers) => layers.length > 1)) {
+    const frames = [];
+    for (const layers of timeline) {
+      const overlayShape = layers[1];
+      if (overlayShape === undefined) {
+        frames.push(null);
+        continue;
+      }
+      const overlayNative = nativeSize(overlayShape);
+      if (overlayNative === null) {
+        problems.push(`${className}: overlay shape ${overlayShape} has no readable svg`);
+        continue;
+      }
+      const [ox, oy] = sprite.scales?.[overlayShape] ?? [1, 1];
+      const overlayKey = `projectile-${overlayShape}`;
+      frames.push({
+        key: overlayKey,
+        width: round(overlayNative.width * ox),
+        height: round(overlayNative.height * oy),
+      });
+      if (!shapeFiles.has(overlayShape)) {
+        shapeFiles.set(overlayShape, {
+          key: overlayKey,
+          file: `${overlayShape}.svg`,
+          width: round(overlayNative.width * RASTER_SCALE),
+          height: round(overlayNative.height * RASTER_SCALE),
+        });
+      }
+    }
+    overlays.push({ className, frames });
+  }
 }
 
 if (problems.length > 0) {
@@ -214,6 +257,19 @@ const variantRows = variants
   .map((entry) => {
     const frames = entry.frames
       .map((f) => `    { key: '${f.key}', width: ${f.width}, height: ${f.height} },`)
+      .join('\n');
+    return `  ${entry.className}: [\n${frames}\n  ],`;
+  })
+  .join('\n');
+
+const overlayRows = overlays
+  .map((entry) => {
+    const frames = entry.frames
+      .map((f) =>
+        f === null
+          ? '    null,'
+          : `    { key: '${f.key}', width: ${f.width}, height: ${f.height} },`,
+      )
       .join('\n');
     return `  ${entry.className}: [\n${frames}\n  ],`;
   })
@@ -273,6 +329,26 @@ export const PROJECTILE_VARIANTS: Readonly<Record<string, readonly ProjectileArt
 ${variantRows}
 });
 
+/**
+ * The moving layer, for the two clips that draw two shapes at once.
+ *
+ * One entry per timeline frame at 30fps, \`null\` where the clip shows only its
+ * body. Both loop from the start; neither is tied to game state.
+ *
+ *   BulletBomb   a 16-frame ping-pong over a static body — **not** a fuse
+ *                countdown. The countdown is a separate \`WarningTimedBomb\`
+ *                indicator driven by \`bombTimer / bombTimerMax\`
+ *                (\`PartGameArea.as:2531\`, \`:2542\`), already wired.
+ *   ObjectMine   a 30-frame blink: body alone for 15 frames, then a second
+ *                shape on top for 15. A plain idle loop — the AS3 contains no
+ *                frame control for a mine at all, so there is no armed or
+ *                triggered state to follow.
+ */
+export const PROJECTILE_OVERLAYS: Readonly<Record<string, readonly (ProjectileArt | null)[]>> =
+  Object.freeze({
+${overlayRows}
+});
+
 /** One raster per distinct shape, for the preloader. */
 export const PROJECTILE_SHAPE_FILES: readonly {
   key: string;
@@ -298,5 +374,6 @@ if (args.check) {
 
 writeFileSync(outPath, content);
 console.log(
-  `Wrote projectileArt.ts — ${classes.length} classes, ${shapeFiles.size} distinct textures.`,
+  `Wrote projectileArt.ts — ${classes.length} classes, ${shapeFiles.size} distinct textures, ` +
+    `${overlays.length} overlay timelines.`,
 );

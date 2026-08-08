@@ -12,6 +12,7 @@
 import Phaser from 'phaser';
 import type { MineState } from '../weapons/secondaries';
 import { PROJECTILE_ART } from '../../assets/projectileArt';
+import { ProjectileOverlay } from './ProjectileOverlay';
 
 /** Below enemies (10) and the tank, above the ground tile (0). */
 const MINE_DEPTH = 4;
@@ -22,12 +23,11 @@ export class Mine extends Phaser.GameObjects.Sprite {
    * — the same collision `Enemy` hits with `state` and `body`.
    */
   readonly spec: MineState;
-  private pulse: Phaser.Tweens.Tween | null = null;
+  private overlay: ProjectileOverlay | null = null;
 
   constructor(scene: Phaser.Scene, spec: MineState) {
-    // `ObjectMine` — sprite 1143. It places two shapes across 30 frames (a
-    // slow blink); this draws frame 1, and the alpha pulse below stands in for
-    // the rest until animation lands in pass (c).
+    // `ObjectMine` — sprite 1143, a body (702) with a second shape (1142)
+    // appearing over it for the back half of a 30-frame blink.
     const art = PROJECTILE_ART.ObjectMine;
     super(scene, spec.x, spec.y, art.key);
     this.spec = spec;
@@ -36,20 +36,28 @@ export class Mine extends Phaser.GameObjects.Sprite {
 
     scene.add.existing(this);
 
-    this.pulse = scene.tweens.add({
-      targets: this,
-      alpha: { from: 1, to: 0.45 },
-      duration: 700,
-      yoyo: true,
-      repeat: -1,
-    });
+    // Replaces a 700ms alpha yoyo that stood in for this until the real frames
+    // landed. The stand-in faded the *whole* mine; the original never does that
+    // — it adds a second shape on top and takes it away again.
+    this.overlay = ProjectileOverlay.create(scene, 'ObjectMine', spec.x, spec.y, MINE_DEPTH + 1);
+  }
+
+  /**
+   * A mine does not move, so only the loop needs advancing.
+   *
+   * `override` because Phaser's `Sprite` already declares `update` — the scene
+   * does not call it automatically for a plain sprite, so the mine list drives
+   * it explicitly.
+   */
+  override update(deltaMs: number): void {
+    this.overlay?.update(deltaMs, this.spec.x, this.spec.y);
   }
 
   override destroy(fromScene?: boolean): void {
-    // The tween holds a reference to this sprite; leaving it running after
-    // detonation would tick a destroyed target every frame.
-    this.pulse?.remove();
-    this.pulse = null;
+    // The overlay is a second scene object nothing else owns; leaving it behind
+    // would strand a blinking sprite where the mine detonated.
+    this.overlay?.destroy();
+    this.overlay = null;
     super.destroy(fromScene);
   }
 }

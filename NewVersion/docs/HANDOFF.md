@@ -569,6 +569,17 @@ things that are actually open.
   gained two steps **below** the agreed 0.75rem floor. 28 sites sat under it —
   pips, meters, HUD counters — and snapping them up by as much as 36% would have
   re-created the overflow T92 had just removed.
+- **Projectile art — fully closed (T84-T87, T98).** The last piece was the two
+  clips that draw **two shapes at once**: `BulletBomb` (static body under a
+  16-frame ping-pong) and `ObjectMine` (body with a second shape over it for half
+  a 30-frame blink). Both now carry a companion sprite,
+  `entities/ProjectileOverlay.ts`. Neither is tied to game state — the bomb's
+  frames are **not** a fuse countdown (that is a separate `WarningTimedBomb`
+  indicator, already wired) and the mine's blink is a plain idle loop, since the
+  AS3 has no frame control for a mine anywhere. **41 textures preloaded, zero
+  orphans**, pinned by a test. `BulletLaser` stays **declined**: the port draws
+  the beam as a line primitive, so there is no layer to animate and the current
+  rendering is faithful in effect.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four
