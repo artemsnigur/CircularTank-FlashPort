@@ -985,11 +985,42 @@ separate quantities.
 **The grenade infidelity is closed** — 1180/1178/1176 now render as three
 distinct grenades (driven: green vs cyan), replacing one shared tint.
 
-**Still open — pass (c), animation.** Seven sprites place several shapes:
-`BulletFire` 3, `BulletGummyBear` 3, `BulletLaser` 3, `BulletBomb` 10 across 16
-frames, `ObjectMine` 2 across 30, and both ground hazards 3. **(c) carries a
-real decision**: `BulletBomb`'s frames are plainly a countdown, so a static
-frame 0 loses information the original conveyed.
+**Pass (c) — partly landed T87, and the brief's premise was wrong for 4 of 7.**
+
+Two independent checks agree on the split. No sprite carries a `stop()` frame
+action (`DoAction = 0` for all seven), so a Flash clip loops at 30 fps *unless
+the AS3 pins it* — and four are pinned:
+
+| Class | AS3 | What it is |
+|---|---|---|
+| `BulletFire` | `:3798` `gotoAndStop(round(random*2+1))` | random 1-of-3 at spawn |
+| `BulletGummyBear` | `:3828`, `:1953`, `:1974`, `:2003` | the bounce stage |
+| `ObjectGroundIce` | `:1806` same random call | random 1-of-3 at spawn |
+| `ObjectGroundLava` | `:1806` | random 1-of-3 at spawn |
+
+**Animating those would invent motion the original does not have.** All four are
+wired as *selection* instead (`PROJECTILE_VARIANTS`), which is done.
+
+`BulletGummyBear` was checked before wiring, because a colour that means nothing
+is worse than no colour: the AS3 scales its damage **x1 / x3 / x4** by bounce
+stage (`:1954`, `:1958`, `:1996`, `:1999`) and the port **already implements it
+correctly** (`foodRounds.ts:45-56`, written back to `motion` at
+`Bullet.ts:387`). So this was a visual-only gap and the frame now follows the
+same stage the damage does.
+
+**Still open, deferred:** `BulletBomb` and `ObjectMine` are **two-layer
+composites** — Bomb is a static body (226) under a 16-frame ping-pong
+(227→235→228), Mine is a base (702) with a second layer (1142) appearing for
+frames 16-30. Both need an overlay sprite per instance. `BulletLaser` is a
+separate question: the port draws it as a Phaser `line`, not a sprite.
+
+**`BulletBomb` is not a fuse countdown.** The countdown is a *separate*
+`WarningTimedBomb` indicator driven by `bombTimer / bombTimerMax` (`:2531`,
+`:2542`), already ported and wired. The bullet's 16 frames just loop while it
+flies; tying them to fuse time would invent a mechanic.
+
+**12 frame textures remain unreferenced** — Bomb's 227-235, Mine's 1142,
+Laser's 257-258 — synced but not preloaded, pending those two items.
 
 **Adjacent, not taken:** the same mapping resolves all 474 sprites, so enemies,
 UI and props are one call away. That is a much larger commitment and the

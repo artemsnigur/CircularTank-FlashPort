@@ -24,7 +24,7 @@ import type { BulletSpec } from '../weapons/firing';
 import type { BulletState } from '../weapons/bullets';
 import { damageTypeOf } from '../enemies/damageTypes';
 import type { DamageType } from '../enemies/enemyStatsData';
-import { PROJECTILE_ART } from '../../assets/projectileArt';
+import { PROJECTILE_ART, PROJECTILE_VARIANTS } from '../../assets/projectileArt';
 import type { ProjectileArt } from '../../assets/projectileArt';
 
 export class Bullet extends Phaser.GameObjects.Sprite {
@@ -117,11 +117,23 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     bulletClass = 'Bullet',
     flame: { lifetimeMax: number; rangeMultiplier: number } | null = null,
   ) {
-    // Real art, keyed by AS3 class — `PROJECTILE_ART`, generated from the SWF.
-    // Falls back to the old shared circle only for a class with no entry, which
-    // is a bug rather than a state to design around: `projectileArt.test.ts`
-    // pins that every class the scene can construct has one.
-    const art = PROJECTILE_ART[bulletClass] ?? null;
+    // Real art, keyed by AS3 class — generated from the SWF. Falls back to the
+    // old shared circle only for a class with no entry, which is a bug rather
+    // than a state to design around: `projectileArt.test.ts` pins that every
+    // class the scene can construct has one.
+    //
+    // Classes the AS3 pins with `gotoAndStop` carry a set of frames to choose
+    // between rather than one texture. Neither of the two here animates:
+    //
+    //   BulletFire       `:3798` picks 1 of 3 at random, once, on spawn
+    //   BulletGummyBear  `:3828` starts on frame 1; the frame then tracks the
+    //                    bounce stage, which is also what scales its damage
+    //
+    // Everything else takes its single entry from `PROJECTILE_ART`.
+    const variants = PROJECTILE_VARIANTS[bulletClass];
+    const art = variants
+      ? variants[bulletClass === 'BulletFire' ? Math.floor(Math.random() * variants.length) : 0]
+      : (PROJECTILE_ART[bulletClass] ?? null);
     super(scene, spec.x, spec.y, art?.key ?? 'particle-dot');
     this.art = art;
 
@@ -303,6 +315,20 @@ export class Bullet extends Phaser.GameObjects.Sprite {
    * Separate from `advance` because it needs the neighbour count, which only
    * the scene can supply.
    */
+  /**
+   * Switches to one of this class's selectable frames, resizing with it.
+   *
+   * The frames can differ in size — `BulletFire`'s three are 34x34, 38x34 and
+   * 34x38 — so the texture and the display size have to move together or a
+   * variant renders stretched.
+   */
+  private showVariant(index: number): void {
+    const variants = PROJECTILE_VARIANTS[this.bulletClassName];
+    const art = variants?.[index];
+    if (!art) return;
+    this.setTexture(art.key).setDisplaySize(art.width, art.height);
+  }
+
   advanceFlameLife(deltaMs: number, crowd: number): boolean {
     if (!this.flame) return true;
     const next = advanceFlame(this.flame, deltaMs, crowd);
@@ -385,6 +411,11 @@ export class Bullet extends Phaser.GameObjects.Sprite {
       const state = bounceGummy(this.bounceState.state, edge);
       this.bounceState = { kind: 'gummy', state };
       this.motion = { ...this.motion, damage: state.damage };
+      // `:1953` advances the frame in the same breath as the damage, because
+      // they are one thing: the bear visibly hardens as it gets stronger
+      // (x1 -> x3 -> x4). Wiring the colour without the damage would be a lie,
+      // and the damage without the colour is what shipped until now.
+      this.showVariant(state.stage - 1);
       return;
     }
 

@@ -8,7 +8,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { PROJECTILE_ART, PROJECTILE_SHAPE_FILES } from './projectileArt';
+import { PROJECTILE_ART, PROJECTILE_SHAPE_FILES, PROJECTILE_VARIANTS } from './projectileArt';
+import { bounceGummy } from '../game/weapons/foodRounds';
 import { PROJECTILE_SHAPES } from './manifest';
 
 /**
@@ -175,5 +176,85 @@ describe('the art table stays honest about size', () => {
       expect(raster!.width, `${name} raster width`).toBeGreaterThanOrEqual(art.width);
       expect(raster!.height, `${name} raster height`).toBeGreaterThanOrEqual(art.height);
     }
+  });
+});
+
+describe('frames the AS3 selects rather than plays', () => {
+  /**
+   * Exactly four classes carry selectable frames, and the membership is the
+   * claim worth pinning — not the count.
+   *
+   * The other three multi-shape sprites (`BulletBomb`, `ObjectMine`,
+   * `BulletLaser`) genuinely animate and are deliberately absent: they are
+   * multi-layer composites and are deferred. If one of them appeared here it
+   * would mean someone had wired an animation as a static variant pick, which
+   * looks correct in a screenshot and is wrong in motion.
+   */
+  it('offers variants for exactly the four gotoAndStop classes', () => {
+    expect(Object.keys(PROJECTILE_VARIANTS).sort()).toEqual([
+      'BulletFire',
+      'BulletGummyBear',
+      'ObjectGroundIce',
+      'ObjectGroundLava',
+    ]);
+  });
+
+  /**
+   * Three distinct frames each, all loaded, none collapsing to one texture.
+   *
+   * A naive wiring that pointed every variant at frame 1 would satisfy "the
+   * class has variants" and render identically forever; requiring three
+   * distinct keys is what catches it.
+   */
+  it('gives each of them three distinct, loaded frames', () => {
+    const loaded = new Set(PROJECTILE_SHAPES.map((asset) => asset.key));
+
+    for (const [name, frames] of Object.entries(PROJECTILE_VARIANTS)) {
+      expect(frames, name).toHaveLength(3);
+      expect(new Set(frames.map((f) => f.key)).size, `${name} distinct`).toBe(3);
+      for (const frame of frames) {
+        expect(loaded.has(frame.key), `${name} -> ${frame.key}`).toBe(true);
+        expect(frame.width, `${name} ${frame.key} width`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  /**
+   * Frame 1 is what `PROJECTILE_ART` carries, so a class that never changes
+   * variant draws the same thing either way.
+   *
+   * This is the seam between the two tables: they could drift and nothing else
+   * here would notice.
+   */
+  it('starts every variant class on the frame PROJECTILE_ART names', () => {
+    for (const [name, frames] of Object.entries(PROJECTILE_VARIANTS)) {
+      expect(frames[0].key, name).toBe(PROJECTILE_ART[name].key);
+    }
+  });
+
+  /**
+   * `BulletGummyBear`'s frames are indexed by bounce stage, and the stage is
+   * also what scales damage — x1, x3, x4 (`foodRounds.ts`, from `:1954`,
+   * `:1958`, `:1996`). Three stages, three frames, so the index cannot run off
+   * the end at stage 3.
+   *
+   * Driven against the real `bounceGummy` rather than a restated table: the
+   * point is that the visual and the mechanic share one number.
+   */
+  it('has one gummy frame per bounce stage the damage rule can reach', () => {
+    let state = { stage: 1, damage: 10 };
+    const damages = [state.damage];
+
+    // 'side' is a single-edge bounce — `bulletBounce.ts:108` reserves 'corner'
+    // for the both-axes case, which is the shortcut straight to stage 3.
+    state = bounceGummy(state, 'side');
+    damages.push(state.damage);
+    state = bounceGummy(state, 'side');
+    damages.push(state.damage);
+
+    // The mechanic, pinned beside the visual it drives — x1, x3, x4.
+    expect(damages).toEqual([10, 30, 40]);
+    expect(state.stage).toBe(3);
+    expect(PROJECTILE_VARIANTS.BulletGummyBear[state.stage - 1]).toBeDefined();
   });
 });

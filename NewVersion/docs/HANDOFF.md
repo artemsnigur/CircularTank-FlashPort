@@ -494,6 +494,17 @@ things that are actually open.
   **texture**, so a 4× raster would have drawn flames four times too large. The
   fix is to stay absolute — `setDisplaySize(authored × scale)` — which is
   resolution-independent, so changing the raster scale moves nothing.
+- **Projectile art, pass (c) — partly landed (T87).** **Only 3 of the 7
+  multi-shape classes animate.** Two checks agree: no sprite carries a `stop()`
+  frame action, so a clip loops unless the AS3 pins it — and `BulletFire`,
+  `BulletGummyBear` and both ground hazards are pinned with `gotoAndStop`
+  (`:3798`, `:3828`, `:1806`). Those four are wired as **selection**, not
+  animation; animating them would have invented motion. `BulletGummyBear` was
+  checked first because a green→yellow→red bullet that hits identically would
+  mislead: the AS3 scales damage x1/x3/x4 by bounce stage and **the port already
+  had the mechanic** — this closed a visual-only gap. `BulletBomb` + `ObjectMine`
+  (two-layer composites) and `BulletLaser` (drawn as a line primitive, not a
+  sprite) are deferred — `BACKLOG.md` M1.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four

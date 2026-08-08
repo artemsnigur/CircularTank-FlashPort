@@ -35,12 +35,16 @@
  * the gap between them is satisfied by making the visual honest rather than by
  * inflating it further.
  *
- * ── One shape per class, for now ──────────────────────────────────────────
- * Seven sprites place several shapes across their timeline (`BulletBomb` puts
- * 10 across 16 frames). This emits the **first** placement — frame 1 — as the
- * representative. Animation is deliberately a separate pass: `BulletBomb`'s
- * frames are a visible countdown, and choosing how to drive that is a decision
- * rather than a transcription.
+ * ── Frames: selected, not played ─────────────────────────────────────────
+ * Seven sprites place several shapes, and only three of them animate. The other
+ * four are pinned by `gotoAndStop` — see `VARIANT_CLASSES` — so their frames go
+ * out as `PROJECTILE_VARIANTS`, an ordered list the caller picks from using the
+ * state that drives the choice.
+ *
+ * `PROJECTILE_ART` still carries frame 1 for every class, which is what the
+ * three genuinely animated ones (`BulletBomb`, `ObjectMine`, `BulletLaser`)
+ * draw until their pass lands. Those three are multi-layer composites, which is
+ * why they are not here yet.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -76,6 +80,31 @@ const shapesDir = join(sourceRoot, 'shapes');
  */
 const RASTER_SCALE = 4;
 
+/**
+ * Classes whose frames the AS3 *selects* rather than plays.
+ *
+ * None of these animate. Flash would loop them — no sprite in this file carries
+ * a `stop()` frame action — but the AS3 pins each one with `gotoAndStop`, so the
+ * frames are a set of alternatives, not a sequence:
+ *
+ *   BulletFire        `:3798`  gotoAndStop(round(random * 2 + 1))  1 of 3, at spawn
+ *   BulletGummyBear   `:3828`  frame 1, then +1 per wall bounce (`:1953`,
+ *                              `:1974`) and 3 on a corner (`:2003`) — the
+ *                              bounce stage, which also scales damage
+ *   ObjectGroundIce   `:1806`  gotoAndStop(round(random * 2 + 1))  1 of 3, at spawn
+ *   ObjectGroundLava  `:1806`  same call
+ *
+ * Emitting them as an ordered list keeps the choice at the call site, where the
+ * state that drives it lives. Animating them instead would invent motion the
+ * original does not have.
+ */
+const VARIANT_CLASSES = new Set([
+  'BulletFire',
+  'BulletGummyBear',
+  'ObjectGroundIce',
+  'ObjectGroundLava',
+]);
+
 /** Authored width/height straight off the SVG root element. */
 function nativeSize(shapeId) {
   const file = join(shapesDir, `${shapeId}.svg`);
@@ -92,6 +121,7 @@ function nativeSize(shapeId) {
 const round = (n) => Number(n.toFixed(2));
 
 const classes = [];
+const variants = [];
 const shapeFiles = new Map();
 const problems = [];
 
@@ -133,6 +163,35 @@ for (const [className, spriteId] of Object.entries(PROJECTILE_SPRITES)) {
       height: round(native.height * RASTER_SCALE),
     });
   }
+
+  // Selectable frames, for the classes the AS3 pins with `gotoAndStop`. Each
+  // frame carries its own size: the shapes differ, and so can their matrices.
+  if (VARIANT_CLASSES.has(className)) {
+    const frames = [];
+    for (const frameShape of new Set(sprite.places)) {
+      const frameNative = nativeSize(frameShape);
+      if (frameNative === null) {
+        problems.push(`${className}: variant shape ${frameShape} has no readable svg`);
+        continue;
+      }
+      const [fx, fy] = sprite.scales?.[frameShape] ?? [1, 1];
+      const frameKey = `projectile-${frameShape}`;
+      frames.push({
+        key: frameKey,
+        width: round(frameNative.width * fx),
+        height: round(frameNative.height * fy),
+      });
+      if (!shapeFiles.has(frameShape)) {
+        shapeFiles.set(frameShape, {
+          key: frameKey,
+          file: `${frameShape}.svg`,
+          width: round(frameNative.width * RASTER_SCALE),
+          height: round(frameNative.height * RASTER_SCALE),
+        });
+      }
+    }
+    variants.push({ className, frames });
+  }
 }
 
 if (problems.length > 0) {
@@ -147,6 +206,18 @@ const artRows = classes.map(
     ` // sprite ${c.spriteId} -> shape ${c.shapeId}` +
     (c.shapeCount > 1 ? `, 1 of ${c.shapeCount} across ${c.frames} frames` : ''),
 );
+
+// Built with explicit joins rather than nested template literals: a nested
+// backtick inside an outer one is where three escaping slips came from this
+// session, and this file is generated code generating generated code.
+const variantRows = variants
+  .map((entry) => {
+    const frames = entry.frames
+      .map((f) => `    { key: '${f.key}', width: ${f.width}, height: ${f.height} },`)
+      .join('\n');
+    return `  ${entry.className}: [\n${frames}\n  ],`;
+  })
+  .join('\n');
 
 const fileRows = [...shapeFiles.values()]
   .sort((a, b) => a.key.localeCompare(b.key))
@@ -185,6 +256,21 @@ export interface ProjectileArt {
  */
 export const PROJECTILE_ART: Readonly<Record<string, ProjectileArt>> = Object.freeze({
 ${artRows.join('\n')}
+});
+
+/**
+ * Frames the caller chooses between, for the classes the AS3 pins with
+ * \`gotoAndStop\` rather than playing.
+ *
+ * Ordered as the SWF places them, so index 0 is frame 1. **Not an animation**:
+ * \`BulletFire\` and both ground patches pick one at random on spawn
+ * (\`PartGameArea.as:3798\`, \`:1806\`), and \`BulletGummyBear\`'s index is its
+ * bounce stage (\`:3828\`, \`:1953\`, \`:2003\`) — the same stage that scales its
+ * damage x1 / x3 / x4.
+ */
+export const PROJECTILE_VARIANTS: Readonly<Record<string, readonly ProjectileArt[]>> =
+  Object.freeze({
+${variantRows}
 });
 
 /** One raster per distinct shape, for the preloader. */

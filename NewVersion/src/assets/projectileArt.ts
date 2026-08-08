@@ -55,6 +55,40 @@ export const PROJECTILE_ART: Readonly<Record<string, ProjectileArt>> = Object.fr
   ObjectGroundLava: { key: 'projectile-1134', width: 39.95, height: 40 }, // sprite 1137 -> shape 1134, 1 of 3 across 3 frames
 });
 
+/**
+ * Frames the caller chooses between, for the classes the AS3 pins with
+ * `gotoAndStop` rather than playing.
+ *
+ * Ordered as the SWF places them, so index 0 is frame 1. **Not an animation**:
+ * `BulletFire` and both ground patches pick one at random on spawn
+ * (`PartGameArea.as:3798`, `:1806`), and `BulletGummyBear`'s index is its
+ * bounce stage (`:3828`, `:1953`, `:2003`) — the same stage that scales its
+ * damage x1 / x3 / x4.
+ */
+export const PROJECTILE_VARIANTS: Readonly<Record<string, readonly ProjectileArt[]>> =
+  Object.freeze({
+  BulletFire: [
+    { key: 'projectile-218', width: 34, height: 34 },
+    { key: 'projectile-219', width: 38, height: 34 },
+    { key: 'projectile-220', width: 34, height: 38 },
+  ],
+  BulletGummyBear: [
+    { key: 'projectile-222', width: 21, height: 11.6 },
+    { key: 'projectile-223', width: 21, height: 11.6 },
+    { key: 'projectile-224', width: 21, height: 11.6 },
+  ],
+  ObjectGroundIce: [
+    { key: 'projectile-1138', width: 40, height: 40 },
+    { key: 'projectile-1139', width: 40, height: 40 },
+    { key: 'projectile-1140', width: 40, height: 40 },
+  ],
+  ObjectGroundLava: [
+    { key: 'projectile-1134', width: 39.95, height: 40 },
+    { key: 'projectile-1135', width: 39.95, height: 40 },
+    { key: 'projectile-1136', width: 40, height: 40 },
+  ],
+});
+
 /** One raster per distinct shape, for the preloader. */
 export const PROJECTILE_SHAPE_FILES: readonly {
   key: string;
@@ -63,14 +97,22 @@ export const PROJECTILE_SHAPE_FILES: readonly {
   height: number;
 }[] = Object.freeze([
   { key: 'projectile-1134', file: '1134.svg', width: 159.8, height: 160 },
+  { key: 'projectile-1135', file: '1135.svg', width: 159.8, height: 160 },
+  { key: 'projectile-1136', file: '1136.svg', width: 160, height: 160 },
   { key: 'projectile-1138', file: '1138.svg', width: 160, height: 160 },
+  { key: 'projectile-1139', file: '1139.svg', width: 160, height: 160 },
+  { key: 'projectile-1140', file: '1140.svg', width: 160, height: 160 },
   { key: 'projectile-1176', file: '1176.svg', width: 52.2, height: 67.6 },
   { key: 'projectile-1178', file: '1178.svg', width: 52.2, height: 67.6 },
   { key: 'projectile-1180', file: '1180.svg', width: 52.2, height: 67.6 },
   { key: 'projectile-213', file: '213.svg', width: 108.4, height: 69.2 },
   { key: 'projectile-215', file: '215.svg', width: 64, height: 12 },
   { key: 'projectile-218', file: '218.svg', width: 136, height: 136 },
+  { key: 'projectile-219', file: '219.svg', width: 152, height: 136 },
+  { key: 'projectile-220', file: '220.svg', width: 136, height: 152 },
   { key: 'projectile-222', file: '222.svg', width: 84, height: 46.4 },
+  { key: 'projectile-223', file: '223.svg', width: 84, height: 46.4 },
+  { key: 'projectile-224', file: '224.svg', width: 84, height: 46.4 },
   { key: 'projectile-226', file: '226.svg', width: 47, height: 47 },
   { key: 'projectile-237', file: '237.svg', width: 84, height: 66 },
   { key: 'projectile-239', file: '239.svg', width: 44, height: 35 },

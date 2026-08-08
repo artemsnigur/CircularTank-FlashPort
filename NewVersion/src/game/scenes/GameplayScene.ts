@@ -96,7 +96,7 @@ import { healedTo, isInHealRange } from '../enemies/enemyHealing';
 import { canFireHook } from '../enemies/enemyGrapple';
 import { flameBurnSounds } from '../audio/burningLoop';
 import { impactFeedback } from '../enemies/damageTypes';
-import { PROJECTILE_ART } from '../../assets/projectileArt';
+import { PROJECTILE_ART, PROJECTILE_VARIANTS } from '../../assets/projectileArt';
 import {
   createExplosion,
   explosionSound,
@@ -2466,9 +2466,15 @@ export class GameplayScene extends Phaser.Scene {
     // radius rather than the art's authored size: a lava patch **grows**
     // (`:7057`), so its clip is scaled at runtime in the original too, and a
     // fixed authored size would freeze it.
-    const hazardArt = PROJECTILE_ART[hazard.type === 'Ice' ? 'ObjectGroundIce' : 'ObjectGroundLava'];
+    // `:1806` — one of three frames at random, plus a random rotation. Not an
+    // animation: the AS3 pins the frame with `gotoAndStop` and leaves it, so
+    // this is scatter for a field of patches rather than motion.
+    const hazardVariants =
+      PROJECTILE_VARIANTS[hazard.type === 'Ice' ? 'ObjectGroundIce' : 'ObjectGroundLava'];
+    const hazardArt = hazardVariants[Math.floor(Math.random() * hazardVariants.length)];
     const sprite = this.add
       .image(hazard.x, hazard.y, hazardArt.key)
+      .setRotation(Math.random() * Math.PI * 2)
       .setDisplaySize(hazard.radius * 2, hazard.radius * 2)
       .setDepth(HAZARD_DEPTH);
 
