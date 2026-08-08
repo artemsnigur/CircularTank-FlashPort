@@ -143,8 +143,8 @@ export function attachStoreBridge(): () => void {
     useGameStore.setState({ gameplayOptions: options });
   });
 
-  on('audio:options', ({ soundOn, musicOn }) => {
-    useGameStore.getState().setAudioOptions({ soundOn, musicOn });
+  on('audio:options', ({ soundOn, musicOn, soundVol, musicVol }) => {
+    useGameStore.getState().setAudioOptions({ soundOn, musicOn, soundVol, musicVol });
   });
 
   on('difficulty:changed', ({ difficulty, hintPending }) => {

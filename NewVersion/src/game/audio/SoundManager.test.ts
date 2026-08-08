@@ -489,4 +489,67 @@ describe('continuous loops', () => {
     }
     expect(backend.loopVolume.FlameThrower).toBeCloseTo(0.25, 6);
   });
+
+  /**
+   * **Muting silences a running loop.** Found in T83 while porting the volume
+   * sliders, and it was a live defect: `handleLoops` scaled by `soundVol` and
+   * never consulted `soundOn`.
+   *
+   * The AS3 gets away with the same expression because `ScreenOptions.as:251-254`
+   * forces `soundVol = 0` whenever sound is off — the invariant is structural
+   * there, since slider and toggle are one control. This port keeps the two
+   * independent, so transcribing the expression dropped the guarantee with it.
+   * Harmless until T80 gave the loops their first callers; reachable the moment
+   * a player muted mid-flamethrower.
+   *
+   * **Driven as a pair on one manager, and that is what makes it worth
+   * anything.** `soundOn = false` alone is satisfied by a backend that never
+   * receives a volume at all, or by a loop that failed to start; asserting the
+   * *same* loop is audible again when sound comes back rules both out. The two
+   * assertions bracket one continuous run — no re-creation between them.
+   */
+  it('silences a running loop while muted, and restores it', () => {
+    const m = makeManager();
+    const run = (): void => {
+      for (let i = 0; i < 10; i += 1) {
+        m.keepLoopAlive('Burning');
+        m.update(FRAME);
+      }
+    };
+
+    run();
+    expect(backend.loopVolume.Burning, 'audible before mute').toBeCloseTo(1, 6);
+
+    m.soundOn = false;
+    run();
+    expect(backend.loopVolume.Burning, 'silent while muted').toBe(0);
+
+    m.soundOn = true;
+    run();
+    expect(backend.loopVolume.Burning, 'audible again after unmute').toBeCloseTo(1, 6);
+  });
+
+  /**
+   * The counterpart to the counterpart: muting must not tear the channel down.
+   *
+   * `ScreenOptions` mutes by zeroing the volume, not by stopping the sound, so
+   * the loop's own state machine keeps running. A fix that called `stopLoop`
+   * would pass the test above and restart the loop from silence on unmute — an
+   * audible click, and a different behaviour from the original.
+   */
+  it('mutes by volume, not by stopping the channel', () => {
+    const m = makeManager();
+    for (let i = 0; i < 10; i += 1) {
+      m.keepLoopAlive('Burning');
+      m.update(FRAME);
+    }
+    m.soundOn = false;
+    for (let i = 0; i < 10; i += 1) {
+      m.keepLoopAlive('Burning');
+      m.update(FRAME);
+    }
+
+    expect(backend.of('stopLoop'), 'still running, just silent').toHaveLength(0);
+    expect(backend.of('startLoop'), 'never restarted').toHaveLength(1);
+  });
 });

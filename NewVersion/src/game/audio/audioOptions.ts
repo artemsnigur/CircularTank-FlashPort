@@ -42,6 +42,34 @@ export const DEFAULT_AUDIO_OPTIONS: AudioOptions = {
   musicVol: 1,
 };
 
+/**
+ * ── OPEN AND UNDECIDED: the slider ↔ toggle coupling (`ScreenOptions.as:233-278`)
+ *
+ * In the AS3 these four fields are **not** independent. Each slider and its
+ * on/off button are one control, reconciled every frame:
+ *
+ *   `:235-244`  while dragging: `soundOn = (sliderValue != 0)`
+ *   `:246-249`  not dragging, `vol == 0` and on  -> slider jumps to **1**
+ *   `:251-254`  not dragging, `vol > 0` and off  -> slider forced to **0**
+ *
+ * So the original has no "muted but volume remembered" state at all: turning
+ * sound off zeroes the volume, and turning it back on restores it to *full*,
+ * not to what the player had chosen.
+ *
+ * **This port keeps them independent, and that is the shipped behaviour** — the
+ * toggle changes `soundOn` and leaves the volume alone. Adopting `:251-254`
+ * would discard a chosen volume on every mute, and it would do so from the HUD
+ * and the main menu, where `AudioToggles` renders but no slider is visible. The
+ * original always reconciled with the slider on screen.
+ *
+ * That is a behaviour decision about a control that already ships and persists,
+ * so it is **not being made here**. See `docs/HANDOFF.md` §5.
+ *
+ * One thing the coupling *did* provide has been replaced explicitly rather than
+ * left to chance: it guaranteed `soundVol == 0` whenever sound was off, which is
+ * why the AS3 never gates a loop on `soundOn`. `SoundManager.handleLoops` now
+ * applies that gate itself — see the comment there.
+ */
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 export function readAudioOptions(store: SaveStore): AudioOptions {

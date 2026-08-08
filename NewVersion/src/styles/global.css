@@ -1335,6 +1335,38 @@ code {
   border-style: dashed;
 }
 
+/* ── Volume sliders — SliderObject.as, one per channel ────────────────────
+   A grid rather than flex so both readouts line up under each other however
+   wide the labels are; the middle column takes the slack. */
+.volume-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.volume-slider {
+  display: grid;
+  grid-template-columns: 4rem 1fr 3rem;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.75rem;
+}
+.volume-slider__input {
+  /* min-width: 0 so the track can shrink inside the grid track rather than
+     forcing the row wider than its container on a narrow phone. */
+  min-width: 0;
+  width: 100%;
+  accent-color: currentcolor;
+  cursor: pointer;
+}
+.volume-slider__readout {
+  text-align: right;
+  /* Tabular figures stop the row twitching as the percentage changes width
+     while dragging. */
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
 /* ── Bestiary — the player-facing enemy list ──────────────────────────────
    Locked rows stay in place rather than being hidden: the gaps are the point,
    and a list that grows in the middle reads as progress. Only the name and

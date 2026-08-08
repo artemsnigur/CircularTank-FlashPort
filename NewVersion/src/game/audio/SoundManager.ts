@@ -416,7 +416,26 @@ export class SoundManager {
       }
 
       if (loop.active) {
-        this.backend.setLoopVolume(id, loop.volume * SOUND_MULTIPLIER * this.soundVol);
+        // `soundOn` has to be applied here explicitly, and the reason is a
+        // guarantee this port does not inherit.
+        //
+        // The AS3 never checks it on a loop, and does not need to: `ScreenOptions`
+        // forces `soundVol = 0` whenever sound is off (`:251-254`), so the
+        // multiplication below is already zero. That invariant is *structural*
+        // there — slider and toggle are one control.
+        //
+        // This port keeps `soundOn` and `soundVol` independent, so the invariant
+        // is gone and transcribing the AS3 expression leaves the loops audible
+        // through a mute. Harmless while nothing drove a loop; **T80 wired the
+        // Flamethrower and Burning loops, which made it reachable** — mute the
+        // game mid-flamethrower and the loop keeps playing.
+        //
+        // Multiplying by zero rather than stopping the channel keeps the state
+        // machine identical to the AS3's: the loop still starts, ramps and
+        // decays, it is simply silent. See `audioOptions.ts` for the coupling
+        // question this leaves open.
+        const soundScale = this.soundOn ? this.soundVol : 0;
+        this.backend.setLoopVolume(id, loop.volume * SOUND_MULTIPLIER * soundScale);
       }
 
       // AS3 clears the play flags at the end of handleLoops, making them

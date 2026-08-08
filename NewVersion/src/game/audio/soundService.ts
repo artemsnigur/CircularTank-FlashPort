@@ -13,6 +13,7 @@
  */
 import Phaser from 'phaser';
 import { GameEvents } from '../events/GameEvents';
+import type { GameEventMap } from '../events/GameEvents';
 import { SoundManager } from './SoundManager';
 import { PhaserAudioBackend } from './PhaserAudioBackend';
 import {
@@ -94,17 +95,30 @@ export function getSoundManager(scene: Phaser.Scene): SoundManager | null {
  */
 export function setAudioOption(
   scene: Phaser.Scene,
-  change: { soundOn?: boolean; musicOn?: boolean },
+  // Taken from the event map rather than restated, so adding a field to
+  // `ui:set-audio` is a compile error here instead of a silently ignored key.
+  change: GameEventMap['ui:set-audio'],
 ): void {
   const installed = scene.game.registry.get(SOUND_REGISTRY_KEY) as Installed | undefined;
   if (!installed) return;
 
   if (change.soundOn !== undefined) installed.manager.soundOn = change.soundOn;
   if (change.musicOn !== undefined) installed.manager.musicOn = change.musicOn;
+  // Clamped here rather than trusted from the caller — `SliderObject.as:46-55`
+  // clamps at the control, but this is a bus event and anything can emit it.
+  if (change.soundVol !== undefined) installed.manager.soundVol = clamp01(change.soundVol);
+  if (change.musicVol !== undefined) installed.manager.musicVol = clamp01(change.musicVol);
 
   installed.saveOptions();
   publishAudioOptions(scene);
 }
+
+const clamp01 = (value: number): number => {
+  // NaN would sail through Math.max/min and poison every later multiplication,
+  // so it is mapped to 0 rather than propagated.
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+};
 
 /** Pushes the current preferences to React. */
 export function publishAudioOptions(scene: Phaser.Scene): void {
@@ -113,5 +127,7 @@ export function publishAudioOptions(scene: Phaser.Scene): void {
   GameEvents.emit('audio:options', {
     soundOn: manager.soundOn,
     musicOn: manager.musicOn,
+    soundVol: manager.soundVol,
+    musicVol: manager.musicVol,
   });
 }

@@ -25,6 +25,7 @@
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 import { AudioToggles } from '../AudioToggles';
+import { VolumeSliders } from '../VolumeSliders';
 import type { GameplayOptions } from '../../game/options/gameplayOptions';
 
 /** Label and explanation per preference, in `ScreenOptions`' own order. */
@@ -85,6 +86,12 @@ export function OptionsScreen(): React.ReactElement | null {
       <section className="options__audio">
         <h3 className="options__subtitle">Sound</h3>
         <AudioToggles />
+        {/*
+          `ScreenOptions.as:38`, `:62` — the options screen is where the AS3 puts
+          both sliders. The toggles sit here *and* in the HUD, which is why they
+          are a separate component and these are not.
+        */}
+        <VolumeSliders />
       </section>
     </div>
   );

@@ -310,6 +310,7 @@ be checked against a second mode on the same build before it is believed.
 
 | Item | Needs |
 |---|---|
+| **Volume slider ↔ mute toggle coupling. OPEN AND UNDECIDED — flagged T83, not guessed at.** | The volume sliders shipped (T83, `SliderObject.as`). What did **not** ship is `ScreenOptions.as:233-278`, where each slider and its on/off button are **one control**, reconciled every frame: `:235-244` dragging sets `soundOn = (vol != 0)`; `:246-249` on-with-vol-0 jumps the slider to **1**; `:251-254` off forces the slider to **0**. **The original therefore has no "muted but volume remembered" state** — unmuting restores *full* volume, not the player's setting. This port keeps them independent, which is the behaviour that already ships and persists. Adopting `:251-254` would discard a chosen volume on every mute, **and would do it from the HUD and main menu, where `AudioToggles` renders with no slider visible** — the original always reconciled with the slider on screen. That is a behaviour decision about a shipped, persisted control, so it was left alone. **Consequence of not deciding:** volume 0 with sound *on* is now reachable and silent — conventional, but a state the AS3 does not have. Full analysis at `audio/audioOptions.ts` |
 | **Sound: 16 silent in the sweep — 14 need no code, 1 is blocked, 1 is permanent** | `--sound-sweep` reports **50–51 of 67** (T80; three runs on the final harness gave 50, 50, 51, with `ReflectBullet`/`TankDamaged`/`TankEnemyCollision` swinging). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
 
 ### The 16 silent sounds, individually
@@ -428,6 +429,22 @@ things that are actually open.
   The entry's own *"~557 → ~353"* was wrong and reconciles with nothing; do not
   reuse it. Full rationale and the measurement table in `BACKLOG.md`. **Revisit
   only by reopening the definition deliberately.**
+- **Volume sliders** — shipped (T83). `SliderObject.as` is a **continuous** 0..1
+  with no step or snap (`:58`), clamped at both ends (`:48`, `:53`); the only
+  `Math.round` in the class is on the *button's pixel x* (`:36`), not the value,
+  so `step="any"` is the faithful spelling and any tidy 0.05 step would be wrong.
+  Wired through the existing `ui:set-audio` → `setAudioOption` → `audio:options`
+  path, so the control shows what the engine holds. **Scoping it found a live
+  defect** — see the next entry. The toggle coupling was *not* ported and is
+  flagged in the queue above.
+- **Mute did not silence the Flamethrower/Burning loops** — fixed (T83).
+  `handleLoops` scaled by `soundVol` and never consulted `soundOn`. The AS3 needs
+  no such check because `ScreenOptions.as:251-254` forces `soundVol = 0` when
+  sound is off — **an invariant this port dropped when it made the two fields
+  independent**, so the transcribed expression lost a guarantee that was never
+  written down. Latent until T80 gave the loops their first callers. This is the
+  "a guarantee is only worth what enforces it" rule arriving from a new
+  direction: the enforcement lived in the *original's UI*, not in its audio code.
 - **`L4`** — fixed structurally (T64), not written down harder. See trap 10.
 - **The countdown's presentation** — landed (T68). The panel (`:303-308`), the
   digit steps, the fade-and-slide (`:713-721`, 20 frames and 30, all four

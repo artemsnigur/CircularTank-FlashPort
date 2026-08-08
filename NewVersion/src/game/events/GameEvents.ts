@@ -392,10 +392,20 @@ export interface GameEventMap {
   };
   'ui:goto': { key: SceneKey };
   /**
-   * Flip sound or music on/off. Persisted to CircularTankOptions, the AS3's
-   * own options SharedObject — see audio/audioOptions.ts.
+   * Flip sound or music on/off, or set either volume. Persisted to
+   * CircularTankOptions, the AS3's own options SharedObject — see
+   * audio/audioOptions.ts.
+   *
+   * Volumes are `SliderObject.sliderValue` (`SliderObject.as:58`): a
+   * **continuous** 0..1 with no step or snap, clamped at both ends (`:48`,
+   * `:53`). A partial, so a control names only what it changed.
    */
-  'ui:set-audio': { soundOn?: boolean; musicOn?: boolean };
+  'ui:set-audio': {
+    soundOn?: boolean;
+    musicOn?: boolean;
+    soundVol?: number;
+    musicVol?: number;
+  };
   /**
    * Set one gameplay preference — `ScreenOptions`' checkboxes.
    *
@@ -408,7 +418,13 @@ export interface GameEventMap {
   /** The achievements board, published by its scene. */
   'achievements:listed': AchievementListing;
   /** The current preferences, so React can render the toggles. */
-  'audio:options': { soundOn: boolean; musicOn: boolean };
+  'audio:options': {
+    soundOn: boolean;
+    musicOn: boolean;
+    /** 0..1, continuous — `SliderObject.as:58`. */
+    soundVol: number;
+    musicVol: number;
+  };
   /**
    * Choose the difficulty. Persisted to CircularTankOptions beside the volume
    * settings, as `SaveManager.as:793` has it — it is a preference, not progress.

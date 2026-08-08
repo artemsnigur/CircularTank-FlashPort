@@ -185,8 +185,14 @@ export interface GameState {
   /* Diagnostics */
   viewport: ViewportSnapshot | null;
   safeArea: SafeAreaInsets;
-  /** Sound/music preferences, mirrored from SoundManager for the HUD toggles. */
-  audioOptions: { soundOn: boolean; musicOn: boolean };
+  /**
+   * Sound/music preferences, mirrored from SoundManager for the HUD toggles and
+   * the options-screen sliders.
+   *
+   * `soundVol`/`musicVol` are `SliderObject.sliderValue` — continuous 0..1, no
+   * step (`SliderObject.as:58`).
+   */
+  audioOptions: { soundOn: boolean; musicOn: boolean; soundVol: number; musicVol: number };
   /** `ScreenOptions`' six checkboxes. See game/options/gameplayOptions.ts. */
   gameplayOptions: GameplayOptions;
   /** The achievements board. Distinct from `achievements`, which is toasts. */
@@ -240,7 +246,12 @@ export interface GameState {
   dismissAchievement: (id: string) => void;
   setViewport: (viewport: ViewportSnapshot) => void;
   setSafeArea: (insets: SafeAreaInsets) => void;
-  setAudioOptions: (options: { soundOn: boolean; musicOn: boolean }) => void;
+  setAudioOptions: (options: {
+    soundOn: boolean;
+    musicOn: boolean;
+    soundVol: number;
+    musicVol: number;
+  }) => void;
   setDifficulty: (state: { difficulty: Difficulty; hintPending: boolean }) => void;
   setFonts: (fonts: FontReport[]) => void;
   setAudioReport: (report: AudioSelfTestReport | null) => void;
@@ -284,7 +295,8 @@ export const useGameStore = create<GameState>()((set) => ({
 
   viewport: null,
   safeArea: NO_INSETS,
-  audioOptions: { soundOn: true, musicOn: true },
+  // `SaveManager.as:831-834` — the reset defaults, matching DEFAULT_AUDIO_OPTIONS.
+  audioOptions: { soundOn: true, musicOn: true, soundVol: 1, musicVol: 1 },
   gameplayOptions: { ...DEFAULT_GAMEPLAY_OPTIONS },
   achievementBoard: null,
   difficulty: DEFAULT_DIFFICULTY,
