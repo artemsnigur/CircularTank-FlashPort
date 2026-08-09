@@ -4156,6 +4156,8 @@ export class GameplayScene extends Phaser.Scene {
 
       this.banking = bankLevelOutcome(this.profile, {
         sandbox: this.sandbox,
+        // `ScreenStatus.as:512` gates the level guide's re-point on this.
+        autoSelect: readGameplayOptions(getOptionsStore(this)).autoSelect,
         upgrades: this.upgrades,
         currency: this.currency,
         world: this.world,

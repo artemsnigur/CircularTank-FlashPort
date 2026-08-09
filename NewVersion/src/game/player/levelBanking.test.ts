@@ -57,6 +57,7 @@ describe('a real run writes', () => {
 
     const wrote = bankLevelOutcome(profile, {
       sandbox: false,
+      autoSelect: true,
       upgrades: richUpgrades(),
       currency: 4321,
       world: 1,
@@ -75,6 +76,7 @@ describe('a real run writes', () => {
   it('persists the money, the result and where the player was', () => {
     bankLevelOutcome(profile, {
       sandbox: false,
+      autoSelect: true,
       upgrades: richUpgrades(),
       currency: 4321,
       world: 1,
@@ -109,6 +111,7 @@ describe('a sandbox run writes nothing', () => {
 
     const wrote = bankLevelOutcome(profile, {
       sandbox: true,
+      autoSelect: true,
       upgrades: richUpgrades(),
       currency: 999_999,
       world: 7,
@@ -129,6 +132,7 @@ describe('a sandbox run writes nothing', () => {
     // than against the empty string.
     bankLevelOutcome(profile, {
       sandbox: false,
+      autoSelect: true,
       upgrades: richUpgrades(),
       currency: 500,
       world: 1,
@@ -145,6 +149,7 @@ describe('a sandbox run writes nothing', () => {
     // Now a dev jump into a world the player has never reached, with a fortune.
     bankLevelOutcome(profile, {
       sandbox: true,
+      autoSelect: true,
       upgrades: richUpgrades(),
       currency: 999_999,
       world: 9,
@@ -162,6 +167,7 @@ describe('a sandbox run writes nothing', () => {
   it('does not invent progress in a world the player never reached', () => {
     bankLevelOutcome(profile, {
       sandbox: false,
+      autoSelect: true,
       upgrades: richUpgrades(),
       currency: 500,
       world: 1,
@@ -175,6 +181,7 @@ describe('a sandbox run writes nothing', () => {
 
     bankLevelOutcome(profile, {
       sandbox: true,
+      autoSelect: true,
       upgrades: richUpgrades(),
       currency: 999_999,
       world: 9,
@@ -197,6 +204,7 @@ describe('a sandbox run writes nothing', () => {
     // winning. A sandbox loss must still write nothing.
     bankLevelOutcome(profile, {
       sandbox: false,
+      autoSelect: true,
       upgrades: richUpgrades(),
       currency: 500,
       world: 1,
@@ -211,6 +219,7 @@ describe('a sandbox run writes nothing', () => {
 
     bankLevelOutcome(profile, {
       sandbox: true,
+      autoSelect: true,
       upgrades: richUpgrades(),
       currency: 7,
       world: 1,
@@ -230,6 +239,7 @@ describe('a sandbox run writes nothing', () => {
 
     bankLevelOutcome(profile, {
       sandbox: true,
+      autoSelect: true,
       upgrades: richUpgrades(),
       currency: 999_999,
       world: 9,
@@ -286,6 +296,7 @@ describe('an equipped dev run cannot leak into the shop', () => {
     const granted = maxedUpgradeState(profile.upgrades.money);
     bankLevelOutcome(profile, {
       sandbox: true,
+      autoSelect: true,
       upgrades: granted,
       currency: 999_999,
       world: 9,
@@ -313,5 +324,56 @@ describe('an equipped dev run cannot leak into the shop', () => {
     expect(getLevel(reloaded.upgrades, cannon)).toBe(1);
     // Everything else is still at its starting level, i.e. not maxed.
     expect(getLevel(reloaded.upgrades, findUpgradeById('BigCannon')!)).toBe(0);
+  });
+});
+
+describe('the level guide follows a finished level only when auto-select is on', () => {
+  /**
+   * `ScreenStatus.as:512-515` — `if (LevelGuide.autoSelect)` re-points the
+   * guide at the upcoming level; the `else` branch only refreshes bounds.
+   *
+   * **Driven as a pair on the same win**, because either half alone passes for
+   * the wrong reason: a build that always re-points satisfies the first
+   * assertion, and one that never does satisfies the second. The port shipped
+   * the "never" version for one commit and it looked entirely plausible — the
+   * guide simply sat a level behind with "Previous" lit.
+   */
+  const win = (autoSelect: boolean) => {
+    const { profile } = freshProfile();
+    bankLevelOutcome(profile, {
+      sandbox: false,
+      autoSelect,
+      upgrades: richUpgrades(),
+      currency: 1234,
+      world: 1,
+      level: 1,
+      difficulty: 'Easy',
+      hp: 100,
+      levelRecord: { mode: 'Normal', completed: true, flags: {} as never },
+      kills: 10,
+      earned: 100,
+    });
+    return profile;
+  };
+
+  it('re-points at the upcoming level when on', () => {
+    const guide = win(true).levelGuide;
+    expect(guide.type).toBe('Upcoming');
+    // 1-1 cleared, so upcoming is 1-2 — and the bound moved with it.
+    expect({ world: guide.selectedWorld, level: guide.selectedLevel }).toEqual({
+      world: 1,
+      level: 2,
+    });
+  });
+
+  it('leaves the selection alone when off', () => {
+    const guide = win(false).levelGuide;
+    expect({ world: guide.selectedWorld, level: guide.selectedLevel }).toEqual({
+      world: 1,
+      level: 1,
+    });
+    // The bounds still move — they are derived from progress on every read,
+    // which is the `else` branch's `setMaxWorld`/`setMaxLevel`.
+    expect(guide.maxLevel).toBe(2);
   });
 });

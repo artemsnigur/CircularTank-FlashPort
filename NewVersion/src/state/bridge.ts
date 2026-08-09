@@ -91,6 +91,10 @@ export function attachStoreBridge(): () => void {
     store.getState().setShop(catalogue);
   });
 
+  on('level-guide:changed', (guide) => {
+    store.getState().setLevelGuide(guide);
+  });
+
   on('bestiary:listed', (listing) => {
     store.getState().setBestiary(listing);
   });

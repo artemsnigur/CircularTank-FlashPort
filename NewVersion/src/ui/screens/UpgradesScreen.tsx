@@ -12,6 +12,7 @@ import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 import { formatNumber } from '../../game/core/Functions';
 import { useInfoText } from '../useInfoText';
+import { LevelGuideWidget } from '../LevelGuideWidget';
 import { siteCorner } from '../../game/ui/infoTextSites';
 import { UPGRADE_DESCRIPTIONS } from '../../game/upgrades/upgradeDescriptionData';
 
@@ -189,6 +190,11 @@ export function UpgradesScreen(): React.ReactElement | null {
           ◉ {formatNumber(shop?.money ?? 0)}
         </span>
       </header>
+
+      {/* `ScreenUpgrades.as:631-634` places the guide inside the shop's own
+          content holder, below the rows. Ours sits under the header so it is
+          visible without scrolling a 28-row catalogue. */}
+      <LevelGuideWidget />
 
       {rows.length === 0 ? (
         <p className="screen__hint">Loading…</p>

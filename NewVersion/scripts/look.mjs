@@ -60,6 +60,7 @@ function parseArgs(argv) {
     if (argv[i] === '--tooltips') args.tooltips = true;
     if (argv[i] === '--resistances') args.resistances = true;
     if (argv[i] === '--next-level') args.nextLevel = true;
+    if (argv[i] === '--level-guide') args.levelGuide = true;
   }
   return args;
 }
@@ -456,6 +457,175 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.levelGuide) {
+  /**
+   * The level guide widget on the shop screen — `LevelGuide.as`.
+   *
+   * Drives the arrows and presets and **reads the state back after each
+   * press**, because the widget's whole job is a number that changes: a
+   * screenshot of "World 1 / Level 1" is identical whether the arrows work or
+   * are inert.
+   */
+  const read = () =>
+    page.evaluate(() => {
+      const el = globalThis.document.querySelector('.level-guide');
+      if (!el) return null;
+      const values = [...el.querySelectorAll('.level-guide__value')].map((v) => v.textContent);
+      const arrows = [...el.querySelectorAll('.guide-arrow')].map((b) => ({
+        name: b.getAttribute('aria-label'),
+        on: !b.disabled,
+      }));
+      const presets = [...el.querySelectorAll('.guide-preset')].map((b) => ({
+        name: b.getAttribute('aria-label'),
+        on: b.getAttribute('aria-pressed') === 'true',
+      }));
+      const imgs = [...el.querySelectorAll('img')];
+      return {
+        values,
+        arrows,
+        presets,
+        auto: el.querySelector('.guide-auto')?.getAttribute('aria-pressed'),
+        art: `${imgs.filter((i) => i.naturalWidth > 0).length}/${imgs.length} images loaded`,
+      };
+    });
+
+  const show = (label, s) => {
+    if (!s) { console.log(`[guide] ${label}: NO WIDGET`); return; }
+    console.log(`[guide] ${label}: ${s.values.join(' / ')}  auto=${s.auto}  ${s.art}`);
+    console.log(`[guide]   arrows  ${s.arrows.map((a) => `${a.name}=${a.on ? 'on' : 'off'}`).join('  ')}`);
+    console.log(`[guide]   presets ${s.presets.map((p) => `${p.name}=${p.on ? 'ON' : 'off'}`).join('  ')}`);
+  };
+
+  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /upgrades/i }).first().click({ timeout: 4000 });
+  await delay(900);
+
+  show('fresh profile', await read());
+  await shot('guide-fresh');
+
+  // Every arrow is at a bound on a fresh profile, so pressing one must do
+  // nothing — the counterpart to the presses below. A widget whose arrows moved
+  // here would be ignoring the bounds entirely.
+  await page.getByRole('button', { name: /next level$/i }).first().click().catch(() => {});
+  show('after a bounded press', await read());
+
+  // The info tooltip — `ButtonLevelGuideInfo.as:64`, the AllEnemiesInLevel type.
+  const info = page.locator('.guide-info');
+  if ((await info.count()) > 0) {
+    const b = await info.first().boundingBox();
+    await page.mouse.move(Math.round(b.x + b.width / 2), Math.round(b.y + b.height / 2));
+    await delay(500);
+    const tip = await page.evaluate(() => {
+      const el = globalThis.document.querySelector('.info-text');
+      if (!el) return null;
+      return {
+        summary: (el.querySelector('.info-text__run--body')?.textContent ?? '').split('\n'),
+        rows: el.querySelectorAll('.enemy-line').length,
+      };
+    });
+    console.log(`[guide] info tooltip: ${tip ? `${tip.rows} enemy rows` : 'NONE'}`);
+    if (tip) for (const line of tip.summary) console.log(`[guide]   ${line}`);
+    await shot('guide-info');
+  }
+
+  // The auto-select toggle, driven both ways.
+  const auto = page.locator('.guide-auto').first();
+  await auto.click();
+  await delay(300);
+  show('auto toggled off', await read());
+  await auto.click();
+  await delay(300);
+  show('auto toggled back on', await read());
+  await shot('guide-auto');
+
+  // ── With progress ────────────────────────────────────────────────────────
+  // A fresh profile has `maxWorld = 1, maxLevel = 1`, so **every arrow is
+  // correctly disabled** and the run above proves nothing about them moving.
+  // Fourth time this trap has come up in this arc; clear 1-1 so the level
+  // arrows have somewhere to go, then drive them.
+  await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await delay(1200);
+  const slotBtn = page.getByRole('button', { name: /new game|slot 1/i });
+  if ((await slotBtn.count()) > 0) {
+    await slotBtn.first().click();
+    await delay(1200);
+  }
+  await page
+    .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+    .catch(() => console.log('[look] warning: countdown never reported done'));
+  await page.keyboard.down('d');
+  await delay(600);
+  await page.keyboard.up('d');
+  await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+  await page.mouse.down();
+  let won = false;
+  for (let i = 0; i < 300 && !won; i += 1) {
+    const a = await page.evaluate(() => globalThis.__arena ?? null);
+    const t = a?.enemies?.[0];
+    if (t) await page.mouse.move(t.screen.x, t.screen.y);
+    await delay(120);
+    won = await page.evaluate(
+      () => globalThis.document.querySelector('.level-outcome__actions') !== null,
+    );
+  }
+  await page.mouse.up();
+  await delay(400);
+
+  await page.getByRole('button', { name: /menu/i }).last().click().catch(() => {});
+  await delay(900);
+  await page.getByRole('button', { name: /upgrades/i }).first().click({ timeout: 4000 }).catch(() => {});
+  await delay(900);
+
+  show('after clearing 1-1', await read());
+  await shot('guide-progress');
+
+  // Now drive the level arrows, both directions, reading back each time.
+  const press = async (label, name) => {
+    await page.getByRole('button', { name }).first().click().catch(() => {});
+    await delay(250);
+    show(label, await read());
+  };
+  await press('level right', /^Next level$/i);
+  await press('level right again (at bound)', /^Next level$/i);
+  await press('level left', /^Previous level$/i);
+  await shot('guide-arrows');
+
+  // ── The four PartInfoText sites this widget owns ─────────────────────────
+  // Each is read back by *text*, not by "a panel appeared": the three presets
+  // carry three different fixed strings and the auto-select one names its own
+  // state, so a wiring mistake that pointed them all at one string would look
+  // identical in a screenshot.
+  const tipText = () =>
+    page.evaluate(() => globalThis.document.querySelector('.info-text')?.textContent ?? null);
+
+  const hoverTip = async (label, locator) => {
+    const el = locator.first();
+    if ((await el.count()) === 0) { console.log(`[guide] tooltip ${label}: NO TARGET`); return; }
+    const b = await el.boundingBox();
+    await page.mouse.move(Math.round(b.x + b.width / 2), Math.round(b.y + b.height / 2));
+    await delay(450);
+    const t = await tipText();
+    console.log(`[guide] tooltip ${label}: ${t ? JSON.stringify(t.slice(0, 64)) : 'NONE'}`);
+    // Move off so the keep-alive drops it before the next hover.
+    await page.mouse.move(5, 5);
+    await delay(200);
+  };
+
+  await hoverTip('preset Previous', page.getByRole('button', { name: /select previous level/i }));
+  await hoverTip('preset Upcoming', page.getByRole('button', { name: /select upcoming level/i }));
+  await hoverTip('preset Last', page.getByRole('button', { name: /select last level/i }));
+  await hoverTip('auto-select', page.locator('.guide-auto'));
+  await shot('guide-tooltips');
+
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
 }
 
 if (args.nextLevel) {

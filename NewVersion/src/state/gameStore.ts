@@ -15,6 +15,7 @@
 import { create } from 'zustand';
 import type { AchievementListing } from '../game/achievements/achievementListing';
 import type { ResistanceBadge } from '../game/enemies/resistanceIcons';
+import type { GameEventMap } from '../game/events/GameEvents';
 import { DEFAULT_GAMEPLAY_OPTIONS } from '../game/options/gameplayOptions';
 import type { GameplayOptions } from '../game/options/gameplayOptions';
 import type { Difficulty, SceneKey } from '../game/config/constants';
@@ -199,6 +200,8 @@ export interface GameState {
   /** The shop catalogue, published by UpgradesScene. */
   shop: ShopCatalogue | null;
   bestiary: BestiaryListing | null;
+  /** The shop's level guide widget — `LevelGuide.as`. */
+  levelGuide: GameEventMap['level-guide:changed'] | null;
 
   /** Where the Play button resumes from, published by MainMenuScene. */
   resumePoint: { world: number; level: number } | null;
@@ -262,6 +265,7 @@ export interface GameState {
   setSlotPickerOpen: (open: boolean) => void;
   setShop: (shop: ShopCatalogue) => void;
   setBestiary: (bestiary: BestiaryListing) => void;
+  setLevelGuide: (guide: GameEventMap['level-guide:changed']) => void;
   setResumePoint: (point: { world: number; level: number }) => void;
   pushAchievement: (toast: AchievementToast) => void;
   dismissAchievement: (id: string) => void;
@@ -302,6 +306,7 @@ const initialRunState = {
   slotPickerOpen: false,
   shop: null as ShopCatalogue | null,
   bestiary: null as BestiaryListing | null,
+  levelGuide: null as GameEventMap['level-guide:changed'] | null,
   resumePoint: null as { world: number; level: number } | null,
 };
 
@@ -354,6 +359,7 @@ export const useGameStore = create<GameState>()((set) => ({
   setSlotPickerOpen: (slotPickerOpen) => set({ slotPickerOpen }),
   setShop: (shop) => set({ shop }),
   setBestiary: (bestiary) => set({ bestiary }),
+  setLevelGuide: (levelGuide) => set({ levelGuide }),
   setResumePoint: (resumePoint) => set({ resumePoint }),
 
   pushAchievement: (toast) =>

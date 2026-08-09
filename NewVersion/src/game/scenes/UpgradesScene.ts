@@ -32,6 +32,10 @@ import { SceneKeys } from '../config/constants';
 import { GameEvents } from '../events/GameEvents';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import { getPlayerProfile } from '../player/playerProfile';
+import { setGameplayOption } from '../options/optionsService';
+import { getOptionsStore } from '../save/optionsStore';
+import { readGameplayOptions } from '../options/gameplayOptions';
+import { canStep, isPresetActive, stepLevelGuide } from '../levels/levelGuide';
 import { MAX_UPGRADE_LEVEL } from '../upgrades/upgradeData';
 import { isPurchasable, purchasableUpgrades, withheldUpgrades } from '../upgrades/purchasable';
 import {
@@ -77,6 +81,7 @@ export class UpgradesScene extends Phaser.Scene {
       .setAlpha(0.25);
 
     this.publishCatalogue();
+    this.publishLevelGuide();
 
     const offBuy = GameEvents.subscribe('ui:buy-upgrade', ({ id }) => this.buy(id));
     const offEquipPrimary = GameEvents.subscribe('ui:equip-primary', ({ slot, id }) =>
@@ -91,6 +96,25 @@ export class UpgradesScene extends Phaser.Scene {
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.Upgrades) this.scene.start(key);
     });
+    const offStep = GameEvents.subscribe('ui:level-guide-step', ({ axis, direction }) =>
+      this.stepGuide(axis, direction),
+    );
+    const offPreset = GameEvents.subscribe('ui:level-guide-preset', ({ type }) => {
+      getPlayerProfile(this).applyLevelGuideType(type);
+      this.publishLevelGuide();
+    });
+    const offAuto = GameEvents.subscribe('ui:level-guide-autoselect', ({ on }) => {
+      // Through `setGameplayOption`, not a direct store write: it persists,
+      // flushes and republishes `options:changed` so the Options screen's own
+      // checkbox stays in step. A second write path here would let the two
+      // views of one preference disagree.
+      setGameplayOption(this, { autoSelect: on });
+      // `LevelGuide.as:199-208` — turning it on re-points the guide at the
+      // upcoming level immediately; turning it off leaves the selection where
+      // it is and only stops it following from here.
+      if (on) getPlayerProfile(this).applyLevelGuideType('Upcoming');
+      this.publishLevelGuide();
+    });
     const onResize = (): void => {
       const c = getViewportController(this);
       if (c) applyViewportToScene(this, c.current);
@@ -104,6 +128,9 @@ export class UpgradesScene extends Phaser.Scene {
       offEquipSecondary();
       offGrant();
       offGoto();
+      offStep();
+      offPreset();
+      offAuto();
       GameEvents.off('viewport:changed', onResize);
       GameEvents.emit('scene:shutdown', { key: SceneKeys.Upgrades });
     });
@@ -112,6 +139,49 @@ export class UpgradesScene extends Phaser.Scene {
   }
 
   /** Everything the shop rows need, computed from the ported rules. */
+  /**
+   * Publishes everything the widget draws — `LevelGuide.updateAllButtons`
+   * (`:218-227`), which the AS3 calls after any change.
+   *
+   * The scene resolves the bounds and the per-button states; React renders
+   * them. Nothing in the view recomputes a bound, because the bounds are counts
+   * over the progress table and a second implementation is exactly how this
+   * kind of thing drifts.
+   */
+  private publishLevelGuide(): void {
+    const profile = getPlayerProfile(this);
+    const state = profile.levelGuide;
+    const previous = profile.previousLevel;
+
+    GameEvents.emit('level-guide:changed', {
+      selectedWorld: state.selectedWorld,
+      selectedLevel: state.selectedLevel,
+      maxWorld: state.maxWorld,
+      maxLevel: state.maxLevel,
+      type: state.type,
+      autoSelect: readGameplayOptions(getOptionsStore(this)).autoSelect,
+      presetActive: {
+        Previous: isPresetActive(state, previous, 'Previous'),
+        Upcoming: isPresetActive(state, previous, 'Upcoming'),
+        Last: isPresetActive(state, previous, 'Last'),
+      },
+      canStep: {
+        worldLeft: canStep(state, 'World', 'Left'),
+        worldRight: canStep(state, 'World', 'Right'),
+        levelLeft: canStep(state, 'Level', 'Left'),
+        levelRight: canStep(state, 'Level', 'Right'),
+      },
+    });
+  }
+
+  /** One arrow press — the rule lives in `levelGuide.ts`. */
+  private stepGuide(axis: 'World' | 'Level', direction: 'Left' | 'Right'): void {
+    const profile = getPlayerProfile(this);
+    const next = stepLevelGuide(profile.levelGuide, profile.progress, axis, direction);
+    profile.setLevelGuideSelection(next.selectedWorld, next.selectedLevel);
+    this.publishLevelGuide();
+  }
+
   private publishCatalogue(): void {
     const profile = getPlayerProfile(this);
     const state = profile.upgrades;

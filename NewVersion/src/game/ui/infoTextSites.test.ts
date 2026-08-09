@@ -138,6 +138,10 @@ describe('the table covers the source', () => {
       'ButtonUpgradeInfo.as:163',
       'IconStrongWeak.as:48',
       'ButtonNextLevel.as:208',
+      'ButtonLevelGuideInfo.as:64',
+      'ButtonLevelGuideSelect.as:81',
+      'ButtonLevelGuideAutoSelect.as:38',
+      'ButtonLevelGuideAutoSelect.as:104',
       'Achievement.as:99',
     ]);
     // Every unwired row must carry a reason — a blank note is the "documented

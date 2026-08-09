@@ -36,6 +36,8 @@ import type { ProgressTable } from '../levels/levelProgress';
  */
 export interface BankingTarget {
   setUpgrades(next: UpgradeState): void;
+  /** `updateVariables` — re-points the level guide. */
+  applyLevelGuideType(type: 'Previous' | 'Upcoming' | 'Last'): void;
   recordLevel(
     world: number,
     level: number,
@@ -57,6 +59,14 @@ export interface BankingTarget {
 export interface LevelBankingInput {
   /** A dev run. Nothing is written. See `ui:start-game`. */
   sandbox: boolean;
+  /**
+   * `LevelGuide.autoSelect` — whether the level guide follows progress.
+   *
+   * Passed in rather than read from the options store here, because this
+   * module is a pure function over a `BankingTarget` and its tests drive it
+   * with a stub. Reading a store would make it need a scene.
+   */
+  autoSelect: boolean;
   /** The upgrade state to persist money against. */
   upgrades: UpgradeState;
   /**
@@ -163,6 +173,19 @@ export function bankLevelOutcome(
     }),
     input.difficulty,
   );
+
+  // ── Re-point the level guide, if it is following ─────────────────────────
+  // `ScreenStatus.as:512-515`: on a finished level, `if (LevelGuide.autoSelect)`
+  // sets `type = "Upcoming"` and re-derives; otherwise it only refreshes the
+  // bounds, which this port does on every read anyway. `ScreenGame.as:359-360`
+  // does the same on level *start*.
+  //
+  // **Found by driving it, not by reading the code.** The widget landed with
+  // its events wired and this call missing, so clearing 1-1 left the guide
+  // pointing at 1-1 with "Previous" lit — a plausible-looking state that is
+  // simply a level behind, and one no unit test of the state model could see
+  // because the model was correct and nothing called it.
+  if (input.autoSelect) profile.applyLevelGuideType('Upcoming');
 
   profile.save();
   return { written: true, newAchievements, newEnemies, medals };

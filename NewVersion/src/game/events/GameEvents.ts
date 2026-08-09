@@ -357,6 +357,45 @@ export interface GameEventMap {
    * count at all. `knownBestiary` alone cannot express that, which is why this
    * carries every entry with a `known` flag rather than just the known ones.
    */
+  /**
+   * The level guide widget on the shop screen — `LevelGuide.as`.
+   *
+   * Everything the widget draws, resolved by the scene. React sends intents
+   * back (`ui:level-guide-*`) and never computes a bound itself: the bounds are
+   * counts over the progress table (`levelGuide.ts`), and a second
+   * implementation in the view is how the shop's next-level arithmetic went
+   * wrong once already.
+   */
+  'level-guide:changed': {
+    selectedWorld: number;
+    selectedLevel: number;
+    maxWorld: number;
+    maxLevel: number;
+    /** Which preset rule is in force — `LevelGuide.type` (`:21`). */
+    type: 'Previous' | 'Upcoming' | 'Last';
+    /** `:19`, persisted in the options store. */
+    autoSelect: boolean;
+    /** Per-preset, because two can be lit at once — see `isPresetActive`. */
+    presetActive: { Previous: boolean; Upcoming: boolean; Last: boolean };
+    /** Per-arrow enablement — `ButtonLevelGuideArrow.updateState` (`:74-112`). */
+    canStep: {
+      worldLeft: boolean;
+      worldRight: boolean;
+      levelLeft: boolean;
+      levelRight: boolean;
+    };
+  };
+
+  /** An arrow press — `ButtonLevelGuideArrow.changeValue` (`:196-237`). */
+  'ui:level-guide-step': {
+    axis: 'World' | 'Level';
+    direction: 'Left' | 'Right';
+  };
+  /** A preset press — `ButtonLevelGuideSelect.onPressHandler` (`:66-67`). */
+  'ui:level-guide-preset': { type: 'Previous' | 'Upcoming' | 'Last' };
+  /** The auto-select toggle — `ButtonLevelGuideAutoSelect`. */
+  'ui:level-guide-autoselect': { on: boolean };
+
   'bestiary:listed': {
     entries: Array<{
       /** Stat-table id — the stable key. */

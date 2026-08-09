@@ -1857,3 +1857,49 @@ code {
   font-size: var(--text-3xs);
   color: var(--accent);
 }
+
+/* The level guide — LevelGuide.as, on the shop screen.
+   Panel chrome from the design system; button art from the extraction. See
+   LevelGuideWidget.tsx for why the two are mixed. */
+.level-guide {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  align-self: center;
+  padding: var(--space-2) var(--space-4);
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.level-guide__rows { display: flex; flex-direction: column; gap: 2px; }
+.level-guide__row { display: flex; align-items: center; gap: 0.35rem; }
+.level-guide__value {
+  min-width: 5.2rem;
+  text-align: center;
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.level-guide__buttons { display: flex; align-items: center; gap: 0.35rem; }
+
+/* One clip frame: layers stacked in a fixed box, so layout does not wait on
+   image load — the same reason the enemy rows size their art in CSS. */
+.guide-clip { position: relative; display: inline-block; flex: none; }
+.guide-clip img { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.guide-arrow,
+.guide-preset,
+.guide-auto {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+}
+.guide-arrow:disabled { cursor: default; opacity: 0.45; }
+.guide-preset:hover:not(:disabled),
+.guide-auto:hover,
+.guide-arrow:hover:not(:disabled) { border-color: var(--border); }
+.guide-preset--on,
+.guide-auto--on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.guide-info { display: inline-flex; padding: 2px; }

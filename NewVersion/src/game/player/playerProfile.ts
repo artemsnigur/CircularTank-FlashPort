@@ -40,6 +40,8 @@ import { isHintDone, markHintDone } from '../onboarding/mainFlags';
 import type { MainFlags, UiHintId } from '../onboarding/mainFlags';
 import type { TutorialState } from '../tutorial/tutorialState';
 import type { ProgressTable } from '../levels/levelProgress';
+import { levelGuideSelection, maxLevelFor } from '../levels/levelGuide';
+import type { LevelGuideState, LevelGuideType, PreviousLevel } from '../levels/levelGuide';
 import type { Difficulty } from '../config/constants';
 
 export const PROFILE_REGISTRY_KEY = 'playerProfile';
@@ -161,8 +163,77 @@ export class PlayerProfile {
    */
   private visible: ProgressTable;
 
+  /**
+   * The level guide's selection — `LevelGuide`'s statics (`:11-21`).
+   *
+   * **Session-only, exactly like `visible`.** `SaveManager.as:660-664` resets
+   * `type`, `selectedWorld`, `selectedLevel`, `maxWorld` and `maxLevel` on a
+   * new game and never serialises them; only `autoSelect` is persisted, and
+   * that lives in the *options* store (`:843`, `:857`), not in a save slot. So
+   * this is derived state that happens to need a home outliving one scene,
+   * which is the same shape as the visible table and gets the same treatment.
+   *
+   * `type` is the rule; the world/level are what that rule most recently
+   * produced. Both are kept because the arrows move the selection away from
+   * the preset without changing which preset is notionally in force.
+   */
+  private guide: { type: LevelGuideType; selectedWorld: number; selectedLevel: number } = {
+    type: 'Upcoming',
+    selectedWorld: 1,
+    selectedLevel: 1,
+  };
+
   get visibleProgress(): ProgressTable {
     return this.visible;
+  }
+
+  /** The level guide's live state, resolved against current progress. */
+  get levelGuide(): LevelGuideState & { type: LevelGuideType } {
+    const previous = this.previousLevel;
+    const bounds = levelGuideSelection(this.guide.type, this.progress, previous);
+    return {
+      type: this.guide.type,
+      maxWorld: bounds.maxWorld,
+      maxLevel: maxLevelFor(this.progress, this.guide.selectedWorld),
+      selectedWorld: this.guide.selectedWorld,
+      selectedLevel: this.guide.selectedLevel,
+    };
+  }
+
+  /** What the guide's `Upcoming`/`Previous` rules read — `:67-68`. */
+  get previousLevel(): PreviousLevel {
+    const ls = this.data.levelSelect;
+    return {
+      world: ls.previousWorld || 1,
+      level: ls.previousLevel || 1,
+      won: ls.previousLevelWon,
+    };
+  }
+
+  /**
+   * Re-resolves the guide from its rule — `updateVariables` (`:119-139`).
+   *
+   * Called when a preset is pressed and whenever a level ends
+   * (`ScreenGame.as:359-360`, `ScreenStatus.as:512-515`).
+   */
+  applyLevelGuideType(type: LevelGuideType): void {
+    const next = levelGuideSelection(type, this.progress, this.previousLevel);
+    this.guide = {
+      type,
+      selectedWorld: next.selectedWorld,
+      selectedLevel: next.selectedLevel,
+    };
+  }
+
+  /**
+   * Moves the selection directly — the arrows, and pass (e)'s write-back from
+   * a manual level-select click (`ScreenLevelSelect.as:988`, `:1326`).
+   *
+   * Leaves `type` alone: the AS3's arrows never touch it, so the preset
+   * buttons keep re-deriving whether they still match (`isPresetActive`).
+   */
+  setLevelGuideSelection(world: number, level: number): void {
+    this.guide = { ...this.guide, selectedWorld: world, selectedLevel: level };
   }
 
   /**
