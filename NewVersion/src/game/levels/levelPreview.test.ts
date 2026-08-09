@@ -195,8 +195,18 @@ describe('the whole preview for a named level', () => {
       ['Shooting', 'LVL 1', '31.6%', false],
     ]);
 
-    // The boss row draws the boss clip, which is a *different* shape from the
-    // ordinary one — the two `Basic` rows must not resolve to the same art.
+    // ── A boss row draws the BOSS clip. This is a deliberate divergence ────
+    // **`A9`, and it is not the enemyType-stripping bug it looks like.**
+    // `PartInfoText.as:271` builds `new Enemy<enemyType>` where `enemyType` had
+    // its level character stripped at `:249`, so a `"BasicB"` row draws
+    // `EnemyBasic` — the *ordinary* art. `ImageEnemy.as:57-145` has no boss
+    // branch either. This port draws `EnemyBasicBoss` instead, by decision:
+    // a boss row reads better with boss art.
+    //
+    // Kept here as an assertion **because it would otherwise look like a slip
+    // to fix**: someone reading `:249` and then this file would reasonably
+    // conclude the level char had been forgotten. It was found, checked, and
+    // kept. See `A9` in the audit before changing it.
     expect(preview.rows[0].shape).toBe(enemyShape('Basic', true));
     expect(preview.rows[2].shape).toBe(enemyShape('Basic', false));
     expect(preview.rows[0].shape).not.toBe(preview.rows[2].shape);

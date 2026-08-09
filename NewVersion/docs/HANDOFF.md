@@ -447,6 +447,20 @@ cover it would have been scope creep. `buttonSounds.test.ts` now excludes
 `role="tooltip"` explicitly, with the AS3 line saying why the panel itself is
 correctly silent.
 
+### Boss art in roster previews — intentional (`A9`)
+
+A boss row in any roster preview draws the **boss** clip. The AS3 draws the
+ordinary enemy's art there: `PartInfoText.as:249` strips the level character
+before `:271` builds `Enemy<type>`, and `ImageEnemy.as:57-145` has no boss
+branch. **Kept by decision** — a Boss level whose boss row looks identical to
+its ordinary rows buries the one fact the preview exists to convey.
+
+Filed as `A9` because it looks like a slip: follow `:249` and the port's
+`enemyShape(enemy.type, isBoss)` reads as a forgotten strip. It was found in
+T104's scoping, checked against both AS3 sites, and kept. The assertion in
+`levelPreview.test.ts` carries the same warning, since that is where someone
+would stand while "fixing" it.
+
 ### PartInfoText is closed — 9 wired, 0 deferred (T104)
 
 `infoTextSites.ts` now reads **9 wired / 4 redundant / 7 no-consumer / 0
