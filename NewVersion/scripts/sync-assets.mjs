@@ -23,6 +23,7 @@ import { PROJECTILE_SPRITE_IDS } from './lib/projectile-sprites.mjs';
 import { ICON_SPRITE_IDS } from './lib/icon-sprites.mjs';
 import { LEVEL_GUIDE_SPRITE_IDS } from './lib/level-guide-sprites.mjs';
 import { ENEMY_TILE_SPRITE_IDS } from './lib/enemy-tile-sprites.mjs';
+import { achievementSymbols } from './lib/achievement-sprites.mjs';
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 
@@ -411,6 +412,13 @@ for (const id of shapeIdsForSprites(ENEMY_TILE_SPRITE_IDS)) {
   CURATED_SHAPES.add(`${id}.svg`);
 }
 
+/**
+ * The 36 achievement icons — derived from the `[Embed]` lines rather than
+ * hand-listed; see `achievement-sprites.mjs`. Resolved against `sourceRoot`,
+ * which is settled below, so this runs after the args are parsed.
+ */
+const achievementSpriteIds = () => Object.values(achievementSymbols(sourceRoot));
+
 function parseArgs(argv) {
   const args = { source: null, all: false, force: false, dryRun: false };
   for (let i = 0; i < argv.length; i += 1) {
@@ -436,6 +444,12 @@ if (!existsSync(sourceRoot)) {
       'Pass --source <dir> or set SWF_IMPORTED_DIR.',
   );
   process.exit(1);
+}
+
+// Added here rather than beside the other sprite sets: this one reads the AS3
+// to derive its ids, so it needs `sourceRoot`, which is only settled above.
+for (const id of shapeIdsForSprites(achievementSpriteIds())) {
+  CURATED_SHAPES.add(`${id}.svg`);
 }
 
 const destRoot = resolve(projectRoot, 'src/assets');

@@ -15,24 +15,26 @@
  * against the source lines; a screen that opens the wrong way now needs two
  * edits that disagree, not one that drifts.
  *
- * ── The reachable surface is 8 sites, not 20 ──────────────────────────────
- * Step 1 was scoped as "14 core + 2 rich text". The count is right about the
- * AS3 and wrong about this port: of the 14 plain-text sites, **two** have a
- * live consumer here — the shop row and, since step 2, the bestiary's
- * resistance badges. Four are icon buttons whose tooltip is the button's own
- * name, which this port renders as a visible text label; the rest hang off
- * screens or features that are not ported (Credits, Armor Games online saves)
- * or are deferred (Level Guide, `EnemyStrengthsWeaknesses`).
+ * ── The reachable surface is 9 of 20, and nothing is deferred ─────────────
+ * Step 1 was scoped as "14 core + 2 rich text". That count is right about the
+ * AS3 and was never right about this port. As of T104 the table is settled:
  *
- * That is recorded per row rather than in a report, because the person who
- * builds the Credits screen is the one who needs it, and `status` says exactly
- * what each is waiting on.
+ *   **9 wired** — shop rows, bestiary badges, next-level preview, the Level
+ *     Guide's four, and both `Achievement` branches.
+ *   **4 redundant** — icon buttons whose tooltip is the button's own name,
+ *     which this port renders as a visible label.
+ *   **7 no-consumer** — Credits and Armor Games online saves are not ported;
+ *     `ImageEnemy` x2 need per-enemy tiles in a *selected-level* panel, and
+ *     this port has no selection step (divergence `A8`).
+ *   **0 deferred** — nothing is waiting on unbuilt work any more. What is left
+ *     is waiting on decisions already made.
  *
- * **Since T102 the Level Guide's four sites are wired**, so what remains is
- * four `redundant` rows, five with no consumer, and three deferred on two
- * dependencies: a level-select enemy roster (`ImageEnemy` x2, plus
- * `addStrengthsAndWeaknessIcons`' unported `"Normal"` branch) and the
- * level-complete status screen (`Achievement.as:103`).
+ * The one AS3 branch still unported behind this is
+ * `addStrengthsAndWeaknessIcons`' `"Normal"` mode (`:446-453`), reachable only
+ * from `EnemyStrengthsWeaknesses` and therefore only from `ImageEnemy`.
+ *
+ * Recorded per row rather than in a report, because the person who builds the
+ * Credits screen is the one who needs it.
  */
 
 /** `:168` — `changeText(theText, left, top, specialType, p1, p2)`. */
@@ -89,6 +91,18 @@ export const INFO_TEXT_SITES: readonly InfoTextSite[] = Object.freeze([
   { source: 'ButtonLevelGuideAutoSelect.as:38', showLeft: false, showTop: false, status: 'wired', note: 'The auto-select toggle. Stateful text — names Enabled/Disabled (`:60`, `:64`).' },
   { source: 'ButtonLevelGuideAutoSelect.as:104', showLeft: false, showTop: false, status: 'wired', note: 'The same tooltip re-asserted from the roll-over branch; one component covers both.' },
   {
+    source: 'Achievement.as:103',
+    showLeft: false,
+    showTop: false,
+    special: 'Achievement',
+    status: 'wired',
+    // The `onStatusScreen` branch — the achievement reveal page's icon.
+    // **Built for completeness despite duplicating the page text**: the AS3
+    // page shows the title only, so its tooltip is the sole way to read the
+    // description; ours already shows it. Not an oversight — do not remove.
+    note: 'Achievement reveal page icon — Hud.tsx AchievementReveal. Duplicates page text by decision.',
+  },
+  {
     source: 'Achievement.as:99',
     showLeft: true,
     showTop: false,
@@ -113,19 +127,8 @@ export const INFO_TEXT_SITES: readonly InfoTextSite[] = Object.freeze([
   { source: 'ButtonConvertSave.as:78', showLeft: true, showTop: true, status: 'no-consumer', note: 'Armor Games online saves are not ported.' },
 
   // ── Deferred, with the thing each waits on ──────────────────────────────
-  { source: 'ImageEnemy.as:174', showLeft: false, showTop: false, special: 'EnemyStrengthsWeaknesses', status: 'deferred', note: 'PartInfoText step 2. `right`/`bottom` are initialised false at ImageEnemy.as:168-169 and never reassigned.' },
-  { source: 'ImageEnemy.as:178', showLeft: false, showTop: false, special: 'EnemyStrengthsWeaknesses', status: 'deferred', note: 'Same, with " Boss" appended to the name.' },
-  {
-    source: 'Achievement.as:103',
-    showLeft: false,
-    showTop: false,
-    special: 'Achievement',
-    status: 'deferred',
-    // The *other* branch of the same `if`, and the reason `:99` alone is not
-    // the whole story: on the end-of-level status screen the same cell opens
-    // the opposite way horizontally.
-    note: 'The `onStatusScreen` branch — achievements are not shown on the level-complete screen yet.',
-  },
+  { source: 'ImageEnemy.as:174', showLeft: false, showTop: false, special: 'EnemyStrengthsWeaknesses', status: 'no-consumer', note: 'Needs per-enemy tiles in a selected-level panel; this port has no selection step — divergence A8. `right`/`bottom` are initialised false at :168-169.' },
+  { source: 'ImageEnemy.as:178', showLeft: false, showTop: false, special: 'EnemyStrengthsWeaknesses', status: 'no-consumer', note: 'Same, with " Boss" appended. T103 shows the roster on grid hover but has no per-enemy target, so it does not reach this.' },
 ]);
 
 /** Looks up a site's corner. Throws rather than defaulting: a silent fallback

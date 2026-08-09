@@ -62,6 +62,7 @@ function parseArgs(argv) {
     if (argv[i] === '--next-level') args.nextLevel = true;
     if (argv[i] === '--level-guide') args.levelGuide = true;
     if (argv[i] === '--grid-preview') args.gridPreview = true;
+    if (argv[i] === '--achievement-icon') args.achievementIcon = true;
   }
   return args;
 }
@@ -458,6 +459,104 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.achievementIcon) {
+  /**
+   * The achievement reveal page's icon and its tooltip — `Achievement.as:103`,
+   * the `onStatusScreen` branch.
+   *
+   * Needs a **real clear that earns an achievement**, which 1-1 does: clearing
+   * it earns `TopGun` (upgrade 1 primary weapon to level 10) only if upgrades
+   * were bought, but `Kills`/`Stars` thresholds and the first-clear
+   * achievements fire on an ordinary win. The reveal pages open on the newest
+   * page, so the achievement page is what the overlay shows first.
+   *
+   * Checked beyond a screenshot: the icon's layers must actually load (a clip
+   * that resolved to nothing renders an empty box, which looks like spacing),
+   * and the tooltip must carry the AS3's difficulty note — the line that
+   * distinguishes this composition from the one T99 shipped.
+   */
+  await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await delay(1200);
+  const slotA = page.getByRole('button', { name: /new game|slot 1/i });
+  if ((await slotA.count()) > 0) {
+    await slotA.first().click();
+    await delay(1200);
+  }
+  await page
+    .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+    .catch(() => console.log('[look] warning: countdown never reported done'));
+  await page.keyboard.down('d');
+  await delay(600);
+  await page.keyboard.up('d');
+  await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+  await page.mouse.down();
+  let done = false;
+  for (let i = 0; i < 300 && !done; i += 1) {
+    const a = await page.evaluate(() => globalThis.__arena ?? null);
+    const t = a?.enemies?.[0];
+    if (t) await page.mouse.move(t.screen.x, t.screen.y);
+    await delay(120);
+    done = await page.evaluate(
+      () => globalThis.document.querySelector('.level-outcome__actions, .achievement-icon') !== null,
+    );
+  }
+  await page.mouse.up();
+  await delay(600);
+
+  const icon = page.locator('.achievement-icon');
+  const count = await icon.count();
+  console.log(`[ach] achievement reveal pages showing an icon: ${count}`);
+
+  if (count === 0) {
+    console.log('[ach] no achievement page — the clear earned none, nothing to hover');
+    await shot('ach-no-page');
+  } else {
+    const info = await page.evaluate(() => {
+      const el = globalThis.document.querySelector('.achievement-icon');
+      const imgs = [...el.querySelectorAll('img')];
+      return {
+        name: el.getAttribute('aria-label'),
+        loaded: imgs.filter((i) => i.naturalWidth > 0).length,
+        layers: imgs.length,
+      };
+    });
+    console.log(`[ach] icon "${info.name}": ${info.loaded}/${info.layers} layers loaded`);
+    await shot('ach-page');
+
+    const b = await icon.first().boundingBox();
+    await page.mouse.move(Math.round(b.x + b.width / 2), Math.round(b.y + b.height / 2));
+    await delay(500);
+    const tip = await page.evaluate(() => {
+      const el = globalThis.document.querySelector('.info-text');
+      if (!el) return null;
+      return {
+        text: el.textContent,
+        runs: [...el.querySelectorAll('.info-text__run')].map((r) =>
+          (r.className.match(/info-text__run--(\w+)/) ?? [])[1],
+        ),
+      };
+    });
+    if (!tip) console.log('[ach] NO TOOLTIP on hover');
+    else {
+      console.log(`[ach] tooltip runs: ${tip.runs.join(', ')}`);
+      console.log(`[ach] tooltip text: ${JSON.stringify(tip.text)}`);
+      console.log(
+        /\(Difficulty (doesn't|matters)|Completed on (EASY|MEDIUM|HARD)\.\)/.test(tip.text)
+          ? '[ach] carries the AS3 difficulty note (correct)'
+          : '[ach] MISSING the difficulty note',
+      );
+    }
+    await shot('ach-tooltip');
+  }
+
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
 }
 
 if (args.gridPreview) {

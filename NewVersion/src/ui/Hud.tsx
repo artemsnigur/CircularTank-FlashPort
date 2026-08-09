@@ -25,6 +25,12 @@ import {
 } from '../game/waves/countdownPanel';
 import { showingToast } from '../game/achievements/toastQueue';
 import { previewForLevel } from '../game/levels/levelPreview';
+import { achievementFrame, achievementTooltip } from '../game/achievements/achievementTooltip';
+import { ACHIEVEMENT_CLIPS } from '../game/achievements/achievementArt';
+import { ACHIEVEMENT_PAGE_EARNED } from '../game/waves/statusPages';
+import { shapeUrl } from '../assets/registry';
+import { DIFFICULTY_RANK } from '../game/levels/levelProgress';
+import type { AchievementPage } from '../game/waves/statusPages';
 import { siteCorner } from '../game/ui/infoTextSites';
 import { useInfoText } from './useInfoText';
 import type { LevelRef } from '../game/levels/levelProgress';
@@ -297,6 +303,72 @@ function NextLevelButton({
   );
 }
 
+/**
+ * The Achievement reveal page — `ScreenStatus.as:962-1005`.
+ *
+ * ── The icon exists so the tooltip has something to hang on ───────────────
+ * `:1000-1004` places the achievement's own clip at (480, 374) with
+ * `onStatusScreen = true`, which is the **only** thing that flag does: it flips
+ * the panel's corner at `Achievement.as:103`. The AS3 page shows the *title*
+ * only (`:971`), so there the tooltip is the sole way to read the description.
+ *
+ * **This port already shows the description as page text, so the tooltip
+ * duplicates it — and it is built anyway, deliberately.** Recorded here so a
+ * later reader does not delete it as an oversight: it was added for port
+ * completeness with the duplication understood, not by accident.
+ *
+ * The text comes from `achievementTooltip`, the same function the achievements
+ * board uses, so the two screens cannot drift.
+ */
+function AchievementReveal({
+  page,
+  difficulty,
+}: {
+  page: AchievementPage;
+  difficulty: Difficulty;
+}): React.ReactElement {
+  // The page exists because this was just earned, and on this difficulty —
+  // `ScreenStatus.as:986-998` reads `levelDifficulty` for the same reason.
+  const earnedOn = DIFFICULTY_RANK[difficulty];
+  const state = {
+    ...page,
+    earned: ACHIEVEMENT_PAGE_EARNED,
+    difficulty: page.difficultyMatters ? earnedOn : null,
+  };
+  const tip = achievementTooltip(state);
+
+  const hover = useInfoText({
+    text: tip.text,
+    ...siteCorner('Achievement.as:103'),
+    titleLength: tip.titleLength,
+    noteLength: tip.noteLength,
+  });
+
+  const clip = ACHIEVEMENT_CLIPS[page.id];
+  // `achievementFrame` follows `thisState`; a clip whose achievement records no
+  // difficulty has only two frames, so the index is clamped to what exists.
+  const frame = Math.min(achievementFrame(state), clip?.frames.length ?? 1);
+  const layers = clip?.frames[frame - 1] ?? [];
+
+  return (
+    <>
+      <p className="level-outcome__eyebrow">New Achievement</p>
+      <h2 className="level-outcome__title">{page.title}</h2>
+
+      <span className="achievement-icon" role="img" aria-label={page.title} {...hover}>
+        {layers.map((shape) => (
+          <img key={shape} src={shapeUrl(`${shape}.svg`)} alt="" aria-hidden="true" />
+        ))}
+      </span>
+
+      <p className="level-outcome__body">{page.description}</p>
+      {page.difficultyMatters && (
+        <p className="level-outcome__note">Earned on {difficulty}</p>
+      )}
+    </>
+  );
+}
+
 function LevelOutcomeOverlay(): React.ReactElement | null {
   const outcome = useGameStore((s) => s.levelOutcome);
   const clearLevelOutcome = useGameStore((s) => s.clearLevelOutcome);
@@ -432,14 +504,7 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
       {revealsOpen && current && (
         <div className="level-outcome__reveal" role="dialog" aria-label="New unlocks">
           {current.type === 'Achievement' && (
-            <>
-              <p className="level-outcome__eyebrow">New Achievement</p>
-              <h2 className="level-outcome__title">{current.title}</h2>
-              <p className="level-outcome__body">{current.description}</p>
-              {current.difficultyMatters && (
-                <p className="level-outcome__note">Earned on {difficulty}</p>
-              )}
-            </>
+            <AchievementReveal page={current} difficulty={difficulty} />
           )}
 
           {current.type === 'Enemy' && (

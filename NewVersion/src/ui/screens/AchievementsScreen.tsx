@@ -28,6 +28,7 @@ import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 import { useInfoText } from '../useInfoText';
 import { siteCorner } from '../../game/ui/infoTextSites';
+import { achievementTooltip } from '../../game/achievements/achievementTooltip';
 import type { AchievementEntry } from '../../game/achievements/achievementListing';
 
 /** The extent of `achievementPlacementArray`, in AS3 stage units. */
@@ -52,23 +53,19 @@ const DIFFICULTY_LABEL: Record<number, string> = { 1: 'Easy', 2: 'Medium', 3: 'H
  * `onStatusScreen`) — a fixed corner per context, not a computed one.
  */
 function AchievementCell({ entry }: { entry: AchievementEntry }): React.ReactElement {
-  const note =
-    entry.earned && entry.difficultyMatters && entry.difficulty !== null
-      ? `
-
-(${DIFFICULTY_LABEL[entry.difficulty] ?? 'Earned'})`
-      : '';
-  const text = `${entry.title}
-${entry.description}${note}`;
+  // Composed by `achievementTooltip` — `Achievement.as:60-81` — which the
+  // status screen's icon also uses. One source, because the panel styles by
+  // character offset and two compositions could agree on the text and disagree
+  // on the ranges.
+  const tip = achievementTooltip(entry);
 
   // `Achievement.as:99` — the board branch. `:103` is the same cell on the
-  // level-complete status screen and opens the other way horizontally; both
-  // are recorded in `infoTextSites.ts`, and only this one has a consumer.
+  // level-complete status screen, opening the other way horizontally.
   const hover = useInfoText({
-    text,
+    text: tip.text,
     ...siteCorner('Achievement.as:99'),
-    titleLength: entry.title.length,
-    noteLength: note.length,
+    titleLength: tip.titleLength,
+    noteLength: tip.noteLength,
   });
 
   return (
@@ -82,8 +79,8 @@ ${entry.description}${note}`;
     >
       <h3 className="achievements__title">{entry.title}</h3>
       <p className="achievements__goal">{entry.description}</p>
-      {note !== '' && (
-        <p className="achievements__difficulty">{DIFFICULTY_LABEL[entry.difficulty!]}</p>
+      {entry.earned && entry.difficultyMatters && entry.difficulty !== null && (
+        <p className="achievements__difficulty">{DIFFICULTY_LABEL[entry.difficulty]}</p>
       )}
     </li>
   );

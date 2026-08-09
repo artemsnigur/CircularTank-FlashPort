@@ -1903,3 +1903,14 @@ code {
 .guide-preset--on,
 .guide-auto--on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .guide-info { display: inline-flex; padding: 2px; }
+
+/* The achievement reveal page's icon — ScreenStatus.as:1000-1004 places the
+   clip at (480, 374); here it sits in the page flow under the title. */
+.achievement-icon {
+  position: relative;
+  display: inline-block;
+  width: 64px;
+  height: 64px;
+  margin: var(--space-2) auto;
+}
+.achievement-icon img { position: absolute; inset: 0; width: 100%; height: 100%; }

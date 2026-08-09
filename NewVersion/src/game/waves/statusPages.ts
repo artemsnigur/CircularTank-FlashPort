@@ -50,6 +50,18 @@ export interface AchievementPage {
   difficultyMatters: boolean;
 }
 
+/**
+ * `Achievement.as:60-81` needs `earned` and the difficulty to compose its
+ * tooltip and pick its icon frame. On this screen both are known: the page only
+ * exists because the achievement was **just earned**, and the difficulty is the
+ * one the level was played on — `ScreenStatus.as:986-998` reads
+ * `ScreenLevelSelect.levelDifficulty` for exactly that.
+ *
+ * Derived at the render site rather than baked into the page, because the page
+ * is built before the results overlay knows which difficulty it is showing.
+ */
+export const ACHIEVEMENT_PAGE_EARNED = true;
+
 export interface EnemyPage {
   type: 'Enemy';
   /** Display name as `discoverEnemies` produced it — "Scared Ghost", not "ScaredGhost". */

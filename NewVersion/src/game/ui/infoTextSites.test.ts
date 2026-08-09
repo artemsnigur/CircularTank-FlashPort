@@ -142,6 +142,7 @@ describe('the table covers the source', () => {
       'ButtonLevelGuideSelect.as:81',
       'ButtonLevelGuideAutoSelect.as:38',
       'ButtonLevelGuideAutoSelect.as:104',
+      'Achievement.as:103',
       'Achievement.as:99',
     ]);
     // Every unwired row must carry a reason — a blank note is the "documented

@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T102**, commit `103c433`, 9 August 2026. Keep it current — it is
+Current as of **T104**, commit `b0bfd9b`, 9 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -28,7 +28,7 @@ TypeScript strict + Phaser 3.90 + Zustand + Vitest + Capacitor.
 - **`NewVersion/`** — the port. All npm commands run from here.
 
 **Gate on every commit:** `typecheck`, `lint`, `data:check`, `progress:check`,
-the full suite (**2851 tests, 149 files**), and `smoke`. Work that cannot land green is not
+the full suite (**2866 tests, 151 files**), and `smoke`. Work that cannot land green is not
 committed. Commits go straight to `main` and are pushed at the end of each task.
 
 ### What plays end to end
@@ -446,6 +446,31 @@ is a gap in the *button sound* coverage, not in the tooltip, and widening T99 to
 cover it would have been scope creep. `buttonSounds.test.ts` now excludes
 `role="tooltip"` explicitly, with the AS3 line saying why the panel itself is
 correctly silent.
+
+### PartInfoText is closed — 9 wired, 0 deferred (T104)
+
+`infoTextSites.ts` now reads **9 wired / 4 redundant / 7 no-consumer / 0
+deferred = 20**. Nothing is waiting on unbuilt work; what is left is waiting on
+decisions already made.
+
+- **`Achievement.as:103` wired (T104)** — the achievement reveal page's icon,
+  with its tooltip. **Built for completeness despite duplicating the page
+  text**: the AS3 page shows the title only (`ScreenStatus.as:971`), so there
+  the tooltip is the only way to read the description; this port already renders
+  it. Recorded at the component and in the site table so it is not "cleaned up"
+  later as an oversight. 36 icon clips / 76 shapes synced, derived from the
+  `[Embed]` lines rather than hand-listed.
+- **`ImageEnemy.as:174`/`:178` reclassified `deferred` -> `no-consumer`.** They
+  need per-enemy tiles in a *selected-level* panel and this port has no
+  selection step (`A8`). The blocker is a decision, not unbuilt work, and the
+  status now says so. The one AS3 branch still unported behind them is
+  `addStrengthsAndWeaknessIcons`' `"Normal"` mode (`:446-453`).
+
+**A fidelity fix fell out of sharing the composition.** T99's achievement
+tooltip added a difficulty note only when *earned* and wrote it `(Medium)`.
+`Achievement.as:60-80` always emits one — `(Difficulty doesn't matter.)`,
+`(Difficulty matters.)` or `(Completed on EASY/MEDIUM/HARD.)`. Both screens now
+use `achievementTooltip`, so the board's text is corrected as a side effect.
 
 ### Level-grid roster preview (T103) — a port addition, not a port of `ImageEnemy`
 
