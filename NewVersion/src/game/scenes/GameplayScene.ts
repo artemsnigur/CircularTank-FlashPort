@@ -33,6 +33,13 @@ import { musicForMode } from '../audio/musicCue';
 import { secondaryReloadRuns, tutorialHoldsPlay } from '../tutorial/tutorialGates';
 import { withTutorialEnabled } from '../tutorial/tutorialState';
 import { readGameplayOptions } from '../options/gameplayOptions';
+import {
+  RED_CIRCLE_ART_RADIUS,
+  WIPE_START_DEGREES,
+  discScale,
+  wantsIndicator,
+  wipeEndDegrees,
+} from '../enemies/bossLifeIndicator';
 import { getOptionsStore } from '../save/optionsStore';
 import {
   damageIndicatorOnHit,
@@ -270,6 +277,8 @@ const TUTORIAL_DEPTH = 40;
 const BOMB_MARKER_FRAMES = [370, 371] as const;
 /** `IndicatorMedic`'s single frame. */
 const MEDIC_RING_SHAPE = 1182;
+/** `RedCircle`'s single shape — the boss life indicator's disc. */
+const RED_CIRCLE_SHAPE = 1199;
 /** Coins sit under the tank and particles, above the ground. */
 const MONEY_DEPTH = 6;
 /** `:3366` — `poisonParticleTimerMax`. */
@@ -631,6 +640,19 @@ export class GameplayScene extends Phaser.Scene {
 
   /** Heal rings, one per living medic — `medicIndicatorArray` (`:2283`). */
   private medicRings = new Map<Enemy, Phaser.GameObjects.Image>();
+  /**
+   * Boss life indicators — `PartInterface.lifeIndicatorArray` (`:128`).
+   *
+   * One disc plus its mask per boss, keyed by the enemy exactly as `medicRings`
+   * is. The AS3 keeps two parallel arrays (`enemiesHavingIndicators`,
+   * `enemiesNeedingIndicators`) and splices them; a Map is the same
+   * relationship without the bookkeeping that made `:986-992` splice while
+   * iterating.
+   */
+  private bossLifeRings = new Map<
+    Enemy,
+    { disc: Phaser.GameObjects.Image; mask: Phaser.GameObjects.Graphics }
+  >();
 
   /** The tutorial step on screen, its timers, and its fade. */
   private tutorialStep: ActiveStep | null = null;
@@ -871,6 +893,7 @@ export class GameplayScene extends Phaser.Scene {
     this.tutorialStep = null;
     this.bombMarkers = [];
     this.medicRings = new Map();
+    this.bossLifeRings = new Map();
     this.hp = TANK_MAX_HP;
     this.damageIndicator = 0;
     this.pushedFrames = 0;
@@ -2699,6 +2722,85 @@ export class GameplayScene extends Phaser.Scene {
           .setDisplaySize(200 * scale, 200 * scale),
       );
     }
+
+    this.handleBossLifeIndicators();
+  }
+
+  /**
+   * The boss life indicators — `PartInterface.handleLifeIndicators`
+   * (`:872-995`).
+   *
+   * A red disc under each boss, revealed as a pie wedge that grows clockwise
+   * from 12 o'clock as the boss loses health. The wedge is a **mask** over the
+   * real `RedCircle` art (`:926`), not a drawn approximation of it, so the
+   * artwork is the original's and only the reveal is computed.
+   *
+   * ── Not touched: opacity ──────────────────────────────────────────────────
+   * `:937-948` varies alpha for `invisible` (0.5) and `teleporting` (0), and
+   * for nothing else. It is **not** tied to health, and this pass deliberately
+   * leaves it alone — those flags belong to Ghost and Teleporting behaviour,
+   * not to this indicator.
+   */
+  private handleBossLifeIndicators(): void {
+    const mode = this.levelSpec?.mode ?? 'Normal';
+
+    // `:986-992` — an indicator whose boss has gone is removed, not reused.
+    for (const [enemy, ring] of this.bossLifeRings) {
+      if (!this.enemies.includes(enemy)) {
+        ring.disc.destroy();
+        ring.mask.destroy();
+        this.bossLifeRings.delete(enemy);
+      }
+    }
+
+    for (const enemy of this.enemies) {
+      if (!wantsIndicator(mode, enemy.enemyLevel)) continue;
+
+      let ring = this.bossLifeRings.get(enemy);
+      if (!ring) {
+        // `:918-926` — the mask is a Shape the disc is masked *by*, so it is
+        // never itself drawn.
+        const mask = this.make.graphics({}, false);
+        const disc = this.add
+          .image(enemy.x, enemy.y, `unit-${RED_CIRCLE_SHAPE}`)
+          // `PartGameArea.as:329` — `bossHealthLayer` sits directly above
+          // `enemyLayer` (enemies are depth 8) and below everything else.
+          .setDepth(8.5);
+        disc.setMask(mask.createGeometryMask());
+        ring = { disc, mask };
+        this.bossLifeRings.set(enemy, ring);
+      }
+
+      // `:934-935` — the indicator follows the boss every frame.
+      ring.disc.setPosition(enemy.x, enemy.y);
+
+      // `:966-969` — `ShrinkingB` re-reads its radius each frame because that
+      // boss shrinks as it is damaged. `Enemy.radius` is the live field
+      // `enemyBodies` writes, so reading it here is that behaviour for every
+      // type at no cost, rather than a special case that could go stale.
+      const scale = discScale(enemy.radius);
+      ring.disc.setDisplaySize(
+        RED_CIRCLE_ART_RADIUS * 2 * scale,
+        RED_CIRCLE_ART_RADIUS * 2 * scale,
+      );
+
+      // `:975-983` — redraw the wedge from 270 degrees, clockwise, closed to
+      // the centre.
+      const end = wipeEndDegrees(enemy.health, enemy.maxHealth);
+      ring.mask.clear();
+      if (end > WIPE_START_DEGREES) {
+        ring.mask.fillStyle(0xffffff, 1);
+        ring.mask.slice(
+          enemy.x,
+          enemy.y,
+          enemy.radius,
+          Phaser.Math.DegToRad(WIPE_START_DEGREES),
+          Phaser.Math.DegToRad(end),
+          false,
+        );
+        ring.mask.fillPath();
+      }
+    }
   }
 
 
@@ -2938,6 +3040,14 @@ export class GameplayScene extends Phaser.Scene {
         .map((e) => ({
           screen: toScreen(e.x, e.y),
           distance: Math.hypot(e.x - this.player.x, e.y - this.player.y),
+          // Health and boss flag, for `--boss-life`. The boss indicator is a
+          // *mask* over a fixed disc, so its bounds never change and a
+          // screenshot cannot tell a working wipe from one stuck full or
+          // empty. The harness reads the HP fraction instead and checks the
+          // frames against the formula.
+          health: e.health,
+          maxHealth: e.maxHealth,
+          enemyLevel: e.enemyLevel,
         }))
         .sort((a, b) => a.distance - b.distance)
         .slice(0, 8),

@@ -63,6 +63,7 @@ function parseArgs(argv) {
     if (argv[i] === '--level-guide') args.levelGuide = true;
     if (argv[i] === '--grid-preview') args.gridPreview = true;
     if (argv[i] === '--achievement-icon') args.achievementIcon = true;
+    if (argv[i] === '--boss-life') args.bossLife = true;
   }
   return args;
 }
@@ -459,6 +460,126 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.bossLife) {
+  /**
+   * The boss life indicator — `PartInterface.handleLifeIndicators` (`:872-995`).
+   *
+   * ── A screenshot alone cannot read a wipe ────────────────────────────────
+   * The wedge is a *mask*, so the disc's own bounds never change: a broken
+   * indicator that always draws a full circle, or never draws one, photographs
+   * as a plausible red ring either way. What separates them is the boss's HP
+   * fraction over time — so this samples `__arena` while the boss is being shot
+   * and prints the health alongside the degrees the formula demands, then takes
+   * a frame at each sample.
+   *
+   * Level 1-9 is the first Boss level. The dev jump reaches it directly, and
+   * `equipped` gives enough damage to move a 500 HP boss inside one run.
+   */
+  await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /level select/i }).first().click();
+  await delay(900);
+  const cell19 = page.getByRole('button', { name: /^World 1, level 9,/i });
+  if ((await cell19.count()) === 0) {
+    console.log('[boss] dev jump cell for 1-9 not found');
+  } else {
+    await cell19.first().click();
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => console.log('[look] warning: countdown never reported done'));
+    await page.keyboard.down('d');
+    await delay(500);
+    await page.keyboard.up('d');
+    await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+
+    const bossState = () =>
+      page.evaluate(() => {
+        const a = globalThis.__arena;
+        const boss = (a?.enemies ?? []).find((e) => e.enemyLevel === 'B');
+        if (!boss) return null;
+        return { hp: boss.health, max: boss.maxHealth, x: boss.screen?.x, y: boss.screen?.y };
+      });
+
+    await page.mouse.down();
+    let shots = 0;
+    let lastBucket = -1;
+    // **Keep moving.** A Boss level spawns indefinitely, and a stationary tank
+    // is dead in ~16s — the first run of this ended at `tank=0/100` with only
+    // two samples taken. Kiting is what buys enough of the wipe to see.
+    // Kite *away from the boss*, re-chosen each half second from its screen
+    // position. Oscillating a/d stayed in the same place and died just as
+    // fast; the Laser Cannon out-ranges the boss, so distance is the whole
+    // difference between two samples and five.
+    let held = 'w';
+    await page.keyboard.down(held);
+    for (let i = 0; i < 900 && shots < 5; i += 1) {
+      if (i % 6 === 0) {
+        const b0 = await bossState();
+        if (b0) {
+          const dx = 640 - b0.x;
+          const dy = 400 - b0.y;
+          const want =
+            Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'd' : 'a') : dy > 0 ? 's' : 'w';
+          if (want !== held) {
+            await page.keyboard.up(held);
+            held = want;
+            await page.keyboard.down(held);
+          }
+        }
+      }
+      const b = await bossState();
+      if (b) {
+        await page.mouse.move(b.x, b.y);
+        const frac = b.hp / b.max;
+        // Sample once per 20% band, so the frames span the wipe rather than
+        // clustering wherever the loop happened to be.
+        const bucket = Math.floor((1 - frac) * 5);
+        if (bucket !== lastBucket && bucket >= 0) {
+          lastBucket = bucket;
+          shots += 1;
+          const degrees = 360 * (1 - Math.min(1, Math.max(0, frac)));
+          console.log(
+            `[boss] hp ${String(b.hp).padStart(4)}/${b.max}` +
+              ` = ${(frac * 100).toFixed(0).padStart(3)}%` +
+              ` -> wipe ${degrees.toFixed(0).padStart(3)} deg`,
+          );
+          await shot(`boss-life-${shots}`);
+        }
+      }
+      if (i % 60 === 0) {
+        const diag = await page.evaluate(() => {
+          const a = globalThis.__arena;
+          const over = globalThis.document.querySelector('.level-outcome__actions') !== null;
+          const hpEl = globalThis.document.querySelector('.hud-health__text');
+          return {
+            levels: (a?.enemies ?? []).map((e) => e.enemyLevel).join(',') || 'none',
+            tank: hpEl ? hpEl.textContent : '?',
+            over,
+          };
+        });
+        console.log(
+          `[boss]   i=${i} nearest=${diag.levels} tank=${diag.tank}` +
+            (diag.over ? ' LEVEL ENDED' : ''),
+        );
+        if (diag.over) break;
+      }
+      await delay(90);
+    }
+    await page.mouse.up();
+    await page.keyboard.up(held);
+    console.log(
+      shots > 1
+        ? `[boss] ${shots} frames across the wipe — the wedge tracked HP`
+        : '[boss] NOT ENOUGH SAMPLES: the boss never took measurable damage',
+    );
+  }
+
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
 }
 
 if (args.achievementIcon) {

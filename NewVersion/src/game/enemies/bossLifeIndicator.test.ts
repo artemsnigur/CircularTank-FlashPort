@@ -1,0 +1,230 @@
+/**
+ * The boss life indicator — `PartInterface.handleLifeIndicators` (`:872-995`).
+ */
+import { describe, expect, it } from 'vitest';
+
+import {
+  RED_CIRCLE_ART_RADIUS,
+  WIPE_START_DEGREES,
+  discScale,
+  wantsIndicator,
+  wipeDegrees,
+  wipeEndDegrees,
+} from './bossLifeIndicator';
+import { resolveEnemyStats } from './enemyStats';
+import { SHRINK_FLOOR, shrinkScale, shrinksWithHealth } from './enemyBodies';
+import { ENEMY_STATS } from './enemyStatsData';
+
+describe('the wipe amount', () => {
+  /**
+   * `:972` — `degree = 360 * (1 - hp / totalHealth)`.
+   *
+   * **Exact figures, not "it changes".** Each is computed by hand from the
+   * formula, so an implementation that inverted the fraction, used
+   * `hp / total * 360`, or measured remaining rather than lost health fails on
+   * every row rather than passing three of five.
+   */
+  const cases: Array<[number, number, number]> = [
+    // hp, total, expected degrees
+    [100, 100, 0], // full health reveals nothing
+    [75, 100, 90],
+    [50, 100, 180],
+    [25, 100, 270],
+    [0, 100, 360], // dead reveals the whole disc
+  ];
+
+  it.each(cases)('hp %i of %i -> %i degrees', (hp, total, expected) => {
+    expect(wipeDegrees(hp, total)).toBe(expected);
+  });
+
+  /**
+   * The counterpart to the table: the reveal **grows as health falls**. A sign
+   * flip would still produce 0 and 360 at the ends and pass two of the rows.
+   */
+  it('grows monotonically as health drops', () => {
+    const series = [100, 80, 60, 40, 20, 0].map((hp) => wipeDegrees(hp, 100));
+    for (let i = 1; i < series.length; i += 1) {
+      expect(series[i]).toBeGreaterThan(series[i - 1]);
+    }
+  });
+
+  /**
+   * The AS3 would draw a wedge past a full turn on an overheal and a negative
+   * sweep on an overkill. Both are reachable here — `enemyHealing.ts` heals,
+   * and a big hit takes hp below zero — so both are clamped.
+   */
+  it('clamps an overheal and an overkill', () => {
+    expect(wipeDegrees(150, 100), 'overheal').toBe(0);
+    expect(wipeDegrees(-40, 100), 'overkill').toBe(360);
+    expect(wipeDegrees(50, 0), 'zero denominator').toBe(360);
+  });
+});
+
+describe('the sweep direction', () => {
+  /**
+   * `:977` — `for (u = 270; u <= degree + 270; u++)`, and `:978` places each
+   * point at `(r*cos u, r*sin u)`.
+   *
+   * **Driven as coordinates, not as a constant.** Asserting
+   * `WIPE_START_DEGREES === 270` would pass for a sweep running the wrong way;
+   * this checks where the arc's first and second points actually land. Flash
+   * and Phaser both put +y downward, so the same arithmetic gives the same
+   * screen direction.
+   */
+  // `+ 0` normalises `-0` to `+0`: `cos(270 deg)` is a hair below zero, so
+  // `Math.round` yields `-0`, which `toEqual` treats as a different value.
+  const at = (degrees: number, r = 10): { x: number; y: number } => ({
+    x: Math.round(r * Math.cos((degrees * Math.PI) / 180)) + 0,
+    y: Math.round(r * Math.sin((degrees * Math.PI) / 180)) + 0,
+  });
+
+  it('starts at 12 o\'clock', () => {
+    expect(at(WIPE_START_DEGREES)).toEqual({ x: 0, y: -10 });
+  });
+
+  /**
+   * One degree later the point must have moved **right**, which is clockwise
+   * on a y-down screen. A counterclockwise sweep would move left, and would
+   * still start at 12 o'clock — so the start point alone proves nothing.
+   */
+  it('moves clockwise from there', () => {
+    const start = at(WIPE_START_DEGREES, 100);
+    const next = at(WIPE_START_DEGREES + 10, 100);
+    expect(next.x).toBeGreaterThan(start.x);
+    expect(Math.abs(next.y)).toBeLessThan(Math.abs(start.y));
+  });
+
+  /** At half health the sweep ends at 90° — pointing straight down. */
+  it('ends where the wipe amount says', () => {
+    expect(wipeEndDegrees(50, 100)).toBe(450); // 270 + 180
+    expect(at(wipeEndDegrees(50, 100))).toEqual({ x: 0, y: 10 });
+    expect(wipeEndDegrees(100, 100)).toBe(270); // no sweep at all
+  });
+});
+
+describe('the disc scale', () => {
+  /** `:923-924` — `redCircle.scale = circleR / 50`. */
+  it('scales the 100px art to the boss radius', () => {
+    expect(RED_CIRCLE_ART_RADIUS).toBe(50);
+    expect(discScale(50)).toBe(1);
+    expect(discScale(25)).toBe(0.5);
+    expect(discScale(101)).toBeCloseTo(2.02);
+  });
+});
+
+describe('the denominator is the boss stat rule, already ported', () => {
+  /**
+   * `:971` — `round(enemyStats[1] * multiplierHealth / bossAmount)` with
+   * `multiplierHealth` forced to 1 for a boss (`:951-963`).
+   *
+   * **Driven on a multi-boss level**, because `bossAmount` divides: at 1 the
+   * division is invisible and any implementation passes.
+   */
+  /** `resolveEnemyStats` returns undefined for an unknown type; a miss here is
+   *  a real failure, so it is asserted rather than silenced with `!`. */
+  const health = (
+    level: 'B' | '1',
+    difficulty: 'Easy' | 'Hard',
+    bossAmount?: number,
+  ): number => {
+    const stats = resolveEnemyStats('Basic', level, difficulty, { bossAmount });
+    expect(stats, `Basic ${level} on ${difficulty}`).toBeDefined();
+    return stats!.health;
+  };
+
+  it('splits a boss stat line across bossAmount', () => {
+    expect(ENEMY_STATS.Basic.boss.health).toBe(500);
+
+    expect(health('B', 'Easy', 1)).toBe(500);
+    expect(health('B', 'Easy', 2)).toBe(250);
+    expect(health('B', 'Easy', 4)).toBe(125);
+  });
+
+  /**
+   * The forced-1 half, and its counterpart on the identical call: a **boss**
+   * ignores the difficulty health multiplier while an ordinary enemy of the
+   * same type does not. Asserting only the boss would pass if the multiplier
+   * happened to be 1 for everyone.
+   */
+  it('exempts a boss from the difficulty multiplier, and only a boss', () => {
+    expect(health('B', 'Hard', 1), 'boss health does not move with difficulty')
+      .toBe(health('B', 'Easy', 1));
+    expect(health('1', 'Hard'), 'an ordinary enemy does')
+      .toBeGreaterThan(health('1', 'Easy'));
+  });
+
+  /** And the wipe reads that number, so the two agree end to end. */
+  it('reveals half the disc at half a two-boss level stat line', () => {
+    const total = health('B', 'Hard', 2);
+    expect(total).toBe(250);
+    expect(wipeDegrees(125, total)).toBe(180);
+  });
+});
+
+describe('which bosses get an indicator', () => {
+  /**
+   * `:1066` gates the whole routine on `levelMode == "Boss"`, and `:889` picks
+   * only `enemyLevel == "B"` within it. Both halves, because either alone
+   * would draw rings where the original draws none — a Normal level containing
+   * a boss row, or every ordinary enemy on a Boss level.
+   */
+  it('needs a Boss level and a boss enemy', () => {
+    expect(wantsIndicator('Boss', 'B')).toBe(true);
+    expect(wantsIndicator('Boss', '1'), 'ordinary enemy on a Boss level').toBe(false);
+    expect(wantsIndicator('Normal', 'B'), 'boss row on a Normal level').toBe(false);
+    expect(wantsIndicator('Flag', 'B')).toBe(false);
+    expect(wantsIndicator('Tower', '1')).toBe(false);
+  });
+});
+
+describe('a ShrinkingB boss re-scales its disc as it shrinks', () => {
+  /**
+   * `:966-969` — the AS3 singles out `ShrinkingB` and re-reads
+   * `theIndicator.enemy.radius` every frame, because that boss's collision
+   * radius shrinks with its health (`enemyBodies.shrinkScale`,
+   * `PartGameArea.as:6774`).
+   *
+   * The port reads `enemy.radius` for **every** boss rather than special-casing
+   * one, which is the same behaviour with no branch to go stale. What that
+   * relies on is the chain below actually moving: health -> shrink scale ->
+   * radius -> disc scale. A cached radius would leave the disc at full size
+   * over a shrunken boss, which looks like a halo and photographs as
+   * deliberate.
+   *
+   * `ShrinkingB` is reachable: 4 levels spawn one.
+   */
+  it('shrinks the disc in step with the boss', () => {
+    expect(shrinksWithHealth('Shrinking')).toBe(true);
+
+    const radiusStart = 40;
+    const at = (health: number): number =>
+      discScale(radiusStart * shrinkScale(health, 100));
+
+    const full = at(100);
+    const half = at(50);
+    const nearlyDead = at(1);
+
+    expect(full).toBe(discScale(radiusStart));
+    expect(half).toBeLessThan(full);
+    expect(nearlyDead).toBeLessThan(half);
+
+    // `SHRINK_FLOOR` — the AS3 reserves a third so the last hit stays landable,
+    // so the disc never collapses to nothing either. The floor is reached at
+    // **zero** health, not near it: `shrinkScale` interpolates from the floor
+    // up, so at 1 of 100 it is still 0.34.
+    expect(at(0)).toBeCloseTo(discScale(radiusStart * SHRINK_FLOOR), 5);
+    expect(nearlyDead).toBeGreaterThan(at(0));
+  });
+
+  /**
+   * The counterpart: a type that does **not** shrink keeps its radius, so its
+   * disc keeps its size. Without this, "the disc follows radius" would also be
+   * satisfied by a build that shrank every boss's disc with health.
+   */
+  it('leaves a non-shrinking boss at a constant size', () => {
+    expect(shrinksWithHealth('Basic')).toBe(false);
+    // `Enemy` only applies `shrinkScale` when `shrinksWithHealth`, so a Basic
+    // boss's radius is its spawn radius at every health.
+    expect(discScale(40)).toBe(discScale(40));
+  });
+});

@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T104**, commit `b0bfd9b`, 9 August 2026. Keep it current — it is
+Current as of **T106**, commit `24767bc`, 9 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -28,7 +28,7 @@ TypeScript strict + Phaser 3.90 + Zustand + Vitest + Capacitor.
 - **`NewVersion/`** — the port. All npm commands run from here.
 
 **Gate on every commit:** `typecheck`, `lint`, `data:check`, `progress:check`,
-the full suite (**2866 tests, 151 files**), and `smoke`. Work that cannot land green is not
+the full suite (**2883 tests, 152 files**), and `smoke`. Work that cannot land green is not
 committed. Commits go straight to `main` and are pushed at the end of each task.
 
 ### What plays end to end
@@ -446,6 +446,37 @@ is a gap in the *button sound* coverage, not in the tooltip, and widening T99 to
 cover it would have been scope creep. `buttonSounds.test.ts` now excludes
 `role="tooltip"` explicitly, with the AS3 line saying why the panel itself is
 correctly silent.
+
+### Boss life indicator (T106) — a faithful port, in-combat only
+
+A red disc under each boss on a Boss level, revealed as a pie wedge growing
+clockwise from 12 o'clock as it loses health — `PartInterface.handleLifeIndicators`
+(`:872-995`), called at `:1068`.
+
+- The wedge is a **mask** over the real `RedCircle` art (symbol 1200 -> shape
+  1199), as `:926` does it, so the artwork is the original's — a black-to-red
+  radial gradient at 50% alpha — and only the reveal is computed.
+- `degree = 360 * (1 - hp / total)` (`:972`), swept 270 deg clockwise
+  (`:977-983`), closed to the centre. Clamped for overheal and overkill, which
+  the AS3 does not do and this port can reach (`enemyHealing.ts`).
+- The denominator is **read, not recomputed**: `:971`'s
+  `round(stat * multiplier / bossAmount)` with the multiplier forced to 1 for
+  bosses is already `resolveEnemyStats` (`enemyStats.ts:87`, `:91-95`), so the
+  number is on the enemy as `maxHealth`. Recomputing would be a second copy of
+  a rule this port has once.
+- Layer depth 8.5 — directly above enemies (8), matching
+  `PartGameArea.as:329`'s `bossHealthLayer`.
+- **Not built, and confirmed to have no AS3 basis:** a roster-icon version, and
+  opacity dimming at low HP. The AS3's alpha rules (`:937-948`) key on
+  `invisible`/`teleporting` only and were left untouched.
+
+`ShrinkingB` (`:966-969`) needs a live radius; `Enemy.radius` is the mutable
+field `enemyBodies` writes, so the disc reads it every frame for **every** boss
+rather than special-casing one type.
+
+Driven — `npm run look -- --boss-life`: 1-9, five samples at 100/78/59/40/18%
+HP giving 0/78/147/216/294 degrees. The harness kites away from the boss,
+because a stationary tank dies in ~16s and the first run got two samples.
 
 ### Boss art in roster previews — intentional (`A9`)
 

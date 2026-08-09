@@ -209,6 +209,8 @@ const CURATED_SHAPES = new Set([
   '1188.svg',
   '1189.svg',
   '1201.svg',
+  // RedCircle (symbol 1200) — the boss life indicator's disc, T106.
+  '1199.svg',
   '1315.svg',
 
   // Tutorial panels (T48) — twelve composed clips.
