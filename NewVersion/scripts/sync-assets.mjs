@@ -21,6 +21,7 @@ import { orphanedFiles, plannedWrites } from './lib/asset-prune.mjs';
 import { shapeIdsForSprites } from './lib/sprite-shapes.mjs';
 import { PROJECTILE_SPRITE_IDS } from './lib/projectile-sprites.mjs';
 import { ICON_SPRITE_IDS } from './lib/icon-sprites.mjs';
+import { LEVEL_GUIDE_SPRITE_IDS } from './lib/level-guide-sprites.mjs';
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 
@@ -389,6 +390,14 @@ for (const id of shapeIdsForSprites(PROJECTILE_SPRITE_IDS)) {
  * although only `IconStrongWeak` (1033) is drawn today; see `icon-sprites.mjs`.
  */
 for (const id of shapeIdsForSprites(ICON_SPRITE_IDS)) {
+  CURATED_SHAPES.add(`${id}.svg`);
+}
+
+/**
+ * The level guide widget — same derivation again, from
+ * `LEVEL_GUIDE_SPRITE_IDS`. 30 shapes across seven clips.
+ */
+for (const id of shapeIdsForSprites(LEVEL_GUIDE_SPRITE_IDS)) {
   CURATED_SHAPES.add(`${id}.svg`);
 }
 
