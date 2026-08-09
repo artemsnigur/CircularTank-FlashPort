@@ -25,8 +25,14 @@
  * or are deferred (Level Guide, `EnemyStrengthsWeaknesses`).
  *
  * That is recorded per row rather than in a report, because the person who
- * builds the Level Guide or the Credits screen is the one who needs it, and
- * `status` says exactly what each is waiting on.
+ * builds the Credits screen is the one who needs it, and `status` says exactly
+ * what each is waiting on.
+ *
+ * **Since T102 the Level Guide's four sites are wired**, so what remains is
+ * four `redundant` rows, five with no consumer, and three deferred on two
+ * dependencies: a level-select enemy roster (`ImageEnemy` x2, plus
+ * `addStrengthsAndWeaknessIcons`' unported `"Normal"` branch) and the
+ * level-complete status screen (`Achievement.as:103`).
  */
 
 /** `:168` — `changeText(theText, left, top, specialType, p1, p2)`. */

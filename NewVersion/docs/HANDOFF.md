@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T101**, commit `059eee7`, 9 August 2026. Keep it current — it is
+Current as of **T102**, commit `103c433`, 9 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
@@ -28,7 +28,7 @@ TypeScript strict + Phaser 3.90 + Zustand + Vitest + Capacitor.
 - **`NewVersion/`** — the port. All npm commands run from here.
 
 **Gate on every commit:** `typecheck`, `lint`, `data:check`, `progress:check`,
-the full suite (**2825 tests, 147 files**), and `smoke`. Work that cannot land green is not
+the full suite (**2851 tests, 149 files**), and `smoke`. Work that cannot land green is not
 committed. Commits go straight to `main` and are pushed at the end of each task.
 
 ### What plays end to end
@@ -393,7 +393,7 @@ against the cursor rather than asserting the node exists.
 | **1 — core + Achievement rich text** | **Done.** But the "16 sites" it was scoped as is **2** — see the audit's "reachable surface" entry. Shop rows and achievement cells are wired; twelve sites are recorded as redundant, unported or deferred, with a reason each |
 | **2 — `EnemyStrengthsWeaknesses`** | **Done (T100), but for one of its three sites.** `IconStrongWeak.as:48` is wired — the bestiary's badges. `ImageEnemy.as:174`/`:178` are the *tooltip* variant and stay blocked: their only consumer is the level-select enemy roster (`ScreenLevelSelect.as:1128`), which this port does not have. See below |
 | **3 — `AllEnemiesInLevel`** | **Done (T101)** for its live site, `ButtonNextLevel.as:208` — the Next Level button on the results overlay. `ButtonLevelGuideInfo.as:64` is the same special type on the Level Guide and stays blocked with the rest of step 4 |
-| **4 — Level Guide's 4 sites** | Blocked on the Level Guide itself, which does not exist |
+| **4 — Level Guide's 4 sites** | **Done (T102).** The Level Guide shipped, and all four sites are wired on its widget |
 
 **Status: `PartInfoText` is *open*, not "closed except for a dependency" — and
 the distinction is not pedantry.** Every reachable site is wired: 4 of the 20
@@ -446,6 +446,38 @@ is a gap in the *button sound* coverage, not in the tooltip, and widening T99 to
 cover it would have been scope creep. `buttonSounds.test.ts` now excludes
 `role="tooltip"` explicitly, with the AS3 line saying why the panel itself is
 correctly silent.
+
+### Level Guide — shipped (T102), with one half deliberately not built
+
+A compact widget on the **shop** screen (`ScreenUpgrades.as:324`, `:631-634`),
+not on level select and not a carousel: `World N` / `Level M`, four arrows,
+three presets, an info tooltip and an auto-select toggle. It points at the
+level you are heading into, which is what the shop's spending decisions depend
+on.
+
+| Pass | State |
+|---|---|
+| (a) state model | Done. Pure, read-only, on the **earned** table |
+| (b) art | Done. 7 clips / 30 shapes, derived, no extraction pass |
+| (c) widget | Done, on the shop screen |
+| (d) 4 `PartInfoText` sites | Done, in the widget's own markup |
+| (e) level-select coupling | **Not built — no counterpart exists.** See below |
+
+**Why (e) stopped.** `selectFromLevelGuide` (`ScreenLevelSelect.as:584-596`)
+pre-*highlights* a level so the player can press Play. The AS3's level select is
+world -> grid -> **select** -> Play; this port's is picker -> grid -> **click
+starts the game**. There is no `selectedLevel`, no highlight, no Play button on
+the grid, so there is nothing to pre-select — and `canSelectFromLevelGuide`, the
+latch that guards it, has nothing to guard either. Building both would have
+meant adding a selection step to a screen that deliberately does not have one.
+Full write-up in the audit.
+
+**Two fragments that would be portable if that ever changes**, named so they are
+not re-derived: opening the grid on the guide's world (`SaveManager.as:1463`),
+and writing a manual pick back into the guide when auto-select is off
+(`ScreenLevelSelect.as:988`, `:1326`). Neither is worth building alone — the
+first is moot while the port opens on a picker, and the second writes to
+something nothing then reads.
 
 ### Closed since the previous stamp
 
