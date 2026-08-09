@@ -10,6 +10,7 @@ import {
   enemyAmounts,
   levelLabel,
   levelPreview,
+  previewForLevel,
 } from './levelPreview';
 import { LEVELS, getLevel } from './levelData';
 import { getDifficultyProfile } from '../config/difficultyMultipliers';
@@ -271,5 +272,49 @@ describe('art consistency across all 405 levels', () => {
       }),
     );
     expect(rows).toBeGreaterThan(405);
+  });
+});
+
+describe('previewForLevel is per-level, not cached', () => {
+  /**
+   * **The staleness pin.** The level-grid tooltip builds one of these per cell,
+   * and the panel is a single shared surface — so "the hover shows the level
+   * under the cursor" is a real claim, not a given. Two adjacent levels are
+   * asked for in sequence and required to differ in every field a reader would
+   * check.
+   *
+   * 1-2 is Normal (counts) and 1-3 is Flag (percentages), so a builder that
+   * returned a memoised first answer fails on all four assertions rather than
+   * one.
+   */
+  it('gives different levels different previews', () => {
+    const a = previewForLevel(1, 2, 'Easy')!;
+    const b = previewForLevel(1, 3, 'Easy')!;
+
+    expect(a.summary).toContain('Level: 2');
+    expect(b.summary).toContain('Level: 3');
+    expect(a.summary).not.toBe(b.summary);
+
+    expect(a.summary).toContain('Mode: Normal');
+    expect(b.summary).toContain('Mode: Flag');
+    // …and the rows differ too, not just the heading.
+    expect(a.rows.map((r) => r.amountLabel)).toEqual(['12 X', '6 X']);
+    expect(b.rows.map((r) => r.amountLabel)).toEqual(['71.4%', '28.6%']);
+  });
+
+  /** Asking twice returns equal content — pure, so re-hover is not a fresh answer. */
+  it('is stable for the same level', () => {
+    expect(previewForLevel(1, 2, 'Easy')).toEqual(previewForLevel(1, 2, 'Easy'));
+  });
+
+  /** The objective is wired, not blank — the field the three callers shared. */
+  it('fills the objective from the level, per mode', () => {
+    expect(previewForLevel(1, 2, 'Easy')!.summary).toContain('Objective: Kill 18 Enemies');
+    expect(previewForLevel(1, 3, 'Easy')!.summary).toContain('Objective: Collect 10 Flags');
+    expect(previewForLevel(1, 9, 'Easy')!.summary).toContain('Objective: Kill 1 Boss');
+  });
+
+  it('returns null for a level that does not exist', () => {
+    expect(previewForLevel(99, 1, 'Easy')).toBeNull();
   });
 });

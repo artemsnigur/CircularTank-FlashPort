@@ -24,10 +24,7 @@ import {
   SLIDE_OUT_MS,
 } from '../game/waves/countdownPanel';
 import { showingToast } from '../game/achievements/toastQueue';
-import { bossCount, levelPreview } from '../game/levels/levelPreview';
-import { getLevel } from '../game/levels/levelData';
-import { objectiveText } from '../game/waves/countdownPanel';
-import { getDifficultyProfile } from '../game/config/difficultyMultipliers';
+import { previewForLevel } from '../game/levels/levelPreview';
 import { siteCorner } from '../game/ui/infoTextSites';
 import { useInfoText } from './useInfoText';
 import type { LevelRef } from '../game/levels/levelProgress';
@@ -280,26 +277,7 @@ function NextLevelButton({
   difficulty: Difficulty;
   onPlay: () => void;
 }): React.ReactElement {
-  const spec = getLevel(next.world, next.level);
-  const preview = spec
-    ? levelPreview(
-        next.world,
-        next.level,
-        difficulty,
-        // The same objective rule the countdown panel prints, rather than a
-        // second copy — `ScreenGame.setObjectiveCountText` is one function and
-        // `ButtonNextLevel.as:310-334` inlines it. Two copies here would be the
-        // "one rule, two copies" shape the audit already tracks.
-        objectiveText({
-          mode: spec.mode,
-          totalEnemies: spec.totalEnemies,
-          flagCount: spec.flagCount,
-          bossAmount: bossCount(spec),
-          amountMultiplier: getDifficultyProfile(difficulty).amount,
-        }),
-        spec.upgradeLimit,
-      )
-    : null;
+  const preview = previewForLevel(next.world, next.level, difficulty);
 
   const hover = useInfoText({
     text: preview?.summary ?? '',

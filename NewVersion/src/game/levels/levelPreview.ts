@@ -20,6 +20,7 @@
 import { getLevel } from './levelData';
 import type { LevelSpec } from './levelData';
 import { getDifficultyProfile } from '../config/difficultyMultipliers';
+import { objectiveText } from '../waves/countdownPanel';
 import { enemyShape } from '../entities/enemyArt';
 import { resistanceBadges } from '../enemies/resistanceIcons';
 import { ENEMY_STATS } from '../enemies/enemyStatsData';
@@ -168,6 +169,44 @@ export interface LevelPreview {
   /** `ButtonNextLevel.as:335` — the six summary lines, already joined. */
   summary: string;
   rows: LevelPreviewRow[];
+}
+
+/**
+ * `levelPreview` for a level, with the objective and upgrade limit looked up.
+ *
+ * ── Extracted before it became a third copy ───────────────────────────────
+ * Every caller needs the same five-line preamble: `getLevel`, then
+ * `objectiveText` with mode/totals/flags/bossCount/multiplier, then
+ * `spec.upgradeLimit`. `Hud.tsx`'s next-level button and `LevelGuideWidget`
+ * each wrote it out, and the level-grid tooltip would have been the third —
+ * which is the "one rule, two copies" shape the audit already tracks for
+ * `countCrowd`, `canAfford` and `flagReward`.
+ *
+ * The objective comes from `countdownPanel.objectiveText`, the port's single
+ * implementation of `ScreenGame.setObjectiveCountText`. `ButtonNextLevel.as:310-334`
+ * and `ButtonLevelGuideInfo.as:77-106` each inline their own copy of that rule
+ * in the original; this port keeps one.
+ */
+export function previewForLevel(
+  world: number,
+  level: number,
+  difficulty: Difficulty,
+): LevelPreview | null {
+  const spec = getLevel(world, level);
+  if (!spec) return null;
+  return levelPreview(
+    world,
+    level,
+    difficulty,
+    objectiveText({
+      mode: spec.mode,
+      totalEnemies: spec.totalEnemies,
+      flagCount: spec.flagCount,
+      bossAmount: bossCount(spec),
+      amountMultiplier: getDifficultyProfile(difficulty).amount,
+    }),
+    spec.upgradeLimit,
+  );
 }
 
 /**

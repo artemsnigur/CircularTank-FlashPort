@@ -61,6 +61,7 @@ function parseArgs(argv) {
     if (argv[i] === '--resistances') args.resistances = true;
     if (argv[i] === '--next-level') args.nextLevel = true;
     if (argv[i] === '--level-guide') args.levelGuide = true;
+    if (argv[i] === '--grid-preview') args.gridPreview = true;
   }
   return args;
 }
@@ -457,6 +458,126 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.gridPreview) {
+  /**
+   * The level-grid roster tooltip — a port-invented trigger over `levelPreview`
+   * (T103). Not a port of `ImageEnemy`; see divergence `A8`.
+   *
+   * ── Staleness is the thing to check, and a screenshot cannot ─────────────
+   * One panel serves every cell. A build that showed the first level hovered
+   * and never updated photographs perfectly — the panel is there, the content
+   * is plausible. So this hovers **three different cells in sequence** and
+   * requires the summary's `Level:` line to follow the cursor each time.
+   */
+  const tip = () =>
+    page.evaluate(() => {
+      const el = globalThis.document.querySelector('.info-text');
+      if (!el) return null;
+      const body = el.querySelector('.info-text__run--body')?.textContent ?? '';
+      return {
+        level: (body.match(/Level: (\d+)/) ?? [])[1] ?? '?',
+        mode: (body.match(/Mode: (\w+)/) ?? [])[1] ?? '?',
+        objective: (body.match(/Objective: (.+)/) ?? [])[1] ?? '?',
+        rows: el.querySelectorAll('.enemy-line').length,
+        art: (() => {
+          const imgs = [...el.querySelectorAll('.enemy-line__art')];
+          return `${imgs.filter((i) => i.naturalWidth > 0).length}/${imgs.length}`;
+        })(),
+      };
+    });
+
+  // ── Clear 1-1 first ──────────────────────────────────────────────────────
+  // A fresh profile has exactly **one** unlocked cell, so the staleness check —
+  // the only thing here a screenshot cannot do — has nothing to compare. Fifth
+  // time in this arc that the default profile has turned out not to be a
+  // representative sample; one clear gives two cells, which is enough.
+  await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /play|continue/i }).first().click();
+  await delay(1200);
+  const slotCell = page.getByRole('button', { name: /new game|slot 1/i });
+  if ((await slotCell.count()) > 0) {
+    await slotCell.first().click();
+    await delay(1200);
+  }
+  await page
+    .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+    .catch(() => console.log('[look] warning: countdown never reported done'));
+  await page.keyboard.down('d');
+  await delay(600);
+  await page.keyboard.up('d');
+  await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+  await page.mouse.down();
+  let cleared11 = false;
+  for (let i = 0; i < 300 && !cleared11; i += 1) {
+    const a = await page.evaluate(() => globalThis.__arena ?? null);
+    const t = a?.enemies?.[0];
+    if (t) await page.mouse.move(t.screen.x, t.screen.y);
+    await delay(120);
+    cleared11 = await page.evaluate(
+      () => globalThis.document.querySelector('.level-outcome__actions') !== null,
+    );
+  }
+  await page.mouse.up();
+  await delay(400);
+
+  await page.getByRole('button', { name: /level select/i }).first().click().catch(() => {});
+  await delay(1200);
+  // The reveal opens the grid itself; if it did not, open world 1 by hand.
+  if ((await page.locator('.level-grid__cell').count()) === 0) {
+    await page.getByRole('button', { name: /^World 1,/i }).first().click().catch(() => {});
+    await delay(700);
+  }
+
+  const cells = page.locator('.level-grid__cell:not([disabled])');
+  const n = await cells.count();
+  console.log(`[grid] unlocked cells: ${n}`);
+
+  const seen = [];
+  for (let i = 0; i < Math.min(n, 3); i += 1) {
+    const cell = cells.nth(i);
+    await cell.scrollIntoViewIfNeeded();
+    const b = await cell.boundingBox();
+    await page.mouse.move(Math.round(b.x + b.width / 2), Math.round(b.y + b.height / 2));
+    await delay(450);
+    const t = await tip();
+    seen.push(t?.level ?? 'none');
+    console.log(
+      t
+        ? `[grid] cell ${i + 1}: Level ${t.level} · ${t.mode} · ${t.objective} · ${t.rows} rows · art ${t.art}`
+        : `[grid] cell ${i + 1}: NO PANEL`,
+    );
+    await shot(`grid-preview-${i + 1}`);
+    // Leave, so the next hover is a fresh raise rather than a lingering panel.
+    await page.mouse.move(5, 5);
+    await delay(250);
+  }
+
+  const distinct = new Set(seen.filter((s) => s !== 'none'));
+  console.log(
+    distinct.size === seen.filter((s) => s !== 'none').length && distinct.size > 1
+      ? `[grid] each hover showed its own level (${[...distinct].join(', ')}) — not stale`
+      : `[grid] STALE OR MISSING: ${JSON.stringify(seen)}`,
+  );
+
+  // A locked cell must show nothing: the AS3 withholds the detail panel for a
+  // locked level (`ScreenLevelSelect.as:1197`), and a roster would leak it.
+  const locked = page.locator('.level-grid__cell[disabled]').first();
+  if ((await locked.count()) > 0) {
+    await locked.scrollIntoViewIfNeeded();
+    const b = await locked.boundingBox();
+    await page.mouse.move(Math.round(b.x + b.width / 2), Math.round(b.y + b.height / 2));
+    await delay(450);
+    const t = await tip();
+    console.log(`[grid] locked cell: ${t ? `PANEL SHOWN (wrong) — Level ${t.level}` : 'no panel (correct)'}`);
+  }
+
+  console.log(problems.length ? `[look] page problems: ${problems.join(' | ')}` : '[look] no page errors');
+  await browser.close();
+  stop();
+  process.exit(0);
 }
 
 if (args.levelGuide) {

@@ -24,12 +24,8 @@ import { GameEvents } from '../game/events/GameEvents';
 import { shapeUrl } from '../assets/registry';
 import { LEVEL_GUIDE_CLIPS } from '../game/levels/levelGuideArt';
 import { siteCorner } from '../game/ui/infoTextSites';
+import { previewForLevel } from '../game/levels/levelPreview';
 import { useInfoText } from './useInfoText';
-import { levelPreview } from '../game/levels/levelPreview';
-import { getLevel } from '../game/levels/levelData';
-import { objectiveText } from '../game/waves/countdownPanel';
-import { getDifficultyProfile } from '../game/config/difficultyMultipliers';
-import { bossCount } from '../game/levels/levelPreview';
 import type { LevelGuideClip } from '../game/levels/levelGuideArt';
 
 /** Draws one clip frame as its stack of shapes. */
@@ -128,23 +124,9 @@ export function LevelGuideWidget(): React.ReactElement | null {
 
   // Hooks run before the early return: the info tooltip is built either way and
   // simply carries an empty request until there is a guide to describe.
-  const spec = guide ? getLevel(guide.selectedWorld, guide.selectedLevel) : null;
-  const preview =
-    guide && spec
-      ? levelPreview(
-          guide.selectedWorld,
-          guide.selectedLevel,
-          difficulty,
-          objectiveText({
-            mode: spec.mode,
-            totalEnemies: spec.totalEnemies,
-            flagCount: spec.flagCount,
-            bossAmount: bossCount(spec),
-            amountMultiplier: getDifficultyProfile(difficulty).amount,
-          }),
-          spec.upgradeLimit,
-        )
-      : null;
+  const preview = guide
+    ? previewForLevel(guide.selectedWorld, guide.selectedLevel, difficulty)
+    : null;
 
   const infoHover = useInfoText({
     text: preview?.summary ?? '',

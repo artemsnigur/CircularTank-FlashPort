@@ -15,6 +15,10 @@ import { GameEvents } from '../../game/events/GameEvents';
 import { LEVELS } from '../../game/levels/levelData';
 import { Difficulties as DIFFICULTIES, Worlds } from '../../game/config/constants';
 import { MAX_LEVEL_VALUE } from '../../game/levels/levelProgress';
+import { previewForLevel } from '../../game/levels/levelPreview';
+import { useInfoText } from '../useInfoText';
+import type { LevelListing } from '../../state/gameStore';
+import type { Difficulty } from '../../game/config/constants';
 
 /**
  * DEV-AID: jump to any level in any world.
@@ -222,6 +226,86 @@ function WorldPicker(): React.ReactElement {
   );
 }
 
+/**
+ * One level in the grid, with a roster preview on hover.
+ *
+ * ── The content is AS3-derived; the trigger is not ────────────────────────
+ * **What is ported:** everything inside the panel. `previewForLevel` is
+ * `PartInfoText`'s `"AllEnemiesInLevel"` branch (`:222-294`) plus the six
+ * summary lines `ButtonNextLevel.as:335` composes — the same model the
+ * next-level button and the level guide's info icon already use, unchanged.
+ *
+ * **What is not ported:** hovering a *level-grid cell* to see it. The AS3 shows
+ * a level's roster in a detail panel for the **selected** level
+ * (`ScreenLevelSelect.addEnemyImages`, `:1112-1160`, gated at `:1197` on
+ * `!isLocked`), built from `ImageEnemy` tiles. This port has no selection step
+ * — a cell click starts the level — which is divergence **`A8`**, a decision,
+ * not a gap. So the information is offered on hover instead.
+ *
+ * **This does not port `ImageEnemy`, and does not unblock its tooltips.**
+ * `ImageEnemy.as:174`/`:178` need per-*enemy* hover targets, which only exist
+ * if the tiles themselves are rendered. Those two sites stay `no-consumer` in
+ * `infoTextSites.ts`, and this component must not be counted as closing them.
+ *
+ * Locked levels get no panel: the AS3's own gate withholds the detail panel for
+ * a locked level, and showing a roster for one would leak what is behind it —
+ * the same rule the bestiary applies to unmet enemies.
+ */
+function LevelCell({
+  world,
+  entry,
+  difficulty,
+}: {
+  world: number;
+  entry: NonNullable<LevelListing>['levels'][number];
+  difficulty: Difficulty;
+}): React.ReactElement {
+  const preview = entry.unlocked ? previewForLevel(world, entry.level, difficulty) : null;
+
+  const hover = useInfoText({
+    text: preview?.summary ?? '',
+    // Opens down-and-right of the cursor. Not an AS3 corner — there is no
+    // `changeText` call for this trigger to inherit one from, so it is chosen:
+    // the grid runs left-to-right from the top, and this is the direction with
+    // room on the most cells.
+    showLeft: true,
+    showTop: true,
+    enemyRows: preview?.rows,
+  });
+
+  return (
+    <li>
+      <button
+        type="button"
+        className={[
+          'level-grid__cell',
+          entry.cleared ? 'level-grid__cell--cleared' : '',
+          entry.unlocked ? '' : 'level-grid__cell--locked',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        disabled={!entry.unlocked}
+        // No `title`: a native tooltip and the panel would both appear, saying
+        // different things. The panel supersedes it and `aria-label` keeps the
+        // accessible name.
+        aria-label={
+          entry.unlocked
+            ? `Level ${entry.level}, ${entry.mode}, ${entry.value} of ${MAX_LEVEL_VALUE} on ${difficulty}`
+            : `Level ${entry.level}, locked`
+        }
+        onClick={() =>
+          GameEvents.emit('ui:start-game', { world, level: entry.level, difficulty })
+        }
+        {...(preview ? hover : {})}
+      >
+        <span className="level-grid__number">{entry.unlocked ? entry.level : '🔒'}</span>
+        {entry.unlocked && <span className="level-grid__mode">{entry.mode}</span>}
+        {entry.unlocked && <Medals value={entry.value} />}
+      </button>
+    </li>
+  );
+}
+
 export function LevelSelectScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
   const listing = useGameStore((s) => s.levelList);
@@ -268,38 +352,12 @@ export function LevelSelectScreen(): React.ReactElement | null {
       ) : (
         <ul className="level-grid">
           {levels.map((entry) => (
-            <li key={entry.level}>
-              <button
-                type="button"
-                className={[
-                  'level-grid__cell',
-                  entry.cleared ? 'level-grid__cell--cleared' : '',
-                  entry.unlocked ? '' : 'level-grid__cell--locked',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                disabled={!entry.unlocked}
-                // The mode is the useful distinguisher between levels, and it
-                // is the only hint that a Flag or Boss level plays differently.
-                title={entry.unlocked ? `${entry.mode} level` : 'Clear the previous level first'}
-                aria-label={
-                  entry.unlocked
-                    ? `Level ${entry.level}, ${entry.mode}, ${entry.value} of ${MAX_LEVEL_VALUE} on ${difficulty}`
-                    : `Level ${entry.level}, locked`
-                }
-                onClick={() =>
-                  GameEvents.emit('ui:start-game', {
-                    world: listing!.world,
-                    level: entry.level,
-                    difficulty,
-                  })
-                }
-              >
-                <span className="level-grid__number">{entry.unlocked ? entry.level : '🔒'}</span>
-                {entry.unlocked && <span className="level-grid__mode">{entry.mode}</span>}
-                {entry.unlocked && <Medals value={entry.value} />}
-              </button>
-            </li>
+            <LevelCell
+              key={entry.level}
+              world={listing!.world}
+              entry={entry}
+              difficulty={difficulty}
+            />
           ))}
         </ul>
       )}

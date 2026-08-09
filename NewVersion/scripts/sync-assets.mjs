@@ -22,6 +22,7 @@ import { shapeIdsForSprites } from './lib/sprite-shapes.mjs';
 import { PROJECTILE_SPRITE_IDS } from './lib/projectile-sprites.mjs';
 import { ICON_SPRITE_IDS } from './lib/icon-sprites.mjs';
 import { LEVEL_GUIDE_SPRITE_IDS } from './lib/level-guide-sprites.mjs';
+import { ENEMY_TILE_SPRITE_IDS } from './lib/enemy-tile-sprites.mjs';
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 
@@ -398,6 +399,15 @@ for (const id of shapeIdsForSprites(ICON_SPRITE_IDS)) {
  * `LEVEL_GUIDE_SPRITE_IDS`. 30 shapes across seven clips.
  */
 for (const id of shapeIdsForSprites(LEVEL_GUIDE_SPRITE_IDS)) {
+  CURATED_SHAPES.add(`${id}.svg`);
+}
+
+/**
+ * The roster tile plate — synced and **undrawn**; see `enemy-tile-sprites.mjs`
+ * for why, and `levelSelectTiles.test.ts` for the assertion that keeps that
+ * state visible rather than looking like a mistake.
+ */
+for (const id of shapeIdsForSprites(ENEMY_TILE_SPRITE_IDS)) {
   CURATED_SHAPES.add(`${id}.svg`);
 }
 

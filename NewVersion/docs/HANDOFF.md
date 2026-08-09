@@ -447,6 +447,32 @@ cover it would have been scope creep. `buttonSounds.test.ts` now excludes
 `role="tooltip"` explicitly, with the AS3 line saying why the panel itself is
 correctly silent.
 
+### Level-grid roster preview (T103) — a port addition, not a port of `ImageEnemy`
+
+Hovering a level cell on level select shows that level's summary and enemy
+roster, through `previewForLevel` — the same `PartInfoText` `"AllEnemiesInLevel"`
+model (`:222-294`) the next-level button and the level guide's info icon use.
+
+**What is and is not ported, because this is easy to miscount:**
+
+- **Ported:** the panel's content. Summary lines from `ButtonNextLevel.as:335`,
+  rows from the `AllEnemiesInLevel` branch. Unchanged.
+- **Not ported:** the trigger. The AS3 shows a roster in a **selected-level**
+  detail panel built from `ImageEnemy` tiles (`ScreenLevelSelect.addEnemyImages`,
+  `:1112-1160`, gated at `:1197` on `!isLocked`). This port has no selection
+  step — divergence `A8` — so the same information is offered on hover instead.
+
+**It does not unblock `ImageEnemy.as:174`/`:178`.** Those need per-*enemy* hover
+targets, which only exist if the tiles are rendered. They stay `no-consumer`,
+and this must not be counted as closing them. `BackgroundEnemyImage`'s three
+shapes are synced and drawn by nothing; `levelSelectTiles.test.ts` asserts that
+so it does not read as an oversight.
+
+Driven — `npm run look -- --grid-preview`: clears 1-1 to get a second unlocked
+cell (a fresh profile has one, so the staleness check would have nothing to
+compare), then hovers each and requires the panel to follow the cursor. Locked
+cells show no panel.
+
 ### Level Guide — shipped (T102), with one half deliberately not built
 
 A compact widget on the **shop** screen (`ScreenUpgrades.as:324`, `:631-634`),
