@@ -51,7 +51,17 @@ export interface GameplayOptions {
   autoPause: boolean;
   /** `optionWindowULOn` — the upper-left info window. */
   windowUL: boolean;
-  /** `LevelGuide.autoSelect` — jump to the next level automatically. */
+  /**
+   * `LevelGuide.autoSelect` — whether the level guide follows your progress.
+   *
+   * **It does not start anything**, despite reading like it might.
+   * `ButtonLevelGuideAutoSelect.as:60` spells it out: "Automatically selects the
+   * upcoming level for the level guide and the level select screen." On, the
+   * guide re-points at the upcoming level whenever one finishes
+   * (`ScreenGame.as:359`, `ScreenStatus.as:512-515`) and a manual pick in level
+   * select does *not* write back; off, the guide stays where you put it and
+   * manual picks do write back (`ScreenLevelSelect.as:988`, `:1326`).
+   */
   autoSelect: boolean;
   /** `PartAchievements.achievementPopUp` — toast on earning one. */
   achievementPopUp: boolean;

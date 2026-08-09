@@ -33,7 +33,18 @@ const CONTROLS: { key: keyof GameplayOptions; label: string; hint: string }[] = 
   { key: 'crosshair', label: 'Crosshair', hint: 'Draw the aiming crosshair.' },
   { key: 'autoPause', label: 'Auto-pause', hint: 'Pause when the window loses focus.' },
   { key: 'windowUL', label: 'Info window', hint: 'Show the upper-left info panel.' },
-  { key: 'autoSelect', label: 'Auto-select level', hint: 'Jump to the next level automatically.' },
+  // `ButtonLevelGuideAutoSelect.as:60` states what it does, verbatim:
+  // "Automatically selects the upcoming level for the level guide and the level
+  // select screen." It **never starts a level** — it decides where the guide
+  // points and whether a manual pick writes back into it
+  // (`ScreenLevelSelect.as:988`, `:1326`, both gated on `!autoSelect`).
+  // The previous hint, "Jump to the next level automatically", described
+  // something the original does not do.
+  {
+    key: 'autoSelect',
+    label: 'Auto-select level',
+    hint: 'Point the level guide at the upcoming level.',
+  },
   {
     key: 'achievementPopUp',
     label: 'Achievement pop-ups',
