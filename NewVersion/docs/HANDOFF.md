@@ -461,23 +461,31 @@ on.
 | (b) art | Done. 7 clips / 30 shapes, derived, no extraction pass |
 | (c) widget | Done, on the shop screen |
 | (d) 4 `PartInfoText` sites | Done, in the widget's own markup |
-| (e) level-select coupling | **Not built — no counterpart exists.** See below |
+| (e) level-select coupling | **CLOSED BY DECISION — divergence `A8`.** Not pending, not owed |
 
-**Why (e) stopped.** `selectFromLevelGuide` (`ScreenLevelSelect.as:584-596`)
-pre-*highlights* a level so the player can press Play. The AS3's level select is
-world -> grid -> **select** -> Play; this port's is picker -> grid -> **click
-starts the game**. There is no `selectedLevel`, no highlight, no Play button on
-the grid, so there is nothing to pre-select — and `canSelectFromLevelGuide`, the
-latch that guards it, has nothing to guard either. Building both would have
-meant adding a selection step to a screen that deliberately does not have one.
-Full write-up in the audit.
+**Level Guide is fully closed.** (a)-(d) shipped; (e) is a decision, in the same
+category as `L5`, `BossCollision` and the modal dialogs — a call that was made
+with reasoning, not an item waiting for someone.
 
-**Two fragments that would be portable if that ever changes**, named so they are
-not re-derived: opening the grid on the guide's world (`SaveManager.as:1463`),
-and writing a manual pick back into the guide when auto-select is off
-(`ScreenLevelSelect.as:988`, `:1326`). Neither is worth building alone — the
-first is moot while the port opens on a picker, and the second writes to
-something nothing then reads.
+**The decision.** `selectFromLevelGuide` (`ScreenLevelSelect.as:584-596`) and its
+latch `canSelectFromLevelGuide` are deliberately not reproduced. The AS3's level
+select is world -> grid -> **select** -> Play, with `selectedLevel` as persistent
+highlight state; that function pre-highlights the guide's level so the player can
+go straight to Play. **This port's click-to-start is an intentional divergence,
+not a missing step**: a cell click emits `ui:start-game` directly, and there is no
+`selectedLevel`, no highlight and no Play button on the grid.
+
+So porting it would not fill a gap in the port's interaction model — it would mean
+**building a UI step that contradicts it**: a highlight, a confirm control, and a
+second route into a level beside the one that already works. That is a UX change
+to a settled screen, and it would make the screen worse in order to make an unused
+pointer visible. Full write-up and what is lost: divergence `A8`.
+
+**Two fragments would become portable if the interaction model ever changes**,
+named so they are not re-derived: opening the grid on the guide's world
+(`SaveManager.as:1463`), and writing a manual pick back into the guide when
+auto-select is off (`ScreenLevelSelect.as:988`, `:1326`). Neither is worth
+building alone today.
 
 ### Closed since the previous stamp
 
