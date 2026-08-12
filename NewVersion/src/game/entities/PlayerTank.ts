@@ -92,8 +92,12 @@ export class PlayerTank extends Phaser.GameObjects.Container {
     // to be a tinted circle with no facing at all, which is why the turret
     // appeared to have no direction; it has real art and a bearing now, and
     // the art it shows depends on the equipped primary.
+    // Placed at the tank's own position, not at the world origin. It is a
+    // sibling rather than a child (see below), so nothing else puts it there
+    // until `syncTurret` first runs — and a turret sitting at (0, 0) is a
+    // turret in the room's top-left corner.
     this.tower = scene.add
-      .sprite(0, 0, `unit-${towerShape(weaponName)}`)
+      .sprite(x, y, `unit-${towerShape(weaponName)}`)
       .setDisplaySize(TANK_SIZES.tower, TANK_SIZES.tower)
       .setDepth(11);
 
@@ -163,12 +167,9 @@ export class PlayerTank extends Phaser.GameObjects.Container {
    * than a mode check inside this class: the entity should not have to know
    * what a level mode is, and the scene already does.
    */
-  drive(
-    input: PlayerInput,
-    aim: Phaser.Math.Vector2 | null,
-    deltaMs: number,
-    movable = true,
-  ): void {
+  // `aim` used to be a parameter here, for the turret. That moved to
+  // `syncTurret`, which runs outside the countdown gate — see its docstring.
+  drive(input: PlayerInput, deltaMs: number, movable = true): void {
     if (movable) {
       // A boss grappler overwrites the player's handling outright and drags
       // them toward it — Tank.as:84-93. Applied before the step so the pull is
@@ -206,6 +207,25 @@ export class PlayerTank extends Phaser.GameObjects.Container {
     // "slightly off" rather than as broken.
     this.hull.setRotation(Phaser.Math.DegToRad(this.motion.rotation + 90));
 
+  }
+
+  /**
+   * Keeps the turret on the tank and pointed at the cursor.
+   *
+   * ── Why this is not part of `drive` ───────────────────────────────────────
+   * In the AS3 the turret is a **child** of the tank clip (`Tank.as:19`, added
+   * at `:63`), so it inherits the body's position for free, and it is aimed
+   * from the tank's **own** `ENTER_FRAME` (`:53` registers it; `:70-76` is the
+   * handler) — which is gated on `levelDone` and `gamePaused` and **not** on
+   * the countdown. `moveTank` is the thing `PartGameArea.as:2808` holds back.
+   *
+   * This port makes the turret a scene sibling so the body's rotation cannot
+   * drag it round, which means something has to position it. That was done
+   * inside `drive`, and `drive` is inside the countdown gate — so for the whole
+   * countdown the body sat at the spawn point and the turret sat at the world
+   * origin. Split out so the scene can run it every frame, as `Tank.as` does.
+   */
+  syncTurret(aim?: { x: number; y: number }): void {
     this.tower.setPosition(this.motion.x, this.motion.y);
     if (aim) this.tower.setRotation(Phaser.Math.Angle.Between(this.x, this.y, aim.x, aim.y));
   }

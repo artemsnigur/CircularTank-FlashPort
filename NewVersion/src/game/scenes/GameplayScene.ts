@@ -1211,7 +1211,7 @@ export class GameplayScene extends Phaser.Scene {
       if (shouldRunDuringCountdown('tankDrive', countDownDone)) {
         // Tower fixes the tank in place — PartGameArea.as:2816 skips moveTank
         // and calls tankAttack on the next line, so aiming and firing continue.
-        this.player.drive(input, aim, delta, this.levelSpec?.mode !== 'Tower');
+        this.player.drive(input, delta, this.levelSpec?.mode !== 'Tower');
 
         this.updateFiring(delta);
         this.updateSecondary(delta);
@@ -1231,6 +1231,18 @@ export class GameplayScene extends Phaser.Scene {
     // live while firing is held.
     if (!destroyed && shouldRun('tankDrive', levelDone) && aim) {
       this.crosshair.setPosition(aim.x, aim.y).setVisible(true);
+    }
+
+    // **The turret belongs out here with the crosshair, for the same reason.**
+    // `Tank.as` aims it from the tank clip's own `ENTER_FRAME` (`:53`, handler
+    // at `:70-76`), gated on `levelDone`/`gamePaused` only — the countdown
+    // holds `moveTank` (`PartGameArea.as:2808`), not the turret. The AS3 also
+    // gets its *position* free, because there the turret is a child of the tank
+    // (`Tank.as:63`); here it is a scene sibling, so it has to be placed, and
+    // doing that inside the gated `drive` left it at the world origin for the
+    // whole countdown while the body sat at the spawn point.
+    if (!destroyed && shouldRun('tankDrive', levelDone)) {
+      this.player.syncTurret(aim ?? undefined);
     }
 
     // No parallax. `createBackground` puts the ground tiles and every prop in
@@ -3044,6 +3056,18 @@ export class GameplayScene extends Phaser.Scene {
         world: { x: Math.round(this.player.x), y: Math.round(this.player.y) },
         screen: toScreen(this.player.x, this.player.y),
         alive: this.outcome.result !== 'lost',
+        // The turret, for `--turret`. It is a scene **sibling** rather than a
+        // child of the tank, so "is it on the tank" is a real question with a
+        // numeric answer — and during the countdown the answer used to be no:
+        // it sat at the world origin while the body was at the spawn point.
+        // Reported as its own world point plus the texture, so a run also
+        // proves the *equipped* weapon's art is the one being drawn.
+        turret: {
+          x: Math.round(this.player.tower.x),
+          y: Math.round(this.player.tower.y),
+          texture: this.player.tower.texture.key,
+          visible: this.player.tower.visible,
+        },
       },
       /**
        * Live enemies, nearest first, in the same screen space as the tank.

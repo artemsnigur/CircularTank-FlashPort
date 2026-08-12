@@ -80,6 +80,7 @@ function parseArgs(argv) {
     if (argv[i] === '--walls') args.walls = true;
     if (argv[i] === '--frames') args.frames = true;
     if (argv[i] === '--hits') args.hits = true;
+    if (argv[i] === '--turret') args.turret = true;
     if (argv[i] === '--transitions') args.transitions = true;
     if (argv[i] === '--transitions-levels') args.transitionsLevels = argv[i + 1];
     if (argv[i] === '--frames-level') args.framesLevel = argv[i + 1];
@@ -487,6 +488,85 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.turret) {
+  /**
+   * The equipped weapon on the tank **during the countdown** — T115.
+   *
+   * ── Measured, not only photographed ──────────────────────────────────────
+   * The turret is a scene sibling rather than a child of the tank, so "is it on
+   * the tank" has a numeric answer: the distance between the two world points.
+   * Before the fix that distance was the whole spawn offset — the body at the
+   * spawn point, the turret at the world origin — which a small screenshot of a
+   * small tank does not reliably show. The frame is corroboration; the distance
+   * and the texture key are the evidence.
+   *
+   * Two weapons, because a turret that is right for one and hardcoded would
+   * pass a single-weapon run. The texture key is asserted to differ between
+   * them, so "it drew a turret" cannot stand in for "it drew *this* weapon".
+   */
+  for (const weapon of ['Cannon', 'Laser Cannon']) {
+    await page.goto(`${URL}?primary=${encodeURIComponent(weapon)}`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /level select/i }).first().click();
+    await delay(800);
+    const cell = page.getByRole('button', { name: /^World 1, level 4,/i });
+    if ((await cell.count()) === 0) {
+      console.log('[turret] no dev jump cell for 1-4');
+      break;
+    }
+    await cell.first().click();
+
+    // **Sample while the countdown is still running.** Waiting on
+    // `countDownDone` would measure exactly the state that was never broken.
+    let during = null;
+    for (let i = 0; i < 120; i += 1) {
+      const s = await page.evaluate(() => {
+        const a = globalThis.__arena;
+        if (!a?.tank?.turret) return null;
+        return { done: a.countDownDone, tank: a.tank.world, turret: a.tank.turret };
+      });
+      if (s && !s.done) {
+        during = s;
+        break;
+      }
+      if (s?.done) break;
+      await delay(25);
+    }
+
+    if (!during) {
+      console.log(`[turret] ${weapon}: never sampled a pre-countdown frame`);
+      continue;
+    }
+    const dx = during.turret.x - during.tank.x;
+    const dy = during.turret.y - during.tank.y;
+    const gap = Math.hypot(dx, dy);
+    console.log(
+      `[turret] ${weapon.padEnd(12)} DURING countdown:` +
+        ` tank (${during.tank.x},${during.tank.y})` +
+        ` turret (${during.turret.x},${during.turret.y})` +
+        ` gap ${gap.toFixed(1)}` +
+        ` · texture ${during.turret.texture} · visible ${during.turret.visible}`,
+    );
+    await shot(`turret-countdown-${weapon.replace(/\s+/g, '-')}`);
+
+    // And after GO!, to show the fix did not change gameplay behaviour.
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => {});
+    const after = await page.evaluate(() => {
+      const a = globalThis.__arena;
+      return { tank: a.tank.world, turret: a.tank.turret };
+    });
+    const gapAfter = Math.hypot(after.turret.x - after.tank.x, after.turret.y - after.tank.y);
+    console.log(
+      `[turret] ${weapon.padEnd(12)} after GO!      :` +
+        ` gap ${gapAfter.toFixed(1)} · texture ${after.turret.texture}`,
+    );
+  }
 }
 
 if (args.hits) {

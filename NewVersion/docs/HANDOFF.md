@@ -514,6 +514,44 @@ is now belt-and-braces rather than load-bearing. Kept deliberately — a loop
 silenced two ways is not a defect, and removing it would be an unrelated risk
 taken for tidiness.
 
+### The turret was missing during the countdown (T115)
+
+**Created, but never placed on the tank until the countdown ended.** Not hidden,
+and not created late — the third of the three possibilities.
+
+`PlayerTank` makes the turret a scene **sibling** rather than a child, so the
+body's rotation cannot drag it round (`:113`). That means something has to
+position it, and the only `tower.setPosition` lived inside `drive()` — which
+sits inside `shouldRunDuringCountdown('tankDrive', …)`. So for the whole
+countdown the body was at the spawn point and the turret was at the world
+origin, constructed by `.sprite(0, 0, …)`.
+
+**The AS3 has no such problem, and for two separate reasons.** `Tank.as:19`
+creates the turret with the tank and `:63` `addChild`s it, so position is
+inherited — every one of the 24 `tank.tower` references in `PartGameArea.as` is
+a read of `.rotation`, and none is a write to `.x`/`.y`. And `:70-76` aims it
+from the **tank clip's own `ENTER_FRAME`** (registered `:53`), gated on
+`levelDone`/`gamePaused` only. The countdown holds `moveTank`
+(`PartGameArea.as:2808`), never the turret.
+
+So the fix is a timing one: `syncTurret` is split out of `drive` and called
+every frame outside the countdown gate — next to the crosshair, which already
+escapes it for the same stated reason. The turret also now starts at the tank's
+position rather than `(0, 0)`. `aim` left `drive`'s signature with it, since the
+turret was its only consumer.
+
+Driven — `npm run look -- --turret`, two weapons because a hardcoded turret
+would pass a one-weapon run:
+
+| Weapon | During countdown | After GO! |
+|---|---|---|
+| Cannon | tank (400,300), turret (400,300), **gap 0.0**, `unit-6` | gap 0.0, `unit-6` |
+| Laser Cannon | tank (400,300), turret (400,300), **gap 0.0**, `unit-14` | gap 0.0, `unit-14` |
+
+Different texture keys, so the *equipped* weapon is what draws. The pre-fix gap
+is **derived, not measured**: `sprite(0, 0, …)` with the sole `setPosition`
+inside the gated `drive` puts it at `hypot(400, 300) = 500`.
+
 ### Hit enemies stayed darkened (T114) — one bug, not two
 
 Reported as "enemies lose opacity **or** turn grey/washed-out after being hit".

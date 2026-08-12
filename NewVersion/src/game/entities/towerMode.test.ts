@@ -89,7 +89,11 @@ describe('the drive split leaves every other mode alone', () => {
     // mode added later that should also be fixed in place has to change this
     // line, and this test is where that gets noticed.
     const text = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
-    expect(text).toContain("this.player.drive(input, aim, delta, this.levelSpec?.mode !== 'Tower')");
+    // `aim` left this signature in T115 — the turret it fed is now positioned
+    // and aimed by `syncTurret`, outside the countdown gate. Matched loosely on
+    // the `movable` argument, which is what this test is actually about, so a
+    // future signature change does not fail it for an unrelated reason.
+    expect(text).toMatch(/this\.player\.drive\([^)]*this\.levelSpec\?\.mode !== 'Tower'\)/);
   });
 });
 
