@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { ENEMY_CLIPS, enemyClipKey, enemyRadius, enemyShape } from './enemyArt';
+import { ENEMY_CLIPS, enemyClipKey, enemyRadius, enemyShape, restingTint } from './enemyArt';
 
 /** The twenty types the port spawns. `Merge` has AS3 art but no stat row here. */
 const TYPES = [
@@ -116,5 +116,40 @@ describe('enemyShape — frame selection', () => {
     // what keeps that from returning undefined and blanking the sprite.
     expect(enemyShape('Basic', false, 2)).toBe(enemyShape('Basic', false, 1));
     expect(enemyShape('Basic', false, 0)).toBe(enemyShape('Basic', false, 1));
+  });
+});
+
+/**
+ * What an enemy looks like once a damage flash ends — `uncolorClip`
+ * (`PartGameArea.as:2129`), called at `:4511`.
+ *
+ * **This proves the rule, not the wiring.** `Enemy` is a Phaser Container and
+ * no test constructs one, so the call site is covered by the driven check in
+ * `npm run look -- --hits` rather than by a regex over the class.
+ */
+const PARTICLE_TINTS_GREY = 0x9e9e9e;
+
+describe('the resting tint after a damage flash', () => {
+  it('clears the tint for a type with real art', () => {
+    // `uncolorClip` assigns an identity ColorTransform — the sprite's own
+    // colours. `null` is this port's spelling of that.
+    expect(restingTint(false, PARTICLE_TINTS_GREY)).toBeNull();
+  });
+
+  it('restores the fallback dot to its particle colour — the counterpart', () => {
+    // Driven beside the row above on the identical tint, because "returns null"
+    // is satisfied by a function that always returns null, and the fallback is
+    // the one case where a base colour *is* the resting appearance.
+    expect(restingTint(true, PARTICLE_TINTS_GREY)).toBe(PARTICLE_TINTS_GREY);
+  });
+
+  it('never returns the base tint for real art, whatever the colour', () => {
+    // The T114 bug in one line: the reset applied `baseTint` unconditionally,
+    // so a hit permanently multiplied the artwork by a colour it never had.
+    // Both symptoms came from this — a grey particle colour read as "turned
+    // grey", any darkening multiply read as "lost opacity".
+    for (const tint of [0x9e9e9e, 0x4a4a4a, 0x7ed957, 0xffffff]) {
+      expect(restingTint(false, tint)).toBeNull();
+    }
   });
 });

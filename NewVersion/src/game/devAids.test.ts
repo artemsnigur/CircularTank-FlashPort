@@ -45,6 +45,9 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     // sat against a wall for 152 consecutive samples.
     'stable per-enemy ids for the debug projection',
   ],
+  // T114: a persisted damage-flash tint, which no unit test could see (nothing
+  // constructs an `Enemy`) and no screenshot could reliably read.
+  'src/game/entities/Enemy.ts': ['live sprite tint, for --hits'],
   'src/game/levels/devLevels.ts': ['QA levels for enemy behaviour'],
   'src/game/scenes/UpgradesScene.ts': ['money top-up'],
   // T100: a fresh profile knows only `Basic`, which has no resistances, so the
@@ -107,6 +110,7 @@ describe('dev aids are enumerable', () => {
     // one enemy's sample against another's and cannot see a wall contact at
     // all. A `WeakMap` in the scene rather than a field on `Enemy`, so removing
     // it at release takes nothing in the game with it.
-    expect(total).toBe(26);
+    // 27 since T114 — the enemy sprite tint accessor.
+    expect(total).toBe(27);
   });
 });

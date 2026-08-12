@@ -31,7 +31,7 @@ import {
 } from '../enemies/enemySteering';
 import type { SteeringState } from '../enemies/enemySteering';
 import { resolveDamageMultipliers } from '../enemies/damageTypes';
-import { ENEMY_CLIPS, enemyClipKey, enemyShape } from './enemyArt';
+import { ENEMY_CLIPS, enemyClipKey, enemyShape, restingTint } from './enemyArt';
 import { shrinkScale, shrinksWithHealth } from '../enemies/enemyBodies';
 import {
   blinksOnTimer,
@@ -316,6 +316,14 @@ export class Enemy extends Phaser.GameObjects.Container {
    * colour as the "original" and strand the enemy red.
    */
   private readonly baseTint: number;
+
+  /**
+   * Whether the sprite is the untextured `particle-dot` fallback.
+   *
+   * Only the fallback carries a tint at rest; a type with real art shows its
+   * own colours. `restingTint` is the rule, and this is its input.
+   */
+  private readonly usesFallbackArt: boolean;
   private flashTimer: Phaser.Time.TimerEvent | null = null;
 
   /**
@@ -431,9 +439,14 @@ export class Enemy extends Phaser.GameObjects.Container {
 
     // The placeholder tinted a plain circle by the enemy's particle colour and
     // added a nose so it had a facing. Both are gone: the art carries its own
-    // colour and its own front. The tint is kept as `baseTint` because
-    // `flashDamage` still restores to it.
-    if (shape === undefined) this.shell.setTint(this.baseTint);
+    // colour and its own front — so a real enemy is **untinted**, and only the
+    // fallback dot is coloured.
+    //
+    // `baseTint` is kept for that fallback and for the impact burst's particle
+    // colour. It is deliberately *not* what a damage flash resets to — see
+    // `restingTint`, and the T114 bug where it was.
+    this.usesFallbackArt = shape === undefined;
+    if (this.usesFallbackArt) this.shell.setTint(this.baseTint);
 
     this.add([this.shell]);
     this.setDepth(8);
@@ -1005,6 +1018,18 @@ export class Enemy extends Phaser.GameObjects.Container {
    * The AS3 tints via `colorClip` and counts a `damageIndicator` down over 20
    * frames inside the behaviour loop; this is the visual only.
    */
+  /**
+   * DEV-AID: the sprite's live tint, for `npm run look -- --hits`.
+   *
+   * The T114 defect was a tint that persisted after a damage flash, and neither
+   * a unit test (nothing constructs an `Enemy`) nor a screenshot (a darkened
+   * sprite against nine world themes is not reliably readable) can settle it.
+   * `isTinted` plus the value can.
+   */
+  get debugTint(): { tinted: boolean; value: number } {
+    return { tinted: this.shell.isTinted, value: this.shell.tintTopLeft };
+  }
+
   flashDamage(feedback: ImpactFeedback = null): void {
     // The AS3 spawns a Strength/Weakness/Immune particle alongside the red
     // flash; particles are unported, so the flash colour carries the signal.
@@ -1024,10 +1049,18 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.shell.setTint(colour);
     this.flashTimer = this.scene.time.delayedCall(FLASH_MS, () => {
       this.flashTimer = null;
-      // Restores the tint captured at construction, never the live one: reading
-      // `shell.tintTopLeft` here would pick up a previous flash's colour on an
-      // overlapping hit and leave the enemy permanently red.
-      if (this.active) this.shell.setTint(this.baseTint);
+      if (!this.active) return;
+      // `uncolorClip` (`PartGameArea.as:2129`, called at `:4511`): back to the
+      // sprite's **own** colours, not to a base colour. Restoring `baseTint`
+      // here is what left every hit enemy permanently darkened — see
+      // `restingTint`.
+      //
+      // Computed from the construction-time flag rather than read back off
+      // `shell.tintTopLeft`, which on an overlapping hit would pick up the
+      // previous flash's colour and pin the enemy red.
+      const resting = restingTint(this.usesFallbackArt, this.baseTint);
+      if (resting === null) this.shell.clearTint();
+      else this.shell.setTint(resting);
     });
   }
 }

@@ -3096,6 +3096,11 @@ export class GameplayScene extends Phaser.Scene {
           // Stable across frames — see `arenaDebugId`. Without it the harness
           // cannot tell one enemy's samples apart from another's.
           id: arenaDebugId(e),
+          // Appearance, for `--hits`. Both are needed together: the T114 report
+          // described "loses opacity **or** turns grey", and only reading alpha
+          // and tint on the same sample can say which moved.
+          alpha: e.alpha,
+          tint: e.debugTint.tinted ? e.debugTint.value : null,
         }))
         .sort((a, b) => a.distance - b.distance)
         // Raised from 8 to 24 for `--walls` (T112). With the tank cornered and

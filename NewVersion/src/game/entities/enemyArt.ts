@@ -112,3 +112,29 @@ export function enemyRadius(enemyType: string, isBoss: boolean): number | undefi
   const clip = ENEMY_CLIPS[enemyClipKey(enemyType, isBoss)];
   return clip ? clip.size / 2 : undefined;
 }
+
+/**
+ * The tint an enemy rests at once a damage flash ends — `uncolorClip`
+ * (`PartGameArea.as:2129`), called at `:4511` when `damageIndicator` reaches 0.
+ *
+ * **`null` means no tint at all**, which is what `uncolorClip` does: it assigns
+ * `new ColorTransform()`, the identity, restoring the clip's own colours. It
+ * does *not* re-apply a base colour, and neither should this.
+ *
+ * ── The bug this exists to prevent (T114) ─────────────────────────────────
+ * `Enemy` only tints its sprite at construction when the type has **no** real
+ * art and falls back to `particle-dot`; every one of the twenty types has art
+ * (`enemyArt.test.ts` pins that), so a real enemy starts untinted. The flash
+ * reset nevertheless restored `baseTint` unconditionally, so the **first hit
+ * permanently multiplied the artwork** by a colour that was never applied to
+ * it — darkening and desaturating the sprite for the rest of its life.
+ *
+ * That single mistake produced both reported symptoms: a mid-grey particle
+ * colour (`EnemyGrey` `0x9e9e9e`, `EnemyBlack` `0x4a4a4a`) read as "turned
+ * grey", and any darkening multiply read as "lost opacity". **No alpha was ever
+ * involved** — see `enemyVisibility.hidesWhenHurt`, which dims `ScaredGhost`
+ * on damage and is faithful (`:4832-4850`).
+ */
+export function restingTint(usesFallbackArt: boolean, baseTint: number): number | null {
+  return usesFallbackArt ? baseTint : null;
+}

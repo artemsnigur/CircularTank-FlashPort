@@ -79,6 +79,7 @@ function parseArgs(argv) {
     if (argv[i] === '--boss-life') args.bossLife = true;
     if (argv[i] === '--walls') args.walls = true;
     if (argv[i] === '--frames') args.frames = true;
+    if (argv[i] === '--hits') args.hits = true;
     if (argv[i] === '--transitions') args.transitions = true;
     if (argv[i] === '--transitions-levels') args.transitionsLevels = argv[i + 1];
     if (argv[i] === '--frames-level') args.framesLevel = argv[i + 1];
@@ -486,6 +487,136 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.hits) {
+  /**
+   * Enemy appearance across repeated hits — the T114 defect.
+   *
+   * ── Why not a screenshot ─────────────────────────────────────────────────
+   * The symptom is a *multiply* applied to the artwork. Against nine world
+   * themes, "slightly darker than it should be" is not reliably readable from a
+   * frame, and the enemy is often mid-explosion when the frame lands. The
+   * observable is the sprite's own tint and alpha, sampled per enemy per frame.
+   *
+   * Reports, per enemy that was hit at least once:
+   *   settled  — tint back to none within the flash window after its last hit
+   *   stuck    — still tinted well after the flash should have ended
+   *   alpha    — the minimum seen, to catch an opacity change as well
+   *
+   * `stuck` is the number the bug moved: before the fix every hit enemy came to
+   * rest tinted, because the reset restored `baseTint` instead of clearing.
+   */
+  // **The weakest primary on purpose.** With a Laser Cannon the enemies died
+  // in the same frame they were hit, so the flash and the corpse both landed
+  // between two 25ms samples and the run reported a clean `0 were hit`.
+  await page.goto(`${URL}?primary=Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /level select/i }).first().click();
+  await delay(900);
+  // **The level-select dev jump, not the Enemies screen's Test button.** That
+  // route launched a dev level which reported "30 left" and spawned nothing for
+  // an entire 400-sample run, so the sampler measured an empty arena and
+  // reported a clean "0 were hit". 1-4 is the level `--walls` already drives.
+  const test = page.getByRole('button', { name: /^World 1, level 9,/i });
+  if ((await test.count()) === 0) {
+    console.log('[hits] no dev jump cell for 1-9');
+  } else {
+    await test.first().click();
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => console.log('[hits] countdown never reported done'));
+
+    await page.keyboard.down('d');
+    await page.locator('canvas').hover({ position: { x: 700, y: 400 } });
+    await page.mouse.down();
+    await delay(600);
+    await page.keyboard.up('d');
+
+    // Track per enemy: was it ever tinted, and is it tinted long after.
+    const seen = new Map();
+    let samples = 0;
+    for (let i = 0; i < 900; i += 1) {
+      const arena = await page.evaluate(() => {
+        const a = globalThis.__arena;
+        return (a?.enemies ?? []).map((e) => ({
+          id: e.id,
+          tint: e.tint,
+          alpha: e.alpha,
+          hp: e.health,
+          type: e.enemyType,
+          screen: e.screen,
+        }));
+      });
+      samples += 1;
+      if (i === 40 || i === 120) {
+        const st = await page.evaluate(() => ({
+          n: (globalThis.__arena?.enemies ?? []).length,
+          hp: globalThis.document.querySelector(".hud-health__text")?.textContent ?? "?",
+          over: globalThis.document.querySelector(".level-outcome__actions") !== null,
+          left: globalThis.document.querySelector(".hud-stat--right")?.textContent ?? "?",
+        }));
+        console.log(`[hits] probe i=${i}: ` + JSON.stringify(st));
+      }
+      for (const e of arena) {
+        if (e.id === undefined) continue;
+        const prev = seen.get(e.id) ?? {
+          everTinted: false,
+          tintedSamples: 0,
+          sinceTint: Infinity,
+          minAlpha: 1,
+          stuck: false,
+        };
+        if (e.tint !== null && e.tint !== undefined) {
+          prev.everTinted = true;
+          prev.tintedSamples += 1;
+          prev.run = (prev.run ?? 0) + 1;
+          prev.maxRun = Math.max(prev.maxRun ?? 0, prev.run);
+          prev.sinceTint = 0;
+          prev.lastTint = e.tint;
+        } else {
+          prev.sinceTint += 1;
+          prev.run = 0;
+        }
+        // **Consecutive, not cumulative.** The first version counted every
+        // tinted sample, so an enemy under continuous fire — legitimately
+        // re-flashed over and over — was reported as stuck, and the run said
+        // "1 left tinted" about a working build. The flash is 80ms and a sample
+        // is ~25ms, so an unbroken run past ~10 samples (250ms) is a tint that
+        // is not being cleared.
+        if ((prev.maxRun ?? 0) > 10) prev.stuck = true;
+        prev.minAlpha = Math.min(prev.minAlpha, e.alpha ?? 1);
+        prev.type = e.type;
+        seen.set(e.id, prev);
+      }
+      // **Aim at a live enemy, not at a screen constant.** The first version
+      // orbited (640, 400) — the viewport centre — and landed zero hits in 400
+      // samples while reporting a clean "0 left tinted". That is `L8` exactly:
+      // the harness aims where the tank used to be and the number looks fine.
+      // Cycled so the fire spreads across enemies rather than deleting one.
+      const target = arena[i % Math.max(1, arena.length)]?.screen;
+      if (target) await page.mouse.move(target.x, target.y);
+      await delay(25);
+    }
+    await page.mouse.up();
+
+    const hit = [...seen.values()].filter((e) => e.everTinted);
+    const stuck = hit.filter((e) => e.stuck);
+    const dimmed = hit.filter((e) => e.minAlpha < 0.99);
+    console.log(
+      `[hits] ${samples} samples · ${seen.size} enemies seen · ${hit.length} were hit` +
+        ` · ${stuck.length} left tinted · ${dimmed.length} dropped below full alpha`,
+    );
+    const worst = hit.sort((a, b) => b.tintedSamples - a.tintedSamples).slice(0, 5);
+    for (const e of worst) {
+      console.log(
+        `[hits]   ${String(e.type).padEnd(8)} tinted ${String(e.tintedSamples).padStart(3)} samples, longest run ${String(e.maxRun ?? 0).padStart(3)}` +
+          ` samples · min alpha ${e.minAlpha.toFixed(2)}` +
+          ` · last tint ${e.lastTint === undefined ? 'n/a' : '0x' + e.lastTint.toString(16)}`,
+      );
+    }
+    await shot('hits-after');
+  }
 }
 
 if (args.transitions) {

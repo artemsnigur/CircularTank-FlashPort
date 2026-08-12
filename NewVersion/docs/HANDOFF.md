@@ -514,6 +514,54 @@ is now belt-and-braces rather than load-bearing. Kept deliberately — a loop
 silenced two ways is not a defect, and removing it would be an unrelated risk
 taken for tidiness.
 
+### Hit enemies stayed darkened (T114) — one bug, not two
+
+Reported as "enemies lose opacity **or** turn grey/washed-out after being hit".
+**One root cause, and no alpha was involved.**
+
+`Enemy` only tints its sprite at construction when the type has **no** real art
+and falls back to `particle-dot` (`:436`). All twenty types have art
+(`enemyArt.test.ts` pins it), so a real enemy starts **untinted**. The damage
+flash's reset nevertheless restored `baseTint` **unconditionally**, so the first
+hit permanently multiplied the artwork by a colour it never had. A mid-grey
+particle colour (`EnemyGrey 0x9e9e9e`, `EnemyBlack 0x4a4a4a`) read as "turned
+grey"; any darkening multiply read as "lost opacity".
+
+**The AS3 reset is `uncolorClip` (`PartGameArea.as:2129`) — `new ColorTransform()`,
+the identity**, called at `:4511` when `damageIndicator` hits 0. It restores the
+clip's own colours and never applies a base colour. `:4516` is the flash itself:
+red `0xFF0000` at `damageIndicator / 20 * 0.8`, ramping down over 20 frames.
+
+The rule is now `enemyArt.restingTint` — `null` (clear) for real art, `baseTint`
+for the fallback dot only.
+
+**Not the bug, and deliberately untouched:** `ScaredGhost`'s alpha dip when hurt
+is faithful (`enemyVisibility.hidesWhenHurt`, `:4832-4850`), as is the teleport
+fade. `applyAlpha` remains the single alpha writer and damage does not reach it.
+
+**Known divergence, pre-existing and out of scope:** the port flashes a flat 80ms
+in one of four colours (red, plus Strength/Weakness/Immune tints) where the AS3
+ramps red over 20 frames. That encodes the unported Strength/Weakness *particles*
+as a colour and predates this fix.
+
+Driven — `npm run look -- --hits`, and the A/B is the evidence:
+
+| | Fixed | Bug reintroduced in a worktree |
+|---|---|---|
+| enemies left tinted | **0** | **1** |
+| longest consecutive tint run | **2 samples (~50ms)** | **657 samples (~16s)** |
+| resting tint | `0xff4444`, the transient flash | **`0x7ed957` = `PARTICLE_TINTS.EnemyGreen` = `baseTint`** |
+| minimum alpha | **1.00** | **1.00** |
+
+The alpha column is the answer to "one bug or two": it never moved in **either**
+build, so the opacity complaint was the darkening multiply all along.
+
+**Two instrument faults on the way, both of which reported a clean pass on a
+broken build:** the sampler first aimed at the viewport centre and landed zero
+hits in 400 samples (`L8` again), and `stuck` first counted *cumulative* tinted
+samples, so an enemy under continuous fire — legitimately re-flashed — was
+reported stuck on a correct build. It counts consecutive runs now.
+
 ### Frame timing, and the stutter that was not the wall bounce (T113)
 
 A stutter report after T112 was investigated by profiling rather than by
