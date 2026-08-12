@@ -381,25 +381,28 @@ Two consequences worth knowing before planning work:
   to fix opportunistically when passing through `GameplayScene`; it is a scoped-out area,
   and half-adding it is worse than leaving it.
 
-**`PM_PRNG` is reproducibility-critical, and is not yet wired.** In the AS3 it is seeded
-per level from `levelDataModel[...][9]` and drives deterministic background-prop placement.
-In the port it has **no production importer**: `LevelSpec.seed` is extracted for all 405
-levels and read by nothing, and `GameplayScene` uses `Phaser.Math.RandomDataGenerator`
-seeded from a string key for spawn placement instead. Background props are unported, so
-this is not yet a divergence — but the sites that would use it have already chosen a
-different generator. It is a Lehmer generator whose product reaches ~7.2e13 — exact in a
-double, but destroyed by `Math.imul`, `| 0` or `>>> 0`. `src/game/core/PM_PRNG.ts` says so
-at length; the differential test against BigInt is the guard. Do not "optimise" it, and do
-not delete it as unused.
+**`PM_PRNG` is reproducibility-critical, and it is wired.** In the AS3 it is seeded per
+level from `levelDataModel[...][9]` and drives deterministic background-prop placement;
+the port now does the same. `levels/backgroundProps.ts:35` imports it, `:286` and `:579`
+seed one from `LevelSpec.seed`, and `GameplayScene.ts:935` (`spawnBackgroundProps`)
+consumes the layout. It is a Lehmer generator whose product reaches ~7.2e13 — exact in a
+double, but destroyed by `Math.imul`, `| 0` or `>>> 0`. `src/game/core/PM_PRNG.ts` says
+so at length; the differential test against BigInt is the guard. Do not "optimise" it.
 
-**Whether to keep it at all is an open decision, not a hold** — `D1` in
-`NewVersion/docs/AUDIT-2026-07.md`. Two options: wire it to `LevelSpec.seed` and get the
-original's exact layouts back, or standardise on Phaser's generator and accept that they
-are gone for good. Both are a day's work; neither is blocked. Keeping both — the current
-state — is the one option with the costs of the first and the benefits of neither, and it
-has now been deferred twice by not being written down. If you are about to touch level
-layout, prop placement or `LevelSpec.seed`, read D1 first and make the call rather than
-routing around it again.
+**Draw order is load-bearing, and that is the part that bites.** A Lehmer generator has
+no resynchronisation: one extra or missing `nextDouble()` shifts the entire remaining
+stream, so a layout that is correct in every formula and wrong by one draw matches
+nothing — while looking completely plausible. `backgroundProps.test.ts` pins the order as
+a *sequence*, against a stream derived by hand from the AS3 formulas rather than from the
+port's own code. Adding, removing or reordering a draw is a behaviour change even when
+every formula around it is right.
+
+**Which generator owns level layout was `D1`, and it is decided — Option A**, recorded in
+`NewVersion/docs/AUDIT-2026-07.md`. The original lineage was restored rather than
+standardising on Phaser's generator, because the AS3 source is the spec. Note the scope:
+`GameplayScene` still seeds a `Phaser.Math.RandomDataGenerator` from a string key for
+*spawn* placement (`:607`, `:1597`), which D1 did not cover. Read D1 before changing
+which generator drives any placement site — it is a settled decision, not an open one.
 
 When lifting constants out of AS3, keep the origin in a comment (`ScreenGame.as`
 `levelDataModelW1`, `PartGameArea.cameraWidth`, …). The level tables and enemy stat rows

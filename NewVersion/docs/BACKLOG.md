@@ -26,7 +26,7 @@
 >   counts enemies carrying `gotBomb`. Corrected here rather than silently, because
 >   the wrong description would have scoped a feature that does not exist.
 > - **The UI and sound bulk** — **measured, not counted** (see below). UI: 9 of 11
->   screens render with content. Sound: **47–48 of 67** names fire (T71) — see
+>   screens render with content. Sound: **50–51 of 67** names fire (T80) — see
 >   *Instrument note*.
 >
 > Recorded here rather than in a report because a list that refers to work it does not
@@ -85,7 +85,8 @@ document were **driven at `b2d2193`**, not counted:
   | 25 of 67 | `b2d2193` (T60) | tutorial gate closed the arena (`L3`) |
   | 27 of 67 | T65 | `L3` fixed; sweep still aimed at a screen constant (`L8`) |
   | 41–42 of 67 | T69 | both closed; impacts landing — Normal mode only |
-  | **47–48 of 67** | **T71** | **+ four modes driven, + two triggers wired** |
+  | 47–48 of 67 | T71 | + four modes driven, + two triggers wired |
+  | **50–51 of 67** | **T80 (current)** | **+ `Burning`/`FlameThrower` wired, + two names added to the equip lists** |
 
   **41–42 does not confirm or replace 39.** They measure the same thing through
   two different broken instruments and one working one.
@@ -187,8 +188,7 @@ separately.
 `src/game/enemies/statusEffects.ts` was built with the Poison Cannon and Timed
 Bomb Cannon and **already covers poison, freeze and bomb** — `applyPoison`,
 `applyFreeze`, `applyBomb`, `tickStatuses`, wired into `Enemy.ts:83` and
-`GameplayScene.ts:59`. CLAUDE.md still describes the per-enemy status timer as
-the blocker for this group; it is not, any more.
+`GameplayScene.ts:59`. Nothing in this group is blocked on it.
 
 - [x] **Grenade** — shipped. `ObjectGrenade`, `:4001-4056`. A thrown arc: spawned at the
       muzzle with `timeLeft = 50` frames, speed `shootDistance / 9.35` (floor
@@ -1406,11 +1406,13 @@ Still one model change for two consumers, and the seam is already named
 Three things that look like dependencies and are not:
 
 - **Status timers block nothing**, and have not since `statusEffects.ts` shipped
-  with the Poison and Timed Bomb cannons. **CLAUDE.md's note naming this as the
-  blocker for Ice Grenade / Poison Grenade / Icicles / Poison Spikes is stale and
-  was stale when this document was first written** — it is still there. Flagged
-  again rather than fixed, because CLAUDE.md is the working-rules file and
-  editing it is its own deliberate act.
+  with the Poison and Timed Bomb cannons. This entry twice flagged CLAUDE.md for
+  still naming the timer as the blocker for Ice Grenade / Poison Grenade /
+  Icicles / Poison Spikes. **Re-checked in the T107 docs pass: CLAUDE.md does not
+  say that** — it names only the Timed Bomb and Poison *cannons*, and records
+  that the prediction held and `statusEffects.ts` is the timer. The flag outlived
+  the thing it flagged; both copies are retired rather than restated a third
+  time.
 - **Save slots (K) depend on nothing** — and are now closed.
 - **L3 and L4 are harness items, not gameplay ones.** They gate *measurement*,
   not features. Fix them before trusting the next sound number, not before
@@ -1430,7 +1432,7 @@ given; only the tail of step 5 remains. Struck through for the record:
 3. ~~**H** counters, the eleven `temp*` flags, evaluation → **G** page stack and
    both reveal kinds.~~ Done, H before G as advised.
 4. ~~**F** secondaries.~~ Done, all twelve, F0 subsystems included.
-5. ~~**K** save slots~~ done; **L1** the sync prune still open.
+5. ~~**K** save slots~~ done; ~~**L1** the sync prune~~ done (T77).
 
 ### What is actually left in this document
 
@@ -1440,10 +1442,10 @@ Small, and none of it blocks anything else:
 |---|---|---|
 | ~~**G / I2**~~ | ~~The visible-values model — one change, two consumers~~ — **closed T81.** Built in T76; the "one change, two consumers" premise was wrong, because the two consumers are deliberately split (**A6**). Three stale comments corrected | done |
 | ~~**M2**~~ | ~~J — shop stat previews~~ — **closed.** Extraction T90, render T91. Not descriptions (none exist), data was already present, and the block is 815 AS3 lines — the row's original framing was wrong on all three | done |
-| **L1** | `assets:sync` never prunes | small |
+| ~~**L1**~~ | ~~`assets:sync` never prunes~~ — **fixed T77.** `scripts/lib/asset-prune.mjs` derives what to delete from **exactly** the inputs the copy loops use, so the authored overlay survives by construction rather than by an exemption someone maintains. Driven: 0 pruned on a clean tree; a planted orphan and a de-curated shape both caught, with `--dry-run` deleting neither. The scope was narrower than filed — `registry.test.ts:218` already caught 2 of the 3 listed failure modes | done |
 | ~~**L3**~~ | ~~`--sound-sweep` never satisfies the tutorial gate~~ — **fixed T65**; count unmoved, see L8 | done |
 | ~~**L8**~~ | ~~The sweep aims at a screen constant~~ — **fixed T69**; 25 → 41–42 of 67, landing evidence 0/6 → 6/6 | done |
-| **Sound: 14 silent** | **`--sound-sweep` still reports 47–48** and will keep doing so: it drives a *defeat*, and `Award1-3` fire on a **win**. They are confirmed firing by `--medals` instead, which is a different driven mode — so the sweep figure and the trigger-coverage figure have come apart, and neither is wrong. 10 of the 14 are wired and reach-only. The rest: `Burning`/`FlameThrower` **wired T80**, `ImpactCrazyCheese` a permanent orphan, and `BossCollision` re-filed as the enemy-separation row below. Breakdown in `HANDOFF.md` §5 | mostly blocked, not owed |
+| **Sound: the silent names** | **`HANDOFF.md` §5 owns the count and the per-name breakdown; this row deliberately does not restate them.** It used to, and it drifted — `47–48` against §5's `50–51`, and a population of `14` against §5's `16`, which count the same names under different rules. What is durable and belongs here: the sweep drives a *defeat*, so `Award1-3` fire on a **win** and are confirmed by `--medals` instead — the sweep figure and the trigger-coverage figure have come apart and **neither is wrong**. `Burning`/`FlameThrower` **wired T80**. `ImpactCrazyCheese` is a permanent orphan — never wire it. `BossCollision` is re-filed as the enemy-separation row below | mostly blocked, not owed |
 | **Port enemy-enemy separation** | `PartGameArea.as:5174-5221` — the pair loop that pushes two overlapping enemies apart by their relative mass (`:5199-5207` into `pushVelX/Y`, decayed at `:5365-5366`, integrated at `:5370-5385`, gated on `safetyDistance` at `:3354`/`:3358`). **The port has no enemy-enemy collision at all, so enemies interpenetrate on every one of the 405 levels.** That is the reason to build it: it is a visible fidelity gap with player value on its own. The `BossCollision` sound (`:5197`, boss-on-boss only) is a *byproduct* that falls out once the pair loop exists — **building the subsystem in order to unlock one sound would be backwards**, which is why this is filed as movement work and the sound is not listed separately any more | subsystem — touches enemy movement game-wide; **not in the active queue** |
 | ~~**Achievement toasts cover the results panel**~~ | **Fixed T79.** The description was wrong twice: they *were* offset from one another, and the count was not the mechanism — two **centred** overlays were. AS3-derived after all: one toast at a time from a queue (`PartAchievements.as:265`, `:116-117`), top right (`:125-126`). Unblocked the `Achievement` sound (`:120`) | done |
 | ~~**L4**~~ | ~~`npm run look` leaves its vite server alive~~ — **fixed T64** | done |
@@ -1454,11 +1456,13 @@ Small, and none of it blocks anything else:
 | ~~**Boss life indicator**~~ | ~~radial HP wipe under each boss~~ — **shipped T106.** Faithful port of `PartInterface.handleLifeIndicators` (`:872-995`), in-combat and Boss-mode only. The roster-icon and low-HP-opacity variants were scoped and **not built** — neither has any AS3 basis | shipped |
 | ~~**A9**~~ | ~~Boss rows draw boss art in roster previews~~ — **decided T105: keep.** The AS3 draws ordinary enemy art (`PartInfoText.as:249`/`:271`, `ImageEnemy.as:57-145`); this port draws the boss clip because a boss row that looks like every other row buries what the preview is for. Recorded as divergence `A9` **because it reads as a forgotten level-character strip** | decided — no change |
 | ~~**M6**~~ | ~~Level Guide — 912 lines / 5 classes~~ — **CLOSED T102.** (a)-(d) shipped; **(e) closed by decision, divergence `A8`** — not pending. `selectFromLevelGuide` and `canSelectFromLevelGuide` are deliberately not reproduced: this port's click-to-start level select is an intentional divergence, so porting them would mean building a selection step that contradicts the interaction model rather than completing it. The filing was wrong on four counts: **8** classes not 5, **951** lines not 912, **17** files reference it not 5, and the widget lives on the **shop**, not level select | closed |
-| **M5** | PartInfoText — the hover panel. **Steps 1-3 done (T99-T101): every reachable call site is wired**, 4 of 20. Shop rows, achievement cells, bestiary badges, next-level preview. **Not "closed except for the Level Guide"** — three separate dependencies are outstanding, not one: the Level Guide (4 sites), a level-select enemy roster (2 sites *plus* `addStrengthsAndWeaknessIcons`' unported `"Normal"` branch), and the level-complete status screen (`Achievement.as:103`). `infoTextSites.ts` carries the per-row verdict and is checked against the AS3 | live sites done; 3 dependencies open |
+| ~~**M5**~~ | ~~PartInfoText — the hover panel~~ — **CLOSED T104.** `infoTextSites.ts` reads **9 wired / 4 redundant / 7 no-consumer / 0 deferred = 20**: every site with a live consumer is wired, and nothing waits on unbuilt work. Shop rows, achievement cells, bestiary badges, the next-level preview, the Level Guide's four (T102) and the achievement reveal icon (T104). The "three dependencies outstanding" this row used to claim resolved as **decisions, not builds** — the Level Guide shipped, and `ImageEnemy.as:174`/`:178` became `no-consumer` behind `A8`. **One AS3 branch stays unported behind them:** `addStrengthsAndWeaknessIcons`' `"Normal"` mode (`:446-453`). Detail in `HANDOFF.md` §5 | closed |
 
 **Read this next to `docs/HANDOFF.md` §5, not instead of it.** This document
-covers what was visible when the enemies landed; the live queue — the `Objective`
-panel overlapping the HUD, the pre-level countdown and its game-wide spawn
-consequence, the 28 non-firing sound names, `D1`'s remaining prop-art step — is
-tracked there. **Neither file is the whole remaining port**, which is the warning
+covers what was visible when the enemies landed; **§5 is the live queue, and this
+paragraph deliberately no longer duplicates it.** The four items it used to name
+had every one gone stale — the `Objective` panel closed (T63), the pre-level
+countdown closed (T67/T68), `D1`'s prop step decided and built, and "28
+non-firing sound names" superseded twice — while this line went on listing them
+as current. **Neither file is the whole remaining port**, which is the warning
 this document opens with and still means.

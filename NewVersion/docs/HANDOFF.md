@@ -4,8 +4,14 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T106**, commit `24767bc`, 9 August 2026. Keep it current — it is
+Current as of **T107**, commit `e769afa`, 12 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
+
+**The hash is the commit this file sat on when it was written** — i.e. the parent
+of the commit that carries the edit, so it is always one behind `HEAD`. That is
+deliberate and is what the `T58` correction below established; **a reader
+checking the stamp against `HEAD` will find a deliberate off-by-one, not drift.**
+Check the task number and the gate figures in §1 instead.
 
 *(Stamp history, because this file has drifted twice: `T58`/`8852cc8` named the
 commit it was written **about** rather than **on**; `T60`/`b2d2193` was correct
@@ -58,7 +64,7 @@ band: the harness itself was still changing under them, so they measure a
 different instrument. **16 names were silent in all three runs**, and that
 stable list is the one worth acting on — not the total.
 
-**47–48 → 49–51 is two different gains again, and the total cannot tell them
+**47–48 → 50–51 is two different gains again, and the total cannot tell them
 apart** — which is why T80 made the sweep log **which** names are new at each
 step. `Burning` and `FlameThrower` were genuinely unwired and are now wired
 (T80); they were *also* unreachable, because `Flamethrower` and `Lava Ball` were
@@ -88,12 +94,13 @@ defects present in the harness, so none of them can be compared with another:
 | 25 of 67 | `b2d2193` (T60) | the tutorial gate left the arena empty (`L3`) |
 | 27 of 67 | T65 | `L3` fixed; the sweep still aimed at a screen constant (`L8`) |
 | 41–42 of 67 | T69 | both closed; impacts confirmed landing — Normal mode only |
-| **47–48 of 67** | **T71** | **+ four modes driven, + `Freeze` and `TeleportOut` wired** |
+| 47–48 of 67 | T71 | + four modes driven, + `Freeze` and `TeleportOut` wired |
+| **50–51 of 67** | **T80 (current)** | **+ `Burning`/`FlameThrower` wired, + `Flamethrower`/`Lava Ball` in the equip lists** |
 
 **41–42 does not confirm or replace 39**, and 39 → 25 was never a regression.
 They are the same quantity measured through two broken instruments and one
-working one. Track 41–42 from here; do not treat any of the others as a floor,
-a target, or a baseline.
+working one. **Track 50–51, the last row** — do not treat any of the others as a
+floor, a target, or a baseline.
 
 ### How to see it
 
@@ -318,7 +325,12 @@ be checked against a second mode on the same build before it is believed.
 
 ## 5. What is open
 
-### Queued, unblocked
+### The live queue — one decision, one measurement note
+
+**Neither row is queued build work**, and the heading used to say "Queued,
+unblocked", which claimed both were. The first is a decision waiting on you; the
+second is a standing note about what the sweep can reach. This section is the
+source of truth for both — `BACKLOG.md` points here rather than restating them.
 
 | Item | Needs |
 |---|---|
@@ -380,37 +392,52 @@ scoping pass found `:1147-1163` is driven by `countTime` over `medalsForHp`, not
 by either progress table. **The visible-values model now closes exactly one
 name, `Unlock`**, and `Achievement` is adjacent to it rather than on it.
 
-### PartInfoText — step 1 landed (T99), steps 2-4 open
+### PartInfoText — CLOSED (T104)
 
-The hover panel is built and wired. `src/game/ui/infoTextPlacement.ts` is the
-geometry, `infoTextState.ts` the per-frame keep-alive, `infoTextSites.ts` the
-table of all 20 AS3 call sites, and `src/ui/InfoText.tsx` the single mounted
-panel. Driven by `npm run look -- --tooltips`, which measures the panel's box
-against the cursor rather than asserting the node exists.
+The hover panel. `src/game/ui/infoTextPlacement.ts` is the geometry,
+`infoTextState.ts` the per-frame keep-alive, `infoTextSites.ts` the table of all
+20 AS3 call sites, and `src/ui/InfoText.tsx` the single mounted panel. Driven by
+`npm run look -- --tooltips`, which measures the panel's box against the cursor
+rather than asserting the node exists.
 
-| Step | State |
-|---|---|
-| **1 — core + Achievement rich text** | **Done.** But the "16 sites" it was scoped as is **2** — see the audit's "reachable surface" entry. Shop rows and achievement cells are wired; twelve sites are recorded as redundant, unported or deferred, with a reason each |
-| **2 — `EnemyStrengthsWeaknesses`** | **Done (T100), but for one of its three sites.** `IconStrongWeak.as:48` is wired — the bestiary's badges. `ImageEnemy.as:174`/`:178` are the *tooltip* variant and stay blocked: their only consumer is the level-select enemy roster (`ScreenLevelSelect.as:1128`), which this port does not have. See below |
-| **3 — `AllEnemiesInLevel`** | **Done (T101)** for its live site, `ButtonNextLevel.as:208` — the Next Level button on the results overlay. `ButtonLevelGuideInfo.as:64` is the same special type on the Level Guide and stays blocked with the rest of step 4 |
-| **4 — Level Guide's 4 sites** | **Done (T102).** The Level Guide shipped, and all four sites are wired on its widget |
+**`infoTextSites.ts` reads 9 wired / 4 redundant / 7 no-consumer / 0 deferred =
+20.** Nothing waits on unbuilt work; what remains is held by decisions already
+made. That table carries the per-row verdict and is the thing to read rather
+than a summary adjective.
 
-**Status: `PartInfoText` is *open*, not "closed except for a dependency" — and
-the distinction is not pedantry.** Every reachable site is wired: 4 of the 20
-call sites have a live consumer and all 4 are done. But "closed except for X"
-would claim the remaining work is *only* the four Level Guide triggers, and
-that is not what is left. `PartInfoText.as` still has an unported branch —
+| Step | Landed | What it wired |
+|---|---|---|
+| **1 — core + Achievement rich text** | T99 | Shop rows and achievement cells. The "16 sites" it was scoped as is **2** — see the audit's "reachable surface" entry |
+| **2 — `EnemyStrengthsWeaknesses`** | T100 | `IconStrongWeak.as:48`, the bestiary's badges. `ImageEnemy.as:174`/`:178` are the *tooltip* variant and are `no-consumer` — see below |
+| **3 — `AllEnemiesInLevel`** | T101 | `ButtonNextLevel.as:208`, the Next Level button on the results overlay |
+| **4 — Level Guide's 4 sites** | T102 | All four, on the Level Guide's own widget |
+| **`Achievement.as:103`** | T104 | The achievement reveal page's icon, with its tooltip |
+
+**What closed it was a wiring and a reclassification, in that order:**
+
+- **`Achievement.as:103` wired (T104)** — **built for completeness despite
+  duplicating the page text**: the AS3 page shows the title only
+  (`ScreenStatus.as:971`), so there the tooltip is the only way to read the
+  description; this port already renders it. Recorded at the component and in
+  the site table so it is not "cleaned up" later as an oversight. 36 icon clips
+  / 76 shapes synced, derived from the `[Embed]` lines rather than hand-listed.
+- **`ImageEnemy.as:174`/`:178` reclassified `deferred` -> `no-consumer`.** They
+  need per-enemy tiles in a *selected-level* panel and this port has no
+  selection step (`A8`). The blocker is a decision, not unbuilt work, and the
+  status now says so.
+
+**One AS3 branch stays unported, and closing the item does not close it:**
 `addStrengthsAndWeaknessIcons`' `"Normal"` mode (`:446-453`), the full-size
-badges the panel draws for `EnemyStrengthsWeaknesses` — because its consumer
-`ImageEnemy` lives on a level-select enemy roster this port has not built.
-That is a **fifth** blocked thing, on a different dependency from the Level
-Guide, and a "closed except for the Level Guide" line would hide it.
+badges the panel draws for `EnemyStrengthsWeaknesses`. Its consumer `ImageEnemy`
+lives on the level-select enemy roster `A8` decided against building, so it
+waits on that decision rather than on effort. Named here because a bare "closed"
+would hide it.
 
-So: **all live sites wired; three separate dependencies outstanding** — the
-Level Guide (4 sites), the level-select enemy roster (2 sites plus the
-`"Normal"` icon branch), and the level-complete status screen
-(`Achievement.as:103`). `infoTextSites.ts` carries the per-row verdict, and it
-is the thing to read rather than a summary adjective.
+**A fidelity fix fell out of sharing the composition.** T99's achievement
+tooltip added a difficulty note only when *earned* and wrote it `(Medium)`.
+`Achievement.as:60-80` always emits one — `(Difficulty doesn't matter.)`,
+`(Difficulty matters.)` or `(Completed on EASY/MEDIUM/HARD.)`. Both screens now
+use `achievementTooltip`, so the board's text is corrected as a side effect.
 
 **Step 2 split into two halves that the brief treated as one.** The task was
 scoped as "wire `addStrengthsAndWeaknessIcons`, lands on the Enemies screen".
@@ -491,31 +518,6 @@ Filed as `A9` because it looks like a slip: follow `:249` and the port's
 T104's scoping, checked against both AS3 sites, and kept. The assertion in
 `levelPreview.test.ts` carries the same warning, since that is where someone
 would stand while "fixing" it.
-
-### PartInfoText is closed — 9 wired, 0 deferred (T104)
-
-`infoTextSites.ts` now reads **9 wired / 4 redundant / 7 no-consumer / 0
-deferred = 20**. Nothing is waiting on unbuilt work; what is left is waiting on
-decisions already made.
-
-- **`Achievement.as:103` wired (T104)** — the achievement reveal page's icon,
-  with its tooltip. **Built for completeness despite duplicating the page
-  text**: the AS3 page shows the title only (`ScreenStatus.as:971`), so there
-  the tooltip is the only way to read the description; this port already renders
-  it. Recorded at the component and in the site table so it is not "cleaned up"
-  later as an oversight. 36 icon clips / 76 shapes synced, derived from the
-  `[Embed]` lines rather than hand-listed.
-- **`ImageEnemy.as:174`/`:178` reclassified `deferred` -> `no-consumer`.** They
-  need per-enemy tiles in a *selected-level* panel and this port has no
-  selection step (`A8`). The blocker is a decision, not unbuilt work, and the
-  status now says so. The one AS3 branch still unported behind them is
-  `addStrengthsAndWeaknessIcons`' `"Normal"` mode (`:446-453`).
-
-**A fidelity fix fell out of sharing the composition.** T99's achievement
-tooltip added a difficulty note only when *earned* and wrote it `(Medium)`.
-`Achievement.as:60-80` always emits one — `(Difficulty doesn't matter.)`,
-`(Difficulty matters.)` or `(Completed on EASY/MEDIUM/HARD.)`. Both screens now
-use `achievementTooltip`, so the board's text is corrected as a side effect.
 
 ### Level-grid roster preview (T103) — a port addition, not a port of `ImageEnemy`
 
@@ -865,12 +867,15 @@ things that are actually open.
 
 ### Blocked on you, not on me
 
-- **`M1` — tank damage tint.** *Done* (T52). Was the one item you asked for by
-  name; see below.
-- **Nothing else is currently blocked on a decision**, but two standing calls
-  shape everything: the touch/phone work is deliberately deprioritised until the
+- **One thing is genuinely blocked on you: the volume slider ↔ mute toggle
+  coupling**, first in the queue above. It is a behaviour decision about a
+  shipped, persisted control, so it was flagged rather than guessed at.
+- **Nothing else is blocked on a decision**, but two standing calls shape
+  everything: the touch/phone work is deliberately deprioritised until the
   desktop port is finished, and the ~81 third-party classes
   (`com.google.analytics`, `FGL`, `fl`, `mx`) are never being ported.
+- `M1`, the tank damage tint, was the one item you asked for by name and is
+  **done** (T52) — recorded in §6.
 
 ### Known-imperfect and recorded rather than fixed
 
