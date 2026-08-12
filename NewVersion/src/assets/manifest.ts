@@ -240,6 +240,9 @@ export const UNIT_SHAPES: readonly ShapeAsset[] = [
   // absolute and resolution-independent, so the oversample needs no matching
   // divide at the draw — same as the projectile shapes below.
   shape('unit-1199', '1199.svg', 400, 400, 'Indicator clip frame'),
+  // `ItemFlag` — sprite 1360 places shape 1359, `frameCount: 1`, so there is no
+  // waving animation to defer. Authored 33x33, so 4x is 132.
+  shape('unit-1359', '1359.svg', 132, 132, 'ItemFlag'),
   shape('unit-1201', '1201.svg', 2560, 128, 'Indicator clip frame'),
   shape('unit-1315', '1315.svg', 120, 120, 'Indicator clip frame'),
   shape('unit-43', '43.svg', 216, 216, 'Tutorial panel shape'),

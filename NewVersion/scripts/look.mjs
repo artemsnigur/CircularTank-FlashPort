@@ -81,6 +81,7 @@ function parseArgs(argv) {
     if (argv[i] === '--frames') args.frames = true;
     if (argv[i] === '--hits') args.hits = true;
     if (argv[i] === '--turret') args.turret = true;
+    if (argv[i] === '--sprites') args.sprites = true;
     if (argv[i] === '--transitions') args.transitions = true;
     if (argv[i] === '--transitions-levels') args.transitionsLevels = argv[i + 1];
     if (argv[i] === '--frames-level') args.framesLevel = argv[i + 1];
@@ -488,6 +489,94 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.sprites) {
+  /**
+   * The flag's real art, and where the muzzle flare actually lands — T116.
+   *
+   * Both are measured rather than photographed, for the same reason each time:
+   * the flag is 33px on a 1280px frame, and the flare is a particle with a
+   * ~5-frame life that a screenshot catches only by luck. Frames are taken too,
+   * but the numbers are the claim.
+   *
+   * The flare's offset is checked against `PartGameArea.as:3962` — 10 units
+   * along the round's bearing from the tank centre — at **two** turret angles,
+   * because a flare pinned to the tank centre and one correctly offset are the
+   * same point when the turret happens to face along an axis you only tested
+   * once.
+   */
+  await page.goto(`${URL}?primary=Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: /level select/i }).first().click();
+  await delay(800);
+  // 1-5 is a Flag level, so the flag item is on the field.
+  const cell = page.getByRole('button', { name: /^World 1, level 5,/i });
+  if ((await cell.count()) === 0) {
+    console.log('[sprites] no dev jump cell for 1-5');
+  } else {
+    await cell.first().click();
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => {});
+
+    // Satisfy the tutorial gate so the level actually runs.
+    await page.keyboard.down('d');
+    await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+    await page.mouse.down();
+    await delay(700);
+    await page.mouse.up();
+    await page.keyboard.up('d');
+
+    // ── The flag ──────────────────────────────────────────────────────────
+    // Flags are placed over time, so wait for one rather than shooting a frame
+    // that says "0 on screen" and calling it evidence.
+    let flag = null;
+    for (let i = 0; i < 200 && !flag; i += 1) {
+      flag = await page.evaluate(() => globalThis.__arena?.flag ?? null);
+      if (!flag) await delay(50);
+    }
+    await shot('sprites-flag');
+    console.log(
+      flag
+        ? `[sprites] flag: texture ${flag.texture} · tinted ${flag.tinted} · width ${flag.width}`
+        : '[sprites] flag: none placed within the window',
+    );
+
+    // ── The muzzle flare, at two turret angles ────────────────────────────
+    for (const [label, sx, sy] of [
+      ['east', 1200, 400],
+      ['north', 640, 80],
+    ]) {
+      await page.locator('canvas').hover({ position: { x: sx, y: sy } });
+      await delay(120);
+      await page.mouse.down();
+      let seen = null;
+      for (let i = 0; i < 80 && !seen; i += 1) {
+        const s = await page.evaluate(() => {
+          const a = globalThis.__arena;
+          if (!a?.flares?.length) return null;
+          return { turret: a.tank.turret.rotationDeg, flare: a.flares[0] };
+        });
+        if (s) seen = s;
+        await delay(20);
+      }
+      await shot(`sprites-flare-${label}`);
+      await page.mouse.up();
+      if (!seen) {
+        console.log(`[sprites] flare ${label}: none observed`);
+        continue;
+      }
+      const dist = Math.hypot(seen.flare.dx, seen.flare.dy);
+      const bearing = (Math.atan2(seen.flare.dy, seen.flare.dx) * 180) / Math.PI;
+      console.log(
+        `[sprites] flare ${label.padEnd(5)}: turret ${String(seen.turret).padStart(4)}deg` +
+          ` · offset (${seen.flare.dx},${seen.flare.dy})` +
+          ` dist ${dist.toFixed(1)} bearing ${bearing.toFixed(0)}deg` +
+          ` · flare rot ${seen.flare.rotationDeg}deg · ${seen.flare.type}`,
+      );
+    }
+  }
 }
 
 if (args.turret) {

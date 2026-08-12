@@ -514,6 +514,51 @@ is now belt-and-braces rather than load-bearing. Kept deliberately — a loop
 silenced two ways is not a defect, and removing it would be an unrelated risk
 taken for tidiness.
 
+### Flag art, and a placeholder audit (T116)
+
+**The flag now draws its real sprite.** `ItemFlag` is symbol **1360**, which
+places shape **1359** with `frameCount: 1` — there is no waving animation to
+defer. `1359.svg` was already in `CURATED_SHAPES` and already on disk; it had
+never been added to `UNIT_SHAPES` or wired, so the scene drew a cyan-tinted
+`particle-dot`. Same shape as the T114 texture bug: synced is not loaded, and
+loaded is not drawn.
+
+Rendered at its **authored 33x33**, not at `FLAG_RADIUS * 2`. The radius is
+pickup range; the two are separate quantities, which is the rule T85 set when
+projectile art stopped being sized from `bulletRadius`.
+
+**The muzzle flare was already correct — do not "fix" it.** The report was that
+it draws at the tank's centre. `PartGameArea.as:3962` puts it at
+`tank.x + cos(angle) * 10`, and the port matches that exactly. Driven at two
+turret angles:
+
+| Turret | Flare offset | Distance | Bearing | Flare rotation |
+|---|---|---|---|---|
+| 0 deg | (10, 0) | **10.0** | 0 deg | 0 deg |
+| -117 deg | (-4.6, -8.9) | **10.0** | -117 deg | -117 deg |
+
+It tracks the turret, sits 10 units along that bearing, and is itself rotated to
+match. **Why it reads as "centred" is geometry, not a defect:** `TANK_SIZES` has
+`body: 29` and `tower: 21`, so the body's radius is 14.5 while the turret's own
+reach is ~10.5 — the barrel does not protrude past the body at all, and a flare
+at 10 is inside the body's silhouette. That is what the original does too.
+Moving it out would be an invented deviation; it is a decision, not a fix.
+
+#### Placeholder audit — non-enemy, non-projectile
+
+| Element | Currently draws | Real art | State |
+|---|---|---|---|
+| Flag item | `particle-dot` + cyan tint | `ItemFlag` 1360 -> shape **1359** (1 frame) | **fixed, T116** |
+| **Tank shield** | `particle-dot` + cyan tint, `radius * 4` | `TankShield` 212 -> shapes **208-211** (4 frames) | **not fixed — and the shapes are already loaded.** Only the wiring is missing, exactly as the flag was |
+| **Enemy spawn warning** | `particle-dot` + red tint | `WarningEnemy` 376 -> shape **375** (1 frame) | not fixed; `375.svg` is **not synced** either, so this one needs the sync step too |
+| Timed-bomb warning | `unit-370`/`unit-371` | `WarningTimedBomb` 372 -> 370, 371 | **already real** |
+| Enemy bullets | `particle-dot` + red tint | — | left alone: projectile-class, and the T84-T87 passes covered *player* projectiles only |
+| Background props | `particle-dot` **only** when a key is missing | real prop art wired | fallback, not a placeholder |
+| Particles | `particle-dot` when a shape is missing | real particle art wired | fallback; muzzle flare shapes 1108-1121 confirmed loaded |
+
+Two of the three live items are pure wiring — the shield's shapes are already in
+`UNIT_SHAPES`. The warning needs a sync pass first.
+
 ### The turret was missing during the countdown (T115)
 
 **Created, but never placed on the tank until the countdown ended.** Not hidden,

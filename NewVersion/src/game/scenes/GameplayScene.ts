@@ -472,6 +472,10 @@ const DEV_MONEY_GRANT = 5000;
 
 /** Stand-in size for the flag; the extracted art is not among the assets. */
 const FLAG_RADIUS = 14;
+/** `ItemFlag` — sprite 1360 places this single shape. */
+const FLAG_SHAPE = 1359;
+/** `1359.svg`'s authored size. Separate from `FLAG_RADIUS`, which is pickup range. */
+const FLAG_ART_SIZE = 33;
 const FPS_EMIT_INTERVAL_MS = 500;
 
 interface GameplayData {
@@ -3065,10 +3069,41 @@ export class GameplayScene extends Phaser.Scene {
         turret: {
           x: Math.round(this.player.tower.x),
           y: Math.round(this.player.tower.y),
+          rotationDeg: Math.round(this.player.towerRotationDegrees),
           texture: this.player.tower.texture.key,
           visible: this.player.tower.visible,
         },
       },
+      /**
+       * Live muzzle flares, for `--sprites`.
+       *
+       * The flash is a particle with a ~5-frame life, so a screenshot catches
+       * it only by luck and cannot say *where* it was. Its offset from the tank
+       * and its own rotation are the claim — `PartGameArea.as:3962` puts it 10
+       * units along the round's bearing — so those are what get reported.
+       */
+      /**
+       * The flag item, for `--sprites`. Reported as its **texture key** rather
+       * than left to a screenshot: it is 33px on a 1280px frame, and the defect
+       * being fixed was a tinted `particle-dot` standing in for the real art —
+       * which at that size is a coloured blob either way.
+       */
+      flag: this.flagMarker
+        ? {
+            texture: this.flagMarker.texture.key,
+            tinted: this.flagMarker.isTinted,
+            width: Math.round(this.flagMarker.displayWidth),
+          }
+        : null,
+      flares: this.particles
+        .filter((p) => p.type.startsWith('MuzzleFlare'))
+        .slice(0, 4)
+        .map((p) => ({
+          type: p.type,
+          dx: Math.round((p.x - this.player.x) * 10) / 10,
+          dy: Math.round((p.y - this.player.y) * 10) / 10,
+          rotationDeg: Math.round(p.rotation),
+        })),
       /**
        * Live enemies, nearest first, in the same screen space as the tank.
        *
@@ -4241,10 +4276,17 @@ export class GameplayScene extends Phaser.Scene {
       if (!placed) return;
 
       this.flag = placed;
+      // `ItemFlag` — sprite 1360 places shape 1359 (`frameCount: 1`, so no
+      // waving animation exists to port). Drawn at its **authored** 33x33, not
+      // at `FLAG_RADIUS * 2`: the radius is the pickup range and the two are
+      // separate quantities, which is the rule T85 established when the
+      // projectile art stopped being sized from `bulletRadius`.
+      //
+      // No tint — the art carries its own colour. It replaced a cyan-tinted
+      // `particle-dot`.
       this.flagMarker = this.add
-        .image(placed.x, placed.y, 'particle-dot')
-        .setDisplaySize(FLAG_RADIUS * 2, FLAG_RADIUS * 2)
-        .setTint(0x6ee7ff)
+        .image(placed.x, placed.y, `unit-${FLAG_SHAPE}`)
+        .setDisplaySize(FLAG_ART_SIZE, FLAG_ART_SIZE)
         .setDepth(9);
     }
 
