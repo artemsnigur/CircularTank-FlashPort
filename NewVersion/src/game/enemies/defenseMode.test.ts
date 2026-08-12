@@ -305,7 +305,12 @@ describe('the other modes keep clamp-and-zero', () => {
     expect(source).toContain("const isBoss = this.enemyLevel === 'B'");
     expect(source).toMatch(/if \(isBoss\)[\s\S]{0,600}turnTowardsGoal/);
     expect(source).toMatch(/} else \{[\s\S]{0,200}bounceOffWalls\(/);
-    expect(source).toContain('skipBottom: defense');
+    // Defense still selects the skip-the-bottom variant. Asserted against the
+    // hoisted constant rather than an inline `{ skipBottom: defense }` — T113
+    // replaced the literal to stop it allocating per enemy per frame, and this
+    // line broke, which is the brittleness a source-shape check carries and the
+    // reason the note above says what it can and cannot prove.
+    expect(source).toMatch(/defense \? WALL_OPTIONS_SKIP_BOTTOM : WALL_OPTIONS_ALL/);
   });
 
   it('bouncing then clamping keeps the reflected velocity', () => {

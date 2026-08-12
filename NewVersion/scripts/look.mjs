@@ -31,7 +31,20 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
 const PORT = 5199;
-const URL = `http://127.0.0.1:${PORT}/`;
+/**
+ * `LOOK_URL` points the harness at a server it did **not** start — in practice
+ * `vite preview` over a production build.
+ *
+ * Added for the stutter investigation (T113): the whole question was whether
+ * scene-entry cost is a dev-server artifact, and that cannot be answered by a
+ * tool that can only ever measure the dev server. The port-bind guard below is
+ * skipped in this mode, because refusing a server we did not start is exactly
+ * the point here — so the URL has to be given explicitly rather than
+ * discovered, and it is echoed in the output so no run is ambiguous about what
+ * it measured.
+ */
+const EXTERNAL_URL = process.env.LOOK_URL;
+const URL = EXTERNAL_URL ?? `http://127.0.0.1:${PORT}/`;
 
 function parseArgs(argv) {
   const args = { out: resolve(ROOT, '.look'), hold: 6000, secondaries: false, save: false, slots: false, particles: false, money: false, baseline: false, sound: false, soundSweep: false, indicators: false, tutorial: false, ui: false, countdown: false, medals: false, unlock: false };
@@ -65,6 +78,10 @@ function parseArgs(argv) {
     if (argv[i] === '--achievement-icon') args.achievementIcon = true;
     if (argv[i] === '--boss-life') args.bossLife = true;
     if (argv[i] === '--walls') args.walls = true;
+    if (argv[i] === '--frames') args.frames = true;
+    if (argv[i] === '--transitions') args.transitions = true;
+    if (argv[i] === '--transitions-levels') args.transitionsLevels = argv[i + 1];
+    if (argv[i] === '--frames-level') args.framesLevel = argv[i + 1];
     // `--shrink` retargets `--boss-life` at 3-9, whose boss row is `Shrinking`
     // — the one type whose radius changes as it is damaged, so the disc is
     // resized every frame from the live `Enemy.radius`. 1-9's boss keeps a
@@ -121,7 +138,7 @@ const args = parseArgs(process.argv.slice(2));
 // Refuse rather than measure something we did not start. A `look` run that
 // silently answers from a stranger is worse than one that does not run: it
 // produces evidence, and the evidence looks fine.
-if (await portInUse(PORT)) {
+if (!EXTERNAL_URL && (await portInUse(PORT))) {
   throw new Error(
     `port ${PORT} is already in use, so this run would be answered by a server ` +
       `it did not start — and its frames would be evidence about an unknown build.\n` +
@@ -140,18 +157,21 @@ mkdirSync(args.out, { recursive: true });
 // the vite grandchild survives holding the port. That is how this script leaked
 // its own port and then answered its next run from the leak. `smoke.mjs` fixed
 // the identical bug the same way and says so at its own spawn site.
-const vite = spawn(
-  process.execPath,
-  [
-    resolve(ROOT, 'node_modules/vite/bin/vite.js'),
-    '--port',
-    String(PORT),
-    '--strictPort',
-    '--host',
-    '127.0.0.1',
-  ],
-  { cwd: ROOT, stdio: 'ignore' },
-);
+const vite = EXTERNAL_URL
+  ? { killed: true, kill: () => {} }
+  : spawn(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/vite/bin/vite.js'),
+        '--port',
+        String(PORT),
+        '--strictPort',
+        '--host',
+        '127.0.0.1',
+      ],
+      { cwd: ROOT, stdio: 'ignore' },
+    );
+if (EXTERNAL_URL) console.log(`[look] using external server ${EXTERNAL_URL} (no vite spawned)`);
 const stop = () => {
   try {
     if (!vite.killed) vite.kill();
@@ -466,6 +486,441 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.transitions) {
+  /**
+   * Repeat level entries — does a scene-entry hitch recur, or is it one-time?
+   *
+   * `--frames` established that every long frame lands in the first ~2s of a
+   * session at zero enemies. That leaves two very different explanations, and
+   * they need different fixes:
+   *
+   *   one-time     — module loading, asset decode, texture upload. Costs once,
+   *                  and a re-entry is clean.
+   *   per-entry    — work redone on every scene start. Costs every level change,
+   *                  which is what "stutters when I switch levels" describes.
+   *
+   * So this enters the **same** level several times and reports the long frames
+   * inside a window after each entry, keyed by entry number. Entry 1 alone
+   * cannot tell the two apart; entries 2..n are the measurement.
+   *
+   * Works against a production build too via `LOOK_URL`, because the exit route
+   * is the HUD's own **Menu** button (`Hud.tsx:676-682`, `ui:goto MainMenu`)
+   * rather than a dev-only affordance.
+   */
+  const ENTRIES = 4;
+  const WINDOW_MS = 2500;
+  const levels = (args.transitionsLevels ?? '1-4,1-9').split(',');
+
+  await page.addInitScript(() => {
+    const w = globalThis;
+    w.__frameLog = { deltas: [], at: [], marks: [], t0: 0 };
+    w.__frameLog.t0 = globalThis.performance.now();
+    let last = 0;
+    const tick = (t) => {
+      if (last > 0) {
+        w.__frameLog.deltas.push(t - last);
+        w.__frameLog.at.push(t - w.__frameLog.t0);
+      }
+      last = t;
+      w.__frameLog.raf = globalThis.requestAnimationFrame(tick);
+    };
+    w.__frameLog.raf = globalThis.requestAnimationFrame(tick);
+  });
+
+  const mark = (labelText) =>
+    page.evaluate((l) => {
+      const w = globalThis;
+      w.__frameLog.marks.push({ label: l, t: globalThis.performance.now() - w.__frameLog.t0 });
+    }, labelText);
+
+  await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+
+  for (const lv of levels) {
+    const [lw, ll] = lv.split('-').map(Number);
+    for (let entry = 1; entry <= ENTRIES; entry += 1) {
+      // Wait for the menu to settle before reaching for its controls. Coming
+      // back from a level via `ui:goto MainMenu` re-mounts the menu, and
+      // "Level select" is not present for a moment after the scene swap.
+      await page
+        .getByRole('button', { name: /play|continue/i })
+        .first()
+        .waitFor({ timeout: 20_000 })
+        .catch(() => {});
+      const ls = page.getByRole('button', { name: /level select/i }).first();
+      if ((await ls.count()) === 0) {
+        // Report the actual menu state rather than timing out blind. Returning
+        // from a level re-mounts the menu and the reachable controls differ.
+        const buttons = await page.getByRole('button').allTextContents();
+        console.log(`[trans] ${lv}#${entry}: no "level select" — buttons: ${buttons.join(' | ')}`);
+        break;
+      }
+      await ls.click({ force: true });
+      await delay(700);
+      if (lw !== 1) {
+        await page.locator(`.dev-jump__world:text-is("${lw}")`).first().click();
+        await delay(250);
+      }
+      // The dev jump's cells are `World W, level N, <mode>`; the **real** grid's
+      // are `Level N, ...` (`LevelSelectScreen.tsx:96` vs the grid's own label).
+      // A production build has no dev jump, so fall back to the real grid —
+      // which in a fresh profile means level 1 only, and that is enough to ask
+      // whether a transition hitches.
+      let cell = page.getByRole('button', { name: new RegExp(`^World ${lw}, level ${ll},`, 'i') });
+      if ((await cell.count()) === 0) {
+        // Production has no dev jump, and `LevelSelectScene` opens on the
+        // **world picker** (`selectedWorld = 0` is the picker, not a world), so
+        // the world has to be chosen before any level cell exists. The dev jump
+        // sidesteps both, which is why this is only needed here.
+        const worldCell = page.getByRole('button', {
+          name: new RegExp(`^World ${lw}, .*level \\d+ of`, 'i'),
+        });
+        if ((await worldCell.count()) > 0) {
+          await worldCell.first().click();
+          await delay(500);
+        }
+        cell = page.getByRole('button', { name: new RegExp(`^Level ${ll},`, 'i') });
+      }
+      if ((await cell.count()) === 0) {
+        console.log(`[trans] no cell for ${lv} (dev jump absent, level locked?) — skipping`);
+        break;
+      }
+      // Marked immediately before the click, so the window covers the whole
+      // transition: teardown, create, first render.
+      await mark(`${lv}#${entry}`);
+      // Profile **one** transition rather than the whole run: aggregate samples
+      // over a session are dominated by steady-state rendering and would bury
+      // the thing being asked about.
+      // **Off by default, because attaching it distorts what it measures.** The
+      // profiled entry read max 217ms where the three unprofiled entries either
+      // side of it read 33ms. That also invalidated an earlier dev-vs-production
+      // boot comparison, which had a profiled dev run against an unprofiled
+      // production one — 233ms vs 67ms, of which most of the gap was the
+      // profiler. Opt in with `TRANS_PROFILE=1`, and do not compare a profiled
+      // number with an unprofiled one.
+      const profileThis = process.env.TRANS_PROFILE === '1' && lv === levels[0] && entry === 2;
+      let cdp = null;
+      if (profileThis) {
+        cdp = await page.context().newCDPSession(page);
+        await cdp.send('Profiler.enable');
+        await cdp.send('Profiler.setSamplingInterval', { interval: 100 });
+        await cdp.send('Profiler.start');
+      }
+      await cell.first().click();
+      await delay(WINDOW_MS + 1500);
+      if (cdp) {
+        const { profile } = await cdp.send('Profiler.stop');
+        const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+        const self = new Map();
+        for (const id of profile.samples) {
+          const n = byId.get(id);
+          if (!n) continue;
+          const f = n.callFrame;
+          const key = `${f.functionName || '(anonymous)'} ${(f.url.split('/').pop() ?? '').split('?')[0]}:${f.lineNumber}`;
+          self.set(key, (self.get(key) ?? 0) + 1);
+        }
+        const total = profile.samples.length;
+        console.log(`[trans] CPU profile across ${lv} entry ${entry} — ${total} samples:`);
+        for (const [k, n] of [...self.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)) {
+          console.log(`[trans]     ${((n / total) * 100).toFixed(1)}% ${k}`);
+        }
+      }
+      // Back to the menu via the HUD's own button, which exists in production.
+      const menu = page.getByRole('button', { name: /^menu$/i });
+      if ((await menu.count()) === 0) {
+        console.log('[trans] no in-play Menu button found — cannot loop');
+        break;
+      }
+      // **A DOM click, not a synthesised pointer event.** In dev the
+      // diagnostics toggle (`DiagnosticsPanel.tsx`, dev-only — `:66` returns
+      // null in production) sits over the HUD's Menu button and swallows its
+      // pointer events. `force: true` only skips Playwright's actionability
+      // check; the click still hit-tests to the topmost element, so the run
+      // stayed in the level and the next iteration found the in-game HUD where
+      // it expected a menu. Dispatching on the element bypasses hit-testing.
+      await menu.first().evaluate((el) => el.click());
+      await delay(900);
+    }
+  }
+
+  const rows = await page.evaluate((win) => {
+    const w = globalThis;
+    globalThis.cancelAnimationFrame(w.__frameLog.raf);
+    const d = w.__frameLog.deltas;
+    const at = w.__frameLog.at;
+    return w.__frameLog.marks.map((m) => {
+      const inWin = [];
+      for (let i = 0; i < d.length; i += 1) {
+        if (at[i] >= m.t && at[i] < m.t + win) inWin.push(d[i]);
+      }
+      const long = inWin.filter((x) => x > 33);
+      return {
+        label: m.label,
+        frames: inWin.length,
+        over33: long.length,
+        over50: inWin.filter((x) => x > 50).length,
+        max: inWin.length > 0 ? Math.max(...inWin) : 0,
+        lost: long.reduce((a, b) => a + (b - 16.7), 0),
+      };
+    });
+  }, WINDOW_MS);
+
+  // Boot phase: everything before the first level entry. Reported from the same
+  // unprofiled run as the transitions, so dev and production are comparable.
+  const boot = await page.evaluate(() => {
+    const w = globalThis;
+    const d = w.__frameLog.deltas;
+    const at = w.__frameLog.at;
+    const firstMark = w.__frameLog.marks[0]?.t ?? Infinity;
+    const before = d.filter((_, i) => at[i] < firstMark);
+    const long = before.filter((x) => x > 33);
+    return {
+      frames: before.length,
+      over33: long.length,
+      over50: before.filter((x) => x > 50).length,
+      max: before.length > 0 ? Math.max(...before) : 0,
+      lost: long.reduce((a, b) => a + (b - 16.7), 0),
+    };
+  });
+  console.log(
+    `[trans] BOOT (page load -> first entry): ${boot.frames} frames` +
+      ` · >33ms ${boot.over33} · >50ms ${boot.over50} · max ${boot.max.toFixed(0)}ms` +
+      ` · time lost ${boot.lost.toFixed(0)}ms`,
+  );
+  console.log(`[trans] ${WINDOW_MS}ms window after each entry · server ${URL}`);
+  for (const r of rows) {
+    console.log(
+      `[trans]   ${r.label.padEnd(8)} frames ${String(r.frames).padStart(3)}` +
+        ` · >33ms ${String(r.over33).padStart(2)} · >50ms ${String(r.over50).padStart(2)}` +
+        ` · max ${r.max.toFixed(0).padStart(3)}ms · time lost ${r.lost.toFixed(0)}ms`,
+    );
+  }
+}
+
+if (args.frames) {
+  /**
+   * Frame-timing profile — for the intermittent-stutter report.
+   *
+   * ── Why rAF deltas and not "it feels laggy" ──────────────────────────────
+   * A stutter is a *distribution* problem: the mean can be a healthy 16.7ms
+   * while one frame in two hundred takes 120ms, and that is what a player
+   * notices. So this records every frame delta in the page and reports
+   * percentiles and the long-frame counts, never an average alone.
+   *
+   * Sampled inside the page rather than by polling from the harness, because a
+   * Playwright `evaluate` round trip is itself milliseconds and would be
+   * measuring the harness.
+   *
+   * Enemy count is sampled alongside on each frame so a spike can be correlated
+   * with load rather than assumed to be caused by it.
+   */
+  const target = args.framesLevel ?? '1-4';
+  const SECONDS = Number(process.env.FRAMES_SECONDS ?? 30);
+
+  await page.addInitScript(() => {
+    const w = globalThis;
+    w.__frameLog = { deltas: [], enemies: [], heap: [], at: [], t0: 0 };
+    w.__frameLog.t0 = globalThis.performance.now();
+    let last = 0;
+    let lastHeap = 0;
+    const tick = (t) => {
+      if (last > 0) {
+        w.__frameLog.deltas.push(t - last);
+        w.__frameLog.enemies.push((w.__arena?.enemies ?? []).length);
+        w.__frameLog.at.push(t - w.__frameLog.t0);
+      }
+      const mem = globalThis.performance?.memory;
+      if (mem && t - lastHeap > 1000) {
+        lastHeap = t;
+        w.__frameLog.heap.push(Math.round(mem.usedJSHeapSize / 1048576));
+      }
+      last = t;
+      w.__frameLog.raf = globalThis.requestAnimationFrame(tick);
+    };
+    w.__frameLog.raf = globalThis.requestAnimationFrame(tick);
+  });
+
+  await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+
+  let entered = false;
+  let label = target;
+  if (target.startsWith('dev:')) {
+    // The Enemies screen's Test button — **30 of one type at once**, which is
+    // the only reliable way to get a loaded arena. Ordinary levels spawn on a
+    // ~3s interval, so a 30s profile on 1-9 saw a mean of 1.4 enemies: a
+    // measurement of an empty scene, and useless for a load question.
+    const type = target.slice(4);
+    await page.getByRole('button', { name: /enemy behaviour/i }).click();
+    await delay(900);
+    const row = page.locator('li', { hasText: type }).first();
+    const test = row.getByRole('button', { name: /test/i });
+    if ((await test.count()) === 0) console.log(`[frames] no Test button for ${type}`);
+    else {
+      await test.click();
+      entered = true;
+      label = `dev ${type} x30`;
+    }
+  } else {
+    const [fw, fl] = target.split('-').map(Number);
+    await page.getByRole('button', { name: /level select/i }).first().click();
+    await delay(900);
+    if (fw !== 1) {
+      await page.locator(`.dev-jump__world:text-is("${fw}")`).first().click();
+      await delay(300);
+    }
+    const cell = page.getByRole('button', { name: new RegExp(`^World ${fw}, level ${fl},`, 'i') });
+    if ((await cell.count()) === 0) console.log(`[frames] dev jump cell for ${target} not found`);
+    else {
+      await cell.first().click();
+      entered = true;
+    }
+  }
+
+  if (entered) {
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => console.log('[frames] warning: countdown never reported done'));
+
+    // Satisfy the tutorial spawn gate, or the profile measures an empty arena.
+    await page.keyboard.down('d');
+    await page.locator('canvas').hover({ position: { x: 700, y: 400 } });
+    await page.mouse.down();
+    await delay(700);
+    await page.mouse.up();
+    await page.keyboard.up('d');
+
+    // Installed at page load via `addInitScript` (below), not here, so the log
+    // covers **boot, the menu and the level transition** as well as play. A
+    // recorder started after entry cannot see an entry hitch, which is exactly
+    // the shape "occasional freeze" takes.
+    await page.evaluate(() => {
+      const w = globalThis;
+      if (w.__frameLog) return;
+      w.__frameLog = { deltas: [], enemies: [], heap: [], at: [], t0: 0 };
+      w.__frameLog.t0 = globalThis.performance.now();
+      let last = 0;
+      let lastHeap = 0;
+      const tick = (t) => {
+        if (last > 0) {
+          w.__frameLog.deltas.push(t - last);
+          w.__frameLog.enemies.push((w.__arena?.enemies ?? []).length);
+          w.__frameLog.at.push(t - w.__frameLog.t0);
+        }
+        // Heap once a second. A sawtooth here with long frames at the drops is
+        // the signature of GC pauses from per-frame allocation — the specific
+        // hypothesis about `{ skipBottom }` and the debug projection's
+        // per-enemy object churn. Chromium-only, and absent under some flags,
+        // so its absence is reported rather than assumed to mean zero.
+        const mem = globalThis.performance?.memory;
+        if (mem && t - lastHeap > 1000) {
+          lastHeap = t;
+          w.__frameLog.heap.push(Math.round(mem.usedJSHeapSize / 1048576));
+        }
+        last = t;
+        w.__frameLog.raf = globalThis.requestAnimationFrame(tick);
+      };
+      w.__frameLog.raf = globalThis.requestAnimationFrame(tick);
+    });
+
+    // **A CPU profile, because rAF deltas have a ceiling.** At a steady 16.7ms
+    // the game is vsync-bound: a 2ms update and a 6ms update both present at
+    // 16.7ms, so frame deltas can prove "no stutter here" and can say nothing
+    // about how much headroom a change consumed. Function self-time can.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Profiler.enable');
+    await cdp.send('Profiler.setSamplingInterval', { interval: 200 });
+    await cdp.send('Profiler.start');
+
+    // **Kite without firing**, so enemies accumulate and the profile covers a
+    // loaded arena. Firing with the dev jump's fully-upgraded loadout kept the
+    // arena at a mean of 2.3 enemies — a measurement of an empty scene, which
+    // is exactly the load the report is about.
+    let held = 'd';
+    await page.keyboard.down(held);
+    for (let t = 0; t < SECONDS * 1000; t += 2000) {
+      await delay(2000);
+      await page.keyboard.up(held);
+      held = held === 'd' ? 'a' : 'd';
+      await page.keyboard.down(held);
+    }
+    await page.keyboard.up(held);
+
+    const { profile } = await cdp.send('Profiler.stop');
+    // Self time per function: sum the samples that landed directly in it.
+    const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+    const self = new Map();
+    const total = profile.samples.length;
+    for (const id of profile.samples) {
+      const n = byId.get(id);
+      if (!n) continue;
+      const f = n.callFrame;
+      const name = `${f.functionName || '(anonymous)'} ${f.url.split('/').pop() ?? ''}:${f.lineNumber}`;
+      self.set(name, (self.get(name) ?? 0) + 1);
+    }
+    const top = [...self.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 14)
+      .map(([name, n]) => `${((n / total) * 100).toFixed(1)}% ${name}`);
+    console.log(`[frames] CPU profile — ${total} samples, top self time:`);
+    for (const line of top) console.log(`[frames]     ${line}`);
+
+    const report = await page.evaluate(() => {
+      const w = globalThis;
+      globalThis.cancelAnimationFrame(w.__frameLog.raf);
+      const d = w.__frameLog.deltas.slice();
+      const e = w.__frameLog.enemies.slice();
+      const sorted = d.slice().sort((a, b) => a - b);
+      const pct = (p) => sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
+      const over = (ms) => d.filter((x) => x > ms).length;
+      // Enemy count at the moment of each long frame, so "spikes happen when
+      // the arena is busy" is a measurement and not an assumption.
+      const longIdx = d.map((x, i) => [x, i]).filter(([x]) => x > 50);
+      return {
+        frames: d.length,
+        mean: d.reduce((a, b) => a + b, 0) / Math.max(1, d.length),
+        p50: pct(50),
+        p95: pct(95),
+        p99: pct(99),
+        max: Math.max(...d),
+        over33: over(33),
+        over50: over(50),
+        over100: over(100),
+        maxEnemies: Math.max(0, ...e),
+        meanEnemies: e.reduce((a, b) => a + b, 0) / Math.max(1, e.length),
+        // Elapsed seconds as well as enemy count, so a cluster of long frames
+        // early in the run (a level-entry hitch) is distinguishable from ones
+        // spread through steady play (a per-frame cost).
+        longFrames: longIdx
+          .slice(0, 10)
+          .map(([x, i]) => `${x.toFixed(0)}ms@t=${(w.__frameLog.at[i] / 1000).toFixed(1)}s,n=${e[i]}`),
+        heap: w.__frameLog.heap.slice(),
+      };
+    });
+
+    const r = report;
+    console.log(
+      `[frames] ${label} over ${SECONDS}s: ${r.frames} frames` +
+        ` · mean ${r.mean.toFixed(1)}ms · p50 ${r.p50.toFixed(1)}` +
+        ` · p95 ${r.p95.toFixed(1)} · p99 ${r.p99.toFixed(1)} · max ${r.max.toFixed(0)}`,
+    );
+    console.log(
+      `[frames]   long frames: >33ms ${r.over33}, >50ms ${r.over50}, >100ms ${r.over100}` +
+        ` · enemies mean ${r.meanEnemies.toFixed(1)} max ${r.maxEnemies}`,
+    );
+    if (r.heap.length > 1) {
+      const h = r.heap;
+      console.log(
+        `[frames]   heap MB: start ${h[0]} end ${h[h.length - 1]} min ${Math.min(...h)} max ${Math.max(...h)}` +
+          ` · ${h.join(">")}`,
+      );
+    } else {
+      console.log("[frames]   heap: performance.memory unavailable — not measured");
+    }
+    if (r.longFrames.length > 0) console.log(`[frames]   worst: ${r.longFrames.join(', ')}`);
+  }
 }
 
 if (args.walls) {

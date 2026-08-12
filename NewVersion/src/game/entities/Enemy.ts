@@ -121,6 +121,21 @@ const FALLBACK_BOSS_DIAMETER = 46;
 /** How long the damage flash holds before reverting, in ms. */
 const FLASH_MS = 80;
 
+/**
+ * Wall-handling options, hoisted so the per-frame path allocates nothing.
+ *
+ * `bounceOffWalls` and `atWall` read `skipBottom` and never mutate the object,
+ * so one frozen instance per case is safe to share across every enemy.
+ *
+ * **This is a cleanup, not a performance fix.** The literal it replaced was
+ * profiled in T113 and never appeared: ~98% of samples sat outside JS, GC was
+ * 0.1%, and the heap was flat across 120s of loaded play. Hoisted because it
+ * costs nothing to hoist — not because it was costing anything.
+ */
+const WALL_OPTIONS_ALL = Object.freeze({ skipBottom: false });
+/** Defense only — `PartGameArea.as:5449` makes the bottom edge the objective. */
+const WALL_OPTIONS_SKIP_BOTTOM = Object.freeze({ skipBottom: true });
+
 /** Particle key -> tint, so the extracted `particle` column drives colour. */
 const PARTICLE_TINTS: Record<string, number> = {
   EnemyGreen: 0x7ed957,
@@ -924,6 +939,12 @@ export class Enemy extends Phaser.GameObjects.Container {
     // `skipBottom` is Defense's carve-out at `:5449`: there the bottom edge is
     // the objective, and `crossesDefenseLine` above has already recorded the
     // crossing that kills the enemy.
+    // Two frozen constants rather than a fresh `{ skipBottom }` per enemy per
+    // frame. **Cleanup, not a fix**: T113 profiled this and it never appeared —
+    // ~98% of samples were outside JS, GC sat at 0.1%, and the heap was flat
+    // across 120s of loaded play. Hoisted because it is free to hoist, not
+    // because it cost anything measurable.
+    const wallOptions = defense ? WALL_OPTIONS_SKIP_BOTTOM : WALL_OPTIONS_ALL;
     const isBoss = this.enemyLevel === 'B';
     let walled = stepped;
     if (isBoss) {
@@ -931,16 +952,14 @@ export class Enemy extends Phaser.GameObjects.Container {
       // frame toward the tank rather than bouncing off it. `lockDirection` is
       // left at its default: its only producer, the border AI at `:4642-4680`,
       // is unported. See `turnTowardsGoal`.
-      if (atWall(stepped, this.roomWidth, this.roomHeight, this.radius, { skipBottom: defense })) {
+      if (atWall(stepped, this.roomWidth, this.roomHeight, this.radius, wallOptions)) {
         walled = {
           ...stepped,
           rotation: turnTowardsGoal(stepped.rotation, angleToTarget(stepped, goal)),
         };
       }
     } else {
-      walled = bounceOffWalls(stepped, this.roomWidth, this.roomHeight, this.radius, {
-        skipBottom: defense,
-      });
+      walled = bounceOffWalls(stepped, this.roomWidth, this.roomHeight, this.radius, wallOptions);
     }
 
     this.steering = clampToRoom(walled, this.roomWidth, this.roomHeight, this.radius);

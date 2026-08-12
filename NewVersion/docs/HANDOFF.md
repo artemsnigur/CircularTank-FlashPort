@@ -514,6 +514,59 @@ is now belt-and-braces rather than load-bearing. Kept deliberately — a loop
 silenced two ways is not a defect, and removing it would be an unrelated risk
 taken for tidiness.
 
+### Frame timing, and the stutter that was not the wall bounce (T113)
+
+A stutter report after T112 was investigated by profiling rather than by
+reading. **Wall collision is not the cause, and there is no evidence of a
+regression from it.**
+
+`npm run look -- --frames` records `requestAnimationFrame` deltas, heap and a
+CDP CPU profile; `--transitions` enters the same level repeatedly and reports a
+window after each entry. Both take `LOOK_URL` to run against a **production**
+build via `vite preview`, which is the only way to separate dev-server cost from
+real cost.
+
+| Measurement | Dev | Production |
+|---|---|---|
+| Steady play, 30-enemy arena, 120s | 1 frame >33ms in 7260, heap flat at 40MB | — |
+| Boot (page load -> first entry) | 33 long frames, max 67ms, **798ms lost** | 37 long, max 50ms, **765ms lost** |
+| Each level entry (2.5s window) | 1-3 long frames, max 33-50ms | 1-2 long, max 33ms |
+
+**The findings, in order of what they rule out:**
+
+1. **Not the wall bounce.** `bounceOffWalls`, `atWall` and `turnTowardsGoal`
+   appear in **zero** CPU samples. ~98% of samples are `(program)` + `(idle)` —
+   browser render and compositing — with the top JS entries Phaser internals at
+   0.1-0.2%. GC is 0.1% and the heap is flat.
+2. **Not enemy count.** Every long frame lands at **n = 0 enemies**.
+3. **Not dev-only, and not one-time.** Transition cost is the same in a
+   production build, and it does **not** diminish across four consecutive
+   entries to the same level. It is also uniform across level size, mode and
+   world (1-4 Normal, 1-7 Tower, 1-11 Defense, 3-9).
+4. **The big cost is boot, ~800ms of dropped-frame time, and it is the same in
+   production.** So it is not the dev server either.
+
+**One instrument trap, and it inverted a conclusion.** Attaching the CDP
+profiler distorts what it measures: the profiled entry read **217ms** where the
+three unprofiled entries either side read **33ms**. An earlier draft of this
+compared a *profiled* dev boot (233ms) against an *unprofiled* production one
+(67ms) and concluded dev was 3.5x worse. Re-measured unprofiled, the two are
+within noise of each other. `--transitions` therefore keeps profiling **off by
+default** (`TRANS_PROFILE=1` opts in), and the note at the site says never to
+compare a profiled number with an unprofiled one.
+
+**What the transition cost appears to be** — stated weakly, because the only
+profile of it is a contaminated one: the sampled work is `texImage2D`, React
+`recursivelyTraversePassiveUnmountEffects` and `createWorkInProgress`, i.e. GPU
+texture upload plus the HUD's React tree re-mounting on scene swap. No game
+function appears. Pinning that properly needs a profiler that does not perturb
+the thing it measures.
+
+**Dev-only annoyance found in passing:** the diagnostics toggle
+(`DiagnosticsPanel.tsx`, `:66` returns null in production) is laid out over the
+HUD's Menu button and swallows its pointer events, so Menu cannot be clicked in
+dev. Not a shipped defect; `--transitions` dispatches a DOM click to get past it.
+
 ### Enemy wall collision (T112) — every non-boss reflects, bosses turn
 
 `PartGameArea.as:5370-5513`, inline in the enemy update loop's integration step.
