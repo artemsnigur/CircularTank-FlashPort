@@ -35,6 +35,7 @@ import { withTutorialEnabled } from '../tutorial/tutorialState';
 import { readGameplayOptions } from '../options/gameplayOptions';
 import {
   RED_CIRCLE_ART_RADIUS,
+  RED_CIRCLE_SHAPE,
   WIPE_START_DEGREES,
   discScale,
   wantsIndicator,
@@ -277,8 +278,6 @@ const TUTORIAL_DEPTH = 40;
 const BOMB_MARKER_FRAMES = [370, 371] as const;
 /** `IndicatorMedic`'s single frame. */
 const MEDIC_RING_SHAPE = 1182;
-/** `RedCircle`'s single shape — the boss life indicator's disc. */
-const RED_CIRCLE_SHAPE = 1199;
 /** Coins sit under the tank and particles, above the ground. */
 const MONEY_DEPTH = 6;
 /** `:3366` — `poisonParticleTimerMax`. */
@@ -3048,6 +3047,20 @@ export class GameplayScene extends Phaser.Scene {
           health: e.health,
           maxHealth: e.maxHealth,
           enemyLevel: e.enemyLevel,
+          // `enemyType` and `radius` are for `--boss-life --shrink`. The disc
+          // is sized from the live radius every frame (`discScale`), so a run
+          // on a `Shrinking` boss has to be able to *report* the radius falling
+          // rather than leave it to be inferred from a frame — a disc that
+          // stopped tracking radius photographs as a plausible red wedge.
+          //
+          // **`enemyType`, emphatically not `type`.** `Enemy` extends
+          // `Phaser.GameObjects.Container` (`Enemy.ts:158`), so `e.type` is
+          // Phaser's own GameObject tag and reports `"Container"` for every
+          // enemy in the game. It reads like a species and is not one — the
+          // first version of this projection shipped it and logged
+          // `Container hp 450/750` for a `Shrinking` boss.
+          enemyType: e.enemyType,
+          radius: e.radius,
         }))
         .sort((a, b) => a.distance - b.distance)
         .slice(0, 8),

@@ -324,6 +324,23 @@ decisive, wrong result and was believed.*
     consequence to test.** That is the same move as trap 1's `npm run sweep`
     and trap 10's port check.
 
+15. **A missing texture is not an error — it is a picture.** `TextureManager`
+    returns `__MISSING` for any key it does not hold: a 32x32 black square with
+    green lines. Nothing throws, nothing warns, the load does not fail, and the
+    object draws at the right position, size and depth. The T106 boss indicator
+    shipped this way and `npm run look` reported `no page errors` on the broken
+    build.
+
+    **Getting extracted art on screen takes two registrations** — `sync-assets.mjs`
+    (file onto disk) *and* `manifest.ts` (loaded as a texture). T106 did the
+    first only, and a grep for the shape id finds that line and stops, which is
+    what made it look done. **Check both.**
+
+    Generalises past textures: the failure mode is a subsystem that substitutes
+    a plausible artefact instead of failing. See also trap 13's `(640, 400)`
+    fallback, and `e.type` on an `Enemy` reporting `"Container"` for every enemy
+    because the class extends a Phaser `Container` — both in the audit.
+
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
 be checked against a second mode on the same build before it is believed.
@@ -511,6 +528,20 @@ rather than special-casing one type.
 Driven — `npm run look -- --boss-life`: 1-9, five samples at 100/78/59/40/18%
 HP giving 0/78/147/216/294 degrees. The harness kites away from the boss,
 because a stationary tank dies in ~16s and the first run got two samples.
+
+**It shipped invisible-broken and was fixed in T108.** `unit-1199` was synced to
+disk but never added to `UNIT_SHAPES`, so the mask revealed Phaser's
+`__MISSING` texture — black with green lines — instead of the `RedCircle` art.
+The geometry was correct throughout and all 17 tests passed against the broken
+build. Trap 15 and the audit carry the full account; the short version is that
+**T106's driven run logged five correct numbers and nobody opened the frames.**
+
+`--boss-life --shrink` (added T108) retargets at **3-9**, whose boss row is
+`Shrinking` — the only type in `enemyBodies.SHRINKS`, so the only one whose
+radius, and therefore the disc's size, moves every frame. Driven: radius
+55.5 -> 48.1 -> 41.0 -> 33.3 as HP falls 750 -> 300, against 1-9's `Basic` boss
+holding **40.5 at every sample**. The two together are the counterpart pin —
+one boss shrinks, one does not, and the disc follows each.
 
 ### Boss art in roster previews — intentional (`A9`)
 

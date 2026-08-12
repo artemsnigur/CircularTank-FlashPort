@@ -235,6 +235,11 @@ export const UNIT_SHAPES: readonly ShapeAsset[] = [
   shape('unit-1187', '1187.svg', 526, 487, 'Indicator clip frame'),
   shape('unit-1188', '1188.svg', 494, 499, 'Indicator clip frame'),
   shape('unit-1189', '1189.svg', 464, 463, 'Indicator clip frame'),
+  // The boss life indicator's `RedCircle` — sprite 1200 places shape 1199,
+  // authored 100x100, so 4x is 400. Drawn with `setDisplaySize`, which is
+  // absolute and resolution-independent, so the oversample needs no matching
+  // divide at the draw — same as the projectile shapes below.
+  shape('unit-1199', '1199.svg', 400, 400, 'Indicator clip frame'),
   shape('unit-1201', '1201.svg', 2560, 128, 'Indicator clip frame'),
   shape('unit-1315', '1315.svg', 120, 120, 'Indicator clip frame'),
   shape('unit-43', '43.svg', 216, 216, 'Tutorial panel shape'),

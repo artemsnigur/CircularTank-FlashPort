@@ -64,6 +64,11 @@ function parseArgs(argv) {
     if (argv[i] === '--grid-preview') args.gridPreview = true;
     if (argv[i] === '--achievement-icon') args.achievementIcon = true;
     if (argv[i] === '--boss-life') args.bossLife = true;
+    // `--shrink` retargets `--boss-life` at 3-9, whose boss row is `Shrinking`
+    // — the one type whose radius changes as it is damaged, so the disc is
+    // resized every frame from the live `Enemy.radius`. 1-9's boss keeps a
+    // fixed radius and cannot show a mask-sizing fault.
+    if (argv[i] === '--shrink') args.shrink = true;
   }
   return args;
 }
@@ -476,16 +481,40 @@ if (args.bossLife) {
    *
    * Level 1-9 is the first Boss level. The dev jump reaches it directly, and
    * `equipped` gives enough damage to move a 500 HP boss inside one run.
+   *
+   * `--shrink` retargets at **3-9**, whose boss row is `Shrinking`. That is the
+   * only type `enemyBodies.SHRINKS` carries, so it is the only one whose radius
+   * — and therefore the disc's `setDisplaySize` — changes every frame. A
+   * fixed-radius boss cannot expose a mask-sizing fault, which is why the
+   * shrinking case is driven separately rather than assumed to be covered.
    */
+  const bossWorld = args.shrink ? 3 : 1;
+  const bossLevel = 9;
   await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: /level select/i }).first().click();
   await delay(900);
-  const cell19 = page.getByRole('button', { name: /^World 1, level 9,/i });
+  if (bossWorld !== 1) {
+    // The dev jump renders cells for the selected world only, so the world
+    // button has to be pressed before the cell exists.
+    await page.locator(`.dev-jump__world:text-is("${bossWorld}")`).first().click();
+    await delay(300);
+  }
+  const cell19 = page.getByRole('button', {
+    name: new RegExp(`^World ${bossWorld}, level ${bossLevel},`, 'i'),
+  });
   if ((await cell19.count()) === 0) {
-    console.log('[boss] dev jump cell for 1-9 not found');
+    console.log(`[boss] dev jump cell for ${bossWorld}-${bossLevel} not found`);
   } else {
+    console.log(`[boss] level ${bossWorld}-${bossLevel}${args.shrink ? ' (Shrinking boss)' : ''}`);
     await cell19.first().click();
+    // 3-9's two boss rows are `Shrinking` and `Trap`; pin the sampler to the
+    // one this mode exists to watch so the series follows a single enemy.
+    if (args.shrink) {
+      await page.evaluate(() => {
+        globalThis.__lookBossType = 'Shrinking';
+      });
+    }
     await page
       .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
       .catch(() => console.log('[look] warning: countdown never reported done'));
@@ -497,9 +526,28 @@ if (args.bossLife) {
     const bossState = () =>
       page.evaluate(() => {
         const a = globalThis.__arena;
-        const boss = (a?.enemies ?? []).find((e) => e.enemyLevel === 'B');
+        // **Track one named boss, not "a boss".** 3-9 carries *two* — a
+        // `Shrinking` and a `Trap` — and the array is sorted by distance, so a
+        // bare `find` returns whichever is closer and flips as the tank kites.
+        // That read as a boss healing itself: 594 -> 654 -> 468 across three
+        // samples. Selecting by lowest HP was no better, because it jumps to
+        // the survivor the moment the tracked one dies (300 -> 534).
+        const bosses = (a?.enemies ?? []).filter((e) => e.enemyLevel === 'B');
+        const wanted = globalThis.__lookBossType;
+        const boss = wanted
+          ? bosses.find((e) => e.enemyType === wanted)
+          : bosses.sort((p, q) => p.health - q.health)[0];
         if (!boss) return null;
-        return { hp: boss.health, max: boss.maxHealth, x: boss.screen?.x, y: boss.screen?.y };
+        return {
+          hp: boss.health,
+          max: boss.maxHealth,
+          // The disc is sized from this every frame, so a shrinking boss must
+          // show it falling. Reported rather than inferred from the frame.
+          radius: boss.radius,
+          type: boss.enemyType,
+          x: boss.screen?.x,
+          y: boss.screen?.y,
+        };
       });
 
     await page.mouse.down();
@@ -541,11 +589,12 @@ if (args.bossLife) {
           shots += 1;
           const degrees = 360 * (1 - Math.min(1, Math.max(0, frac)));
           console.log(
-            `[boss] hp ${String(b.hp).padStart(4)}/${b.max}` +
+            `[boss] ${b.type} hp ${String(b.hp).padStart(4)}/${b.max}` +
               ` = ${(frac * 100).toFixed(0).padStart(3)}%` +
-              ` -> wipe ${degrees.toFixed(0).padStart(3)} deg`,
+              ` -> wipe ${degrees.toFixed(0).padStart(3)} deg` +
+              ` · radius ${Number(b.radius).toFixed(1)}`,
           );
-          await shot(`boss-life-${shots}`);
+          await shot(`boss-life-${args.shrink ? 'shrink-' : ''}${shots}`);
         }
       }
       if (i % 60 === 0) {

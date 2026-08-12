@@ -20,6 +20,23 @@
  * table on a multi-boss level rather than taking it on trust.
  */
 
+/**
+ * `RedCircle`'s single shape — the disc this indicator masks (`:926`).
+ *
+ * Sprite 1200 places shape 1199; JPEXS keys its SVGs by *shape* id, so the
+ * asset is `1199.svg` and the texture key is `unit-1199`.
+ *
+ * **It lives here rather than in the scene so it can be pinned.** Shipping T106
+ * synced the SVG to disk but never added it to `UNIT_SHAPES`, so the key was
+ * never loaded and Phaser substituted `__MISSING` — a black square with green
+ * lines — which the mask then revealed as the boss lost health. Nothing caught
+ * it: the geometry below is pure and was fully tested, and a missing texture
+ * raises no page error. `bossLifeIndicator.test.ts` now asserts this id against
+ * the manifest, which is only possible because it is exported from a module a
+ * test can import without booting a scene.
+ */
+export const RED_CIRCLE_SHAPE = 1199;
+
 /** `:923` — the art is a 100px disc, so a boss of radius r scales by r/50. */
 export const RED_CIRCLE_ART_RADIUS = 50;
 

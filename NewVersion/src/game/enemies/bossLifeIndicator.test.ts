@@ -5,12 +5,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   RED_CIRCLE_ART_RADIUS,
+  RED_CIRCLE_SHAPE,
   WIPE_START_DEGREES,
   discScale,
   wantsIndicator,
   wipeDegrees,
   wipeEndDegrees,
 } from './bossLifeIndicator';
+import { UNIT_RASTER_SCALE, UNIT_SHAPES } from '../../assets/manifest';
 import { resolveEnemyStats } from './enemyStats';
 import { SHRINK_FLOOR, shrinkScale, shrinksWithHealth } from './enemyBodies';
 import { ENEMY_STATS } from './enemyStatsData';
@@ -226,5 +228,60 @@ describe('a ShrinkingB boss re-scales its disc as it shrinks', () => {
     // `Enemy` only applies `shrinkScale` when `shrinksWithHealth`, so a Basic
     // boss's radius is its spawn radius at every health.
     expect(discScale(40)).toBe(discScale(40));
+  });
+});
+
+/**
+ * **The T108 defect, pinned.**
+ *
+ * Everything above is about *angles and sizes*, and none of it can see which
+ * texture those angles reveal. T106 shipped with `1199.svg` synced to disk but
+ * never added to `UNIT_SHAPES`, so `unit-1199` was never loaded and
+ * `TextureManager` substituted `__MISSING` — a 32x32 black square with
+ * `rgb(0,255,0)` lines. The mask then revealed *that* as the boss lost health,
+ * which is the "black background with green lines" the bug was reported as.
+ *
+ * **Nothing failed.** A missing key raises no error, `npm run look` reported
+ * "no page errors", and all 17 tests here stayed green — because the geometry
+ * was never wrong.
+ *
+ * `projectileArt.test.ts:80` is this same check for projectiles and names the
+ * same symptom in its own docstring ("a green missing-texture box"). It has
+ * been in place since T84 and did not cover this disc, because the disc is
+ * constructed directly by the scene rather than resolved through
+ * `PROJECTILE_ART`. The mechanism existed; its reach did not include the new
+ * site.
+ */
+describe('the disc names a texture the manifest actually loads', () => {
+  const loaded = new Set(UNIT_SHAPES.map((asset) => asset.key));
+
+  it('loads the RedCircle shape the indicator masks', () => {
+    expect(loaded.has(`unit-${RED_CIRCLE_SHAPE}`)).toBe(true);
+  });
+
+  /**
+   * The opposite, driven on the identical set. Without it, a `loaded` set built
+   * from an empty export — or any lookup that always answered true — would
+   * satisfy the assertion above while proving nothing.
+   */
+  it('reports a shape the manifest does not carry as absent', () => {
+    expect(loaded.has('unit-999999')).toBe(false);
+  });
+
+  /**
+   * The raster follows the unit convention. Both numbers are stated against the
+   * **artwork**, not read back out of the manifest entry: `1199.svg` carries
+   * `width="100.0px" height="100.0px"`, so the module's radius must be half of
+   * that and the loaded raster must be `UNIT_RASTER_SCALE` times it. A wrong
+   * number in `manifest.ts` fails here rather than being copied into the
+   * expectation.
+   */
+  it('rasterises the disc at the unit scale, from the authored size', () => {
+    const AUTHORED = 100; // `SWFimported/shapes/1199.svg`
+    expect(RED_CIRCLE_ART_RADIUS * 2).toBe(AUTHORED);
+
+    const entry = UNIT_SHAPES.find((asset) => asset.key === `unit-${RED_CIRCLE_SHAPE}`);
+    expect(entry?.width).toBe(AUTHORED * UNIT_RASTER_SCALE);
+    expect(entry?.height).toBe(AUTHORED * UNIT_RASTER_SCALE);
   });
 });
