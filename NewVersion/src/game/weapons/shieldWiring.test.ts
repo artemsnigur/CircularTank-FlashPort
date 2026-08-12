@@ -234,6 +234,12 @@ describe('the window is scene state, reset per level', () => {
   });
 
   it('the sprite fades with the window', () => {
-    expect(SCENE).toContain('.setAlpha(shieldAlpha(this.shield) * 0.45);');
+    // The `* 0.45` this used to pin was dropped in T117: `shieldAlpha` already
+    // *is* `PartGameArea.as:1015`'s `timer / 120 * 0.9 + 0.1`, and the extra
+    // factor had no AS3 basis — it was damping a solid cyan disc that the real
+    // `TankShield` art replaced. Matched on the call rather than the exact
+    // expression, since what this test is about is that the sprite fades with
+    // the window at all.
+    expect(SCENE).toMatch(/\.setAlpha\(shieldAlpha\(this\.shield\)\)/);
   });
 });

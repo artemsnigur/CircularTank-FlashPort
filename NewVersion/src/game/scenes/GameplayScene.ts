@@ -19,6 +19,7 @@ import type { Difficulty } from '../config/constants';
 import { GameEvents } from '../events/GameEvents';
 import { PlayerTank } from '../entities/PlayerTank';
 import type { PlayerInput } from '../entities/PlayerTank';
+import { SHIELD_FRAMES, TANK_SIZES } from '../entities/tankArt';
 import { Enemy } from '../entities/Enemy';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { getLevel } from '../levels/levelData';
@@ -474,6 +475,10 @@ const DEV_MONEY_GRANT = 5000;
 const FLAG_RADIUS = 14;
 /** `ItemFlag` — sprite 1360 places this single shape. */
 const FLAG_SHAPE = 1359;
+/** `WarningEnemy` — sprite 376 places this single shape. */
+const WARNING_SHAPE = 375;
+/** `375.svg`'s authored size. */
+const WARNING_ART_SIZE = 75;
 /** `1359.svg`'s authored size. Separate from `FLAG_RADIUS`, which is pickup range. */
 const FLAG_ART_SIZE = 33;
 const FPS_EMIT_INTERVAL_MS = 500;
@@ -554,6 +559,8 @@ export class GameplayScene extends Phaser.Scene {
   private shield: ShieldState = createShieldState();
   /** The shield ring, parented to nothing — it follows the tank each frame. */
   private shieldSprite: Phaser.GameObjects.Image | null = null;
+  /** Progress through , in frames at the SWF 30fps. */
+  private shieldFrame = 0;
   /** Thrown grenades in flight, with their sprites and blast payloads. */
   private grenades: Array<{
     state: GrenadeState;
@@ -1701,7 +1708,16 @@ export class GameplayScene extends Phaser.Scene {
       );
       if (stillPending && marker) {
         this.warningMarkers.set(stillPending, marker);
-        marker.setScale(warningScale(stillPending) * 0.5);
+        // **`setDisplaySize`, not `setScale`.** `warningScale` is a 1.0 -> 0.3
+        // factor on the clip's natural size, and `unit-375` is rasterised at
+        // `UNIT_RASTER_SCALE`, so a texture-relative `setScale` drew it at
+        // ~150 units instead of 75 the moment the placeholder dot was replaced.
+        // That is the oversampled-raster trap `manifest.ts` documents.
+        //
+        // The old `* 0.5` went with it: it was damping the dot's base size and
+        // has no AS3 basis.
+        const size = WARNING_ART_SIZE * warningScale(stillPending);
+        marker.setDisplaySize(size, size);
       } else if (marker) {
         marker.destroy();
       }
@@ -1712,11 +1728,14 @@ export class GameplayScene extends Phaser.Scene {
   }
 
   private addWarningMarker(warning: Warning): void {
+    // `WarningEnemy` — sprite 376 places shape 375, `frameCount: 1`. Drawn at
+    // its authored 75x75; it replaced a red-tinted `particle-dot` at 34x34, so
+    // the marker is both real art and its true size now. No tint and no alpha
+    // knock-down — the art carries its own colour, and the 0.75 was damping a
+    // solid disc.
     const marker = this.add
-      .image(warning.x, warning.y, 'particle-dot')
-      .setDisplaySize(34, 34)
-      .setTint(0xff5252)
-      .setAlpha(0.75)
+      .image(warning.x, warning.y, `unit-${WARNING_SHAPE}`)
+      .setDisplaySize(WARNING_ART_SIZE, WARNING_ART_SIZE)
       .setDepth(6);
     this.warningMarkers.set(warning, marker);
   }
@@ -3095,6 +3114,25 @@ export class GameplayScene extends Phaser.Scene {
             width: Math.round(this.flagMarker.displayWidth),
           }
         : null,
+      /** The shield ring and the first spawn warning, for `--sprites`. */
+      shield: this.shieldSprite
+        ? {
+            texture: this.shieldSprite.texture.key,
+            tinted: this.shieldSprite.isTinted,
+            width: Math.round(this.shieldSprite.displayWidth),
+            alpha: Math.round(this.shieldSprite.alpha * 100) / 100,
+          }
+        : null,
+      warning: (() => {
+        const first = [...this.warningMarkers.values()][0];
+        return first
+          ? {
+              texture: first.texture.key,
+              tinted: first.isTinted,
+              width: Math.round(first.displayWidth),
+            }
+          : null;
+      })(),
       flares: this.particles
         .filter((p) => p.type.startsWith('MuzzleFlare'))
         .slice(0, 4)
@@ -3731,24 +3769,44 @@ export class GameplayScene extends Phaser.Scene {
    * shield, and an invisible sprite following the tank all game is a cost with
    * no payoff.
    */
-  private updateShieldSprite(): void {
+  private updateShieldSprite(deltaMs: number): void {
     if (!this.shield.on) {
       this.shieldSprite?.destroy();
       this.shieldSprite = null;
+      // `:1027` — the next raise re-adds the clip and calls `gotoAndPlay(1)`,
+      // so the intro plays again rather than resuming where it stopped.
+      this.shieldFrame = 0;
       return;
     }
 
     if (!this.shieldSprite) {
+      // Real `TankShield` art (sprite 212 -> shapes 208-211), at its authored
+      // size. It replaced a cyan-tinted `particle-dot` sized `radius * 4`.
       this.shieldSprite = this.add
-        .image(this.player.x, this.player.y, 'particle-dot')
-        .setDisplaySize(this.player.radius * 4, this.player.radius * 4)
-        .setTint(0x6ee7ff)
+        .image(this.player.x, this.player.y, `unit-${SHIELD_FRAMES[0]}`)
+        .setDisplaySize(TANK_SIZES.shield, TANK_SIZES.shield)
         .setDepth(SHIELD_DEPTH);
+      this.shieldFrame = 0;
     }
 
+    // `:1027` then `:1033-1035` — play 1 -> 4 at 30fps and hold on 4.
+    this.shieldFrame = Math.min(
+      SHIELD_FRAMES.length - 1,
+      // `* 30` is the SWF frame rate, spelled the same way as the other
+      // per-frame conversions in this file.
+      this.shieldFrame + (deltaMs / 1000) * 30,
+    );
+    const frame = SHIELD_FRAMES[Math.floor(this.shieldFrame)] ?? SHIELD_FRAMES[0];
+
     this.shieldSprite
+      .setTexture(`unit-${frame}`)
+      .setDisplaySize(TANK_SIZES.shield, TANK_SIZES.shield)
       .setPosition(this.player.x, this.player.y)
-      .setAlpha(shieldAlpha(this.shield) * 0.45);
+      // `:1015` — `shieldTimer / 120 * 0.9 + 0.1`, which `shieldAlpha` already
+      // is. The extra `* 0.45` that used to be here had no AS3 basis: it was
+      // damping a solid cyan disc that would otherwise have been opaque. The
+      // real art does not need it.
+      .setAlpha(shieldAlpha(this.shield));
   }
 
   private updateSecondary(deltaMs: number): void {
@@ -3768,7 +3826,7 @@ export class GameplayScene extends Phaser.Scene {
 
     // `:1008-1042` — the window runs down whether or not the trigger is held.
     this.shield = tickShield(this.shield, (deltaMs / 1000) * 30);
-    this.updateShieldSprite();
+    this.updateShieldSprite(deltaMs);
     this.updateGrenades(deltaMs);
     this.updateBalls(deltaMs);
     // After the balls, so a patch laid this frame is aged and applied in the

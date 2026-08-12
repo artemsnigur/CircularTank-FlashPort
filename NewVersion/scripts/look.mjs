@@ -506,7 +506,9 @@ if (args.sprites) {
    * same point when the turret happens to face along an axis you only tested
    * once.
    */
-  await page.goto(`${URL}?primary=Cannon`, { waitUntil: 'domcontentloaded' });
+  // `secondary=Shield` because the default is Mine, and the shield is one of
+  // the two sprites this run exists to check.
+  await page.goto(`${URL}?primary=Cannon&secondary=Shield`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: /level select/i }).first().click();
   await delay(800);
@@ -542,6 +544,49 @@ if (args.sprites) {
         ? `[sprites] flag: texture ${flag.texture} · tinted ${flag.tinted} · width ${flag.width}`
         : '[sprites] flag: none placed within the window',
     );
+
+    // ── The spawn warning ─────────────────────────────────────────────────
+    // Warnings appear shortly before each enemy, so this waits for one rather
+    // than shooting whatever is on screen.
+    let warn = null;
+    for (let i = 0; i < 200 && !warn; i += 1) {
+      warn = await page.evaluate(() => globalThis.__arena?.warning ?? null);
+      if (!warn) await delay(50);
+    }
+    await shot('sprites-warning');
+    console.log(
+      warn
+        ? `[sprites] warning: texture ${warn.texture} · tinted ${warn.tinted} · width ${warn.width}`
+        : '[sprites] warning: none observed',
+    );
+
+    // ── The shield, including its 1 -> 4 intro ────────────────────────────
+    // Raised with the secondary. `PartGameArea.as:1027` plays 1 -> 4 and
+    // `:1033-1035` holds on 4, so the frames are sampled fast enough to catch
+    // the intro rather than only its resting state.
+    // **Held, not tapped.** `keyboard.press` is down+up in ~10ms and input
+    // flags are read once per frame, so the whole press can fall between two
+    // frames — the trap CLAUDE.md names, and it read as "shield never raised".
+    await page.keyboard.down('Space');
+    // **Sampled from the press, not after it.** The intro is 4 frames at 30fps
+    // — 133ms — so a sampler that starts after a 200ms hold sees only the
+    // resting frame and reports "1 distinct frame" about a working animation.
+    const frames = [];
+    for (let i = 0; i < 60; i += 1) {
+      const s = await page.evaluate(() => globalThis.__arena?.shield ?? null);
+      if (s && !frames.some((f) => f.texture === s.texture)) frames.push(s);
+      if (i === 8) await shot('sprites-shield');
+      if (i === 12) await page.keyboard.up('Space');
+      await delay(10);
+    }
+    if (frames.length === 0) console.log('[sprites] shield: never raised');
+    else {
+      console.log(
+        `[sprites] shield: ${frames.length} distinct frame(s) — ` +
+          frames.map((f) => f.texture).join(' -> ') +
+          ` · tinted ${frames[0].tinted} · width ${frames[0].width}`,
+      );
+    }
 
     // ── The muzzle flare, at two turret angles ────────────────────────────
     for (const [label, sx, sy] of [

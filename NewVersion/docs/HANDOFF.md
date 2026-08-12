@@ -544,20 +544,69 @@ reach is ~10.5 — the barrel does not protrude past the body at all, and a flar
 at 10 is inside the body's silhouette. That is what the original does too.
 Moving it out would be an invented deviation; it is a decision, not a fix.
 
+#### T117 — shield and warning wired, enemy bullets scoped
+
+**Tank shield** — `TankShield` sprite 212 -> shapes **208-211**, at its authored
+97.1. It replaced a cyan `particle-dot` at `radius * 4`.
+
+**A third frame-control case, beyond the two pass (c) found.** Projectiles were
+either "loops freely" or "pinned at spawn by `gotoAndStop`". This one **plays
+once and stops itself**: `PartGameArea.as:1027` calls `gotoAndPlay(1)` when the
+clip is added, and `:1033-1035` pins it the moment it arrives —
+`if (currentFrame == 4) gotoAndStop(4)`. So 1 -> 4 at 30fps, then hold 4 for the
+rest of the shield's life, and replay from 1 on the next raise because `:1024`
+re-adds the clip.
+
+The scene's `* 0.45` alpha multiplier is **gone**: `shieldAlpha` already is
+`:1015`'s `timer / 120 * 0.9 + 0.1`, and the extra factor was damping a solid
+disc that would otherwise have been opaque.
+
+**Enemy spawn warning** — `WarningEnemy` sprite 376 -> shape **375**,
+`frameCount: 1`, authored 75x75. `375.svg` had to be synced first.
+
+**It caught the oversampled-raster trap on the way in.** `:1711` scaled the
+marker with `setScale(warningScale(w) * 0.5)`, and `setScale` is relative to the
+*texture* while `unit-375` is rasterised at `UNIT_RASTER_SCALE`. Swapping the
+dot for real art therefore drew it at ~150 units instead of 75 — measured, not
+guessed: the first run reported `width 149`. It is `setDisplaySize` now, and the
+`* 0.5` went with the dot it was damping.
+
+#### Enemy bullets — scoped, not built
+
+**The original does not use plain dots.** Six distinct classes, each its own
+sprite, instantiated at `PartGameArea.as:6918-6964`:
+
+| Class | AS3 | Sprite | Shapes | Frames |
+|---|---|---|---|---|
+| `EnemyBulletBasic` | `:6918` | 1175 | 1173, 1174 | 2 |
+| `EnemyBulletBasicBoss` | `:6927` | 1166 | 1164, 1165 | 2 |
+| `EnemyBulletTrap` | `:6936` | 1160 | 1159 | 1 |
+| `EnemyBulletHook` | `:6945` | 1169 | 1167, 1168 | 2 |
+| `EnemyBulletFollowing` | `:6955` | 1172 | 1170, 1171 | 2 |
+| `EnemyBulletFollowingBoss` | `:6964` | 1163 | 1161, 1162 | 2 |
+
+The port draws all six as one red-tinted `particle-dot` sized from
+`state.radius`, so **this is a real infidelity, not a faithful simplification**.
+`:6975` calls `eBullet.gotoAndStop(1)`, so at least one branch selects a frame —
+whoever picks this up should establish per class whether the second frame is a
+selection or an animation, the same question pass (c) answered for projectiles.
+Nine of the eleven shapes are not synced. **Not started.**
+
 #### Placeholder audit — non-enemy, non-projectile
 
 | Element | Currently draws | Real art | State |
 |---|---|---|---|
 | Flag item | `particle-dot` + cyan tint | `ItemFlag` 1360 -> shape **1359** (1 frame) | **fixed, T116** |
-| **Tank shield** | `particle-dot` + cyan tint, `radius * 4` | `TankShield` 212 -> shapes **208-211** (4 frames) | **not fixed — and the shapes are already loaded.** Only the wiring is missing, exactly as the flag was |
-| **Enemy spawn warning** | `particle-dot` + red tint | `WarningEnemy` 376 -> shape **375** (1 frame) | not fixed; `375.svg` is **not synced** either, so this one needs the sync step too |
+| Tank shield | dot + cyan tint | `TankShield` 212 -> **208-211** | **fixed, T117** — one-shot 1->4 intro, holds on 4 |
+| Enemy spawn warning | dot + red tint | `WarningEnemy` 376 -> **375** | **fixed, T117** — synced, wired, and the `setScale` trap caught |
 | Timed-bomb warning | `unit-370`/`unit-371` | `WarningTimedBomb` 372 -> 370, 371 | **already real** |
 | Enemy bullets | `particle-dot` + red tint | — | left alone: projectile-class, and the T84-T87 passes covered *player* projectiles only |
 | Background props | `particle-dot` **only** when a key is missing | real prop art wired | fallback, not a placeholder |
 | Particles | `particle-dot` when a shape is missing | real particle art wired | fallback; muzzle flare shapes 1108-1121 confirmed loaded |
 
-Two of the three live items are pure wiring — the shield's shapes are already in
-`UNIT_SHAPES`. The warning needs a sync pass first.
+All three are done — the flag in T116, the shield and warning in T117. **Enemy
+bullets are the one remaining item**, and they are scoped above rather than
+built.
 
 ### The turret was missing during the countdown (T115)
 

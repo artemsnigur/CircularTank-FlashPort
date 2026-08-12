@@ -68,6 +68,21 @@ export const TANK_TOWER_FRAMES: readonly number[] = [
 export const TANK_SIZES = { body: 29, tower: 21, shield: 97.1 } as const;
 
 /**
+ * `TankShield`'s four frames — sprite 212 places shapes 208-211.
+ *
+ * **A one-shot intro that holds, not a loop and not a selection.**
+ * `PartGameArea.as:1027` calls `gotoAndPlay(1)` when the shield is added, and
+ * `:1033-1035` pins it the moment it arrives: `if (currentFrame == 4)
+ * gotoAndStop(4)`. So it plays 1 -> 4 at the SWF's 30fps and then sits on 4 for
+ * the rest of the shield's life.
+ *
+ * That is a third case beyond the two pass (c) found for projectiles — those
+ * were "loops freely" or "pinned at spawn by `gotoAndStop`". This one plays
+ * once and stops itself.
+ */
+export const SHIELD_FRAMES = [208, 209, 210, 211] as const;
+
+/**
  * Primary weapon -> 1-based turret frame — `ScreenGame.setVisibleTankWeapon`
  * (`ScreenGame.as:521-570`).
  *

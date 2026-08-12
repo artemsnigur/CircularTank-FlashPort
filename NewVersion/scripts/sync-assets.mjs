@@ -200,6 +200,7 @@ const CURATED_SHAPES = new Set([
   // Indicator art (T43) — WarningTimedBomb, IndicatorMedic, IndicatorIce,
   // DefenseEnemyBottomIndicator, WeaponReloadIndicator.
   '370.svg',
+  '375.svg',
   '371.svg',
   '1182.svg',
   '1184.svg',
