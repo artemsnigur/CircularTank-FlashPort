@@ -359,16 +359,17 @@ be checked against a second mode on the same build before it is believed.
 
 ## 5. What is open
 
-### The live queue — one decision, one measurement note
+### The live queue — one measurement note
 
-**Neither row is queued build work**, and the heading used to say "Queued,
-unblocked", which claimed both were. The first is a decision waiting on you; the
-second is a standing note about what the sweep can reach. This section is the
-source of truth for both — `BACKLOG.md` points here rather than restating them.
+**Nothing here is queued build work.** The one decision that sat in this table —
+the volume slider ↔ mute coupling — was decided and shipped in T111; the row
+that remains is a standing note about what the sound sweep can reach. This
+section is the source of truth for both — `BACKLOG.md` points here rather than
+restating them.
 
 | Item | Needs |
 |---|---|
-| **Volume slider ↔ mute toggle coupling. OPEN AND UNDECIDED — flagged T83, not guessed at.** | The volume sliders shipped (T83, `SliderObject.as`). What did **not** ship is `ScreenOptions.as:233-278`, where each slider and its on/off button are **one control**, reconciled every frame: `:235-244` dragging sets `soundOn = (vol != 0)`; `:246-249` on-with-vol-0 jumps the slider to **1**; `:251-254` off forces the slider to **0**. **The original therefore has no "muted but volume remembered" state** — unmuting restores *full* volume, not the player's setting. This port keeps them independent, which is the behaviour that already ships and persists. Adopting `:251-254` would discard a chosen volume on every mute, **and would do it from the HUD and main menu, where `AudioToggles` renders with no slider visible** — the original always reconciled with the slider on screen. That is a behaviour decision about a shipped, persisted control, so it was left alone. **Consequence of not deciding:** volume 0 with sound *on* is now reachable and silent — conventional, but a state the AS3 does not have. Full analysis at `audio/audioOptions.ts` |
+| ~~**Volume slider ↔ mute toggle coupling**~~ — **DECIDED AND SHIPPED (T111): port it faithfully.** | See *The slider and its toggle are one control* below. |
 | **Sound: 16 silent in the sweep — 14 need no code, 1 is blocked, 1 is permanent** | `--sound-sweep` reports **50–51 of 67** (T80; three runs on the final harness gave 50, 50, 51, with `ReflectBullet`/`TankDamaged`/`TankEnemyCollision` swinging). **`Award1-3` are additionally confirmed firing by `--medals`** (T74) and do not appear in the sweep figure, because the sweep drives a defeat and they fire on a win. **The two numbers have come apart and both are correct** — the sweep measures what one scenario reaches, not what is wired. Full list and evidence grade below. |
 
 ### The 16 silent sounds, individually
@@ -425,6 +426,60 @@ after T80 only two are still live:**
 scoping pass found `:1147-1163` is driven by `countTime` over `medalsForHp`, not
 by either progress table. **The visible-values model now closes exactly one
 name, `Unlock`**, and `Achievement` is adjacent to it rather than on it.
+
+### The slider and its toggle are one control (T111) — decided, ported
+
+**Decision: port it faithfully.** Muting zeroes the volume; unmuting restores
+**full** volume, not the player's previous setting. The port-invented "muted but
+volume remembered" state is gone, and so is "volume 0 with sound on".
+
+**There is exactly one volume value in the original.** `SoundManager.soundVol`.
+The AS3 never distinguishes a chosen volume from a current one, so "restore what
+they had" is not a behaviour that exists to be preserved.
+
+Two AS3 sites apply the rule, and the second is the one that unblocked this:
+
+- **`ButtonToggleSound.as:43-52`** (`ButtonToggleMusic.as:43-52`) — the
+  standalone toggle, **with no slider anywhere on screen**: flips `soundOn`, then
+  writes `soundVol = 1` on / `0` off.
+- **`ScreenOptions.as:233-256`** — per-frame reconciliation while Options is
+  open: `:235-244` dragging sets `soundOn = (vol != 0)`; `:246-249` on-with-0
+  jumps the slider to **1** and moves `sliderButton.x` to the bar's right end;
+  `:251-254` off-with-volume forces **0** and the button to `x = 0`; `:256`
+  assigns `soundVol = sliderValue` unconditionally. `:150-151` initialises each
+  slider from the stored volume, so a saved 0.5 shows as 0.5 — it is destroyed by
+  a mute round-trip, not by opening the screen.
+
+**The T83 entry's stated blocker was factually wrong, and that is why this sat
+open for so long.** It said adopting the rule "would do it from the HUD and main
+menu, where `AudioToggles` renders with no slider visible — the original always
+reconciled with the slider on screen." The original does no such thing:
+`ButtonToggleSound` is exactly a sliderless toggle and couples identically. The
+HUD and main-menu toggles are **not** port-invented UI needing a separate
+decision; they have a direct AS3 counterpart. Recorded because the objection read
+as a careful caveat and was never checked against the file it described.
+
+**Where it lives.** `audioOptions.coupleAudioChange` is the change-time half
+(the toggle's writes plus the dragging branch); `reconcileAudioOptions` is the
+idle half (`:246-254`). The change-time rule is applied in
+`soundService.setAudioOption`, which is the single point all four writers
+converge on — the HUD toggles, the main menu's, the Options screen's, and the
+sliders. Applying it at any one surface would have coupled that surface and left
+the rest independent, which is the state this replaced.
+
+**Migration is the AS3 rule, not a bespoke step.** Save data written under the
+old model can hold `soundOn: true, soundVol: 0` — a silent game whose toggle
+reads "on". `readAudioOptions` runs `reconcileAudioOptions` on the way out, which
+resolves it to on-at-full: exactly what `:246-249` would have done the moment the
+Options screen rendered. No version flag, and the rule that makes the state
+unreachable is the same rule that repairs it.
+
+**One consequence.** `SoundManager.handleLoops` gates on `soundOn` explicitly.
+That gate was added in T83 *because* the port had dropped the AS3's
+"`soundVol == 0` whenever off" invariant. The invariant is restored, so the gate
+is now belt-and-braces rather than load-bearing. Kept deliberately — a loop
+silenced two ways is not a defect, and removing it would be an unrelated risk
+taken for tidiness.
 
 ### PartInfoText — CLOSED (T104)
 
@@ -700,8 +755,8 @@ things that are actually open.
   so `step="any"` is the faithful spelling and any tidy 0.05 step would be wrong.
   Wired through the existing `ui:set-audio` → `setAudioOption` → `audio:options`
   path, so the control shows what the engine holds. **Scoping it found a live
-  defect** — see the next entry. The toggle coupling was *not* ported and is
-  flagged in the queue above.
+  defect** — see the next entry. The toggle coupling was left unported here and
+  **was ported in T111** — see *The slider and its toggle are one control*.
 - **Mute did not silence the Flamethrower/Burning loops** — fixed (T83).
   `handleLoops` scaled by `soundVol` and never consulted `soundOn`. The AS3 needs
   no such check because `ScreenOptions.as:251-254` forces `soundVol = 0` when
@@ -915,13 +970,12 @@ things that are actually open.
 
 ### Blocked on you, not on me
 
-- **One thing is genuinely blocked on you: the volume slider ↔ mute toggle
-  coupling**, first in the queue above. It is a behaviour decision about a
-  shipped, persisted control, so it was flagged rather than guessed at.
-- **Nothing else is blocked on a decision**, but two standing calls shape
-  everything: the touch/phone work is deliberately deprioritised until the
-  desktop port is finished, and the ~81 third-party classes
-  (`com.google.analytics`, `FGL`, `fl`, `mx`) are never being ported.
+- **Nothing is currently blocked on you.** The last item that was — the volume
+  slider ↔ mute toggle coupling — was decided in T111 (port it faithfully) and
+  has shipped.
+- **Two standing calls shape everything**: the touch/phone work is deliberately
+  deprioritised until the desktop port is finished, and the ~81 third-party
+  classes (`com.google.analytics`, `FGL`, `fl`, `mx`) are never being ported.
 - `M1`, the tank damage tint, was the one item you asked for by name and is
   **done** (T52) — recorded in §6.
 

@@ -18,6 +18,7 @@ import { SoundManager } from './SoundManager';
 import { PhaserAudioBackend } from './PhaserAudioBackend';
 import {
   applyAudioOptions,
+  coupleAudioChange,
   currentAudioOptions,
   readAudioOptions,
   writeAudioOptions,
@@ -102,12 +103,20 @@ export function setAudioOption(
   const installed = scene.game.registry.get(SOUND_REGISTRY_KEY) as Installed | undefined;
   if (!installed) return;
 
-  if (change.soundOn !== undefined) installed.manager.soundOn = change.soundOn;
-  if (change.musicOn !== undefined) installed.manager.musicOn = change.musicOn;
+  // The slider and its toggle are **one control** — `ButtonToggleSound.as:43-52`
+  // (toggle, no slider on screen) and `ScreenOptions.as:235-244` (dragging).
+  // Applied here rather than at each surface because all four writers converge
+  // on this function: the HUD toggles, the main menu's, the Options screen's and
+  // the volume sliders. Putting it at one of them would couple one surface and
+  // leave the others independent, which is the state this replaced.
+  const coupled = coupleAudioChange(change);
+
+  if (coupled.soundOn !== undefined) installed.manager.soundOn = coupled.soundOn;
+  if (coupled.musicOn !== undefined) installed.manager.musicOn = coupled.musicOn;
   // Clamped here rather than trusted from the caller — `SliderObject.as:46-55`
   // clamps at the control, but this is a bus event and anything can emit it.
-  if (change.soundVol !== undefined) installed.manager.soundVol = clamp01(change.soundVol);
-  if (change.musicVol !== undefined) installed.manager.musicVol = clamp01(change.musicVol);
+  if (coupled.soundVol !== undefined) installed.manager.soundVol = clamp01(coupled.soundVol);
+  if (coupled.musicVol !== undefined) installed.manager.musicVol = clamp01(coupled.musicVol);
 
   installed.saveOptions();
   publishAudioOptions(scene);

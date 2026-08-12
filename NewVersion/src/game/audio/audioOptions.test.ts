@@ -15,13 +15,18 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_AUDIO_OPTIONS,
   applyAudioOptions,
+  coupleAudioChange,
   currentAudioOptions,
   readAudioOptions,
+  reconcileAudioOptions,
   writeAudioOptions,
 } from './audioOptions';
 import { MemoryBackend, OPTIONS_STORE, SaveStore } from '../save/SaveStore';
 import { SoundManager } from './SoundManager';
 import type { AudioBackend, LoopId, MusicChannel } from './SoundManager';
+import { setAudioOption } from './soundService';
+import { GameEvents } from '../events/GameEvents';
+import type { GameEventMap } from '../events/GameEvents';
 
 /** Records every instruction, so "what did the engine hear" is answerable. */
 class RecordingBackend implements AudioBackend {
@@ -199,14 +204,231 @@ describe('preferences survive a reload', () => {
   });
 
   it('clamps a corrupt volume rather than passing it through', () => {
+    // **Read with the channel OFF**, so the clamp is what the assertion sees.
+    // With sound on, `reconcileAudioOptions` would lift a clamped 0 back to 1
+    // (`ScreenOptions.as:246-249`) and this would be measuring reconciliation
+    // instead of clamping — which is how it first failed when the coupling
+    // landed. The clamp is still a real requirement; the fixture was ambiguous.
     const backend = new MemoryBackend();
     const s = new SaveStore(OPTIONS_STORE, backend);
     s.set('musicVol', 42);
     s.set('soundVol', -3);
+    s.set('soundOn', false);
     s.flush();
 
     const read = readAudioOptions(new SaveStore(OPTIONS_STORE, backend));
     expect(read.musicVol).toBe(1);
     expect(read.soundVol).toBe(0);
+  });
+
+  it('lifts a corrupt zero to full when the channel is on — the counterpart', () => {
+    // The same corrupt input with sound **on**. Pinned beside the row above so
+    // the two cannot be confused: clamping is what makes -3 finite, and
+    // reconciliation is what decides whether 0 is a legal resting place.
+    const backend = new MemoryBackend();
+    const s = new SaveStore(OPTIONS_STORE, backend);
+    s.set('soundVol', -3);
+    s.set('soundOn', true);
+    s.flush();
+
+    expect(readAudioOptions(new SaveStore(OPTIONS_STORE, backend)).soundVol).toBe(1);
+  });
+});
+
+/**
+ * The slider ↔ toggle coupling — `ButtonToggleSound.as:43-52` and
+ * `ScreenOptions.as:235-254`.
+ *
+ * The expected values come from those lines, not from the implementation: the
+ * AS3 writes the literals `1` and `0`, and `:246-249` jumps to `1` rather than
+ * to anything remembered. There is only one volume field in the original, so
+ * "restore what the player chose" is not a behaviour that exists to be tested
+ * for.
+ */
+describe('mute and volume are one control', () => {
+  it('unmuting restores FULL volume, not the last chosen value', () => {
+    // The whole point of the decision, driven as a round trip. 0.3 is chosen,
+    // then muted, then unmuted — and 0.3 is gone, because
+    // `ButtonToggleSound.as:46` writes 1 rather than restoring anything.
+    const chosen = coupleAudioChange({ soundVol: 0.3 });
+    expect(chosen).toEqual({ soundVol: 0.3, soundOn: true });
+
+    const muted = coupleAudioChange({ soundOn: false });
+    expect(muted).toEqual({ soundOn: false, soundVol: 0 });
+
+    const unmuted = coupleAudioChange({ soundOn: true });
+    expect(unmuted).toEqual({ soundOn: true, soundVol: 1 });
+  });
+
+  it('dragging the slider to zero turns the channel off', () => {
+    // `ScreenOptions.as:237-240` — the dragging branch, the direction that makes
+    // a slider *be* the mute control rather than sit beside one.
+    expect(coupleAudioChange({ soundVol: 0 })).toEqual({ soundVol: 0, soundOn: false });
+  });
+
+  it('dragging it off zero turns the channel on — the counterpart', () => {
+    // `:241-244`. Without this beside the row above, "sets soundOn from the
+    // volume" would also be satisfied by a rule that only ever turned it off.
+    expect(coupleAudioChange({ soundVol: 0.01 })).toEqual({
+      soundVol: 0.01,
+      soundOn: true,
+    });
+  });
+
+  it('couples music through the identical rule', () => {
+    // Both channels, because the AS3 duplicates the block verbatim
+    // (`ScreenOptions.as:257-278`, `ButtonToggleMusic.as:43-52`) and a port that
+    // coupled only sound would look correct on every sound-only test here.
+    expect(coupleAudioChange({ musicOn: false })).toEqual({ musicOn: false, musicVol: 0 });
+    expect(coupleAudioChange({ musicOn: true })).toEqual({ musicOn: true, musicVol: 1 });
+    expect(coupleAudioChange({ musicVol: 0 })).toEqual({ musicVol: 0, musicOn: false });
+  });
+
+  it('leaves the other channel entirely alone', () => {
+    // A change to sound must not carry a music field, or every sound toggle
+    // would silently reset the music volume — the failure mode of applying the
+    // rule to the whole options object instead of to the change.
+    expect(coupleAudioChange({ soundOn: false })).not.toHaveProperty('musicVol');
+    expect(coupleAudioChange({ soundOn: false })).not.toHaveProperty('musicOn');
+  });
+
+  it('respects a change that names both fields', () => {
+    // Defined rather than left to branch order. Nothing emits this today.
+    expect(coupleAudioChange({ soundOn: true, soundVol: 0.5 })).toEqual({
+      soundOn: true,
+      soundVol: 0.5,
+    });
+  });
+});
+
+describe('on-but-silent is unreachable, and repairs itself', () => {
+  it('reconciles on-with-zero to on-at-full', () => {
+    // `ScreenOptions.as:246-249`. This is the migration for save data written
+    // under the old independent model, where the state was reachable.
+    expect(reconcileAudioOptions({ ...DEFAULT_AUDIO_OPTIONS, soundOn: true, soundVol: 0 }))
+      .toEqual({ ...DEFAULT_AUDIO_OPTIONS, soundOn: true, soundVol: 1 });
+  });
+
+  it('reconciles off-with-volume to off-at-zero', () => {
+    // `:251-254`, the other direction — the counterpart that stops "reconcile"
+    // meaning "always raise the volume".
+    expect(reconcileAudioOptions({ ...DEFAULT_AUDIO_OPTIONS, soundOn: false, soundVol: 0.8 }))
+      .toEqual({ ...DEFAULT_AUDIO_OPTIONS, soundOn: false, soundVol: 0 });
+  });
+
+  it('leaves a legitimate mid-volume alone', () => {
+    // `:150-151` initialises the slider from the stored volume, so a chosen 0.5
+    // must survive a load. Without this, "reconcile" could be a rule that
+    // rounded every volume to 0 or 1 and the two rows above would still pass.
+    const mid = { ...DEFAULT_AUDIO_OPTIONS, soundOn: true, soundVol: 0.5 };
+    expect(reconcileAudioOptions(mid)).toEqual(mid);
+  });
+
+  it('the old independent state cannot survive a store round trip', () => {
+    // Written the way the previous model could have written it, then read back.
+    // This is the end-to-end migration claim, through real storage rather than
+    // through the pure function.
+    const backend = new MemoryBackend();
+    const s = new SaveStore(OPTIONS_STORE, backend);
+    s.set('soundOn', true);
+    s.set('soundVol', 0);
+    s.flush();
+
+    const read = readAudioOptions(new SaveStore(OPTIONS_STORE, backend));
+    expect(read.soundOn).toBe(true);
+    expect(read.soundVol).toBe(1);
+  });
+
+  it('a muted channel that reaches the manager is silent by volume as well as flag', () => {
+    // The invariant the AS3 relied on, restored: `soundVol == 0` whenever sound
+    // is off. `SoundManager.handleLoops` also gates on `soundOn`, so this pins
+    // the *volume* half rather than the flag half — the two are independent
+    // mechanisms and only one of them is this rule.
+    const { manager } = fresh();
+    applyAudioOptions(manager, reconcileAudioOptions({
+      ...DEFAULT_AUDIO_OPTIONS,
+      soundOn: false,
+      soundVol: 0.9,
+    }));
+
+    expect(manager.soundOn).toBe(false);
+    expect(manager.soundVol).toBe(0);
+  });
+});
+
+/**
+ * The coupling **at the seam every UI surface actually goes through**.
+ *
+ * `setAudioOption` had no test of its own. Everything above drives the pure
+ * functions, and this project's recurring failure is exactly that shape: the
+ * module correct, its tests green, and the caller not reaching it. These drive
+ * the real `setAudioOption` against a real `SoundManager`.
+ *
+ * It matters most for the HUD and main menu, where `AudioToggles` renders with
+ * no slider on screen — the surfaces the earlier write-up wrongly claimed the
+ * AS3 had no equivalent of. `ButtonToggleSound.as:43-52` is that equivalent, and
+ * it couples exactly like this.
+ */
+describe('setAudioOption applies the coupling for every surface', () => {
+  function seam(): {
+    scene: Phaser.Scene;
+    manager: SoundManager;
+    saved: number[];
+    published: GameEventMap['audio:options'][];
+  } {
+    const { manager } = fresh();
+    const saved: number[] = [];
+    const installed = { manager, saveOptions: () => saved.push(manager.soundVol) };
+    const scene = {
+      game: { registry: { get: () => installed } },
+    } as unknown as Phaser.Scene;
+
+    const published: GameEventMap['audio:options'][] = [];
+    GameEvents.subscribe('audio:options', (o) => published.push(o));
+    return { scene, manager, saved, published };
+  }
+
+  it('a toggle with no slider on screen zeroes the volume, then restores full', () => {
+    const { scene, manager } = seam();
+
+    // A player sets a mid volume on the Options screen…
+    setAudioOption(scene, { soundVol: 0.3 });
+    expect(manager.soundVol).toBeCloseTo(0.3, 4);
+    expect(manager.soundOn).toBe(true);
+
+    // …then mutes from the HUD, where no slider is visible.
+    setAudioOption(scene, { soundOn: false });
+    expect(manager.soundVol).toBe(0);
+
+    // …and unmutes. Full, not 0.3. This is the decision.
+    setAudioOption(scene, { soundOn: true });
+    expect(manager.soundVol).toBe(1);
+  });
+
+  it('republishes the coupled volume, so a visible slider follows the toggle', () => {
+    // The AS3 moves `sliderButton.x` itself (`:248`, `:253`). This port has no
+    // per-frame reconciliation — the slider is a controlled input, so the
+    // equivalent is that the *published* volume changes with the toggle. If it
+    // did not, the Options screen's slider would sit at 0.3 while the engine
+    // played at 1.
+    const { scene, published } = seam();
+    setAudioOption(scene, { soundVol: 0.3 });
+    published.length = 0;
+
+    setAudioOption(scene, { soundOn: false });
+    expect(published.at(-1)?.soundVol).toBe(0);
+
+    setAudioOption(scene, { soundOn: true });
+    expect(published.at(-1)?.soundVol).toBe(1);
+  });
+
+  it('persists the coupled value, not the requested one', () => {
+    // `saveOptions` records `manager.soundVol` at the moment it runs, so this
+    // fails if the coupling were applied after the save rather than before.
+    const { scene, saved } = seam();
+    setAudioOption(scene, { soundVol: 0.3 });
+    setAudioOption(scene, { soundOn: false });
+
+    expect(saved.at(-1)).toBe(0);
   });
 });
