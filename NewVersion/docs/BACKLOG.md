@@ -270,7 +270,7 @@ Bomb Cannon and **already covers poison, freeze and bomb** — `applyPoison`,
 
 ---
 
-## Group G — The post-level screen (`ScreenStatus`) and the reveal pages
+## Group G — The post-level screen (`ScreenStatus`) and the reveal pages — **CLOSED**
 
 ### What it is in the original
 
@@ -326,7 +326,10 @@ through with the square page buttons (`handleSquarePages`, `:629`).
       than on one.
 - [x] **Achievement reveal pages** — shipped, taking the title and description
       from the same 36 specs `achievementContext` evaluates.
-- [ ] **The medal-reveal animation — the one item in G still open.** The AS3
+- [x] **The medal-reveal animation — shipped T76, entry closed T81.** This row
+      read *"the one item in G still open"* with an unchecked box until T107,
+      directly above its own paragraph saying it had shipped — which is what kept
+      the whole group reading as open. The AS3
       keeps two parallel arrays — `worldsValuesArrays` (earned) and
       `worldsValuesVisibleArrays` (shown) — and animates the difference
       (`ScreenLevelSelect.as:523-526`). **`worldsValuesVisibleArrays` is not
@@ -1229,6 +1232,29 @@ reverts and `progress:check` then fails. Same lesson as `L6`.
 
 **This is bookkeeping, not a reclassification.** Marking them `not applicable`
 would move the headline number, which is exactly what `L5` decided against.
+
+---
+
+### L11 — `docs:check` compares markers, not prose — **KNOWN GAP, not a task**
+
+`scripts/docs-check.mjs` checks that every HTML-comment marker of the form
+`docs-check: <key> = <value>` agrees across documents wherever the same key
+appears. **It never compares a document's prose against its own marker**, which
+the script states at `:27-31`.
+
+*(Written without the real comment delimiters on purpose: spelling them out here
+made the checker parse this paragraph as a live marker and fail the gate — the
+first version of this entry did exactly that.)*
+
+**The concrete instance (T107):** the sound-coverage markers agreed at
+`50-51 of 67` while three prose copies across both documents still said `47–48`
+and `41–42`. `docs:check` was green the entire time; the drift was found by
+counting every occurrence by hand.
+
+**Not owed, not queued, and deliberately left.** Recorded so it is not
+rediscovered as a surprise. Closing it would mean checking the marker's value
+against the surrounding text — worth doing if a third figure ever gets
+duplicated, and not worth doing for one.
 
 ---
 

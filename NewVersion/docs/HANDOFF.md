@@ -312,6 +312,13 @@ decisive, wrong result and was believed.*
     documents, and markers make that a hard failure in `data:check`. It does
     not check prose against the marker — stated at the script, not implied.
 
+    **Known gap, and it has now bitten once (T107).** That stated limit is real:
+    the sound-coverage markers agreed at `50-51 of 67` while three prose copies
+    said `47–48` and `41–42`, across both documents, and `docs:check` was green
+    throughout. Found by hand, not by the tool. **Extending it to check prose
+    against its own marker is optional future work — not owed and not queued**;
+    recorded here so it is not rediscovered as a surprise.
+
     The general form, and the reason this is trap 14 rather than a footnote:
     **when a rule has failed twice, stop restating it and find the observable
     consequence to test.** That is the same move as trap 1's `npm run sweep`
