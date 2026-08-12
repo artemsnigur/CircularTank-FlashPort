@@ -13,18 +13,26 @@
  *         …build the secondary…
  *     }
  *
- * ── Scope: Mine only ──────────────────────────────────────────────────────
- * Mine is the free starter secondary — price[0] is 0 and `startLevel` is 1,
- * exactly parallel to the Cannon among primaries. It is also the only one of
- * the twelve that needs nothing unported: it places a static object that
- * detonates into an ordinary `Normal` explosion, which is already ported.
+ * ── Scope: all twelve secondaries ─────────────────────────────────────────
+ * Mine, Shield, Grenade, Ice Grenade, Poison Grenade, Icicles, Poison Spikes,
+ * Magic Bunny, Rockets, Crazy Cheese, Ice Ball, Lava Ball. Twelve is the whole
+ * set — `ScreenGame.secondaryWeapon` names no others.
  *
- * The other eleven each need work this file does not do:
+ * Not all of the behaviour lives here. Shield is a timed state on the tank
+ * (`weapons/shield.ts`), the balls are in `weapons/ball.ts`, and the two
+ * bouncing food rounds share `weapons/bulletBounce.ts` with the Gummy Bear
+ * Cannon. This file owns the specs and their stat-track wiring.
  *
-
- * All twelve are ported. Shield lives in `weapons/shield.ts`, the balls in
- * `weapons/ball.ts`, and the two bouncing food rounds share
- * `weapons/bulletBounce.ts` with the Gummy Bear Cannon.
+ * Mine is the free starter — price[0] is 0 and `startLevel` is 1, exactly
+ * parallel to the Cannon among primaries.
+ *
+ * **What cannot drift, and what can.** `SecondaryKind` (`:113`) has seven
+ * members and `GameplayScene.useSecondary` (`:3345`) switches over all seven
+ * with no `default` and a `boolean` return, so an eighth *kind* is a compile
+ * error rather than a weapon that silently spawns nothing. **That guarantee is
+ * about kinds, not counts** — a thirteenth secondary reusing an existing kind
+ * would compile, and the name list above is hand-maintained. Nothing enforces
+ * it against `SECONDARIES`.
  *
  * ── The 20-second cooldown is not a typo ──────────────────────────────────
  * `upgradeArrayMine[1]` is a flat `[600 … 600]` — 600 frames at 30 fps, so 20

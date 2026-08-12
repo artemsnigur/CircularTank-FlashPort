@@ -121,8 +121,8 @@ compile error rather than a weapon that silently runs the wrong spawn. The three
 this document listed as remaining are `kind: 'fan'` (Crazy Cheese,
 `secondaries.ts:313`) and `kind: 'trail'` (Ice Ball `:236`, Lava Ball `:271`).
 
-**One thing in this group is still owed, and it is a comment, not a weapon** —
-see **F4**.
+**Nothing in this group is owed.** The last artefact was a stale file header,
+closed in T110 — see **F4**.
 
 Ported: `Mine`, `Shield`, `Grenade`, `Ice Grenade`, `Poison Grenade`,
 `Icicles`, `Poison Spikes`, `Magic Bunny`, `Rockets`, `Crazy Cheese`,
@@ -169,7 +169,30 @@ separately.
 - [x] **Projectile target selection** — shipped. `weapons/rockets.ts:56`
       (`nearestTargets`), documented at `:21` as nearest-first from the tank.
 
-### F4 — Owed: `secondaries.ts`'s header still says "Scope: Mine only"
+### F4 — `secondaries.ts`'s header said "Scope: Mine only" — **FIXED (T110)**
+
+The header now reads one way: all twelve named, the behaviour that lives in
+`shield.ts` / `ball.ts` / `bulletBounce.ts` pointed at, and Mine kept as the free
+starter rather than as the scope.
+
+**It was worse than this entry recorded, and the extra bit is the reusable
+part.** The dangling `"The other eleven each need work this file does not do:"`
+had its list *deleted* — a bare colon followed by an empty comment line. So the
+file did not merely contradict itself; it promised an enumeration that was not
+there, which reads as a rendering fault rather than as stale prose and is the
+sort of thing a reader skips past.
+
+**One guarantee was added and deliberately bounded.** `SecondaryKind` (`:113`)
+has seven members and `GameplayScene.useSecondary` (`:3345`) switches all seven
+with no `default` and a `boolean` return, so an eighth *kind* is a compile
+error. The header says so — and says the guarantee is about **kinds, not
+counts**: a thirteenth secondary reusing an existing kind compiles fine, and the
+twelve names are hand-maintained with nothing enforcing them against
+`SECONDARIES`. Stating the limit beside the mechanism is the *"a guarantee is
+only worth what enforces it"* rule; the earlier version of this note would have
+claimed the switch protected the list.
+
+*Original entry below.*
 
 - [ ] **The file header contradicts itself and is now the last F artefact.**
       `secondaries.ts:16` heads a section `── Scope: Mine only ──`, `:22` says
@@ -1478,7 +1501,7 @@ Small, and none of it blocks anything else:
 | ~~**L5**~~ | ~~517 stub statuses hand-set where `gen-progress.mjs:256` could derive them~~ — **decided T82: no change.** Both alternatives measured (naive `[Embed(` → ~39 denominator; shape-based → ~85, ~39%); the **556** denominator stays, because switching would move the headline without new porting behind it. The entry's own "~557 → ~353" was wrong and is superseded | decided — no change |
 | ~~**L6**~~ | ~~`ScreenGame`/`PartGameArea` generated prose self-contradicts~~ — **done T81.** Not a contradiction but a **misattribution**: `ScreenGame` was credited with `PartGameArea`'s wave spawning (6 static hits vs 109). Fixing it exposed a second inverted number — 107 of 131 statics extracted, not "~90 remaining" | done |
 | ~~**L7(a)** / **L7(b)**~~ | ~~**(a)** 11 candidates re-graded, 5 flipped, 6 left with reasons — **done T81**; a `Port target:` header is not a port citation. **(b)** the uncited remainder — **deferred T82** alongside L5, since the two were one decision and L5 chose no change~~ | (a) done · (b) deferred with L5 |
-| **F4** | `secondaries.ts`'s header still says "Scope: Mine only" | trivial |
+| ~~**F4**~~ | ~~`secondaries.ts`'s header still says "Scope: Mine only"~~ — **fixed T110.** The header now names all twelve, says which behaviour lives in sibling files, and states what the exhaustive `SecondaryKind` switch does and does **not** guarantee | done |
 | ~~**Boss life indicator**~~ | ~~radial HP wipe under each boss~~ — **shipped T106.** Faithful port of `PartInterface.handleLifeIndicators` (`:872-995`), in-combat and Boss-mode only. The roster-icon and low-HP-opacity variants were scoped and **not built** — neither has any AS3 basis | shipped |
 | ~~**A9**~~ | ~~Boss rows draw boss art in roster previews~~ — **decided T105: keep.** The AS3 draws ordinary enemy art (`PartInfoText.as:249`/`:271`, `ImageEnemy.as:57-145`); this port draws the boss clip because a boss row that looks like every other row buries what the preview is for. Recorded as divergence `A9` **because it reads as a forgotten level-character strip** | decided — no change |
 | ~~**M6**~~ | ~~Level Guide — 912 lines / 5 classes~~ — **CLOSED T102.** (a)-(d) shipped; **(e) closed by decision, divergence `A8`** — not pending. `selectFromLevelGuide` and `canSelectFromLevelGuide` are deliberately not reproduced: this port's click-to-start level select is an intentional divergence, so porting them would mean building a selection step that contradicts the interaction model rather than completing it. The filing was wrong on four counts: **8** classes not 5, **951** lines not 912, **17** files reference it not 5, and the widget lives on the **shop**, not level select | closed |
