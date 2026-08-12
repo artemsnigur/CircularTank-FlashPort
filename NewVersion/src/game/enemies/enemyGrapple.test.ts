@@ -101,7 +101,7 @@ describe('a wall cannot produce the Defense slide', () => {
     const source = readFileSync('src/game/entities/Enemy.ts', 'utf8');
     expect(source).toContain('const stepped = this.grapple?.isGrapping');
     expect(source).toContain('? this.reelStep(target, frames)');
-    expect(source).toContain('bounceOffSideWalls(stepped, this.roomWidth, this.radius)');
+    expect(source).toContain('let walled = stepped;');
     expect(source).toContain('clampToRoom(walled, this.roomWidth, this.roomHeight, this.radius)');
   });
 });

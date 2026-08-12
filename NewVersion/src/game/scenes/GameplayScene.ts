@@ -240,6 +240,31 @@ import {
 const FALLBACK_ROOM = { width: 640, height: 960 } as const;
 
 /**
+ * DEV-AID: stable per-enemy ids for the debug projection only.
+ *
+ * `__arena.enemies` is sorted by distance and sliced, so an enemy's **index
+ * changes every frame** as things move and die. `--walls` classifies wall
+ * contacts by comparing an enemy against its own previous sample, and keying
+ * that on the index compared unrelated enemies: it reported 1-3 contacts a run
+ * on levels where a boss sat against a wall for 152 consecutive samples, and 0
+ * contacts for that boss.
+ *
+ * A `WeakMap` rather than a field on `Enemy`, so nothing in the game gains a
+ * property that exists only for a harness, and dead enemies are collected
+ * normally.
+ */
+const arenaDebugIds = new WeakMap<object, number>();
+let arenaDebugNextId = 1;
+function arenaDebugId(enemy: object): number {
+  let id = arenaDebugIds.get(enemy);
+  if (id === undefined) {
+    id = arenaDebugNextId++;
+    arenaDebugIds.set(enemy, id);
+  }
+  return id;
+}
+
+/**
  * Peak opacity of the margin fade, reached at the screen edge.
  *
  * The first attempt was a flat 45% rectangle and it read as a bar with a hard
@@ -3061,9 +3086,26 @@ export class GameplayScene extends Phaser.Scene {
           // `Container hp 450/750` for a `Shrinking` boss.
           enemyType: e.enemyType,
           radius: e.radius,
+          // World position and heading, for `--walls`. Wall contact is a
+          // statement about **room** coordinates, and `screen` is already
+          // camera-transformed — measuring bounces off it would fold the
+          // camera's motion into the result.
+          x: e.x,
+          y: e.y,
+          rotation: Phaser.Math.RadToDeg(e.rotation),
+          // Stable across frames — see `arenaDebugId`. Without it the harness
+          // cannot tell one enemy's samples apart from another's.
+          id: arenaDebugId(e),
         }))
         .sort((a, b) => a.distance - b.distance)
-        .slice(0, 8),
+        // Raised from 8 to 24 for `--walls` (T112). With the tank cornered and
+        // enemies accumulating, a Boss level put eight ordinary enemies closer
+        // than the boss, so the boss fell outside the window and the harness
+        // reported `types=Basic,Fast` and zero boss wall contacts on 1-9 — a
+        // clean, plausible, entirely wrong "the boss branch never ran".
+        // Distance order is unchanged, so modes that take the nearest are not
+        // affected.
+        .slice(0, 24),
       // The visible world rect, so the harness can pick an orbit radius that
       // stays on screen rather than guessing one in world units.
       worldView: {
@@ -3073,6 +3115,11 @@ export class GameplayScene extends Phaser.Scene {
         height: Math.round(view.height),
       },
       canvas: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      // The room's own size, for `--walls`. Wall contact is `x <= radius` or
+      // `x >= roomWidth - radius`, so the harness cannot locate a wall without
+      // it — and `worldView` above is the *camera*, which on most levels is
+      // smaller than the room.
+      room: { width: this.roomWidth, height: this.roomHeight },
     };
   }
 

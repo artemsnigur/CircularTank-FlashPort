@@ -262,71 +262,178 @@ export function crossesDefenseLine(
 }
 
 /**
- * Reflects a Defense enemy off the left and right walls.
+ * Reflects a **non-boss** enemy off any of the four room walls.
+ *
+ * ── The rotation basis, because every guard below depends on it ───────────
+ * Flash `rotation` here is **0 = right, 90 = down, 180 = left, -90 = up**, so a
+ * heading is `(cos r, sin r)`. Derived from the spawn edges rather than
+ * assumed: `PartGameArea.as:3507` faces an enemy on the **left** edge at `0`,
+ * `:3511` one on the **bottom** at `-90`, `:3515` one on the **right** at
+ * `180` — each pointing into the room. `enemySpawn.ts:156-158` is the same
+ * mapping, already ported and tested.
+ *
+ * That basis is what makes the AS3's guards read as directions:
+ * `-90 < r < 90` is `cos r > 0`, i.e. *moving right*; `r > 0` is `sin r > 0`,
+ * i.e. *moving down*. Get the basis wrong and every guard inverts while still
+ * looking plausible.
  *
  * ── Why this exists separately from `clampToRoom` ─────────────────────────
- * `clampToRoom` pins the position and **zeroes** the perpendicular velocity. In
- * every mode that steers, that is invisible: the enemy is re-aimed the next
- * frame and turns away from the wall by itself. Defense enemies never re-steer
- * (`PartGameArea.as:4528`), so a zeroed component leaves the rotation still
- * pointing into the wall, the enemy accelerates into it again, and only the
- * downward component survives — it glides along the wall instead of bouncing.
+ * `clampToRoom` pins the position and **zeroes** the perpendicular velocity,
+ * leaving the rotation pointing into the wall. The enemy then hugs the wall and
+ * peels off only as steering re-aims it, a degree at a time. The AS3 instead
+ * reverses the perpendicular velocity *and* mirrors the heading, so the enemy
+ * leaves immediately.
  *
- * The AS3 does a real reflection at `:5379-5398` (right) and `:5414-5434`
- * (left): reverse the perpendicular velocity, and mirror the rotation across
- * the wall — but only when it actually points into it, so an enemy already
- * heading away is left alone.
+ * ── The four walls — `PartGameArea.as:5370-5513` ──────────────────────────
+ * Each is: clamp the coordinate, reverse the perpendicular component, and
+ * mirror the rotation **only when it points into that wall**.
  *
- * ── Deliberately Defense-only ─────────────────────────────────────────────
- * The AS3 reflects for every non-boss enemy in every mode. This is scoped to
- * Defense on purpose: it is the smallest change that fixes the observed defect
- * and it cannot affect modes that currently work. The cost is a knowing
- * divergence, and a latent gap for whatever mode next stops re-steering — the
- * same gap that produced this bug. Accepted, and written down here so the next
- * person meets it as a decision rather than a surprise.
+ * | Wall | AS3 | Guard | Mirror |
+ * |---|---|---|---|
+ * | right  | `:5379-5398` | `-90 < r < 90`   | `180 - r` / `-180 - r` |
+ * | left   | `:5405-5434` | `r > 90 \|\| r < -90` | same |
+ * | bottom | `:5439-5468` | `r > 0`          | `-r` |
+ * | top    | `:5488-5513` | `r < 0`          | `-r` |
  *
- * Bosses are not exempted here as the AS3 exempts them: `enemyLevel == "B"`
- * sets `rotateTowardsTank` instead, a 1-degree-per-frame turn implemented
- * inside the steering block that Defense skips entirely, so porting it needs
- * that block's context. Bosses keep `clampToRoom`'s behaviour for now.
+ * The guard is the part that is easy to drop and hard to see: without it, an
+ * enemy sitting on a wall while travelling *along* it is re-mirrored every
+ * frame and jitters in place.
  *
- * The **bottom** wall is not handled here. Defense enemies die at the bottom
- * rather than bouncing (`crossesDefenseLine`, checked before this runs), and
- * the AS3 exempts it at `:5449` for the same reason.
+ * ── Bosses do not come here ───────────────────────────────────────────────
+ * `enemyLevel == "B"` takes the other arm in all four branches and sets
+ * `rotateTowardsTank` instead — see `turnTowardsGoal`. Bosses never reflect.
+ *
+ * ── `skipBottom` is Defense, and only Defense ─────────────────────────────
+ * `:5449`'s `else if(levelMode != "Defense")` makes the bottom edge the
+ * objective rather than a wall: the enemy crosses it, damages the player and
+ * dies (`crossesDefenseLine`, checked before this runs). Every other mode
+ * bounces off the bottom like any other wall.
+ *
+ * ── A note for enemy-enemy separation, when it lands ──────────────────────
+ * The AS3 tests `xVel + pushVelX` against the wall, where `pushVel` is the
+ * separation velocity (`:5199-5221`, unported — 0 occurrences in `src/`). With
+ * separation absent the term is identically zero, so this reads `xVel` alone
+ * and is exact today.
+ *
+ * **When separation lands, do not make the four branches symmetric.** The
+ * `-y` branch at `:5488` gates on `theEnemy.yVel < 0` alone and its predicate
+ * omits `pushVelY`, where the other three include it — and `:5493` still *adds*
+ * `pushVelY` to the position. That asymmetry is in the original. It is not a
+ * port bug and tidying it into false symmetry would change behaviour.
  */
-export function bounceOffSideWalls(
+export function bounceOffWalls(
   state: SteeringState,
   roomWidth: number,
+  roomHeight: number,
   radius: number,
+  options: { skipBottom?: boolean } = {},
 ): SteeringState {
   const left = radius;
   const right = roomWidth - radius;
+  const top = radius;
+  const bottom = roomHeight - radius;
 
-  if (state.x > left && state.x < right) return state;
+  let next = state;
 
-  const intoRight = state.x >= right;
-  // Only reflect a heading that points *into* the wall. `PartGameArea.as:5387`
-  // guards on -90 < rotation < 90 for the right wall and the complement for the
-  // left, so an enemy already travelling away is untouched.
-  const pointsIn = intoRight
-    ? state.rotation > -90 && state.rotation < 90
-    : state.rotation > 90 || state.rotation < -90;
+  if (next.x <= left || next.x >= right) {
+    const intoRight = next.x >= right;
+    const pointsIn = intoRight
+      ? next.rotation > -90 && next.rotation < 90
+      : next.rotation > 90 || next.rotation < -90;
+    next = {
+      ...next,
+      x: intoRight ? right : left,
+      rotation: pointsIn ? mirrorAcrossVertical(next.rotation) : next.rotation,
+      xVel: intoRight ? -Math.abs(next.xVel) : Math.abs(next.xVel),
+    };
+  }
 
-  return {
-    ...state,
-    x: intoRight ? right : left,
-    // Mirror across a vertical wall: 180 - theta, in two forms so the result
-    // stays inside (-180, 180] rather than wrapping past it.
-    rotation: pointsIn ? mirrorAcrossVertical(state.rotation) : state.rotation,
-    // "Ensure it is now travelling away from this wall". The AS3 reverses only
-    // when the component points into the wall (`if (xVel > 0)`), and forcing
-    // the sign is the same thing: a component already pointing away is
-    // unchanged by it.
-    xVel: intoRight ? -Math.abs(state.xVel) : Math.abs(state.xVel),
-  };
+  const atBottom = next.y >= bottom;
+  if ((atBottom && !options.skipBottom) || next.y <= top) {
+    const pointsIn = atBottom ? next.rotation > 0 : next.rotation < 0;
+    next = {
+      ...next,
+      y: atBottom ? bottom : top,
+      rotation: pointsIn ? mirrorAcrossHorizontal(next.rotation) : next.rotation,
+      yVel: atBottom ? -Math.abs(next.yVel) : Math.abs(next.yVel),
+    };
+  }
+
+  return next;
 }
 
 /** `180 - theta`, normalised — `PartGameArea.as:5389-5396`. */
 function mirrorAcrossVertical(rotation: number): number {
   return rotation < 0 ? -180 - rotation : 180 - rotation;
+}
+
+/**
+ * `-theta` — `PartGameArea.as:5461`, `:5504`.
+ *
+ * A horizontal wall flips the y component only: `(cos r, sin r)` becomes
+ * `(cos r, -sin r)`, which is `-r`. No normalisation is needed because negating
+ * a value in `(-180, 180]` stays in range.
+ */
+function mirrorAcrossHorizontal(rotation: number): number {
+  return -rotation;
+}
+
+/** Which way a boss's border AI has locked its turn — `:4652`, `:4667`. */
+export type LockDirection = 'None' | 'Clockwise' | 'CounterClockwise';
+
+/**
+ * A **boss** meeting a wall: turn toward the tank, one degree per frame.
+ *
+ * `PartGameArea.as:5516-5544`. All four wall branches set
+ * `rotateTowardsTank = true` for `enemyLevel == "B"` instead of reflecting, and
+ * this is what that flag runs. Bosses therefore never bounce — they grind along
+ * the wall while swinging around to face the player.
+ *
+ * `:5521` snaps to the goal when already within a degree, rather than
+ * oscillating across it.
+ *
+ * ── The `lockDirection` arm is ported but unreachable today ───────────────
+ * `:5533-5542` overrides the turn with a fixed spin when the boss's border AI
+ * has locked a direction. **Nothing in this port sets that**: its only producer
+ * is `:4642-4680`, the 200-unit border-circling AI, which is unported (see the
+ * gap list at the top of this file). Production always passes `'None'`.
+ *
+ * It is implemented rather than omitted because the rule is small, the AS3 line
+ * is unambiguous, and a later pass porting `:4642-4680` would otherwise have to
+ * re-derive it. It is driven in the tests for all three values so it cannot rot
+ * silently — but **do not read its presence as evidence the border AI exists.**
+ */
+export function turnTowardsGoal(
+  rotation: number,
+  rotationGoal: number,
+  lockDirection: LockDirection = 'None',
+): number {
+  if (lockDirection === 'Clockwise') return rotation + 1;
+  if (lockDirection === 'CounterClockwise') return rotation - 1;
+
+  const difference = shortestRotation(rotation, rotationGoal);
+  if (difference < 1 && difference > -1) return rotationGoal;
+  return difference > 0 ? rotation + 1 : rotation - 1;
+}
+
+/**
+ * Whether the enemy is against a wall this frame — the condition the AS3
+ * expresses as "the clamp branch was taken" (`:5372`, `:5406`, `:5441`,
+ * `:5490`).
+ *
+ * Used for bosses, which need to know they hit a wall without the reflection
+ * that `bounceOffWalls` would apply. `skipBottom` matches Defense's carve-out,
+ * for symmetry with the bounce — no Boss level uses Defense mode today, so it
+ * is consistency rather than a live case.
+ */
+export function atWall(
+  state: SteeringState,
+  roomWidth: number,
+  roomHeight: number,
+  radius: number,
+  options: { skipBottom?: boolean } = {},
+): boolean {
+  if (state.x <= radius || state.x >= roomWidth - radius) return true;
+  if (state.y <= radius) return true;
+  return state.y >= roomHeight - radius && !options.skipBottom;
 }

@@ -18,10 +18,13 @@ import type { ResolvedEnemyStats } from '../enemies/enemyStats';
 import { resolveSpawn } from '../enemies/enemySpawn';
 import type { SpawnGeometry } from '../enemies/enemySpawn';
 import {
-  bounceOffSideWalls,
+  angleToTarget,
+  atWall,
+  bounceOffWalls,
   clampToRoom,
   crossesDefenseLine,
   steerToward,
+  turnTowardsGoal,
   towerAccSpeed,
   towerAngleToTarget,
   towerRotSpeedMax,
@@ -910,13 +913,35 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.breachedLine =
       defense && crossesDefenseLine(stepped, this.roomHeight, this.radius);
 
-    // Defense enemies ricochet off the side walls rather than sliding down
-    // them. Applied before `clampToRoom`, which then finds x already exactly on
-    // the boundary and leaves the reflected velocity alone — it only zeroes a
-    // component when it actually has to move the coordinate.
-    const walled = defense
-      ? bounceOffSideWalls(stepped, this.roomWidth, this.radius)
-      : stepped;
+    // Walls — `PartGameArea.as:5370-5513`. The split is by **enemy level, not
+    // by mode**: every non-boss reflects off every wall in every mode, and a
+    // boss never reflects.
+    //
+    // Applied before `clampToRoom`, which then finds the coordinate already
+    // exactly on the boundary and leaves the reflected velocity alone — it only
+    // zeroes a component when it actually has to move the coordinate.
+    //
+    // `skipBottom` is Defense's carve-out at `:5449`: there the bottom edge is
+    // the objective, and `crossesDefenseLine` above has already recorded the
+    // crossing that kills the enemy.
+    const isBoss = this.enemyLevel === 'B';
+    let walled = stepped;
+    if (isBoss) {
+      // `:5516-5530` — a boss grinds along the wall turning one degree per
+      // frame toward the tank rather than bouncing off it. `lockDirection` is
+      // left at its default: its only producer, the border AI at `:4642-4680`,
+      // is unported. See `turnTowardsGoal`.
+      if (atWall(stepped, this.roomWidth, this.roomHeight, this.radius, { skipBottom: defense })) {
+        walled = {
+          ...stepped,
+          rotation: turnTowardsGoal(stepped.rotation, angleToTarget(stepped, goal)),
+        };
+      }
+    } else {
+      walled = bounceOffWalls(stepped, this.roomWidth, this.roomHeight, this.radius, {
+        skipBottom: defense,
+      });
+    }
 
     this.steering = clampToRoom(walled, this.roomWidth, this.roomHeight, this.radius);
     this.setPosition(this.steering.x, this.steering.y);

@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
-  bounceOffSideWalls,
+  bounceOffWalls,
   clampToRoom,
   crossesDefenseLine,
   steerToward,
@@ -196,6 +196,12 @@ describe('where the tank starts', () => {
   });
 });
 
+// The side-wall rule is **not** Defense-specific — since T112 every non-boss
+// reflects off every wall in every mode. These stay here because what they
+// exercise is Defense's descent, which is where the rule was first needed and
+// is still the mode where it is load-bearing (Defense enemies never re-steer,
+// so a missing bounce leaves them gliding down a wall). The general four-wall
+// coverage lives in `enemySteering.test.ts`.
 describe('Defense enemies ricochet off the side walls', () => {
   const RADIUS = 12;
   const RIGHT = ROOM.width - RADIUS;
@@ -203,7 +209,7 @@ describe('Defense enemies ricochet off the side walls', () => {
   it('reverses the horizontal component and mirrors the heading', () => {
     // Heading 42 degrees: down and to the right, into the right wall.
     const hit: SteeringState = { x: RIGHT + 3, y: 400, rotation: 42, xVel: 1.1, yVel: 1.0 };
-    const bounced = bounceOffSideWalls(hit, ROOM.width, RADIUS);
+    const bounced = bounceOffWalls(hit, ROOM.width, ROOM.height, RADIUS);
 
     expect(bounced.x).toBe(RIGHT);
     expect(bounced.xVel).toBeCloseTo(-1.1, 10);
@@ -215,7 +221,7 @@ describe('Defense enemies ricochet off the side walls', () => {
 
   it('mirrors correctly off the left wall too', () => {
     const hit: SteeringState = { x: 2, y: 400, rotation: 138, xVel: -1.1, yVel: 1.0 };
-    const bounced = bounceOffSideWalls(hit, ROOM.width, RADIUS);
+    const bounced = bounceOffWalls(hit, ROOM.width, ROOM.height, RADIUS);
 
     expect(bounced.x).toBe(RADIUS);
     expect(bounced.xVel).toBeCloseTo(1.1, 10);
@@ -228,7 +234,7 @@ describe('Defense enemies ricochet off the side walls', () => {
     // be 210, which is the same angle but outside the range everything else
     // assumes.
     const hit: SteeringState = { x: RIGHT + 1, y: 100, rotation: -30, xVel: 1, yVel: -0.5 };
-    expect(bounceOffSideWalls(hit, ROOM.width, RADIUS).rotation).toBe(-150);
+    expect(bounceOffWalls(hit, ROOM.width, ROOM.height, RADIUS).rotation).toBe(-150);
   });
 
   it('leaves an enemy already heading away from the wall alone', () => {
@@ -236,12 +242,12 @@ describe('Defense enemies ricochet off the side walls', () => {
     // wall). Without it, an enemy grazing the wall while leaving would be
     // flipped back into it.
     const leaving: SteeringState = { x: RIGHT + 1, y: 400, rotation: 138, xVel: -1.1, yVel: 1.0 };
-    expect(bounceOffSideWalls(leaving, ROOM.width, RADIUS).rotation).toBe(138);
+    expect(bounceOffWalls(leaving, ROOM.width, ROOM.height, RADIUS).rotation).toBe(138);
   });
 
   it('does nothing away from the walls', () => {
     const mid: SteeringState = { x: 356, y: 400, rotation: 42, xVel: 1.1, yVel: 1.0 };
-    expect(bounceOffSideWalls(mid, ROOM.width, RADIUS)).toBe(mid);
+    expect(bounceOffWalls(mid, ROOM.width, ROOM.height, RADIUS)).toBe(mid);
   });
 
   it('descends by bouncing rather than sliding down the wall', () => {
@@ -255,7 +261,9 @@ describe('Defense enemies ricochet off the side walls', () => {
     for (let frame = 0; frame < 1200 && state.y < ROOM.height; frame += 1) {
       const before = state.rotation;
       state = stepDefense(state);
-      state = bounceOffSideWalls(state, ROOM.width, RADIUS);
+      // `skipBottom`, because Defense's bottom edge is the objective — without
+      // it the enemy would bounce off the floor and never leave the lane.
+      state = bounceOffWalls(state, ROOM.width, ROOM.height, RADIUS, { skipBottom: true });
       if (state.rotation !== before) bounces += 1;
       xs.push(state.x);
     }
@@ -279,12 +287,25 @@ describe('the other modes keep clamp-and-zero', () => {
     expect(clamped.rotation).toBe(42);
   });
 
-  it('the bounce runs for Defense alone', () => {
-    // Reads the call site, because the gate is what scopes the divergence.
+  it('the bounce is gated on enemy level, not on mode', () => {
+    // **Replaced, not repaired (T112).** This read `the bounce runs for Defense
+    // alone` and asserted `/defense[\s\S]{0,40}bounceOffSideWalls/`. That was
+    // never a rule from the source — it described a deliberate scope-down, and
+    // it would have failed the moment anyone ported `:5370-5513` properly,
+    // which is the "a test can pin a bug and still look like coverage" shape.
+    //
+    // The AS3 splits on `enemyLevel != "B"` in all four wall branches, in every
+    // mode. `skipBottom` is the only thing Defense changes.
+    //
+    // **This proves the call is written, never that it is reached** — a
+    // source-shape check cannot see either. `bounces off every wall` in
+    // `enemySteering.test.ts` drives the rule itself, and the boss/non-boss
+    // split is driven there too.
     const source = readFileSync('src/game/entities/Enemy.ts', 'utf8');
-    expect(source).toContain('bounceOffSideWalls(stepped, this.roomWidth, this.radius)');
-    // Gated on the mode, not applied unconditionally.
-    expect(source).toMatch(/defense[\s\S]{0,40}bounceOffSideWalls/);
+    expect(source).toContain("const isBoss = this.enemyLevel === 'B'");
+    expect(source).toMatch(/if \(isBoss\)[\s\S]{0,600}turnTowardsGoal/);
+    expect(source).toMatch(/} else \{[\s\S]{0,200}bounceOffWalls\(/);
+    expect(source).toContain('skipBottom: defense');
   });
 
   it('bouncing then clamping keeps the reflected velocity', () => {
@@ -292,7 +313,7 @@ describe('the other modes keep clamp-and-zero', () => {
     // boundary, so clampToRoom has nothing to move and does not zero anything.
     const edge = ROOM.width - 12;
     const hit: SteeringState = { x: edge + 3, y: 400, rotation: 42, xVel: 1.1, yVel: 1.0 };
-    const bounced = bounceOffSideWalls(hit, ROOM.width, 12);
+    const bounced = bounceOffWalls(hit, ROOM.width, ROOM.height, 12);
     const clamped = clampToRoom(bounced, ROOM.width, ROOM.height, 12);
 
     expect(clamped.xVel).toBeCloseTo(-1.1, 10);

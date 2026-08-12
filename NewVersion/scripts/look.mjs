@@ -64,6 +64,7 @@ function parseArgs(argv) {
     if (argv[i] === '--grid-preview') args.gridPreview = true;
     if (argv[i] === '--achievement-icon') args.achievementIcon = true;
     if (argv[i] === '--boss-life') args.bossLife = true;
+    if (argv[i] === '--walls') args.walls = true;
     // `--shrink` retargets `--boss-life` at 3-9, whose boss row is `Shrinking`
     // — the one type whose radius changes as it is damaged, so the disc is
     // resized every frame from the live `Enemy.radius`. 1-9's boss keeps a
@@ -465,6 +466,283 @@ if (args.overlays) {
   await burst('ov-bomb', 8, 70);
   await page.mouse.up();
   console.log('[look] bomb ping-pong: 8 frames over ~560ms (cycle is 533ms)');
+}
+
+if (args.walls) {
+  /**
+   * Enemy wall collision — `PartGameArea.as:5370-5513`.
+   *
+   * ── Why this measures rather than photographs ────────────────────────────
+   * A frame of an enemy touching a wall cannot tell a bounce from a slide from
+   * a jitter: all three put a sprite against an edge. What separates them is
+   * what the *heading* does over consecutive samples, so this tracks each
+   * enemy's world position and rotation and classifies every wall contact:
+   *
+   *   turned  — rotation changed materially at the wall (a bounce, or a boss's
+   *             one-degree turn)
+   *   stuck   — the enemy was still on the same wall N samples later
+   *
+   * "stuck" is the number that matters. The pre-T112 behaviour — clamp and
+   * zero, heading left pointing into the wall — produces a high stuck count and
+   * a low turned count, and a *re-mirror* bug (dropping the pointing-into-the
+   * -wall guard) produces a high turned count with the enemy never leaving.
+   * Either failure is invisible in a screenshot and obvious here.
+   *
+   * Bosses are reported separately, because they are supposed to grind along
+   * the wall while turning (`:5516-5530`) — a boss "stuck" for a few samples is
+   * correct, and counting it with the others would hide a real defect.
+   */
+  // Sampled near the game's own frame rate. At 80ms — 2.4 frames at the SWF's
+  // 30fps — most wall contacts fell *between* samples: a boss that demonstrably
+  // reached a wall (closest approach 0) registered a single on-wall sample in
+  // 220. A wall contact lasts a frame or three, so the sampler has to run at
+  // roughly frame cadence to see them at all.
+  const SAMPLES = 500;
+  const SAMPLE_MS = 20;
+
+  async function wallRun(label, world, level, shots) {
+    await page.goto(`${URL}?primary=Laser%20Cannon`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /level select/i }).first().click();
+    await delay(900);
+    if (world !== 1) {
+      await page.locator(`.dev-jump__world:text-is("${world}")`).first().click();
+      await delay(300);
+    }
+    const cell = page.getByRole('button', {
+      name: new RegExp(`^World ${world}, level ${level},`, 'i'),
+    });
+    if ((await cell.count()) === 0) {
+      console.log(`[walls] ${label}: dev jump cell for ${world}-${level} not found`);
+      return;
+    }
+    await cell.first().click();
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => console.log('[walls] warning: countdown never reported done'));
+
+    // **Satisfy the tutorial spawn gate before sampling.** Every `page.goto`
+    // gets a fresh profile, so `tutorialOn` defaults true and `:7153` holds
+    // spawning until the player has both moved and fired. The first version of
+    // this mode skipped it and reported a perfectly clean `0 contacts` on an
+    // arena that never contained an enemy — the same clean-zero that cost `L3`
+    // and `L8` a pass each. Held, not tapped: input flags are read once a frame.
+    await page.keyboard.down('d');
+    await page.locator('canvas').hover({ position: { x: 700, y: 400 } });
+    await page.mouse.down();
+    await delay(700);
+    await page.mouse.up();
+
+    // Jam the tank into the bottom-right corner and **hold it there for the
+    // whole run**, so pursuers converge on a corner and must ride two walls to
+    // reach it. Released after sampling.
+    //
+    // The first version let go after 1.5s and the tank drifted back toward the
+    // middle: non-boss contacts were 1-3 per run and **bosses reached a wall
+    // zero times**, which would have left the boss branch unverified in play
+    // while the summary line still read like a pass.
+    //
+    // Enemies spawn *on* an edge, and a spawn is deliberately not counted (a
+    // contact needs a prior off-wall sample to transition from), so everything
+    // counted here is a real arrival.
+    await page.keyboard.down('s');
+
+    // Track per enemy across samples. Identity is by index into the live array,
+    // which is stable enough between two samples 80ms apart for this purpose —
+    // and a mis-pairing shows up as noise in `turned`, never as a false "stuck".
+    const seen = new Map();
+    // **Per-sample rotation delta while on a wall**, not transition counting.
+    //
+    // Counting off-wall -> on-wall transitions failed on the case that matters:
+    // a boss spawns at a room edge and chases a cornered tank, so it goes wall
+    // to wall and never transitions. It read `0 contacts` while sitting at a
+    // wall for 152 consecutive samples.
+    //
+    // What separates the two behaviours is the *size* of the heading change
+    // while against a wall. A reflection mirrors by tens of degrees in a single
+    // frame; a boss's `:5525-5529` turn is 1 deg/frame, so ~2-3 deg across an
+    // 80ms sample. So:
+    //
+    //   big   (>30 deg in one sample) — a mirror. Non-bosses only.
+    //   small (0.2-30)                — a gradual turn. Bosses, and steering.
+    //   longestOnWall                 — consecutive samples pinned to a wall.
+    const stats = {
+      normal: { onWall: 0, big: 0, small: 0, maxDelta: 0, longestOnWall: 0 },
+      boss: { onWall: 0, big: 0, small: 0, maxDelta: 0, longestOnWall: 0 },
+    };
+    const types = new Set();
+    let shotsTaken = 0;
+    // Boss presence, tracked separately from contacts. `types` records the
+    // *species* — a boss on 1-9 is a `Basic` whose `enemyLevel` is `B` — so
+    // "types=Basic,Fast" says nothing about whether a boss was on the field. I
+    // misread exactly that once: zero boss contacts looked like "no boss
+    // spawned" when it meant "the boss never reached a wall".
+    let bossSamples = 0;
+    let bossMinWallGap = Infinity;
+    let bossWorst = 'n/a';
+    let bossFramed = false;
+    /** Frames queued by the detectors, drained outside the per-enemy scan. */
+    const pending = [];
+
+    for (let i = 0; i < SAMPLES; i += 1) {
+      const frame = await page.evaluate(() => {
+        const a = globalThis.__arena;
+        if (!a?.room) return null;
+        return {
+          room: a.room,
+          enemies: (a.enemies ?? []).map((e) => ({
+            x: e.x,
+            y: e.y,
+            rotation: e.rotation,
+            radius: e.radius,
+            level: e.enemyLevel,
+            type: e.enemyType,
+            id: e.id,
+          })),
+        };
+      });
+      if (i === 0) {
+        // Report what was actually read on the first sample. A silent `types=none`
+        // is indistinguishable between "no room in the projection" and "no
+        // enemies in the arena", and this project has twice shipped a harness
+        // that measured an empty arena and reported a clean number (`L3`, `L8`).
+        const probe = await page.evaluate(() => {
+          const a = globalThis.__arena;
+          return {
+            hasArena: Boolean(a),
+            keys: a ? Object.keys(a).join(',') : '-',
+            room: a?.room ?? null,
+            count: (a?.enemies ?? []).length,
+            first: (a?.enemies ?? [])[0] ?? null,
+            // Which level actually loaded. The first run of this mode reported
+            // a room of 800x800 for 1-7, which `levelData.ts` says is 640x640 —
+            // so the room size alone could not say whether the dev jump had
+            // landed on the wrong cell or the room rule was wrong.
+            hud: (globalThis.document.querySelector('.hud-stat--right')?.textContent ?? '')
+              .replace(/\s+/g, ' ')
+              .trim(),
+          };
+        });
+        console.log(`[walls] ${label} probe: ${JSON.stringify(probe)}`);
+      }
+      if (!frame) {
+        await delay(SAMPLE_MS);
+        continue;
+      }
+
+      for (let k = 0; k < frame.enemies.length; k += 1) {
+        const e = frame.enemies[k];
+        if (e.x === undefined || e.radius === undefined) continue;
+        types.add(e.type);
+        const onWall =
+          e.x <= e.radius + 1 ||
+          e.x >= frame.room.width - e.radius - 1 ||
+          e.y <= e.radius + 1 ||
+          e.y >= frame.room.height - e.radius - 1;
+
+        // **Stable id, not the array index.** The list is distance-sorted and
+        // sliced, so an index refers to a different enemy from frame to frame.
+        // Keying on it compared unrelated enemies: it reported 1-3 contacts a
+        // run, and **0 for a boss that sat against a wall for 152 consecutive
+        // samples** — a plausible number from a broken instrument.
+        const key = `${e.id}`;
+        const prev = seen.get(key);
+        const bucket = e.level === 'B' ? stats.boss : stats.normal;
+
+        if (e.level === 'B') {
+          bossSamples += 1;
+          const gap = Math.min(
+            e.x - e.radius,
+            frame.room.width - e.radius - e.x,
+            e.y - e.radius,
+            frame.room.height - e.radius - e.y,
+          );
+          if (gap < bossMinWallGap) {
+            bossMinWallGap = gap;
+            // A negative gap means the enemy is *outside* the clamp boundary,
+            // which `clampToRoom` should make impossible. Recorded with its
+            // operands so the cause is readable rather than guessed at.
+            bossWorst = `x=${e.x.toFixed(0)} y=${e.y.toFixed(0)} r=${e.radius.toFixed(0)}` +
+              ` room=${frame.room.width}x${frame.room.height} sample=${i}`;
+          }
+        }
+
+        const streak = onWall ? (prev?.onWall ? prev.streak + 1 : 1) : 0;
+        if (onWall) {
+          bucket.onWall += 1;
+          bucket.longestOnWall = Math.max(bucket.longestOnWall, streak);
+          if (prev) {
+            const delta = Math.abs(shortestDeg(prev.rotation, e.rotation));
+            bucket.maxDelta = Math.max(bucket.maxDelta, delta);
+            if (delta > 30) {
+              bucket.big += 1;
+              // **Frame the event, not the clock.** Timed frames on this mode
+              // photographed an empty arena, because wall contacts are brief
+              // and rare. Capturing on detection is the only way a frame is
+              // evidence of the thing being measured.
+              pending.push([`walls-${label}-mirror-${bucket.big}`, e]);
+            } else if (delta > 0.2) bucket.small += 1;
+          }
+          if (e.level === 'B' && !bossFramed) {
+            bossFramed = true;
+            pending.push([`walls-${label}-boss-at-wall`, e]);
+          }
+        }
+        seen.set(key, { onWall, rotation: e.rotation, streak });
+      }
+
+      // Drain frames queued by the detectors above, outside the per-enemy scan
+      // so a screenshot never runs mid-sample. Each is logged with the operands
+      // that triggered it, so the frame and the number it evidences are tied
+      // together rather than left to be matched up by eye.
+      while (pending.length > 0 && shotsTaken < shots + 4) {
+        const [name, ev] = pending.shift();
+        shotsTaken += 1;
+        console.log(
+          `[walls] frame ${name}: x=${ev.x.toFixed(0)} y=${ev.y.toFixed(0)}` +
+            ` rot=${ev.rotation.toFixed(0)} level=${ev.level} type=${ev.type}`,
+        );
+        await shot(name);
+      }
+      await delay(SAMPLE_MS);
+    }
+
+    await page.keyboard.up('d');
+    await page.keyboard.up('s');
+
+    const fmt = (s) =>
+      `${s.onWall} on-wall samples, ${s.big} mirrors, ${s.small} gradual turns,` +
+      ` max ${s.maxDelta.toFixed(0)} deg, longest streak ${s.longestOnWall}`;
+    console.log(`[walls] ${label} (${world}-${level}) types=${[...types].join(',') || 'none'}`);
+    console.log(`[walls]   non-boss: ${fmt(stats.normal)}`);
+    console.log(
+      `[walls]   boss:     ${fmt(stats.boss)}` +
+        ` · present in ${bossSamples} samples` +
+        ` · closest approach to a wall ${
+          bossMinWallGap === Infinity ? 'n/a' : bossMinWallGap.toFixed(0) + ` [${bossWorst}]`
+        }`,
+    );
+  }
+
+  /** Signed shortest angular difference in degrees. */
+  function shortestDeg(from, to) {
+    let d = (to - from) % 360;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    return d;
+  }
+
+  // Modes verified against `levelData.ts` rather than guessed — the first two
+  // picks here were wrong (1-3 and 1-5 are Flag, not Normal and Tower).
+  //
+  // 1-4 is Normal at 800x600. **Not 1-1**, whose tutorial holds spawning until
+  // the player has moved and fired — that gate has silently emptied the arena
+  // for two earlier harness modes (`L3`, `L8`).
+  await wallRun('normal', 1, 4, 3);
+  // 1-9, the first Boss level — bosses must turn, not bounce.
+  await wallRun('boss', 1, 9, 2);
+  // 1-7, Tower at 640x640. Flagged in scoping as worth confirming.
+  await wallRun('tower', 1, 7, 2);
 }
 
 if (args.bossLife) {

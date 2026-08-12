@@ -351,6 +351,39 @@ decisive, wrong result and was believed.*
     fallback, and `e.type` on an `Enemy` reporting `"Container"` for every enemy
     because the class extends a Phaser `Container` — both in the audit.
 
+16. **A harness that samples a per-frame event needs identity, cadence and
+    framing — and `--walls` got all three wrong before it got them right.**
+    Recorded together because they are one lesson: *measuring a transient
+    per-entity event is not the same as reading a value*, and each fault
+    produced a clean plausible number.
+
+    - **Identity.** `__arena.enemies` is distance-sorted and sliced, so an
+      enemy's **index changes every frame**. Keying "this enemy's previous
+      sample" on the index compared unrelated enemies: it reported `0 wall
+      contacts` for a boss that sat against a wall for **152 consecutive
+      samples**. Fixed with a `WeakMap` id in the scene (a dev aid, enumerated
+      in `devAids.test.ts`).
+    - **Cadence.** Sampling at 80 ms against a 33 ms frame missed most contacts
+      outright — a boss that demonstrably reached a wall registered **one**
+      on-wall sample in 220. A per-frame event needs roughly per-frame
+      sampling.
+    - **Framing.** Frames on a timer photographed an empty arena, because wall
+      contacts are brief and rare. Frames are now captured **on detection**, and
+      logged with the operands that triggered them so a frame and the number it
+      evidences are tied together.
+
+    **And the honest limit, stated rather than dressed up: a screenshot cannot
+    show a reflection.** It is one instant, the enemy is often at a wall the
+    camera is not looking at, and a bounce, a slide and a jitter all put a
+    sprite against an edge. For this subsystem **the measurement is the
+    evidence** and the frames are corroboration at best. Do not accept "here is
+    a frame of it working" for anything whose signature is a change over time.
+
+    One near-miss worth keeping: `types=Basic,Fast` on a Boss level read as "no
+    boss spawned". A boss's *species* on 1-9 **is** `Basic` — what makes it a
+    boss is `enemyLevel === 'B'`. The instrument was right and the reading was
+    wrong.
+
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
 be checked against a second mode on the same build before it is believed.
@@ -481,6 +514,53 @@ is now belt-and-braces rather than load-bearing. Kept deliberately — a loop
 silenced two ways is not a defect, and removing it would be an unrelated risk
 taken for tidiness.
 
+### Enemy wall collision (T112) — every non-boss reflects, bosses turn
+
+`PartGameArea.as:5370-5513`, inline in the enemy update loop's integration step.
+**Separate from bullet wall-bounce and from the tank's bounds** — three
+independent mechanisms; the port shares no code between them.
+
+- **Non-boss: a true reflection off all four walls.** Clamp the coordinate,
+  reverse the perpendicular velocity, and mirror the heading **only when it
+  points into that wall**. Right `:5379-5398` and left `:5405-5434` mirror with
+  `180 - r` / `-180 - r`; bottom `:5439-5468` and top `:5488-5513` with `-r`.
+- **Boss (`enemyLevel == "B"`): never reflects.** All four branches set
+  `rotateTowardsTank` instead, which turns **one degree per frame** toward the
+  tank (`:5516-5530`), snapping when already within a degree. A boss grinds
+  along a wall while swinging round to face the player.
+- **Defense's bottom edge is the objective, not a wall** (`:5449`) — unchanged,
+  and `crossesDefenseLine` still runs ahead of the bounce.
+
+**The rotation basis is the thing to get right**: `0 = right, 90 = down,
+-90 = up`, so a heading is `(cos r, sin r)`. Derived from the spawn edges
+(`:3507`, `:3511`, `:3515`), not assumed. It is what makes `r > 0` mean "moving
+down" and `-r` the horizontal mirror — **get it wrong and every guard inverts
+while still looking plausible.**
+
+**What was already there, and what was actually wrong.** `bounceOffSideWalls`
+was a faithful port of the *side* walls since the Defense work, and
+`clampToRoom` ran for everything. The defect was the **gate**: `Enemy.ts` applied
+the bounce only when `mode === 'Defense'`, where the AS3 splits on
+`enemyLevel != "B"` in every mode. So in Normal/Flag/Boss/Tower an enemy pinned
+itself to a wall with its heading still pointing into it and peeled off a degree
+at a time as steering re-aimed it — hugging, not bouncing. It was **documented as
+a deliberate scope-down**, and the docstring predicted exactly this: "a latent
+gap for whatever mode next stops re-steering".
+
+**`turnTowardsGoal`'s `lockDirection` arm is ported but unreachable.** Its only
+producer is the boss border AI at `:4642-4680` (a 200-unit band that locks a
+boss's turn direction toward map centre), which is **unported**. Production
+always passes `'None'`. Driven in tests for all three values so a later pass
+inherits a pinned rule — but its presence is not evidence the border AI exists.
+
+**For whoever ports enemy-enemy separation:** the AS3 tests `xVel + pushVelX`
+against the wall. `pushVel` has **0 occurrences in `src/`** against 21 in the
+AS3, so the term is identically zero and the rule reads `xVel` alone today. When
+separation lands, **do not make the four branches symmetric** — `:5488` gates on
+`yVel < 0` alone and omits `pushVelY` from its predicate while still adding it to
+the position at `:5493`. That asymmetry is in the original. The note is at the
+site in `enemySteering.ts`.
+
 ### PartInfoText — CLOSED (T104)
 
 The hover panel. `src/game/ui/infoTextPlacement.ts` is the geometry,
@@ -600,6 +680,12 @@ disk but never added to `UNIT_SHAPES`, so the mask revealed Phaser's
 The geometry was correct throughout and all 17 tests passed against the broken
 build. Trap 15 and the audit carry the full account; the short version is that
 **T106's driven run logged five correct numbers and nobody opened the frames.**
+
+`--walls` (added T112) drives 1-4 Normal, 1-9 Boss and 1-7 Tower and classifies
+every on-wall sample by how far the heading moved in it: a **mirror** (>30 deg in
+one sample) is a reflection, a **gradual turn** is a boss's one-degree swing or
+ordinary steering. Frames are captured **on detection** rather than on a timer —
+see trap 16.
 
 `--boss-life --shrink` (added T108) retargets at **3-9**, whose boss row is
 `Shrinking` — the only type in `enemyBodies.SHRINKS`, so the only one whose

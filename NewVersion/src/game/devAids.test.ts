@@ -39,6 +39,11 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     // T69: the sweep aimed at a hard-coded screen point. This is how it finds
     // the tank instead.
     'live tank screen position',
+    // T112: `--walls` compares each enemy against its own previous sample, and
+    // the projection is distance-sorted and sliced, so the array index is not a
+    // stable identity. Keying on it reported zero wall contacts for a boss that
+    // sat against a wall for 152 consecutive samples.
+    'stable per-enemy ids for the debug projection',
   ],
   'src/game/levels/devLevels.ts': ['QA levels for enemy behaviour'],
   'src/game/scenes/UpgradesScene.ts': ['money top-up'],
@@ -98,6 +103,10 @@ describe('dev aids are enumerable', () => {
     // 25 since T100 — `?known=all`, without which the bestiary shows one met
     // enemy that happens to have no resistances at all, so `--resistances`
     // would photograph the empty badge twice and call it coverage.
-    expect(total).toBe(25);
+    // 26 since T112 — stable per-enemy ids, without which `--walls` compares
+    // one enemy's sample against another's and cannot see a wall contact at
+    // all. A `WeakMap` in the scene rather than a field on `Enemy`, so removing
+    // it at release takes nothing in the game with it.
+    expect(total).toBe(26);
   });
 });
