@@ -81,13 +81,51 @@ old commit message.
 
 **`npm run look` boots the game, drives a scripted sequence and dumps frames to
 `.look/` (gitignored). It is a tool, not a test: it asserts nothing and never fails on
-what it sees.** Run it when a subsystem lands, then actually open the frames.
+what it sees.**
 
-This exists because unit tests cannot see either half of what goes wrong here. A survey
-found **eight subsystems where a broken call goes completely unnoticed** by the suite,
-and one look at the running game found **seven visual faults**, four of them real bugs in
-a subsystem that was fully pinned and fully green. Both classes are invisible to
-`npm test` and obvious in a frame.
+#### Do not run it by default — standing instruction, 12 August 2026
+
+**The user tests visually on the site themselves.** Run `npm run look`, or any other
+driven visual/screenshot harness, **only when the user asks for driven or screenshot
+evidence in that specific prompt.** Do not run it as a routine follow-up to visual work,
+and do not run it "to be safe".
+
+This is a change to who does the looking, **not** a reduction in verification. Three
+things are unchanged and one is new:
+
+1. **Pinning tests are unchanged and still required on every pass** — against the naive
+   implementation, against the counterpart, with the expected value from the AS3 rather
+   than from the code. That discipline is not what this cuts, and nothing below weakens
+   it.
+2. **`npm run smoke` stays**, and is *not* what this rule is about. It is a headless load
+   check in the commit gate — no frames, no visual judgment — and the rule requiring it
+   after anything touching the boot path still stands. Do not drop it by over-applying
+   this section.
+3. **Finishing visual work means handing over a written description specific enough for
+   the user to check it themselves.** Say what changed and what to look at, in terms of
+   an observable: *"on 1-9 the boss shows a red wipe from 0° at full health reaching
+   ~294° at 18% HP, sweeping clockwise from 12 o'clock"* — not *"fixed the boss HP
+   display"*. Name the level or screen, the thing to look at, and what correct looks
+   like.
+4. **A genuine doubt gets raised, not silently skipped.** If your own reasoning surfaces
+   a real "I am not sure this actually renders correctly" — not routine confirmation, but
+   an actual open question you would normally have resolved with a frame — **say so
+   explicitly and ask whether to drive it.** Do not quietly ship the uncertainty, and do
+   not run the harness anyway on the grounds that you were unsure.
+
+#### Why the tool exists, for when it is asked for
+
+Unit tests cannot see either half of what goes wrong here. A survey found **eight
+subsystems where a broken call goes completely unnoticed** by the suite, and one look at
+the running game found **seven visual faults**, four of them real bugs in a subsystem
+that was fully pinned and fully green. T108 is the sharpest instance: a boss indicator
+shipped drawing Phaser's `__MISSING` texture while all 17 of its tests passed, because
+every one of them was about angles and sizes and none could see which texture those
+angles revealed. Both classes are invisible to `npm test` and obvious in a frame.
+
+**That history is the reason to write a checkable description in point 3, not a licence
+to run the harness anyway.** The findings above argue that *someone* must look at the
+running game; the standing instruction settles that it is the user.
 
 Two things the harness itself taught, both worth knowing before reading any frame:
 
@@ -117,7 +155,11 @@ This is the cheapest to avoid of six instrument failures, all the same family �
 returning a clean, decisive, wrong result and being believed: a CRLF-poisoned id list, a
 drifted string replace, a sub-frame key tap, an unowned weapon, a truncated grep, and a
 screenshot taken 500 ms after a radial burst had already left the frame. **Where a claim
-matters, drive it and watch it.** `npm run look` exists for this.
+matters, drive it and watch it** — with the standing exception that *visual* claims are
+now driven by the user, not by you: see the instruction above `npm run look`. For
+anything non-visual — a count, a call site, an arithmetic result — driving it yourself
+rather than reasoning about it is still the rule, and is what `npm run sweep` and a
+throwaway test exist for.
 
 ### A harness failure may be the harness, not the game
 

@@ -105,7 +105,17 @@ floor, a target, or a baseline.
 ### How to see it
 
 `npm run look` boots the game, drives a scripted sequence and dumps frames to
-`.look/`. **It is a tool, not a test: it asserts nothing.** Modes:
+`.look/`. **It is a tool, not a test: it asserts nothing.**
+
+**Standing instruction since 12 August 2026: it is not run by default.** The user
+tests visually on the site; the harness runs only when driven or screenshot
+evidence is asked for in a specific prompt. Visual work is instead handed over as
+a written, checkable description — what to look at and what correct looks like.
+Full rule, including what is explicitly *unchanged* (pinning tests, `npm run
+smoke`), in `CLAUDE.md` under *Look at the running game*. The mode list below is
+a reference for when it is asked for.
+
+Modes:
 `--baseline` (the full loop), `--ui`, `--sound`, `--sound-sweep`, `--tutorial`,
 `--particles`, `--money`, `--indicators`, `--secondaries`, `--save`, `--slots`,
 `--countdown` (level 1-2 driven twice on one build, `?countdown=0` reproducing
