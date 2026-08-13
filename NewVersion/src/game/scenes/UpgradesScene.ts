@@ -35,6 +35,9 @@ import { getPlayerProfile } from '../player/playerProfile';
 import { setGameplayOption } from '../options/optionsService';
 import { getOptionsStore } from '../save/optionsStore';
 import { readGameplayOptions } from '../options/gameplayOptions';
+import { evaluateMenuAchievements } from '../achievements/menuAchievements';
+import { getAchievement } from '../achievements/achievementState';
+import { getDifficulty } from '../levels/difficultyService';
 import { canStep, isPresetActive, stepLevelGuide } from '../levels/levelGuide';
 import { MAX_UPGRADE_LEVEL } from '../upgrades/upgradeData';
 import { isPurchasable, purchasableUpgrades, withheldUpgrades } from '../upgrades/purchasable';
@@ -315,8 +318,26 @@ export class UpgradesScene extends Phaser.Scene {
     if (!result.purchased) return;
 
     profile.setUpgrades(result.state);
+
+    // `ScreenUpgrades.removed:663` re-evaluates achievements when the shop is
+    // *left*; this does it per purchase so the toast lands on the screen where
+    // it was earned. Divergence — the AS3 has no popup surface outside a level
+    // at all (`ScreenGame.as:385`), so these were silent there. Before the
+    // save, so a newly earned state is part of the same write.
+    const earned = evaluateMenuAchievements(profile, getDifficulty(this));
+
     // A purchase is one of the AS3's defined save moments.
     profile.save();
+
+    // `PartAchievements.achievementPopUp` gates the popup layer's existence in
+    // the AS3 (`:385`); here it gates the emit. The option was read by nothing
+    // but the options screen until now.
+    if (readGameplayOptions(getOptionsStore(this)).achievementPopUp) {
+      for (const id of earned) {
+        const spec = getAchievement(id);
+        if (spec) GameEvents.emit('achievement:unlocked', { id, title: spec.title });
+      }
+    }
 
     // `InterfaceButtonMoney` is the AS3's spend sound.
     getSoundManager(this)?.queue('InterfaceButtonMoney');
