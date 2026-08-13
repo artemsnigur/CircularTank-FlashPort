@@ -19,6 +19,55 @@ afterEach(() => {
   GameEvents.removeAllListeners();
 });
 
+/**
+ * Pause must not survive the scene it describes.
+ *
+ * The bug these were written for: **Reset Level restarted the level and left
+ * the pause panel on screen.** `paused` lives in the store so the key and the
+ * Resume button can agree about it, and a scene restart went straight past it.
+ */
+describe('a scene transition clears the pause', () => {
+  beforeEach(() => {
+    useGameStore.setState({ paused: true });
+  });
+
+  it('Reset Level: gameplay coming back up unpauses', () => {
+    // `scene.restart()` re-runs `create`, which re-emits `scene:ready`.
+    GameEvents.emit('scene:ready', { key: 'Gameplay' });
+
+    expect(useGameStore.getState().activeScene).toBe('Gameplay');
+    expect(useGameStore.getState().paused).toBe(false);
+  });
+
+  it('Quit Level: leaving for another scene unpauses too', () => {
+    // The same defect one step out, and the nastier half: the overlay is hidden
+    // outside gameplay, so a flag left true here would sit unnoticed until the
+    // *next* level opened already paused.
+    GameEvents.emit('scene:ready', { key: 'LevelSelect' });
+
+    expect(useGameStore.getState().paused).toBe(false);
+  });
+
+  it('a shutdown clears it as well', () => {
+    GameEvents.emit('scene:ready', { key: 'Gameplay' });
+    useGameStore.setState({ paused: true });
+    GameEvents.emit('scene:shutdown', { key: 'Gameplay' });
+
+    expect(useGameStore.getState().activeScene).toBeNull();
+    expect(useGameStore.getState().paused).toBe(false);
+  });
+
+  /**
+   * The counterpart, so "clears the pause" is not satisfied by a store that
+   * can never hold one: an ordinary gameplay event leaves it alone.
+   */
+  it('an ordinary gameplay event does not clear it', () => {
+    GameEvents.emit('currency:earned', { amount: 1, total: 1 });
+
+    expect(useGameStore.getState().paused).toBe(true);
+  });
+});
+
 describe('attachStoreBridge', () => {
   it('is idempotent — a second call does not double-subscribe', () => {
     attachStoreBridge();

@@ -348,7 +348,25 @@ export const useGameStore = create<GameState>()((set) => ({
   setStage: (stage) => set({ stage }),
   setProgress: (progress) => set({ progress: Math.min(1, Math.max(0, progress)) }),
   setLoadError: (loadError) => set({ loadError, phase: loadError ? 'error' : 'loading' }),
-  setActiveScene: (activeScene) => set({ activeScene }),
+  /**
+   * **Clears `paused` as well, and that is the fix for a real bug.**
+   *
+   * `paused` describes the *running gameplay scene*. Any scene transition means
+   * that scene is gone — restarted or left — so a pause that outlives it is
+   * stale by definition.
+   *
+   * Reset Level is what exposed it: the level restarted correctly while the
+   * panel stayed on screen, because nothing emitted `ui:pause` on the way
+   * through. Quit Level had the same defect one step further out and would have
+   * been nastier to find — the overlay is hidden outside gameplay, so the flag
+   * sat true unnoticed until the *next* level opened already paused.
+   *
+   * Cleared here rather than at either button, so every route in and out of a
+   * level is covered by one rule instead of each caller remembering. `endLevel`
+   * clears it too, for the case where the scene stays put and the results take
+   * the screen.
+   */
+  setActiveScene: (activeScene) => set({ activeScene, paused: false }),
 
   setCurrency: (currency) => set({ currency }),
   addCurrency: (amount) => set((s) => ({ currency: s.currency + amount })),
