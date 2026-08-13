@@ -7,11 +7,12 @@
  * achievement earned in the shop sat undetected until the next level was
  * banked — which is the delay the report described.
  *
- * The original is no better and in fact worse: `ScreenUpgrades.removed:663`
- * evaluates on leaving the shop and discards the result, and `PartAchievements`
- * — the popup layer — is built only inside `ScreenGame.as:385`. So the AS3
- * banks these silently and never announces them at all. Announcing them is a
- * deliberate divergence.
+ * The original announces them, on the frame the purchase qualifies:
+ * `ScreenUpgrades.as:635` builds the popup layer on the shop screen too, and
+ * `PartAchievements.update:216` re-tests every unseen achievement every frame.
+ * (An earlier version of this header claimed the AS3 never popped these — that
+ * came from reading a name grep as a complete count, and is corrected in the
+ * audit under `A14`.) So this is faithful, not a divergence.
  *
  * These drive the **real** profile and the real value sources rather than a
  * stub, because the thing under test is whether an ordinary purchase is enough

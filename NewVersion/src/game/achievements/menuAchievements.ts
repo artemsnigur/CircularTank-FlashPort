@@ -1,22 +1,25 @@
 /**
  * Achievements earned outside a level — the shop, mainly.
  *
- * ── Why this exists, and that it is a divergence ──────────────────────────
- * **The original never pops these.** `PartAchievements` — the popup layer — is
- * constructed in exactly one place, `ScreenGame.as:385`, and only while a level
- * is running. `ScreenUpgrades.removed:663` calls `updateAchievements()` when you
- * *leave* the shop, which records and saves the result and discards the returned
- * list. So an achievement earned by buying an upgrade is banked silently and
- * never announced.
+ * ── Why this exists, and that it is faithful ──────────────────────────────
+ * **The original pops these too, and this docstring said the opposite until
+ * T140.** The corrected reading, which is the one to trust:
  *
- * This port announces it. That is a deliberate improvement — a reward the player
- * cannot see is a reward lost — and it is recorded in `docs/AUDIT-2026-07.md`.
+ *  - `ScreenUpgrades.as:635` builds a `PartAchievements` on the shop screen,
+ *    gated on `achievementPopUp` — the same layer the game screen builds at
+ *    `ScreenGame.as:385`. There are **two** construction sites, not one.
+ *  - `PartAchievements.update` calls `moveUnseenToQueue()` **every frame**
+ *    (`:216`), re-testing every unseen achievement through
+ *    `ScreenAchievements.achievementCheck(name, true)` and queueing whatever now
+ *    qualifies.
  *
- * ── Evaluated on every purchase, not on leaving ───────────────────────────
- * The AS3's hook is the screen's `removed`. Doing the same here would hold the
- * toast until the player walked out of the shop, which is the delay this exists
- * to remove. Evaluation is a walk over ~36 specs against values already in
- * memory, so per-click is affordable.
+ * So the original announces a shop-earned achievement on the frame the purchase
+ * satisfies it. The port does the same on the click, which reaches the same
+ * result for less work.
+ *
+ * `ScreenUpgrades.removed:663` calling `updateAchievements()` and discarding its
+ * return is real, but it is the bank-on-exit step behind a popup that has
+ * already fired — not evidence that nothing fires.
  *
  * ── What it cannot award ──────────────────────────────────────────────────
  * `achievementValueSource` takes an optional `level` record and the boolean

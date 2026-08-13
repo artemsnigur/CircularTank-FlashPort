@@ -541,12 +541,14 @@ A batch from one report, four atomic commits, three of them divergences.
   decision in T122, the toggle governed nothing, so the row is gone from the
   options screen. The key and its default are kept so an existing player's
   stored value is not orphaned.
-- **T139, `A14`** — an achievement earned **in the shop** now pops at once.
-  Worth knowing before "restoring" the original behaviour: the AS3 never
-  announces these at all. It evaluates on leaving the shop
-  (`ScreenUpgrades.removed:663`) and discards the result, and the popup layer is
-  built only inside a running level (`ScreenGame.as:385`). Another instance of
-  this repo's signature failure — `recordAchievements` had exactly one caller.
+- **T139** — an achievement earned **in the shop** now pops at once. Another
+  instance of this repo's signature failure: `recordAchievements` had exactly
+  one caller, the level-end path, so nothing evaluated on a purchase.
+  **Filed as divergence `A14` and withdrawn a day later (T140)** — the original
+  does pop these, from a second `PartAchievements` at `ScreenUpgrades.as:635`
+  and a per-frame sweep at `:216`. The behaviour stands; the divergence claim
+  was mine, from reading a name grep as a complete count. `A14` carries the
+  correction.
 
 ---
 

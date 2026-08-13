@@ -25,6 +25,7 @@ import { Enemy } from '../entities/Enemy';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
+import { crosshairVisible } from '../ui/crosshairVisibility';
 import { shouldRunDuringCountdown } from '../waves/countdownGate';
 import { countdownSkipped, createCountdown, tickCountdown } from '../waves/countdown';
 import type { CountdownState } from '../waves/countdown';
@@ -582,6 +583,15 @@ export class GameplayScene extends Phaser.Scene {
   private hudText!: Phaser.GameObjects.Text;
   private crosshair!: Phaser.GameObjects.Image;
 
+  /**
+   * `ScreenOptions.optionCrosshairOn` for this profile, read once at create.
+   *
+   * A field rather than a per-frame `readGameplayOptions` because that call
+   * reaches the save store; the options screen is not reachable without
+   * leaving this scene, which rebuilds it.
+   */
+  private crosshairEnabled = false;
+
   /** Null on touch-only devices, where there is no keyboard plugin at all. */
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys | null = null;
   private wasd: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key> | null = null;
@@ -937,7 +947,8 @@ export class GameplayScene extends Phaser.Scene {
     // same way secondaries are.
     // The stored preference decides, exactly as `initAndLoadOptions` does — a
     // first run has never written the store, so `readGameplayOptions` returns
-    // the defaults with `tutorialOn: true`. `withTutorialEnabled` keeps the
+    // the defaults, where `tutorialOn` is **`false`** since T135 (divergence
+    // `A13`; the AS3's own default is `true`). `withTutorialEnabled` keeps the
     // restore separate from the first-run decision and refuses to resurrect a
     // completed tutorial.
     this.profile.setTutorial(
@@ -1164,6 +1175,13 @@ export class GameplayScene extends Phaser.Scene {
         // playing until the moment the player resumed.
         const sound = getSoundManager(this);
         if (sound) sound.musicPaused = paused;
+
+        // `PartInterface.as:428` — pausing puts the pointer back to
+        // `MouseCursor.AUTO`, and `:799-802` restores the custom one on unpause
+        // *if the option is on*. A paused scene stops updating, so without this
+        // the sprite would sit frozen over the pause panel; the same rule
+        // decides both, so they cannot drift apart.
+        this.crosshair.setVisible(crosshairVisible({ enabled: this.crosshairEnabled, paused }));
       }),
     );
 
@@ -1346,8 +1364,15 @@ export class GameplayScene extends Phaser.Scene {
     // The crosshair is not in the AS3's gated list — the mouse cursor plainly
     // keeps moving during the countdown. Kept outside so aiming still reads as
     // live while firing is held.
+    //
+    // **Visibility is the option's, not a literal.** `ScreenGame.as:352` only
+    // installs the custom cursor `if(ScreenOptions.optionCrosshairOn)`; this
+    // line read `setVisible(true)` until T140, which is why the preference did
+    // nothing at all.
     if (!destroyed && shouldRun('tankDrive', levelDone) && aim) {
-      this.crosshair.setPosition(aim.x, aim.y).setVisible(true);
+      this.crosshair
+        .setPosition(aim.x, aim.y)
+        .setVisible(crosshairVisible({ enabled: this.crosshairEnabled, paused: false }));
     }
 
     // **The turret belongs out here with the crosshair, for the same reason.**
@@ -1586,7 +1611,11 @@ export class GameplayScene extends Phaser.Scene {
   }
 
   private setupInput(): void {
-    // Aiming reticle — the extracted CustomCursor bitmap (symbol 166).
+    // `ScreenGame.as:352` reads the preference once, as the level is added.
+    this.crosshairEnabled = readGameplayOptions(getOptionsStore(this)).crosshair;
+
+    // Aiming reticle — the extracted CustomCursor bitmap (symbol 166), which is
+    // the same art `Main.as:451` registers as the OS cursor `"MyCursor"`.
     this.crosshair = this.add
       .image(this.roomWidth / 2, this.roomHeight / 2, 'cursor')
       .setDisplaySize(28, 28)
