@@ -7,13 +7,20 @@
  * plus an "Auto pause" checkbox at (266, 254). Everything is torn down again in
  * `unPauseGame` (`:797-826`).
  *
- * ── Two deliberate differences ────────────────────────────────────────────
+ * ── Three deliberate differences ──────────────────────────────────────────
  * **The audio toggles are not here** — divergence, recorded in the audit. The
  * AS3 puts Sound and Music buttons in this panel *and* in the HUD; this port
  * already has `AudioToggles` permanently in the HUD, so a second copy would be
  * two sets of the same control on screen at once. Nothing is lost: the controls
  * the panel exists to offer are still reachable while paused, because the HUD
  * stays mounted underneath.
+ *
+ * **The "Auto pause" checkbox is not here either.** `:459-462` puts it in the
+ * panel, duplicating the options screen's own row. One control, one home: the
+ * options screen. Auto-pause itself is untouched — `usePauseControl` reads
+ * `gameplayOptions.autoPause` from the store, which the options screen writes,
+ * so the behaviour works exactly as before and only this second copy of the
+ * switch is gone.
  *
  * **Quit goes to level select, not the main menu.** `ButtonPause.as:105` sets
  * `Main.changeScreen = "LevelSelect"`, and quitting a level should not throw
@@ -34,7 +41,6 @@ import { SceneKeys } from '../game/config/constants';
 
 export function PauseOverlay(): React.ReactElement | null {
   const paused = useGameStore((s) => s.paused);
-  const autoPause = useGameStore((s) => s.gameplayOptions.autoPause);
 
   if (!paused) return null;
 
@@ -74,27 +80,6 @@ export function PauseOverlay(): React.ReactElement | null {
           </button>
         </div>
 
-        {/*
-          `:459-462` — the checkbox is in the pause panel, and its value is the
-          same option the options screen shows. Toggled through `ui:set-option`
-          so it persists by the one path, rather than being written twice.
-        */}
-        <label className="pause-overlay__option">
-          {/*
-            `role` stated explicitly so the delegated button-sound listener
-            matches it: `isAudible` reads `closest('[role="checkbox"]')`, which
-            an implicit role does not satisfy. The AS3's checkbox is a button
-            and clicks like one (`ButtonOptionCheckBox`), so silence here would
-            be the divergence.
-          */}
-          <input
-            type="checkbox"
-            role="checkbox"
-            checked={autoPause}
-            onChange={() => GameEvents.emit('ui:set-option', { autoPause: !autoPause })}
-          />
-          Auto pause
-        </label>
       </div>
     </div>
   );

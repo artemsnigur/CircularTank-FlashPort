@@ -88,25 +88,17 @@ describe('the actions emit what the scene listens for', () => {
     expect(seen).toEqual([{ key: 'Gameplay' }]);
   });
 
-  it('the auto-pause checkbox writes through the options path', () => {
-    act(() => {
-      useGameStore.setState({
-        paused: true,
-        gameplayOptions: { ...useGameStore.getState().gameplayOptions, autoPause: true },
-      });
-    });
-    const seen: unknown[] = [];
-    const off = GameEvents.subscribe('ui:set-option', (payload) => seen.push(payload));
+  it('has no auto-pause checkbox — it lives on the options screen', () => {
+    // `:459-462` puts one in this panel, duplicating the options row. Removed
+    // in T136; auto-pause itself is untouched, since `usePauseControl` reads
+    // the option from the store either way.
+    act(() => useGameStore.setState({ paused: true }));
     render(<PauseOverlay />);
 
-    const box = screen.getByRole('checkbox', { name: /auto pause/i });
-    expect((box as HTMLInputElement).checked).toBe(true);
-    fireEvent.click(box);
-    off();
-
-    // Through `ui:set-option`, the same path the options screen uses, rather
-    // than a second writer to the same persisted key.
-    expect(seen).toEqual([{ autoPause: false }]);
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    // The counterpart: the panel is otherwise intact, so "no checkbox" cannot
+    // be satisfied by a panel that failed to render.
+    expect(screen.getAllByRole('button')).toHaveLength(3);
   });
 });
 
