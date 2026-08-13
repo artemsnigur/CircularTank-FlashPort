@@ -4361,20 +4361,25 @@ export class GameplayScene extends Phaser.Scene {
         // 105+-15 / 75+-15 fan. The boss release at `:5323` is the contact
         // path above, which clears the tank's tether instead.
         enemy.releaseGrapple();
-        // Knockback is not yet fed back into the tank's velocity — that needs
-        // Tank.as's `pushed` branch, which is part of the unported loop.
-      }
 
-      // `:5319` — a boss shoves the tank clear of its hitbox. The AS3 writes
-      // the position unclamped, which can put the player outside the room
-      // against a wall-pinned boss; `shoveTo` clamps it.
-      if (result.enemyDies === false && enemy.enemyLevel === 'B') {
-        const angle = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
-        const clearance = this.player.radius + enemy.radius;
-        this.player.shoveTo(
-          enemy.x + Math.cos(angle) * clearance,
-          enemy.y + Math.sin(angle) * clearance,
-        );
+        // `:5311-5312` — the knockback itself. It was computed and discarded
+        // until T132, so a boss contact moved the player not at all.
+        this.player.applyKnockback(result.push.xVel, result.push.yVel);
+
+        // `:5319` — and the un-overlap, **taken from `result.push` rather than
+        // recomputed here**.
+        //
+        // This call site used to derive its own angle and shove on *every*
+        // boss contact. With the shield up, `isTouchingTank` reaches to
+        // `enemyRadius + tankRadius * 2` (`tankDamage.ts:64`) while the shove
+        // placed the tank at `enemyRadius + tankRadius` — so a tank touching
+        // the boss with its *shield* was teleported **inward** to the boss's
+        // body, every frame, and held there. That is the "sucked in" report.
+        //
+        // `resolveContact` carries the AS3's `dist < tR + eR - 5` guard, so
+        // outside a genuine body overlap it returns the tank's own position and
+        // this is a no-op. One rule, one copy.
+        this.player.shoveTo(result.push.x, result.push.y);
       }
 
       if (result.enemyDies) this.removeEnemy(enemy, false);

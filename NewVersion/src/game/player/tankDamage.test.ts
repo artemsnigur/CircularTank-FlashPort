@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   absorptionMultiplier,
   BOSS_PUSH_SPEED,
@@ -263,5 +264,142 @@ describe('the threat side of the loop', () => {
       pushed: false,
     });
     expect(absorbed).toBe(Math.round(boss.damage / 2));
+  });
+});
+
+/**
+ * The shield-band suck-in — the bug T132 fixed.
+ *
+ * With the shield up, `isTouchingTank` reaches to `enemyRadius + tankRadius * 2`
+ * while the AS3's un-overlap places the tank at `enemyRadius + tankRadius`. The
+ * scene used to shove on **every** boss contact with its own recomputed angle,
+ * so a tank touching the boss with its *shield* was teleported inward to the
+ * boss's body and held there. `resolveContact` carries `:5317`'s
+ * `dist < tR + eR - 5` guard, which is what makes the shove a no-op out there.
+ *
+ * Geometry throughout: tank radius 14, boss radius 30. Body contact at 44,
+ * shield contact out to 58, and the guard trips at 39.
+ */
+describe('a shielded boss contact must not pull the tank in', () => {
+  const boss = (distance: number) =>
+    participants({
+      isBoss: true,
+      shieldOn: true,
+      tankX: 100,
+      tankY: 100,
+      enemyX: 100 + distance,
+      enemyY: 100,
+      enemyRadius: 30,
+    });
+
+  const contact = (distance: number) =>
+    resolveContact(boss(distance), {
+      enemyDamage: 10,
+      upgrades: upgrades(),
+      pushed: false,
+      shieldOn: true,
+    }, 100);
+
+  it('leaves the tank where it is inside the shield band', () => {
+    // 50 is shield contact (< 58) but not body contact (> 44), and well
+    // outside the 39 guard. **This is the case that used to teleport inward.**
+    expect(isTouchingTank(boss(50)), 'the band must actually register a hit').toBe(true);
+
+    const result = contact(50);
+    expect(result.push).not.toBeNull();
+    expect(result.push!.x).toBe(100);
+    expect(result.push!.y).toBe(100);
+  });
+
+  it('still un-overlaps a genuine body overlap', () => {
+    // The counterpart: 30 is inside the 39 guard, so the tank *is* moved — out
+    // to exactly `enemyRadius + tankRadius` on the far side. Without this pair,
+    // "does not move the tank" would be satisfied by a shove that never fires.
+    const result = contact(30);
+    expect(result.push!.x).toBeCloseTo(100 + 30 - (30 + 14), 6);
+    expect(result.push!.y).toBeCloseTo(100, 6);
+  });
+
+  it('never moves the tank closer to the boss than it already was', () => {
+    // The property the bug violated, swept across the whole contact range
+    // rather than asserted at one distance.
+    for (let d = 20; d <= 58; d += 1) {
+      const result = contact(d);
+      if (!result.push) continue;
+      const before = d;
+      const after = Math.hypot(100 + d - result.push.x, 100 - result.push.y);
+      expect(after, `at distance ${d}`).toBeGreaterThanOrEqual(before - 1e-9);
+    }
+  });
+});
+
+describe('the boss knockback points away from the boss', () => {
+  const shove = (enemyX: number, enemyY: number) =>
+    resolveContact(
+      participants({ isBoss: true, tankX: 100, tankY: 100, enemyX, enemyY, enemyRadius: 30 }),
+      { enemyDamage: 10, upgrades: upgrades(), pushed: false, shieldOn: false },
+      100,
+    ).push!;
+
+  it('flings the tank directly away, at the AS3 speed', () => {
+    // Boss to the right: the tank must leave to the left at 8.
+    const right = shove(130, 100);
+    expect(right.xVel).toBeCloseTo(-BOSS_PUSH_SPEED, 6);
+    expect(right.yVel).toBeCloseTo(0, 6);
+
+    // And below: away is upward. Driven on a second axis because a sign error
+    // in one component alone survives an x-only check.
+    const below = shove(100, 130);
+    expect(below.xVel).toBeCloseTo(0, 6);
+    expect(below.yVel).toBeCloseTo(-BOSS_PUSH_SPEED, 6);
+  });
+
+  it('always points away, never toward, whatever the bearing', () => {
+    // The sign property, swept. A knockback toward the boss is the other half
+    // of "sucked in", and a single-axis test cannot see a reversed diagonal.
+    for (let deg = 0; deg < 360; deg += 15) {
+      const rad = (deg * Math.PI) / 180;
+      const ex = 100 + Math.cos(rad) * 35;
+      const ey = 100 + Math.sin(rad) * 35;
+      const push = shove(ex, ey);
+
+      // Dot product of the knockback with the tank->boss direction must be
+      // negative: the tank moves against the boss's bearing.
+      const dot = push.xVel * Math.cos(rad) + push.yVel * Math.sin(rad);
+      expect(dot, `bearing ${deg}deg`).toBeLessThan(0);
+      expect(Math.hypot(push.xVel, push.yVel)).toBeCloseTo(BOSS_PUSH_SPEED, 6);
+    }
+  });
+});
+
+/**
+ * The handoff — **and this proves a spelling, not a behaviour.**
+ *
+ * Everything above drives `resolveContact`, which was already correct before
+ * T132: it has always returned the tank's own position outside a body overlap.
+ * **The bug was the call site**, which recomputed its own angle and shoved on
+ * every boss contact regardless. So the tests above would all have passed while
+ * the tank was being dragged into the boss.
+ *
+ * A scene cannot be stood up here — `sceneHarness.ts` records why at length —
+ * so this follows the same compromise that file uses for its own one-line
+ * handoffs: a narrow assertion, labelled. It proves `GameplayScene` *reads*
+ * `result.push` rather than deriving its own; it cannot prove the frame the
+ * player sees. If this ever needs to be a real behavioural test, the way in is
+ * to extract the apply step, not to write a better regex.
+ */
+describe('GameplayScene defers to resolveContact for the shove', () => {
+  const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
+
+  it('takes both the knockback and the position from the result', () => {
+    expect(scene).toContain('this.player.applyKnockback(result.push.xVel, result.push.yVel);');
+    expect(scene).toContain('this.player.shoveTo(result.push.x, result.push.y);');
+  });
+
+  it('no longer derives its own contact angle', () => {
+    // The exact expression that caused the suck-in. Its absence is the fix.
+    expect(scene).not.toContain(
+      'Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x)',
+    );
   });
 });

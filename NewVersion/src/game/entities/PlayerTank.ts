@@ -179,6 +179,23 @@ export class PlayerTank extends Phaser.GameObjects.Container {
     this.setPosition(clamped.x, clamped.y);
   }
 
+  /**
+   * Flings the tank away from a boss it just hit — `PartGameArea.as:5311-5312`.
+   *
+   * **Replaces the velocity rather than adding to it**, as the AS3 does:
+   * `tank.xVel = cos(angle) * 8`, not `+=`. A tank driving into the boss must
+   * leave at the knockback speed, not at the knockback minus whatever it was
+   * doing — otherwise a player holding the stick toward the boss cancels their
+   * own bounce.
+   *
+   * On its own this lasts one frame: the next `drive` overwrites the velocity
+   * from input. `Tank.as:103` suppresses input while `pushed` is set, which is
+   * what makes the shove actually travel — see `moveTank`'s `pushed` flag.
+   */
+  applyKnockback(xVel: number, yVel: number): void {
+    this.motion = { ...this.motion, xVel, yVel };
+  }
+
   refreshStats(upgrades: UpgradeState): void {
     this.stats = tankStatsFor(upgrades);
   }
