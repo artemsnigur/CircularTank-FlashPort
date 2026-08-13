@@ -766,6 +766,37 @@ the thing it measures.
 HUD's Menu button and swallows its pointer events, so Menu cannot be clicked in
 dev. Not a shipped defect; `--transitions` dispatches a DOM click to get past it.
 
+### Source-shape tests — the four that kept breaking (T119)
+
+Four tests broke on **legitimate** changes in four consecutive passes, each
+because it asserted an expression in a source file rather than a behaviour:
+
+| Test | Pinned | Broke on |
+|---|---|---|
+| `shieldWiring` | `.setAlpha(shieldAlpha(this.shield) * 0.45)` | T117 dropping an invented `* 0.45` |
+| `towerMode` | the scene's `drive(input, aim, delta, ...)` text | T115 removing `aim` from the signature |
+| `defenseMode` | four expressions around the wall gate | T112 (gate moved) **and** T113 (literal hoisted) |
+| `enemyGrapple` | four literal lines incl. `let walled = stepped;` | T112 restructuring the wall branch |
+
+All four are now behavioural:
+
+- **`shieldWiring` — deleted.** `shield.test.ts` already walks the timer 200 -> 0
+  and requires alpha to be monotonically non-increasing. The source check was
+  pure duplication, so keeping it only meant two failures per change.
+- **`towerMode` — the rule was extracted.** `PlayerTank.tankIsMobile(mode)`
+  (`PartGameArea.as:2816`) replaces an inline `mode !== 'Tower'`, and the test
+  calls it for Tower **and** for Normal/Flag/Boss/Defense/undefined.
+- **`defenseMode` — driven on `bounceOffWalls`.** `skipBottom` leaves a floor
+  contact untouched, the same state bounces without it, and the side walls still
+  reflect under the flag.
+- **`enemyGrapple` — driven.** A reel toward a tank *outside* the room, 200
+  frames, asserting the enemy stays in bounds and settles at the corner.
+
+**This was the four named, not a sweep. 124 source-shape assertions remain**
+across ~48 test files. They are not all wrong — some guard wiring that genuinely
+cannot be reached from a unit test — but the population is large and the failure
+rate is now known. Whether to work through it is an open call, deliberately not
+taken here.
 ### Enemy wall collision (T112) — every non-boss reflects, bosses turn
 
 `PartGameArea.as:5370-5513`, inline in the enemy update loop's integration step.

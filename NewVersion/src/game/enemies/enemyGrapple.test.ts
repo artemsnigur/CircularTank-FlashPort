@@ -15,6 +15,8 @@ import {
   releaseHeading,
 } from './enemyGrapple';
 import { clampTankToRoom, tankStatsFor, tetherPull, tetheredTankStats } from '../player/tankMovement';
+import { clampToRoom } from './enemySteering';
+import type { SteeringState } from './enemySteering';
 import { createInitialUpgradeState } from '../upgrades/upgradeState';
 
 const TANK = { x: 0, y: 0 };
@@ -93,16 +95,38 @@ describe('a wall cannot produce the Defense slide', () => {
     }
   });
 
-  it('the entity still runs the ordinary room clamp', () => {
-    // The reel replaces the *steering*, not the integration — so position is
-    // clamped and the enemy cannot be pulled through a wall.
-    // The reel produces `stepped` exactly as steering does, and `stepped`
-    // flows through the same wall path — so position is clamped either way.
-    const source = readFileSync('src/game/entities/Enemy.ts', 'utf8');
-    expect(source).toContain('const stepped = this.grapple?.isGrapping');
-    expect(source).toContain('? this.reelStep(target, frames)');
-    expect(source).toContain('let walled = stepped;');
-    expect(source).toContain('clampToRoom(walled, this.roomWidth, this.roomHeight, this.radius)');
+  it('a reeling enemy cannot be pulled through a wall', () => {
+    // **Behavioural, replacing a source-shape check (T119).**
+    //
+    // This asserted four literal lines of `Enemy.ts` — including
+    // `let walled = stepped;`, which is scaffolding rather than a rule — and it
+    // broke in T112 when the wall branch was restructured. The claim it was
+    // making is that the reel replaces *steering*, not *integration*, so a
+    // reeled enemy is still clamped. That is a property of the composition, and
+    // it can simply be driven.
+    //
+    // Reeled hard toward a tank sitting outside the room, which is the case a
+    // missing clamp would let through.
+    const ROOM = { width: 640, height: 960 };
+    const R = 13;
+    const outsideTank = { x: -400, y: -400 };
+    let state: SteeringState = { x: 60, y: 60, rotation: 0, xVel: 0, yVel: 0 };
+
+    for (let i = 0; i < 200; i += 1) {
+      const reel = reelVelocity(state, outsideTank, 12);
+      state = {
+        ...state,
+        x: state.x + reel.xVel,
+        y: state.y + reel.yVel,
+        rotation: reel.rotation,
+      };
+      state = clampToRoom(state, ROOM.width, ROOM.height, R);
+      expect(state.x).toBeGreaterThanOrEqual(R);
+      expect(state.y).toBeGreaterThanOrEqual(R);
+    }
+    // It reached the corner and stayed there rather than sailing past it.
+    expect(state.x).toBe(R);
+    expect(state.y).toBe(R);
   });
 });
 

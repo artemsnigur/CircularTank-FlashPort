@@ -11,7 +11,6 @@
  * awkward to get wrong quietly: any re-steering at all shows up immediately.
  */
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 import {
   bounceOffWalls,
   clampToRoom,
@@ -287,30 +286,48 @@ describe('the other modes keep clamp-and-zero', () => {
     expect(clamped.rotation).toBe(42);
   });
 
-  it('the bounce is gated on enemy level, not on mode', () => {
-    // **Replaced, not repaired (T112).** This read `the bounce runs for Defense
-    // alone` and asserted `/defense[\s\S]{0,40}bounceOffSideWalls/`. That was
-    // never a rule from the source — it described a deliberate scope-down, and
-    // it would have failed the moment anyone ported `:5370-5513` properly,
-    // which is the "a test can pin a bug and still look like coverage" shape.
+  it('Defense skips the bottom wall, and only the bottom', () => {
+    const RADIUS = 12;
+    // **Behavioural, replacing a source-shape check (T119).**
     //
-    // The AS3 splits on `enemyLevel != "B"` in all four wall branches, in every
-    // mode. `skipBottom` is the only thing Defense changes.
+    // This asserted four separate expressions in `Enemy.ts` — `const isBoss =
+    // ...`, an `if (isBoss) ... turnTowardsGoal` regex, an `else ...
+    // bounceOffWalls(` regex, and a `defense ? WALL_OPTIONS_SKIP_BOTTOM : ...`
+    // match. It broke twice in three passes: once in T112 when the gate moved
+    // from mode to enemy level, and again in T113 when the options literal was
+    // hoisted to a constant. Neither change was wrong; the test was watching
+    // the spelling.
     //
-    // **This proves the call is written, never that it is reached** — a
-    // source-shape check cannot see either. `bounces off every wall` in
-    // `enemySteering.test.ts` drives the rule itself, and the boss/non-boss
-    // split is driven there too.
-    const source = readFileSync('src/game/entities/Enemy.ts', 'utf8');
-    expect(source).toContain("const isBoss = this.enemyLevel === 'B'");
-    expect(source).toMatch(/if \(isBoss\)[\s\S]{0,600}turnTowardsGoal/);
-    expect(source).toMatch(/} else \{[\s\S]{0,200}bounceOffWalls\(/);
-    // Defense still selects the skip-the-bottom variant. Asserted against the
-    // hoisted constant rather than an inline `{ skipBottom: defense }` — T113
-    // replaced the literal to stop it allocating per enemy per frame, and this
-    // line broke, which is the brittleness a source-shape check carries and the
-    // reason the note above says what it can and cannot prove.
-    expect(source).toMatch(/defense \? WALL_OPTIONS_SKIP_BOTTOM : WALL_OPTIONS_ALL/);
+    // What it was reaching for is Defense's one real carve-out — `:5449` makes
+    // the bottom edge the objective rather than a wall — and that is a property
+    // of `bounceOffWalls`, driven here on its own inputs.
+    const atFloor: SteeringState = {
+      x: 300,
+      y: ROOM.height - RADIUS,
+      rotation: 42,
+      xVel: 1,
+      yVel: 1.1,
+    };
+    // Untouched under Defense's flag: no clamp, no mirror, same object.
+    expect(bounceOffWalls(atFloor, ROOM.width, ROOM.height, RADIUS, { skipBottom: true })).toBe(
+      atFloor,
+    );
+    // And its counterpart on the identical state — every other mode bounces off
+    // the floor, so `skipBottom` cannot be a switch that disables the rule.
+    expect(
+      bounceOffWalls(atFloor, ROOM.width, ROOM.height, RADIUS).rotation,
+    ).toBe(-42);
+
+    // The side walls still reflect under the same flag, which is what stops
+    // "Defense skips the bottom" from quietly meaning "Defense skips walls".
+    const atSide: SteeringState = { x: ROOM.width - RADIUS, y: 400, rotation: 42, xVel: 1.1, yVel: 1 };
+    expect(
+      bounceOffWalls(atSide, ROOM.width, ROOM.height, RADIUS, { skipBottom: true }).rotation,
+    ).toBe(138);
+
+    // The boss/non-boss split this used to grep for is driven directly in
+    // `enemyWalls.test.ts` — `bounces a non-boss and turns a boss, from an
+    // identical position` — which is a stronger claim than any regex here.
   });
 
   it('bouncing then clamping keeps the reflected velocity', () => {

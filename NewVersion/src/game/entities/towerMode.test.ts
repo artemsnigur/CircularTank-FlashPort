@@ -16,6 +16,7 @@
  * because the defect they guard against is in the wiring, not the arithmetic.
  */
 import { describe, expect, it } from 'vitest';
+import { tankIsMobile } from './PlayerTank';
 import { readFileSync } from 'node:fs';
 import { moveTank, tankStatsFor } from '../player/tankMovement';
 import type { TankState } from '../player/tankMovement';
@@ -85,15 +86,19 @@ describe('the drive split leaves every other mode alone', () => {
   });
 
   it('the scene only immobilises Tower', () => {
-    // Reads the call site: `drive(..., this.levelSpec?.mode !== 'Tower')`. A
-    // mode added later that should also be fixed in place has to change this
-    // line, and this test is where that gets noticed.
-    const text = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
-    // `aim` left this signature in T115 — the turret it fed is now positioned
-    // and aimed by `syncTurret`, outside the countdown gate. Matched loosely on
-    // the `movable` argument, which is what this test is actually about, so a
-    // future signature change does not fail it for an unrelated reason.
-    expect(text).toMatch(/this\.player\.drive\([^)]*this\.levelSpec\?\.mode !== 'Tower'\)/);
+    // **Behavioural, replacing a source-shape check (T119).** This matched the
+    // scene's `drive(...)` call text and broke in T115 on an unrelated signature
+    // change — `aim` left the parameter list when the turret moved to
+    // `syncTurret`. The rule is now the `tankIsMobile` predicate, so it can
+    // simply be called.
+    expect(tankIsMobile('Tower')).toBe(false);
+    // The counterparts, on the same function: every other mode drives. Without
+    // these, "returns false" would be satisfied by a predicate that always did.
+    for (const mode of ['Normal', 'Flag', 'Boss', 'Defense']) {
+      expect(tankIsMobile(mode), mode).toBe(true);
+    }
+    // An unset mode must not accidentally immobilise the tank.
+    expect(tankIsMobile(undefined)).toBe(true);
   });
 });
 
@@ -165,9 +170,9 @@ describe('level 1-7 actually reaches the Tower paths', () => {
   });
 
   it('the drive predicate immobilises it', () => {
-    // Exactly the expression at the call site.
-    expect(getLevel(1, 7)?.mode !== 'Tower').toBe(false);
-    expect(getLevel(1, 1)?.mode !== 'Tower').toBe(true);
+    // Through the predicate the scene actually calls, not a restatement of it.
+    expect(tankIsMobile(getLevel(1, 7)?.mode)).toBe(false);
+    expect(tankIsMobile(getLevel(1, 1)?.mode)).toBe(true);
   });
 
   it('placeWarning uses the Tower wall bands, not the off-camera search', () => {

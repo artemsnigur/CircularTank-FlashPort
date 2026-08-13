@@ -17,7 +17,7 @@ import Phaser from 'phaser';
 import { SceneKeys } from '../config/constants';
 import type { Difficulty } from '../config/constants';
 import { GameEvents } from '../events/GameEvents';
-import { PlayerTank } from '../entities/PlayerTank';
+import { PlayerTank, tankIsMobile } from '../entities/PlayerTank';
 import type { PlayerInput } from '../entities/PlayerTank';
 import { SHIELD_FRAMES, TANK_SIZES } from '../entities/tankArt';
 import { enemyBulletSize, enemyBulletTexture } from '../enemies/enemyBulletArt';
@@ -1228,7 +1228,7 @@ export class GameplayScene extends Phaser.Scene {
       if (shouldRunDuringCountdown('tankDrive', countDownDone)) {
         // Tower fixes the tank in place — PartGameArea.as:2816 skips moveTank
         // and calls tankAttack on the next line, so aiming and firing continue.
-        this.player.drive(input, delta, this.levelSpec?.mode !== 'Tower');
+        this.player.drive(input, delta, tankIsMobile(this.levelSpec?.mode));
 
         this.updateFiring(delta);
         this.updateSecondary(delta);

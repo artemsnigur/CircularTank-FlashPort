@@ -35,6 +35,24 @@ import { TANK_RADIUS } from '../player/tankDamage';
  */
 const TANK_DIAMETER = TANK_SIZES.body;
 
+/**
+ * Whether the tank may move in this level mode — `PartGameArea.as:2816`.
+ *
+ * Tower fixes the tank in place: `:2816` skips `moveTank` and calls `tankAttack`
+ * on the very next line, so aiming and firing continue while driving does not.
+ *
+ * **Extracted so it can be driven (T119).** It lived inline at its one call
+ * site as `this.levelSpec?.mode !== 'Tower'`, and `towerMode.test.ts` asserted
+ * that expression by matching the scene's source — which broke in T115 on an
+ * unrelated signature change. The rule is one predicate; a test can call it.
+ *
+ * It stays out of `drive` deliberately: the entity should not have to know what
+ * a level mode is, and the scene already does.
+ */
+export function tankIsMobile(mode: string | undefined): boolean {
+  return mode !== 'Tower';
+}
+
 export type PlayerInput = DirectionalInput;
 
 export class PlayerTank extends Phaser.GameObjects.Container {
@@ -169,6 +187,10 @@ export class PlayerTank extends Phaser.GameObjects.Container {
    */
   // `aim` used to be a parameter here, for the turret. That moved to
   // `syncTurret`, which runs outside the countdown gate — see its docstring.
+  //
+  // `movable` comes from `tankIsMobile(mode)` at the call site rather than from
+  // a mode check in here — see that function for why the entity does not take
+  // the mode itself.
   drive(input: PlayerInput, deltaMs: number, movable = true): void {
     if (movable) {
       // A boss grappler overwrites the player's handling outright and drags

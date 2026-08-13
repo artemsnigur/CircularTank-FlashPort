@@ -233,13 +233,23 @@ describe('the window is scene state, reset per level', () => {
     );
   });
 
-  it('the sprite fades with the window', () => {
-    // The `* 0.45` this used to pin was dropped in T117: `shieldAlpha` already
-    // *is* `PartGameArea.as:1015`'s `timer / 120 * 0.9 + 0.1`, and the extra
-    // factor had no AS3 basis — it was damping a solid cyan disc that the real
-    // `TankShield` art replaced. Matched on the call rather than the exact
-    // expression, since what this test is about is that the sprite fades with
-    // the window at all.
-    expect(SCENE).toMatch(/\.setAlpha\(shieldAlpha\(this\.shield\)\)/);
-  });
+  /**
+   * **Deleted rather than loosened (T119).**
+   *
+   * This was `it('the sprite fades with the window')`, asserting the scene's
+   * source contained `.setAlpha(shieldAlpha(this.shield) * 0.45)`. It broke in
+   * T117 when the `* 0.45` was dropped — a change that made the port *more*
+   * faithful, since `shieldAlpha` already is `PartGameArea.as:1015`'s
+   * `timer / 120 * 0.9 + 0.1`.
+   *
+   * The invariant it was reaching for — "the shield fades as its window runs
+   * out" — is already asserted **behaviourally** in `shield.test.ts`:
+   * `never rises as the window runs out` walks the timer from 200 to 0 and
+   * requires alpha to be monotonically non-increasing, and the rows above it
+   * pin the exact values. That is a stronger claim than any string match over
+   * the call site, and it does not move when the expression is rewritten.
+   *
+   * Nothing is lost by removing this one; keeping it only meant two tests
+   * failing whenever one expression changed.
+   */
 });
