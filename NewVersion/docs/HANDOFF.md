@@ -1169,8 +1169,10 @@ things that are actually open.
   `:373`) — a modal would have duplicated a confirmation path *and* been less
   faithful. `WindowOk` is a one-button **notice**, not a confirm dialog: its
   "Choose Difficulty" type is already handled as a picker highlight, and its
-  "Upgrade Limit" type is blocked on an unported mechanic. Re-filed in
-  `BACKLOG.md` as **"Port per-level upgrade caps"**, out of the active queue.
+  "Upgrade Limit" type was blocked on an unported mechanic — and that mechanic
+  is now **closed by decision (T122, divergence `A11`)**: full upgrades apply on
+  every level, so there is no cap to announce and the notice is not owed. The
+  number is no longer printed in the preview panel either.
 - **`LevelSpec.tier` was `upgradeLimit` all along** — renamed (T83). Found while
   scoping the above. `levelDataModel` column 7 was extracted as *"difficulty tier
   1-10, scales enemy stats"*; both AS3 reads name it `selectedUpgradeLimit`

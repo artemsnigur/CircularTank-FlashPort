@@ -1211,10 +1211,13 @@ several can show in sequence (`WindowOk.as:94`, `:112-113`):
 - **"Choose Difficulty"** (`:87`, `:149`) — already handled, differently: the
   port highlights the difficulty picker instead (`difficultyHintPending` →
   `difficulty--hint`, `LevelSelectScreen.tsx:126-131`).
-- **"Upgrade Limit"** (`:66`, `:124-146`) — genuinely unported, and **blocked**.
-  Its text announces a *mechanic*: *"The upgrade(s) will be temporarily
-  downgraded to fit the level's upgrade limit."* The port has no upgrade-limit
-  mechanic (no match for `upgradeLimit`/`upgradeCap`/`levelLimit` in `src/`).
+- **"Upgrade Limit"** (`:66`, `:124-146`) — **CLOSED BY DECISION (T122),
+  divergence `A11`.** It was filed here as blocked on an unported mechanic. That
+  mechanic is now deliberately not coming: the user decided on 13 August 2026
+  that players keep their full upgrades on every level and balance is handled
+  by other means. The notice has nothing left to announce, so it is not owed —
+  and the number is no longer displayed either (`levelPreview.ts`, five summary
+  lines where the AS3 prints six).
 
 So the only real gap is downstream of an unported gameplay subsystem — **the
 BossCollision shape again.** Building the notice to unlock the modal would be
@@ -1223,7 +1226,10 @@ out of it. Also note the notice carries a "Don't show this message again"
 checkbox bound to `ScreenOptions.optionWindowULOn`, so it needs a seventh
 gameplay option too.
 
-**Re-filed as: "Port per-level upgrade caps"** — not in the active queue. It
+**~~Re-filed as: "Port per-level upgrade caps"~~ — CLOSED BY DECISION (T122),
+divergence `A11`. Not queued, not owed.** The paragraph below is kept because
+its *reasoning* still holds for `BossCollision`, which is a live example of the
+same shape; only the upgrade-cap half is settled. It
 needs `ScreenLevelSelect.as:1006-1019` (the over-limit test across primaries,
 secondaries and misc), the temporary downgrade itself, and only then the notice.
 

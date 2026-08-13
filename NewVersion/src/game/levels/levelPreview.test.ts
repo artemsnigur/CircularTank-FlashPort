@@ -173,6 +173,54 @@ describe('the level label', () => {
   });
 });
 
+/**
+ * The upgrade limit is gone from the panel — **divergence `A11`**.
+ *
+ * Not "the string is absent": absence alone would also pass if the summary
+ * were empty, or if the builder had broken entirely. Each assertion below is
+ * paired with the rows that must still be there.
+ */
+describe('the panel does not print an upgrade limit', () => {
+  it('omits the row while keeping the other five', () => {
+    const preview = previewForLevel(1, 9, 'Easy')!;
+
+    expect(preview.summary).not.toContain('Upgrade Limit');
+    // The counterpart: the panel is otherwise intact, so this is a removed row
+    // and not a broken builder.
+    expect(preview.summary).toContain('World: 1');
+    expect(preview.summary).toContain('Level: 9');
+    expect(preview.summary).toContain('Mode: Boss');
+    expect(preview.summary).toContain('Difficulty: Easy');
+    expect(preview.summary).toContain('Objective:');
+    expect(preview.summary.split('\n')).toHaveLength(5);
+  });
+
+  it('omits it on every one of the 405 levels, not just the fixture', () => {
+    // 1-9 has an upgrade limit of 2. A level whose limit is 1 or 10 would
+    // print a different string, so the sweep is what makes this a rule.
+    let checked = 0;
+    for (let w = 0; w < LEVELS.length; w += 1) {
+      for (let l = 0; l < LEVELS[w].length; l += 1) {
+        const preview = previewForLevel(w + 1, l + 1, 'Easy');
+        if (!preview) continue;
+        expect(preview.summary, `${w + 1}-${l + 1}`).not.toMatch(/Upgrade Limit/);
+        checked += 1;
+      }
+    }
+    expect(checked).toBe(405);
+  });
+
+  it('keeps the datum in LevelSpec, unread', () => {
+    // `A11` drops the *display* and the *enforcement*, not the extraction.
+    // Silently dropping a column whose meaning is known is how `enemyModel[1]`
+    // was nearly lost — see CLAIMING SOMETHING IS UNUSED in CLAUDE.md.
+    const spec = getLevel(1, 9)!;
+    expect(spec.upgradeLimit).toBe(2);
+    expect(spec.upgradeLimit).toBeGreaterThanOrEqual(1);
+    expect(spec.upgradeLimit).toBeLessThanOrEqual(10);
+  });
+});
+
 describe('the whole preview for a named level', () => {
   /**
    * **Against 1-9's actual roster, entry for entry** — not "a list renders".
@@ -180,10 +228,10 @@ describe('the whole preview for a named level', () => {
    * percentage, so a builder that deduplicated or reordered fails.
    */
   it('builds level 1-9 exactly', () => {
-    const preview = levelPreview(1, 9, 'Easy', 'Kill 1 Boss', 2)!;
+    const preview = levelPreview(1, 9, 'Easy', 'Kill 1 Boss')!;
 
     expect(preview.summary).toBe(
-      'World: 1\nLevel: 9\nMode: Boss\nDifficulty: Easy\nUpgrade Limit: 2\nObjective: Kill 1 Boss',
+      'World: 1\nLevel: 9\nMode: Boss\nDifficulty: Easy\nObjective: Kill 1 Boss',
     );
 
     expect(
@@ -218,7 +266,7 @@ describe('the whole preview for a named level', () => {
    * empty list (`:403`, `:464`); the placeholder is `ScreenEnemies.as:385-391`.
    */
   it('shows resistances with no placeholder and no knowledge gate', () => {
-    const preview = levelPreview(1, 9, 'Easy', 'Kill 1 Boss', 2)!;
+    const preview = levelPreview(1, 9, 'Easy', 'Kill 1 Boss')!;
     const basic = preview.rows[2];
     // Basic has neither strengths nor weaknesses — so no badges at all.
     expect(basic.strengths).toEqual([]);
@@ -227,7 +275,7 @@ describe('the whole preview for a named level', () => {
     // The counterpart, on a level with a type that does have them: 1-13 is
     // Defense with Strong 10 / Basic 8 / Shooting 6, and Strong resists
     // Explosions and Bullets.
-    const withBadges = levelPreview(1, 13, 'Easy', 'Kill 24 Enemies', 2)!;
+    const withBadges = levelPreview(1, 13, 'Easy', 'Kill 24 Enemies')!;
     const strong = withBadges.rows.find((r) => r.type === 'Strong')!;
     expect(strong.amountLabel, 'Defense counts rather than shares').toBe('10 X');
     expect(strong.strengths.map((b) => b.label)).toEqual(['Explosions', 'Bullets']);
@@ -235,7 +283,7 @@ describe('the whole preview for a named level', () => {
   });
 
   it('returns null for a level that does not exist', () => {
-    expect(levelPreview(99, 1, 'Easy', '', 1)).toBeNull();
+    expect(levelPreview(99, 1, 'Easy', '')).toBeNull();
   });
 });
 
@@ -276,7 +324,7 @@ describe('art consistency across all 405 levels', () => {
     let rows = 0;
     LEVELS.forEach((world, w) =>
       world.forEach((_spec, l) => {
-        const preview = levelPreview(w + 1, l + 1, 'Hard', 'x', 1);
+        const preview = levelPreview(w + 1, l + 1, 'Hard', 'x');
         expect(preview, `${w + 1}-${l + 1}`).not.toBeNull();
         rows += preview!.rows.length;
       }),

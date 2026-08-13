@@ -43,10 +43,16 @@ export interface LevelSpec {
    * all 405 rows is exactly 1..10 — `MAX_UPGRADE_LEVEL`. Enemy tiers are the
    * separate `enemyLevel` suffix on the enemy model.
    *
-   * **Nothing reads this yet.** The mechanic it belongs to — temporarily
-   * downgrading over-levelled upgrades to fit the cap, announced by the
-   * "Upgrade Limit" notice in `WindowOk` — is unported. Kept anyway: dropping
-   * a column whose meaning is known is how `enemyModel[1]` was nearly lost.
+   * **Nothing reads this, by decision — divergence `A11`.** The mechanic it
+   * belongs to (`ScreenGame.as:578-580` temporarily strips upgrade levels above
+   * the cap, restoring them after the level) is **deliberately not ported**:
+   * this port lets the player use their full upgrades everywhere and handles
+   * balance by other means. The number is not displayed either — a cap that
+   * constrains nothing would mislead.
+   *
+   * Kept anyway, and this is the part to leave alone: dropping a column whose
+   * meaning is known is how `enemyModel[1]` was nearly lost. `A11` records what
+   * reinstating it would take.
    */
   upgradeLimit: number;
   theme: LevelTheme;

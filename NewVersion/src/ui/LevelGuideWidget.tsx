@@ -5,8 +5,11 @@
  * `ScreenUpgrades.as:324` constructs it and `:631-634` adds it at (258, 348).
  * That is the only instantiation in the source, and it reads oddly until you
  * see why: the shop is where you spend money, and what you should spend it on
- * depends on which level you are about to play — including its **upgrade
- * limit**, which the Info tooltip prints.
+ * depends on which level you are about to play.
+ *
+ * **In the original that reason was partly the level's upgrade limit, which the
+ * Info tooltip printed. This port neither enforces nor shows it** — divergence
+ * `A11`, a design decision. The tooltip is five lines here, six there.
  *
  * The name suggests a level *picker*, and it is not one: pressing these buttons
  * never starts anything. It moves a pointer that level select later reads

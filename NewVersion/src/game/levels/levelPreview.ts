@@ -166,19 +166,24 @@ export interface LevelPreviewRow {
 }
 
 export interface LevelPreview {
-  /** `ButtonNextLevel.as:335` — the six summary lines, already joined. */
+  /**
+   * `ButtonNextLevel.as:335` — the summary lines, already joined.
+   *
+   * **Five, not the AS3's six:** the `Upgrade Limit` row is deliberately gone —
+   * divergence `A11`.
+   */
   summary: string;
   rows: LevelPreviewRow[];
 }
 
 /**
- * `levelPreview` for a level, with the objective and upgrade limit looked up.
+ * `levelPreview` for a level, with the objective looked up.
  *
  * ── Extracted before it became a third copy ───────────────────────────────
- * Every caller needs the same five-line preamble: `getLevel`, then
- * `objectiveText` with mode/totals/flags/bossCount/multiplier, then
- * `spec.upgradeLimit`. `Hud.tsx`'s next-level button and `LevelGuideWidget`
- * each wrote it out, and the level-grid tooltip would have been the third —
+ * Every caller needs the same preamble: `getLevel`, then `objectiveText` with
+ * mode/totals/flags/bossCount/multiplier. `Hud.tsx`'s next-level button and
+ * `LevelGuideWidget` each wrote it out, and the level-grid tooltip would have
+ * been the third —
  * which is the "one rule, two copies" shape the audit already tracks for
  * `countCrowd`, `canAfford` and `flagReward`.
  *
@@ -205,7 +210,6 @@ export function previewForLevel(
       bossAmount: bossCount(spec),
       amountMultiplier: getDifficultyProfile(difficulty).amount,
     }),
-    spec.upgradeLimit,
   );
 }
 
@@ -223,17 +227,20 @@ export function levelPreview(
   level: number,
   difficulty: Difficulty,
   objective: string,
-  upgradeLimit: number,
 ): LevelPreview | null {
   const spec = getLevel(world, level);
   if (!spec) return null;
 
+  // **No `Upgrade Limit` row — divergence `A11`.** The AS3 prints it here
+  // (`ButtonLevelGuideInfo.as:77-106`) because the cap is real there:
+  // `ScreenGame.as:578-580` strips upgrade levels above it for the duration of
+  // the level. This port does not enforce the cap by design, so printing a
+  // number that constrains nothing would be worse than silent.
   const summary = [
     `World: ${world}`,
     `Level: ${level}`,
     `Mode: ${spec.mode}`,
     `Difficulty: ${difficulty}`,
-    `Upgrade Limit: ${upgradeLimit}`,
     `Objective: ${objective}`,
   ].join('\n');
 
