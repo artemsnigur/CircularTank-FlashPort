@@ -423,10 +423,17 @@ restarts the track from the top. The manager ticks on the game's `PRE_STEP`
 rather than a scene update, so it keeps running while the scene is paused and
 the flag takes effect at once.
 
-**Two divergences**, both tested so they cannot be undone by accident: the panel
-does **not** duplicate the HUD's audio toggles, and Quit goes to **LevelSelect**
-(`ButtonPause.as:105`) while the HUD's separate Menu button still goes to the
-title.
+**Three divergences**, all tested so they cannot be undone by accident: the panel
+does **not** duplicate the HUD's audio toggles, it does **not** carry the
+auto-pause checkbox (removed T136 — the setting still lives on the options
+screen and still works; only the in-panel duplicate is gone), and Quit goes to
+**LevelSelect** (`ButtonPause.as:105`) while the HUD's separate Menu button
+still goes to the title.
+
+**A bug fixed in T130.** "Reset Level" restarted the scene but left the overlay
+up, because `paused` is store state and a scene restart does not touch it.
+`setActiveScene` now clears it, which covers every scene transition rather than
+that one button.
 
 ---
 
@@ -493,6 +500,53 @@ handoff to `resolveContact` and the `pushedFrames` argument to `drive`. Both are
 one line, both are labelled as proving a spelling, and `sceneHarness.ts` records
 why a real `PlayerTank` cannot be stood up in this suite. Extract the apply step
 if either ever needs a behavioural test.
+
+---
+
+## Enemies turn twice as fast — T134, divergence `A12`
+
+**A tuning decision, and the scoping pass found no bug** — which is the part
+worth carrying, because the change looks exactly like a fix. The reported
+symptom was enemies "ice-skating": they slide and drift rather than committing
+to a heading. The port's movement matches `PartGameArea.as:4696-4744` term for
+term, including the friction the drift comes from. The drift is faithful.
+
+What produces the feel is the *ratio* between turn rate and acceleration: an
+enemy accelerates along its **new** facing each frame, so a slow turn means the
+old velocity keeps most of its authority for many frames. Doubling `rotSpeedMax`
+shortens that tail without touching friction, acceleration or top speed.
+
+`ENEMY_TURN_MULTIPLIER = 2` is applied where `rotSpeedMax` resolves in
+`resolveEnemyStats`; `enemyStatsData.ts` keeps the untouched AS3 rows, so the
+baseline is still readable and `AS3_ENEMY_TURN_MULTIPLIER = 1` sits beside it.
+Reverting is one constant.
+
+---
+
+## Four settings and UI items — T135-T139
+
+A batch from one report, four atomic commits, three of them divergences.
+
+- **T135, `A13`** — `crosshair` and `tutorialOn` start **off** for a new
+  profile. Nothing had pinned the defaults: both were changed and all 3042 tests
+  stayed green. `gameplayOptions.test.ts` now holds the AS3 table as its own
+  object and requires the shipped defaults to differ in **exactly** those two
+  keys. Turning the tutorial off removes onboarding for anyone who never opens
+  the options screen; that was flagged and confirmed as wanted.
+- **T136** — the auto-pause checkbox leaves the pause panel only. See the pause
+  section above.
+- **T137, `A11`** — the mysterious **"Info window"** option is
+  `optionWindowUL`, and `UL` is **Upgrade Limit**: `ScreenGame.as` gates the
+  per-level upgrade-limit popup on it. Since the limit itself was dropped by
+  decision in T122, the toggle governed nothing, so the row is gone from the
+  options screen. The key and its default are kept so an existing player's
+  stored value is not orphaned.
+- **T139, `A14`** — an achievement earned **in the shop** now pops at once.
+  Worth knowing before "restoring" the original behaviour: the AS3 never
+  announces these at all. It evaluates on leaving the shop
+  (`ScreenUpgrades.removed:663`) and discards the result, and the popup layer is
+  built only inside a running level (`ScreenGame.as:385`). Another instance of
+  this repo's signature failure — `recordAchievements` had exactly one caller.
 
 ---
 
