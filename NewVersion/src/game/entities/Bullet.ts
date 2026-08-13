@@ -6,7 +6,7 @@
  */
 import Phaser from 'phaser';
 import { getSoundManager } from '../audio/soundService';
-import { stepBullet } from '../weapons/bulletStep';
+import { motionAfterStep, stepBullet } from '../weapons/bulletStep';
 import type { BounceEdge, CameraBounds } from '../weapons/bulletBounce';
 import {
   CHEESE_BOUNCES,
@@ -409,16 +409,22 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     );
     if (!step) return false;
 
+    let bounceDamage: number | undefined;
     if (step.bounced) {
-      this.applyBounceCost(step.bounced);
+      // Returns the new damage rather than writing it: this method is the only
+      // writer of `this.motion`, which is what stops a later assignment
+      // silently undoing the raise. See `motionAfterStep`.
+      bounceDamage = this.applyBounceCost(step.bounced) ?? undefined;
       // `:2011` — one sound for every bounce, whatever bounced and off which
       // edge. Ungated by the on-screen rule, like the border sound: the AS3
       // pushes it straight.
       getSoundManager(this.scene)?.queue('BorderBounce');
     }
 
-    // Keep the live (possibly grown) radius rather than the spawn value.
-    this.motion = { ...step.state, radius: this.radius };
+    // One write. Keeps the live (possibly grown) radius rather than the spawn
+    // value, and the bounce's damage rather than the pre-bounce figure the step
+    // was computed from.
+    this.motion = motionAfterStep(step, { radius: this.radius, damage: bounceDamage });
     this.setPosition(this.motion.x, this.motion.y);
     this.overlay?.update(deltaMs, this.motion.x, this.motion.y);
     // `:2012` — the AS3 rewrites `rotation` from the heading immediately after
@@ -449,24 +455,33 @@ export class Bullet extends Phaser.GameObjects.Sprite {
    * `motion`; a cheese gets re-armed, so its hit list is emptied and the same
    * enemies become hittable again (`:1966`).
    */
-  private applyBounceCost(edge: BounceEdge): void {
-    if (!this.bounceState) return;
+  /**
+   * Charges one bounce, returning the round's new damage where it has one.
+   *
+   * **It does not write `this.motion`, deliberately.** It used to, and the
+   * assignment three lines later in `advance` overwrote it — so a Gummy Bear's
+   * damage grew on its own books and never reached the enemy. The caller folds
+   * this return value into its single motion write instead.
+   */
+  private applyBounceCost(edge: BounceEdge): number | null {
+    if (!this.bounceState) return null;
 
     if (this.bounceState.kind === 'gummy') {
       const state = bounceGummy(this.bounceState.state, edge);
       this.bounceState = { kind: 'gummy', state };
-      this.motion = { ...this.motion, damage: state.damage };
       // `:1953` advances the frame in the same breath as the damage, because
       // they are one thing: the bear visibly hardens as it gets stronger
       // (x1 -> x3 -> x4). Wiring the colour without the damage would be a lie,
       // and the damage without the colour is what shipped until now.
       this.showVariant(state.stage - 1);
-      return;
+      return state.damage;
     }
 
     this.bounceState = { kind: 'cheese', state: bounceCheese(this.bounceState.state, edge) };
     // `:1966` — the AS3 clears `enemiesArray` here, which is what lets a
     // penetrating cheese cross the same crowd twice.
     this.hitEnemies.clear();
+    // Cheese keeps its damage; only its bounce budget and hit list change.
+    return null;
   }
 }

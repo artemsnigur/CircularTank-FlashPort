@@ -82,3 +82,44 @@ export function stepBullet(
   );
   return next ? { state: next, bounced: null } : null;
 }
+
+/**
+ * Folds a step's result and the frame's bounce cost into one motion.
+ *
+ * ── Why this exists, and it is a bug fix rather than tidying ──────────────
+ * `Bullet.advance` used to write `this.motion` **twice** in one method: once
+ * inside `applyBounceCost`, to raise a Gummy Bear's damage, and once
+ * unconditionally afterwards from the step's own state. The second write won.
+ *
+ * That is subtle because the step state is not stale in general — it carries
+ * the new position, velocity and heading, which is exactly why it is written
+ * last. It simply predates the bounce cost, having been computed from the
+ * motion as it was *before* the bounce was known. So the bear's `bounceState`
+ * kept its raised damage and looked right to anything reading it, while
+ * `motion.damage` — the value `Bullet.damage` returns to the collision — reset
+ * to the spawn figure every single frame. Two bounces, ×4 damage on the books,
+ * and the enemy took base damage.
+ *
+ * Collapsing it to one write makes the ordering unexpressible rather than
+ * merely correct: there is nowhere left to put a second assignment that a later
+ * line can overwrite. Pure, so the composition can be driven — the reason the
+ * original defect survived is that the *rule* (`bounceGummy`) had tests and the
+ * *wiring* had none, which `CLAUDE.md` names as this repo's signature failure.
+ */
+export function motionAfterStep(
+  step: StepResult,
+  overrides: {
+    /** The live radius; a growing round must not revert to its spawn size. */
+    radius: number;
+    /** The bounce's new damage, when this frame's step bounced. */
+    damage?: number;
+  },
+): BulletState {
+  return {
+    ...step.state,
+    radius: overrides.radius,
+    // Applied after the spread, so a bounce that happened *this* frame beats
+    // the pre-bounce figure the step carried in.
+    ...(overrides.damage !== undefined ? { damage: overrides.damage } : {}),
+  };
+}

@@ -430,6 +430,33 @@ title.
 
 ---
 
+## The Gummy Bear's damage never reached the enemy — T131
+
+**The rule was right and had been since T4; the wiring threw the result away.**
+`bounceGummy` computes the AS3's x3 then x4/3 exactly, and `Bullet.advance`
+wrote `this.motion` **twice** in one method: once inside `applyBounceCost` to
+raise the damage, then unconditionally from the step's own state, which had been
+computed before the bounce was known. The second write won on every frame.
+
+So `bounceState.damage` held 36 and then 48 and looked correct to anything that
+inspected it, while `motion.damage` — the value `Bullet.damage` returns to the
+collision — reset to the spawn figure. Measured against the pre-fix
+composition: **36 on the books, 12 to the enemy.**
+
+**Why nothing caught it.** The rule had unit tests, the seam had none. That is
+this repo's signature failure written out again: four consecutive gameplay bugs
+with the same shape are already recorded above, and this is the fifth. The fix
+is `motionAfterStep` in `bulletStep.ts` — one pure composition, one write, and
+`bulletStep.test.ts` drives the chain in the order `advance` runs it.
+
+**The shape to watch for elsewhere:** a method that assembles state from two
+sources where one is computed earlier than the other. The earlier value is not
+stale in general — it carries the position, velocity and heading, which is
+precisely why it is written last — it is only stale in the one field the later
+step also touches.
+
+---
+
 ## 5. What is open
 
 ### The live queue — one measurement note
