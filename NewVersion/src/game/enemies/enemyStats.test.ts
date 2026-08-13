@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ENEMY_STAT_TYPES, ENEMY_STATS } from './enemyStatsData';
-import {
-  getBaseStats,
-  isBossLevel,
-  isShooter,
-  resolveEnemyStats,
-  totalLevelHealth,
-} from './enemyStats';
+import { AS3_ENEMY_TURN_MULTIPLIER, ENEMY_TURN_MULTIPLIER, getBaseStats, isBossLevel, isShooter, resolveEnemyStats, totalLevelHealth } from './enemyStats';
 import { BESTIARY } from './bestiaryData';
 import { LEVELS, getLevel } from '../levels/levelData';
 import { DIFFICULTY_PROFILES, ENEMY_TIER_MULTIPLIERS } from '../config/difficultyMultipliers';
@@ -101,7 +95,7 @@ describe('getBaseStats', () => {
 });
 
 describe('resolveEnemyStats — difficulty scaling', () => {
-  it('leaves Easy tier 1 identical to the base table', () => {
+  it('leaves Easy tier 1 identical to the base table, bar the turn divergence', () => {
     const base = ENEMY_STATS.Basic.normal;
     const resolved = resolveEnemyStats('Basic', '1', 'Easy');
 
@@ -110,8 +104,11 @@ describe('resolveEnemyStats — difficulty scaling', () => {
       health: base.health,
       money: base.money,
       moveSpeedMax: base.moveSpeedMax,
-      rotSpeedMax: base.rotSpeedMax,
     });
+    // `rotSpeedMax` is the one field Easy does *not* pass through untouched —
+    // divergence `A12`. Read through the constant so the relationship holds if
+    // the multiplier is ever retuned; its magnitude is pinned separately.
+    expect(resolved?.rotSpeedMax).toBeCloseTo(base.rotSpeedMax * ENEMY_TURN_MULTIPLIER, 10);
   });
 
   it('applies the Hard health and damage multipliers', () => {
@@ -130,7 +127,12 @@ describe('resolveEnemyStats — difficulty scaling', () => {
 
     expect(resolved?.moveSpeedMax).toBeCloseTo(base.moveSpeedMax * medium.enemySpeed, 10);
     expect(resolved?.accSpeed).toBeCloseTo(base.accSpeed * medium.enemySpeed, 10);
-    expect(resolved?.rotSpeedMax).toBeCloseTo(base.rotSpeedMax * medium.enemyRotation, 10);
+    // The difficulty ladder still applies; `A12` multiplies on top of it rather
+    // than replacing it, so both factors are present.
+    expect(resolved?.rotSpeedMax).toBeCloseTo(
+      base.rotSpeedMax * medium.enemyRotation * ENEMY_TURN_MULTIPLIER,
+      10,
+    );
   });
 
   it('does not scale money by difficulty, only by tier', () => {
@@ -303,5 +305,72 @@ describe('flag model', () => {
     expect(level.mode).toBe('Flag');
     expect(level.flagCount).toBe(10);
     expect(level.flagMoney).toBe(102);
+  });
+});
+
+/**
+ * The turn divergence — **`A12`**, and the baseline it diverges from.
+ *
+ * The point of these is that the *data* stays the AS3's. `enemyStatsData.ts` is
+ * generated from `ScreenGame.as` and checked by `data:check`; the multiplier is
+ * applied at resolve time, so the source values remain readable and the change
+ * is one constant to revert.
+ */
+describe('the enemy turn multiplier — divergence A12', () => {
+  it('states both values from the source', () => {
+    // Stated, not read back out of the module: `enemyBasicStats[5]` is 1, so
+    // the original turns one degree per frame and the port turns two.
+    expect(AS3_ENEMY_TURN_MULTIPLIER).toBe(1);
+    expect(ENEMY_TURN_MULTIPLIER).toBe(2);
+  });
+
+  /**
+   * **The baseline.** These are the AS3 rows, asserted against the source
+   * numbers rather than against the resolver — if a future pass "fixes" the
+   * divergence by editing the data instead of the constant, this fails.
+   */
+  it('leaves the stat table at the AS3 values', () => {
+    // `ScreenGame.as:142` — [damage, health, money, moveSpeedMax, accSpeed,
+    // rotSpeedMax, particle, shoot].
+    expect(ENEMY_STATS.Basic.normal.rotSpeedMax).toBe(1);
+    expect(ENEMY_STATS.Basic.normal.moveSpeedMax).toBe(1.5);
+    expect(ENEMY_STATS.Basic.normal.accSpeed).toBe(0.2);
+    // `:144` — the boss row shares the movement half of the Basic row.
+    expect(ENEMY_STATS.Basic.boss.rotSpeedMax).toBe(1);
+  });
+
+  it('doubles the resolved turn and nothing else', () => {
+    const base = ENEMY_STATS.Basic.normal;
+    const resolved = resolveEnemyStats('Basic', '1', 'Easy')!;
+
+    expect(resolved.rotSpeedMax).toBeCloseTo(base.rotSpeedMax * 2, 10);
+    // The counterpart, and the reason this is a *turn* divergence: speed and
+    // acceleration are untouched. A multiplier applied to the wrong field, or
+    // to all three, passes the line above and fails here.
+    expect(resolved.moveSpeedMax).toBeCloseTo(base.moveSpeedMax, 10);
+    expect(resolved.accSpeed).toBeCloseTo(base.accSpeed, 10);
+  });
+
+  it('scales every type by the same factor, keeping their relative agility', () => {
+    // Global, so Fast still out-turns Basic by exactly the ratio the AS3 gives
+    // them. A per-type edit would pass the Basic assertions above and quietly
+    // flatten the roster.
+    for (const type of ['Basic', 'Fast', 'Shooting', 'Tank']) {
+      const base = ENEMY_STATS[type]?.normal;
+      if (!base) continue;
+      const resolved = resolveEnemyStats(type, '1', 'Easy')!;
+      expect(resolved.rotSpeedMax / base.rotSpeedMax, type).toBeCloseTo(ENEMY_TURN_MULTIPLIER, 10);
+    }
+  });
+
+  it('composes with the difficulty ladder rather than replacing it', () => {
+    // Hard turns faster than Easy by the AS3's own 1.2, on top of A12.
+    const easy = resolveEnemyStats('Basic', '1', 'Easy')!;
+    const hard = resolveEnemyStats('Basic', '1', 'Hard')!;
+
+    expect(hard.rotSpeedMax / easy.rotSpeedMax).toBeCloseTo(
+      DIFFICULTY_PROFILES.Hard.enemyRotation / DIFFICULTY_PROFILES.Easy.enemyRotation,
+      10,
+    );
   });
 });

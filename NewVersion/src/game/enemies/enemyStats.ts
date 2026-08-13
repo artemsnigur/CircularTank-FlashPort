@@ -70,6 +70,44 @@ export function isBossLevel(level: EnemyLevel): boolean {
  * table naming a type with no stats is a data problem worth surfacing, but not
  * one that should take the game down mid-spawn.
  */
+/**
+ * How much faster than the original an enemy turns — **divergence `A12`**.
+ *
+ * ── This is a tuning decision, not a bug fix ──────────────────────────────
+ * The port's movement is a faithful transcription of `PartGameArea.as`'s four
+ * steps, the frame scaling is correct, and the stat rows match the source
+ * exactly. **Nothing was broken.** `enemyBasicStats[5]` really is `1`, meaning
+ * one degree per frame — 30 degrees a second — and the AS3 has no friction on a
+ * live enemy at all, so velocity only re-aims as fast as the facing does.
+ *
+ * Measured on the shipped module, a Basic enemy at full speed with the tank 300
+ * units behind it took **176 frames (5.9s)** to come about. Against a moving
+ * player that is never: the enemy sails past and cannot correct, which reads as
+ * ice-skating. Doubled, the same reversal takes **88 frames (2.9s)**.
+ *
+ * ── Why the turn rate and not friction ────────────────────────────────────
+ * Acceleration is not the limiter — at `accSpeed 0.2` toward `moveSpeedMax 1.5`
+ * an enemy is at top speed in 7.5 frames, some 23x quicker than it can turn.
+ * Adding damping would invent a force the original does not have and make
+ * enemies feel sluggish rather than accurate; raising the turn cap fixes the
+ * thing that is actually slow.
+ *
+ * ── x2 specifically ───────────────────────────────────────────────────────
+ * The conservative option of the three measured. It keeps every type's relative
+ * agility — the multiplier is global, so Fast still out-turns Basic by the same
+ * ratio — and leaves enemies committing to a path long enough for Flag and
+ * Defense to play as designed. x3 (2.0s) and x6 (1.0s) were measured and
+ * rejected as too far from the original's feel.
+ *
+ * **The AS3 values stay untouched in `enemyStatsData.ts`**, which is generated
+ * from the source and checked by `data:check`. This multiplies at resolve time
+ * so the baseline remains readable and revertable: set this to 1.
+ */
+export const ENEMY_TURN_MULTIPLIER = 2;
+
+/** The AS3's own value, kept as documentation. Nothing reads it at runtime. */
+export const AS3_ENEMY_TURN_MULTIPLIER = 1;
+
 export function resolveEnemyStats(
   type: string,
   level: EnemyLevel,
@@ -98,7 +136,10 @@ export function resolveEnemyStats(
       : Math.round(base.money * tier),
     moveSpeedMax: base.moveSpeedMax * profile.enemySpeed,
     accSpeed: base.accSpeed * profile.enemySpeed,
-    rotSpeedMax: base.rotSpeedMax * profile.enemyRotation,
+    // **Divergence `A12`** — see `ENEMY_TURN_MULTIPLIER`. Applied on top of the
+    // difficulty's own rotation multiplier rather than folded into it, so the
+    // AS3's 1.0 / 1.1 / 1.2 ladder still reads straight off the source.
+    rotSpeedMax: base.rotSpeedMax * profile.enemyRotation * ENEMY_TURN_MULTIPLIER,
     particle: base.particle,
     shoot: base.shoot,
   };
