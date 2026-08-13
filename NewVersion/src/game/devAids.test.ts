@@ -54,10 +54,15 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     'disable enemy separation via ?separation=0',
     'every enemy as a bare circle, for the separation A/B',
     'separation effects applied per frame, for reachability',
+    'force two bosses together via ?bosspair=x,y',
+    'the last boss collision and its audibility verdict',
   ],
   // T114: a persisted damage-flash tint, which no unit test could see (nothing
   // constructs an `Enemy`) and no screenshot could reliably read.
-  'src/game/entities/Enemy.ts': ['live sprite tint, for --hits'],
+  'src/game/entities/Enemy.ts': [
+    'live sprite tint, for --hits',
+    'drop an enemy at a world point, for --boss-collision',
+  ],
   'src/game/levels/devLevels.ts': ['QA levels for enemy behaviour'],
   'src/game/scenes/UpgradesScene.ts': ['money top-up'],
   // T100: a fresh profile knows only `Basic`, which has no resistances, so the
@@ -125,6 +130,10 @@ describe('dev aids are enumerable', () => {
     // which is shorter than a screenshot round-trip, so "where is the flare"
     // had no photographable answer at all until this. It changes the flare's
     // duration and nothing else — position and anchor have no time term.
+    // 34 since T126 — `?bosspair=x,y`, the audibility verdict it is read
+    // through, and `Enemy.placeAt`. `BossCollision` needs two live bosses
+    // touching, and a natural collision is always near the tank and so always
+    // on screen — which drives one side of the gate and never the other.
     // 31 since T125 — `?separation=0`, the unsorted `bodies` projection, and
     // the per-frame applied-effect counter. The third exists because the A/B
     // aggregate moved the wrong way and could not distinguish "wired and weak"
@@ -132,6 +141,6 @@ describe('dev aids are enumerable', () => {
     // `?separation=0` and the unsorted `bodies` projection,
     // the pair the separation A/B needs: one to turn the subsystem off, one to
     // see every enemy rather than the distance-sorted top 24.
-    expect(total).toBe(31);
+    expect(total).toBe(34);
   });
 });

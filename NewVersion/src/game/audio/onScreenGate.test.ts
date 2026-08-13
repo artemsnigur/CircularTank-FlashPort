@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { SOUND_HEARING_MARGIN, isAudibleAt } from './onScreenGate';
+import { BOSS_COLLISION_HEARING_MARGIN, SOUND_HEARING_MARGIN, isAudibleAt } from './onScreenGate';
 import { PRIMARY_WEAPONS } from '../weapons/firing';
 
 const RECT = { cameraX: 0, cameraY: 0, cameraWidth: 640, cameraHeight: 400 };
@@ -81,5 +81,56 @@ describe('gated and ungated sounds are different rules', () => {
     expect(PRIMARY_WEAPONS['Shotgun'].borderSound).toBe('Tiny');
     expect(PRIMARY_WEAPONS['Cake Cannon'].borderSound).toBe('Medium');
     expect(PRIMARY_WEAPONS['Big Cannon'].borderSound).toBe('Big');
+  });
+});
+
+/**
+ * The boss-collision site's margin — `:5194`, the one that is not 100.
+ *
+ * Driven against the default rather than alone: "200 is audible" is satisfied
+ * by a gate that lets everything through, so each case is paired with the same
+ * point judged at the ordinary margin.
+ */
+describe('BossCollision hears twice as far — `:5194`', () => {
+  const rect = { cameraX: 0, cameraY: 0, cameraWidth: 640, cameraHeight: 400 };
+
+  it('states both margins from the source', () => {
+    // Only two `distanceAdd` assignments exist in `PartGameArea.as`.
+    expect(SOUND_HEARING_MARGIN).toBe(100);
+    expect(BOSS_COLLISION_HEARING_MARGIN).toBe(200);
+  });
+
+  it('accepts a point the ordinary margin rejects', () => {
+    // 150 past the right edge: inside 200, outside 100.
+    const x = 640 + 150;
+    expect(isAudibleAt(x, 200, 0, rect, BOSS_COLLISION_HEARING_MARGIN)).toBe(true);
+    expect(isAudibleAt(x, 200, 0, rect)).toBe(false);
+  });
+
+  it('still rejects a point beyond even the doubled margin', () => {
+    // 250 past the edge is outside both, so the wider gate is not "always on".
+    const x = 640 + 250;
+    expect(isAudibleAt(x, 200, 0, rect, BOSS_COLLISION_HEARING_MARGIN)).toBe(false);
+    expect(isAudibleAt(x, 200, 0, rect)).toBe(false);
+  });
+
+  it('applies on every edge, not just the right one', () => {
+    const inside = BOSS_COLLISION_HEARING_MARGIN - 1;
+    const outside = BOSS_COLLISION_HEARING_MARGIN + 1;
+    const m = BOSS_COLLISION_HEARING_MARGIN;
+    expect(isAudibleAt(-inside, 200, 0, rect, m)).toBe(true);
+    expect(isAudibleAt(-outside, 200, 0, rect, m)).toBe(false);
+    expect(isAudibleAt(300, -inside, 0, rect, m)).toBe(true);
+    expect(isAudibleAt(300, -outside, 0, rect, m)).toBe(false);
+    expect(isAudibleAt(300, 400 + inside, 0, rect, m)).toBe(true);
+    expect(isAudibleAt(300, 400 + outside, 0, rect, m)).toBe(false);
+  });
+
+  it('carries no width term, unlike the helper calls', () => {
+    // `:5195` tests the contact point with no `theWidth / 2`, so a radius must
+    // not widen it. The counterpart shows the parameter does work elsewhere.
+    const justOutside = 640 + BOSS_COLLISION_HEARING_MARGIN + 10;
+    expect(isAudibleAt(justOutside, 200, 0, rect, BOSS_COLLISION_HEARING_MARGIN)).toBe(false);
+    expect(isAudibleAt(justOutside, 200, 30, rect, BOSS_COLLISION_HEARING_MARGIN)).toBe(true);
   });
 });

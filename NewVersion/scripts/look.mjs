@@ -80,6 +80,7 @@ function parseArgs(argv) {
     if (argv[i] === '--walls') args.walls = true;
     if (argv[i] === '--frames') args.frames = true;
     if (argv[i] === '--separation') args.separation = true;
+    if (argv[i] === '--boss-collision') args.bossCollision = true;
     if (argv[i] === '--separation-level') args.separationLevel = argv[i + 1];
     if (argv[i] === '--hits') args.hits = true;
     if (argv[i] === '--turret') args.turret = true;
@@ -4470,6 +4471,124 @@ if (args.separation) {
         ` (${before > 0 ? (((before - after) / before) * 100).toFixed(0) : 'n/a'}% fewer)`,
     );
   }
+}
+
+if (args.bossCollision) {
+  /**
+   * `BossCollision` and its on-screen gate — `:5195-5198`, pass (d).
+   *
+   * ── Why this needs a dev aid ─────────────────────────────────────────────
+   * The sound needs **two live bosses touching**. Twenty-five levels carry two
+   * or more, but every enemy converges on the tank, so a natural boss collision
+   * happens next to the tank and is therefore always on screen. That drives one
+   * side of the gate and can never drive the other, and a gate only tested on
+   * its accepting side is not tested.
+   *
+   * So `?bosspair=x,y` drops the first two live bosses on top of each other at
+   * a chosen world point. Nothing else about them changes — same stats, same
+   * steering, same radii — so what follows is the ordinary rule on an ordinary
+   * pair.
+   *
+   * ── What is asserted ─────────────────────────────────────────────────────
+   * Three things, because the sound alone cannot tell a working gate from a
+   * broken emit:
+   *
+   *   1. the pair really collided     — `separation.lastBossCollision` exists
+   *   2. the gate's verdict           — `audible`, with the camera rect and the
+   *                                     contact point printed so the margin can
+   *                                     be checked by hand
+   *   3. the sound followed the verdict — `BossCollision` in the queue history
+   *
+   * The off-screen half also **measures** how far outside the camera the
+   * contact point actually fell, rather than trusting that a corner of the room
+   * is far enough. In a 900x720 room with a ~640x400 camera the slack is only
+   * 260 units, and the margin is 200 — so "off screen" is true by 60 units, not
+   * by a comfortable distance, and that is worth printing rather than assuming.
+   */
+  const bcLevel = '3-9';
+  const [bcW, bcL] = bcLevel.split('-').map(Number);
+
+  const runBossPair = async (label, point, drive) => {
+    await page.goto(`${URL}?primary=Cannon&bosspair=${point.x},${point.y}`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /level select/i }).first().click();
+    await delay(800);
+    if (bcW !== 1) {
+      await page.locator(`.dev-jump__world:text-is("${bcW}")`).first().click();
+      await delay(300);
+    }
+    const cell = page.getByRole('button', { name: new RegExp(`^World ${bcW}, level ${bcL},`, 'i') });
+    if ((await cell.count()) === 0) {
+      console.log(`[boss-collision] ${label}: no dev cell for ${bcLevel}`);
+      return;
+    }
+    await cell.first().click();
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => {});
+
+    // The tutorial gate, then hold the drive keys for the rest of the run.
+    //
+    // **The camera is clamped inside the room, so where the tank stands decides
+    // whether an off-screen collision is even possible.** In this 900x720 arena
+    // a 640x400 camera leaves 260 units of horizontal slack and 320 vertical —
+    // against a 200 margin. Parked mid-room the camera sat at (260,164) and the
+    // far corner came out only 140 units outside the rect, which the gate
+    // correctly called audible. Driving the tank into the opposite corner first
+    // is what makes the far corner genuinely unreachable by the ear.
+    for (const key of drive) await page.keyboard.down(key);
+    await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+    await page.mouse.down();
+    await delay(700);
+    await page.mouse.up();
+    // Long enough to reach the corner and for the camera to settle there.
+    await delay(2500);
+
+    // Clear the history *after* the gate work, so the level's own start-up
+    // sounds are not counted as the collision.
+    await page.evaluate(() => globalThis.__soundQueue?.clear());
+
+    let seen = null;
+    for (let i = 0; i < 400 && !seen; i += 1) {
+      seen = await page.evaluate(
+        () => globalThis.__arena?.separation?.lastBossCollision ?? null,
+      );
+      if (!seen) await delay(50);
+    }
+
+    const queued = await page.evaluate(
+      () => (globalThis.__soundQueue?.names() ?? []).filter((n) => n === 'BossCollision').length,
+    );
+
+    if (!seen) {
+      console.log(`[boss-collision] ${label}: no boss collision observed`);
+      return;
+    }
+
+    // How far outside the camera rect the contact point fell, on the worst
+    // axis. Negative means inside.
+    const c = seen.camera;
+    const outX = Math.max(c.x - seen.contactX, seen.contactX - (c.x + c.width));
+    const outY = Math.max(c.y - seen.contactY, seen.contactY - (c.y + c.height));
+    const outside = Math.max(outX, outY);
+
+    for (const key of drive) await page.keyboard.up(key);
+
+    console.log(
+      `[boss-collision] ${label.padEnd(10)}: contact (${seen.contactX},${seen.contactY})` +
+        ` · camera ${c.width}x${c.height} at (${c.x},${c.y})` +
+        ` · ${outside <= 0 ? 'inside' : `${outside} units outside`} the rect` +
+        ` · audible ${seen.audible} · BossCollision queued ${queued}x`,
+    );
+  };
+
+  // On screen: mid-room, which the camera is always looking at.
+  await runBossPair('on-screen', { x: 450, y: 360 }, ['d']);
+  // Off screen: the bottom-right corner, with the tank held in the top-left so
+  // the camera is pinned to the opposite end of its travel.
+  await runBossPair('off-screen', { x: 880, y: 700 }, ['w', 'a']);
 }
 
 console.log(`[look] frames -> ${args.out}`);

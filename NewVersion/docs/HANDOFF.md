@@ -938,6 +938,32 @@ long frame landed at **n=0 enemies** — level entry, the T113 transition cost �
 not in the crowd. Peak concurrency observed is 18, so the O(n^2) is ~300 pair
 tests a frame behind a two-comparison broad phase.
 
+**Pass (d) landed in T126 — the subsystem is complete.** `BossCollision` fires
+from the boss-on-boss branch, gated exactly as `:5195-5198` gates it.
+
+**The margin is not the one the port had.** `onScreenGate.ts` carried a single
+`SOUND_HEARING_MARGIN = 100` and its own docstring listed `:5197 BossCollision`
+among the sites using it. Only two `distanceAdd` assignments exist in
+`PartGameArea.as` — `:6900` at 100 and **`:5194` at 200** — so boss collisions
+are heard from twice as far out as anything else. The margin is now a parameter
+with the common value as its default, and both constants are pinned against the
+source. Two further things are specific to this site: it tests the **contact
+point** on the other body's rim rather than either centre, and it carries **no
+width term**, unlike every `checkWithinScreen` call.
+
+**A natural boss collision can only ever drive one side of the gate.** All 25
+two-boss levels converge their enemies on the tank, so bosses meet next to the
+tank and are always on screen. `?bosspair=x,y` drops the first two live bosses
+on top of each other at a chosen point; nothing else about them changes.
+
+**And where the tank stands decides whether "off screen" is even reachable.**
+The camera clamps inside the room, so in 3-9's 900x720 arena a 640x400 camera
+leaves 260 units of horizontal slack against a 200 margin. Parked mid-room, the
+far corner came out **140 units outside the rect — inside the margin**, and the
+gate correctly called it audible. Driving the tank into the opposite corner
+first pins the camera at (0,0) and puts the same corner 304 units out. The first
+run of this looked like a failed gate and was a badly chosen viewpoint.
+
 **For whoever ports enemy-enemy separation:** the AS3 tests `xVel + pushVelX`
 against the wall. `pushVel` has **0 occurrences in `src/`** against 21 in the
 AS3, so the term is identically zero and the rule reads `xVel` alone today. When

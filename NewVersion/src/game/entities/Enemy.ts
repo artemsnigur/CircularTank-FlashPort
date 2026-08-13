@@ -1113,6 +1113,19 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.pushVelY = push.pushVelY;
   }
 
+  /**
+   * DEV-AID: drop this enemy at a world point — `--boss-collision` only.
+   *
+   * Writes the steering state as well as the display position, because the two
+   * are separate in this port and moving only the sprite would leave the rule
+   * reading the old coordinates. Velocity and rotation are untouched, so the
+   * enemy carries on doing what it was doing from the new place.
+   */
+  placeAt(x: number, y: number): void {
+    this.steering = { ...this.steering, x, y };
+    this.setPosition(x, y);
+  }
+
   /** The body this enemy presents to the separation rule. */
   get separationBody(): SeparationBody {
     return {

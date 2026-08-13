@@ -22,15 +22,28 @@
  * Not all of them, and that asymmetry is the point of the pairing test: six
  * sites in `PartGameArea` gate their push on this rule (`:4343` ExplosionSmall,
  * `:4948` TeleportOut, `:4975` TeleportIn, `:5197` BossCollision, `:5573`
- * ImpactLaser, `:6903` enemy fire), while the player's own weapon, the UI
+ * ImpactLaser, `:6903` enemy fire) — **at two different margins, see
+ * `SOUND_HEARING_MARGIN`** — while the player's own weapon, the UI
  * sounds and the pickup sounds are ungated — they originate at the tank or at
  * the interface, which is always on screen. **That count is a floor**: it comes
  * from scanning near each push for the rule's distinctive operand, and the AS3
  * inlines this test rather than calling a helper.
  */
 
-/** `:6900` — `distanceAdd`, the slack outside the camera rect. */
+/**
+ * `:6900` — `distanceAdd`, the slack outside the camera rect.
+ *
+ * **Not one value for every site.** Measured across the whole file: only two
+ * `distanceAdd` assignments exist, `:6900` at **100** and `:5194` at **200**,
+ * and the three `checkWithinScreen` calls that pass a margin all pass 100. So
+ * `BossCollision` is heard from twice as far out as anything else, and this
+ * constant is the common case rather than the rule. Pass an explicit margin at
+ * a site that differs — see `isAudibleAt`.
+ */
 export const SOUND_HEARING_MARGIN = 100;
+
+/** `:5194` — the boss-collision site, the one place the slack is doubled. */
+export const BOSS_COLLISION_HEARING_MARGIN = 200;
 
 export interface HearingRect {
   /** Camera top-left in world units. */
@@ -45,16 +58,22 @@ export interface HearingRect {
  * True when `(x, y)` is within the camera rect plus the margin.
  *
  * `radius` widens the test by the source's own size, matching the AS3's
- * `theEnemy.width / 2` terms — a large boss at the edge is audible when its
- * centre is not.
+ * `theEnemy.width / 2` terms — `checkWithinScreen` (`:4331`) halves the width
+ * it is passed, so passing a radius here is the same number, checked rather
+ * than assumed.
+ *
+ * `slack` defaults to the common 100. `BossCollision` passes 200 **and a radius
+ * of 0**: its inline at `:5195` tests the *contact point* between the two
+ * bosses and carries no width term at all, unlike every helper call.
  */
 export function isAudibleAt(
   x: number,
   y: number,
   radius: number,
   rect: HearingRect,
+  slack: number = SOUND_HEARING_MARGIN,
 ): boolean {
-  const margin = SOUND_HEARING_MARGIN + radius;
+  const margin = slack + radius;
   return (
     x >= rect.cameraX - margin &&
     x <= rect.cameraX + rect.cameraWidth + margin &&

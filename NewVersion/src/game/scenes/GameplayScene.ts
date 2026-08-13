@@ -160,6 +160,7 @@ import { particleShape } from '../effects/particleArt';
 import { PARTICLE_RASTER_SCALE } from '../../assets/manifest';
 import { PARTICLE_ANCHORS } from '../../assets/spriteGeometry';
 import { separationBetween } from '../enemies/enemySeparation';
+import { BOSS_COLLISION_HEARING_MARGIN } from '../audio/onScreenGate';
 import { STRONG_WEAK_TIMER_MAX, impactBurst, impactClassOf } from '../effects/impactCue';
 import { muzzleFlareFor } from '../effects/muzzleFlare';
 import { applyKillReload, killReloadBonus } from '../upgrades/killReload';
@@ -428,6 +429,30 @@ function devPrimaryOverride(): string | null {
   if (typeof window === 'undefined') return null;
   const name = new URLSearchParams(window.location.search).get('primary');
   return name && getWeapon(name) ? name : null;
+}
+
+/**
+ * DEV-AID: force two bosses together at a world point, from `?bosspair=x,y`.
+ *
+ * `BossCollision` is the last unexercised branch of the separation subsystem,
+ * and it needs **two live bosses touching**. Twenty-five levels carry two or
+ * more, but they converge on the tank, so a natural collision is always near
+ * the tank and therefore always on screen — which drives one side of the gate
+ * and never the other.
+ *
+ * This moves the first two live bosses on top of each other at a chosen point,
+ * once. Nothing else about them changes: they keep their stats, their steering
+ * and their radii, so the collision that follows is the ordinary rule running
+ * on an ordinary pair. Placing them is the whole affordance — the physics is
+ * not simulated or faked.
+ */
+function devBossPair(): { x: number; y: number } | null {
+  if (!import.meta.env.DEV) return null;
+  if (typeof window === 'undefined') return null;
+  const raw = new URLSearchParams(window.location.search).get('bosspair');
+  if (!raw) return null;
+  const [x, y] = raw.split(',').map(Number);
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
 }
 
 /**
@@ -1364,6 +1389,7 @@ export class GameplayScene extends Phaser.Scene {
     if (shouldRun('enemies', levelDone)) {
       this.updateStatusEffects(delta);
       this.separationApplied = 0;
+      this.forceBossPair();
 
     for (const enemy of [...this.enemies]) {
       // `:4519` — the Strength/Weakness cue's cooldown, counted per frame at
@@ -3177,6 +3203,7 @@ export class GameplayScene extends Phaser.Scene {
       separation: {
         on: this.separationOn,
         applied: this.separationApplied,
+        lastBossCollision: this.bossCollisionDebug,
       },
       bodies: this.enemies.map((e) => ({
         x: Math.round(e.x * 100) / 100,
@@ -3458,6 +3485,15 @@ export class GameplayScene extends Phaser.Scene {
   private readonly separationOn = devSeparationEnabled();
 
   /**
+   * DEV-AID: the last boss collision and whether it was judged audible.
+   *
+   * The gate is a *decision about a point*, and the sound alone cannot show
+   * which way it went or why — a silent run proves nothing without the camera
+   * rect and the contact point to check it against.
+   */
+  private bossCollisionDebug: unknown = null;
+
+  /**
    * DEV-AID: how many separation effects the last frame actually applied.
    *
    * Reachability, not behaviour. `--separation`'s aggregate moved the wrong way
@@ -3467,6 +3503,23 @@ export class GameplayScene extends Phaser.Scene {
    * distinguish "wired and weak" from "not wired".
    */
   private separationApplied = 0;
+
+  /** Applied once, when two bosses are alive — see `devBossPair`. */
+  private bossPairPlaced = false;
+  private readonly bossPairPoint = devBossPair();
+
+  private forceBossPair(): void {
+    if (!this.bossPairPoint || this.bossPairPlaced) return;
+    const bosses = this.enemies.filter((e) => e.enemyLevel === 'B');
+    if (bosses.length < 2) return;
+
+    const [a, b] = bosses;
+    // Overlapping by construction: centres one radius apart, well inside the
+    // sum of the two radii, so the narrow phase fires on the next pass.
+    a.placeAt(this.bossPairPoint.x, this.bossPairPoint.y);
+    b.placeAt(this.bossPairPoint.x + a.radius, this.bossPairPoint.y);
+    this.bossPairPlaced = true;
+  }
 
   private separateEnemy(enemy: Enemy): void {
     if (!this.separationOn) return;
@@ -3486,6 +3539,43 @@ export class GameplayScene extends Phaser.Scene {
       if (effect.kind === 'bossPush') {
         // `:5206-5209` — the same visit writes the other body too.
         other.applyBossCounterPush(effect.other);
+
+        // `:5195-5198` — the collision is heard only if the **contact point**
+        // is on screen, at **double** the usual slack. Three things here are
+        // specific to this site and none of them are the helper's defaults:
+        // the point tested is the contact on the other body's rim rather than
+        // either centre, the margin is 200 rather than 100, and there is no
+        // width term at all. It is one of the six inlined copies of
+        // `checkWithinScreen`, which is why a name grep finds four call sites
+        // and the rule runs at ten.
+        const view = this.cameras.main.worldView;
+        const audible = isAudibleAt(
+          effect.contactX,
+          effect.contactY,
+          0,
+          {
+            cameraX: view.x,
+            cameraY: view.y,
+            cameraWidth: view.width,
+            cameraHeight: view.height,
+          },
+          BOSS_COLLISION_HEARING_MARGIN,
+        );
+        // Queued on every visit, as the AS3 pushes on every visit. Both
+        // managers dedupe per frame — `sfxPlayedArray` there, a `Set` here —
+        // so a pair seen from both orderings still sounds once.
+        if (audible) getSoundManager(this)?.queue('BossCollision');
+        this.bossCollisionDebug = {
+          contactX: Math.round(effect.contactX),
+          contactY: Math.round(effect.contactY),
+          audible,
+          camera: {
+            x: Math.round(view.x),
+            y: Math.round(view.y),
+            width: Math.round(view.width),
+            height: Math.round(view.height),
+          },
+        };
       }
 
       // The subject's position may have moved, so later pairs measure from
