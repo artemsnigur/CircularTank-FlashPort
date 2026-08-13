@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { BOSS_PUSH_SPEED, PUSHED_TIMER_MAX } from './tankDamage';
 import {
   createTankState,
   DEFAULT_ACC_SPEED,
@@ -331,5 +333,123 @@ describe('the tank`s two angle conventions', () => {
     // `Tank.as:25`. Pinned because the port carried 10 with a citation to this
     // line, which is the failure mode a citation alone does not catch.
     expect(TANK_ROT_SPEED_MAX).toBe(20);
+  });
+});
+
+/**
+ * The boss knockback has to survive the frames after it lands — `Tank.as:103`,
+ * `:162`, `:225-236`.
+ *
+ * The existing `frozen` test above proves one frame. What the bug needed was
+ * the *duration*: `pushed` is set for 20 frames, and if input resumed on the
+ * next one, a player holding the stick into the boss would erase an 8-unit
+ * shove before it moved them anywhere. So these drive the whole window.
+ *
+ * `frozen` is the port's one flag for the AS3's two — `levelDone` and `pushed`
+ * suppress input identically (`:162` ORs them), so one parameter carries both.
+ * It had **no producer at all** until T133; `GameplayScene` now passes
+ * `pushedFrames > 0`.
+ */
+describe('a pushed tank keeps its knockback', () => {
+  const knocked = () => ({ ...centre(), xVel: -8, yVel: 0, speed: 8 });
+
+  it('travels away from the boss while the player holds the opposite way', () => {
+    // Shoved left at 8; the player is holding right, into the boss.
+    let state = knocked();
+    const startX = state.x;
+
+    for (let frame = 0; frame < PUSHED_TIMER_MAX; frame += 1) {
+      state = moveTank(state, input({ right: true }), stats, BOUNDS, FRAME, false, true);
+    }
+
+    // It must have *moved left*, against the held input, for the whole window.
+    expect(state.x).toBeLessThan(startX);
+    expect(state.xVel).toBeLessThanOrEqual(0);
+  });
+
+  /**
+   * The counterpart, on identical input: without the flag the held key wins
+   * immediately. This is the frame-one difference the bug turned on.
+   */
+  it('is overwritten by input the moment the flag is not set', () => {
+    const unpushed = moveTank(knocked(), input({ right: true }), stats, BOUNDS, FRAME, false, false);
+    const pushed = moveTank(knocked(), input({ right: true }), stats, BOUNDS, FRAME, false, true);
+
+    // Unpushed, acceleration is added toward the held direction — the velocity
+    // moves *up* from -8 toward zero and beyond.
+    expect(unpushed.xVel).toBeGreaterThan(pushed.xVel);
+  });
+
+  it('bleeds off under friction rather than stopping dead', () => {
+    // `:162` applies friction while pushed, so the shove decays across the
+    // window instead of being a fixed-speed slide that ends abruptly.
+    let state = knocked();
+    const speeds: number[] = [];
+    for (let frame = 0; frame < 5; frame += 1) {
+      state = moveTank(state, input({}), stats, BOUNDS, FRAME, false, true);
+      speeds.push(Math.abs(state.xVel));
+    }
+
+    for (let i = 1; i < speeds.length; i += 1) {
+      expect(speeds[i], `frame ${i}`).toBeLessThan(speeds[i - 1]);
+    }
+  });
+
+  it('hands control back once the window closes', () => {
+    // 20 frames pushed, then the flag clears and the stick works again — the
+    // knockback must not be permanent.
+    let state = knocked();
+    for (let frame = 0; frame < PUSHED_TIMER_MAX; frame += 1) {
+      state = moveTank(state, input({ right: true }), stats, BOUNDS, FRAME, false, true);
+    }
+    const atRelease = state.xVel;
+
+    state = moveTank(state, input({ right: true }), stats, BOUNDS, FRAME, false, false);
+    expect(state.xVel).toBeGreaterThan(atRelease);
+  });
+});
+
+/**
+ * The handoff — **proves a spelling, not a behaviour.** Same compromise as
+ * `tankDamage.test.ts`'s, and for the same reason: a `PlayerTank` needs a
+ * Phaser scene, which `sceneHarness.ts` records as not standable-up here.
+ */
+describe('the scene supplies the pushed flag', () => {
+  it('passes pushedFrames through drive', () => {
+    const scene = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
+    expect(scene).toContain('this.pushedFrames > 0,');
+
+    const tank = readFileSync('src/game/entities/PlayerTank.ts', 'utf8');
+    expect(tank).toContain('drive(input: PlayerInput, deltaMs: number, movable = true, pushed = false)');
+  });
+});
+
+/**
+ * The clamp is skipped while pushed — `Tank.as:155-160`, inside `!pushed`.
+ *
+ * **This is the fault the duration tests above uncovered.** With the clamp
+ * applied, an 8-unit boss shove is crushed to `maxSpeed` (3) on the frame it
+ * lands — five-eighths of the knockback gone, silently, while every other
+ * assertion still passes.
+ */
+describe('the boss knockback outruns the tank`s own top speed', () => {
+  it('keeps a shove faster than maxSpeed while pushed', () => {
+    // `BOSS_PUSH_SPEED` is 8; `Tank.as:9` sets `maxSpeed` to 3.
+    expect(stats.maxSpeed).toBeLessThan(BOSS_PUSH_SPEED);
+
+    const shoved = { ...centre(), xVel: -BOSS_PUSH_SPEED, yVel: 0, speed: BOSS_PUSH_SPEED };
+    const next = moveTank(shoved, input({}), stats, BOUNDS, FRAME, false, true);
+
+    // Friction has taken a little off, but nothing like the clamp would.
+    expect(Math.abs(next.xVel)).toBeGreaterThan(stats.maxSpeed);
+  });
+
+  it('clamps the identical state when it is not pushed', () => {
+    // The counterpart on the same input: unpushed, the clamp is exactly what
+    // should happen, so "no clamp" cannot be a blanket removal.
+    const shoved = { ...centre(), xVel: -BOSS_PUSH_SPEED, yVel: 0, speed: BOSS_PUSH_SPEED };
+    const next = moveTank(shoved, input({}), stats, BOUNDS, FRAME, false, false);
+
+    expect(Math.abs(next.xVel)).toBeLessThanOrEqual(stats.maxSpeed);
   });
 });

@@ -144,9 +144,23 @@ export interface MoveResult extends TankState {
 /**
  * One frame of tank movement.
  *
- * Returns a new state; the input is not mutated. `frozen` stands in for the
- * AS3's `levelDone` and `pushed` flags, which suppress input and let friction
- * bring the tank to rest.
+ * Returns a new state; the input is not mutated.
+ *
+ * ── `frozen` and `pushed` are not the same flag ───────────────────────────
+ * They were one until T133, and the AS3 says otherwise. `Tank.as` opens
+ * `if(!this.pushed)` at `:103` and closes it at `:161`, and **the speed refresh
+ * and `maxSpeed` clamp at `:155-160` are inside that block** — while the
+ * `levelDone` guard sits further in, at `:106`, around the input only. So:
+ *
+ *   accel    skipped when `pushed` **or** `levelDone`
+ *   clamp    skipped when `pushed` **only**
+ *   friction applied when idle, `levelDone`, or `pushed`   (`:162`)
+ *
+ * That difference is the whole point of the boss knockback. `BOSS_PUSH_SPEED`
+ * is **8** against a `maxSpeed` of **3** (`Tank.as:9`): the shove is meant to
+ * exceed the tank's own top speed, and clamping it crushes it to 3 on the frame
+ * it lands. Collapsing the two flags looks harmless and silently deletes
+ * five-eighths of the knockback.
  */
 export function moveTank(
   state: TankState,
@@ -154,14 +168,17 @@ export function moveTank(
   stats: TankStats,
   bounds: TankBounds,
   deltaMs: number,
+  /** `PartGameArea.levelDone` — suppresses input, still clamps. */
   frozen = false,
+  /** `Tank.pushed` — suppresses input **and** the clamp. */
+  pushed = false,
 ): MoveResult {
   const frames = (deltaMs / 1000) * AS3_FPS;
   if (frames <= 0) return { ...state, hitBottom: false };
 
   const idle = !input.up && !input.down && !input.left && !input.right;
 
-  let { xVel, yVel } = frozen ? state : accelerate(state, input, stats, frames);
+  let { xVel, yVel } = frozen || pushed ? state : accelerate(state, input, stats, frames);
 
   // Clamp to top speed, scaling both components.
   //
@@ -173,15 +190,19 @@ export function moveTank(
   // and the tank travels ~6% further per second than at the original 30 fps.
   // The overspeed is imperceptible; the inconsistency is not. Clamping the
   // current speed is what the code plainly intends and is frame-rate stable.
+  //
+  // **Skipped entirely while `pushed`** — see the header. The clamp lives
+  // inside the AS3's `!pushed` block, and the boss knockback is deliberately
+  // faster than the tank can drive.
   const currentSpeed = Math.hypot(xVel, yVel);
-  if (currentSpeed > stats.maxSpeed && currentSpeed > 0) {
+  if (!pushed && currentSpeed > stats.maxSpeed && currentSpeed > 0) {
     const scale = stats.maxSpeed / currentSpeed;
     xVel *= scale;
     yVel *= scale;
   }
 
   // Friction, applied to speed rather than per-axis.
-  if (idle || frozen) {
+  if (idle || frozen || pushed) {
     const current = Math.hypot(xVel, yVel);
     const reduced = current - stats.friction * frames;
     if (reduced > 0 && current > 0) {

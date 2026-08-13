@@ -1320,7 +1320,15 @@ export class GameplayScene extends Phaser.Scene {
       if (shouldRunDuringCountdown('tankDrive', countDownDone)) {
         // Tower fixes the tank in place — PartGameArea.as:2816 skips moveTank
         // and calls tankAttack on the next line, so aiming and firing continue.
-        this.player.drive(input, delta, tankIsMobile(this.levelSpec?.mode));
+        this.player.drive(
+          input,
+          delta,
+          tankIsMobile(this.levelSpec?.mode),
+          // `Tank.as:225-236` counts the timer down; `:103` and `:162` are what
+          // it gates. `pushedFrames` is already set to 20 on a boss contact and
+          // decremented each frame — it just never reached the movement.
+          this.pushedFrames > 0,
+        );
 
         this.updateFiring(delta);
         this.updateSecondary(delta);

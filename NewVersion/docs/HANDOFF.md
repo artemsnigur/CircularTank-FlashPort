@@ -457,6 +457,45 @@ step also touches.
 
 ---
 
+## The shield glued the tank to bosses — T132/T133
+
+Three faults in one contact path, and **none of them was a sign error** —
+`resolveContact` has computed the angle correctly since it was written.
+
+1. **The suck-in.** `isTouchingTank` reaches `enemyRadius + tankRadius * 2` with
+   the shield up (`tankDamage.ts:64`), while `:5319`'s un-overlap places the
+   tank at `enemyRadius + tankRadius` and is gated on `dist < tR + eR - 5`
+   (`:5317`). `GameplayScene` ignored that gate and shoved on **every** boss
+   contact with its own recomputed angle, so a tank touching a boss with its
+   *shield* was teleported inward to the body and pinned there. Unshielded the
+   two radii are equal, so the shove was a no-op and the bug never showed.
+2. **The knockback was discarded.** `:5311` sets the velocity to 8 away; the
+   scene computed it, commented that it was not wired, and dropped it.
+3. **The clamp ate what was left.** `Tank.as` opens `if(!this.pushed)` at
+   `:103` and closes it at `:161`, and the speed refresh and `maxSpeed` clamp at
+   `:155-160` are **inside** it. So a pushed tank is never clamped — which is
+   the entire reason `BOSS_PUSH_SPEED` is 8 against a `maxSpeed` of 3. The port
+   clamped unconditionally, crushing the shove to 3 on the frame it landed.
+
+**`frozen` and `pushed` are not one flag.** They were, until this pass. The
+`levelDone` guard sits at `:106`, *inside* `!pushed`, around the input only:
+accel is skipped by either, the clamp by `pushed` alone, friction applied by
+either. Collapsing them looks harmless and deletes five-eighths of the
+knockback.
+
+**Fault 3 was found by a test written for fault 2** — the duration test failed
+with "expected -3 to be greater than -2.8", which only makes sense if the clamp
+had already flattened both sides. Worth remembering: the assertion that fails
+for the wrong reason is often pointing at a third thing.
+
+**Two seams here still rest on labelled source assertions** — the scene's
+handoff to `resolveContact` and the `pushedFrames` argument to `drive`. Both are
+one line, both are labelled as proving a spelling, and `sceneHarness.ts` records
+why a real `PlayerTank` cannot be stood up in this suite. Extract the apply step
+if either ever needs a behavioural test.
+
+---
+
 ## 5. What is open
 
 ### The live queue — one measurement note

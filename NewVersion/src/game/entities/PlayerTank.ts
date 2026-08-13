@@ -224,7 +224,7 @@ export class PlayerTank extends Phaser.GameObjects.Container {
   // `movable` comes from `tankIsMobile(mode)` at the call site rather than from
   // a mode check in here — see that function for why the entity does not take
   // the mode itself.
-  drive(input: PlayerInput, deltaMs: number, movable = true): void {
+  drive(input: PlayerInput, deltaMs: number, movable = true, pushed = false): void {
     if (movable) {
       // A boss grappler overwrites the player's handling outright and drags
       // them toward it — Tank.as:84-93. Applied before the step so the pull is
@@ -247,6 +247,15 @@ export class PlayerTank extends Phaser.GameObjects.Container {
         tethered ? tetheredTankStats() : this.stats,
         { roomWidth: this.roomWidth, roomHeight: this.roomHeight, radius: this.radius },
         deltaMs,
+        // `levelDone` is not modelled here; the scene stops driving instead.
+        false,
+        // `Tank.as:103` — while `pushed`, the input block **and the speed
+        // clamp** are skipped, and `:162` lets friction bleed the knockback
+        // off. Without it the next frame overwrites the boss shove from the
+        // stick, which is why a boss contact moved the player nowhere even once
+        // the velocity was applied. The flag existed with **no producer** until
+        // T133; this is the producer.
+        pushed,
       );
 
       this.motion = result;
