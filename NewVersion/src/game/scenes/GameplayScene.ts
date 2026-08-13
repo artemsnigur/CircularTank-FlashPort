@@ -159,6 +159,7 @@ import type { Particle, SpawnInput } from '../effects/particles';
 import { particleShape } from '../effects/particleArt';
 import { PARTICLE_RASTER_SCALE } from '../../assets/manifest';
 import { PARTICLE_ANCHORS } from '../../assets/spriteGeometry';
+import { separationBetween } from '../enemies/enemySeparation';
 import { STRONG_WEAK_TIMER_MAX, impactBurst, impactClassOf } from '../effects/impactCue';
 import { muzzleFlareFor } from '../effects/muzzleFlare';
 import { applyKillReload, killReloadBonus } from '../upgrades/killReload';
@@ -427,6 +428,23 @@ function devPrimaryOverride(): string | null {
   if (typeof window === 'undefined') return null;
   const name = new URLSearchParams(window.location.search).get('primary');
   return name && getWeapon(name) ? name : null;
+}
+
+/**
+ * DEV-AID: turn enemy-enemy separation off, from `?separation=0`.
+ *
+ * The A/B for `npm run look -- --separation`. Measuring "before" against an
+ * older commit would compare two builds and two runs; this compares one build
+ * against itself with a single flag moved, which is the only way the pairwise
+ * numbers mean anything.
+ *
+ * Reads as "on unless explicitly disabled", so no production path can lose the
+ * subsystem by omission.
+ */
+function devSeparationEnabled(): boolean {
+  if (!import.meta.env.DEV) return true;
+  if (typeof window === 'undefined') return true;
+  return new URLSearchParams(window.location.search).get('separation') !== '0';
 }
 
 /**
@@ -1345,11 +1363,21 @@ export class GameplayScene extends Phaser.Scene {
     // left that can act on a tank the player no longer controls.
     if (shouldRun('enemies', levelDone)) {
       this.updateStatusEffects(delta);
+      this.separationApplied = 0;
 
     for (const enemy of [...this.enemies]) {
       // `:4519` — the Strength/Weakness cue's cooldown, counted per frame at
       // the top of the enemy loop exactly as the AS3 does. See `impactCue.ts`.
       if (enemy.strongWeakTimer > 0) enemy.strongWeakTimer -= 1;
+
+      // `:5174-5221` — this enemy's separation pairs, resolved **immediately
+      // before it moves**. The AS3 nests the pair loop inside the same
+      // per-enemy iteration, ahead of the decay at `:5365` and the integration
+      // at `:5370`, and `Enemy.update` carries those two. Hoisting this into a
+      // global pass over all enemies before any of them move would change the
+      // result: the normal-vs-normal branch writes position immediately, so
+      // later pairs in this frame are supposed to see the moved body.
+      this.separateEnemy(enemy);
 
       // Velocity and radius are required by `AimTank`, not optional: Medium and
       // Hard lead the tank's motion, and a zero default would silently be the
@@ -3136,6 +3164,27 @@ export class GameplayScene extends Phaser.Scene {
         },
       },
       /**
+       * DEV-AID: every live enemy as a bare circle, for `--separation`.
+       *
+       * **Unsorted and unsliced, unlike `enemies`.** That list is distance-
+       * sorted and cut at 24 for readability, which is exactly wrong for a
+       * pairwise measurement: sorting makes an index meaningless and slicing
+       * hides the crowd at the back, which is where interpenetration lives.
+       * Three numbers per enemy, so a 40-enemy level costs a 120-number array
+       * per sample.
+       */
+      /** Effects applied this frame, and by which branch — reachability. */
+      separation: {
+        on: this.separationOn,
+        applied: this.separationApplied,
+      },
+      bodies: this.enemies.map((e) => ({
+        x: Math.round(e.x * 100) / 100,
+        y: Math.round(e.y * 100) / 100,
+        r: Math.round(e.radius * 100) / 100,
+        boss: e.enemyLevel === 'B',
+      })),
+      /**
        * Live muzzle flares, for `--sprites`.
        *
        * The flash is a particle with a ~5-frame life, so a screenshot catches
@@ -3384,6 +3433,67 @@ export class GameplayScene extends Phaser.Scene {
     this.publishTutorialDebug();
   }
 
+
+  /**
+   * One enemy's separation pairs — the inner half of `:5174-5221`.
+   *
+   * ── Ordered pairs, and why this is not `for (j = i + 1)` ──────────────────
+   * The AS3 runs `iii` over **every** other enemy, so each unordered pair is
+   * visited twice with the roles swapped. That is load-bearing rather than
+   * wasteful: two ordinary enemies nudge each other 0.5 on their own visit, so
+   * the pair separates by 1.0 a frame. Halving the loop halves the rate.
+   *
+   * The broad phase is also direction-dependent — see `enemySeparation.ts` —
+   * so 17.2% of overlapping pairs are visible to only one of the two orderings.
+   * Skipping either direction drops real collisions.
+   *
+   * ── Cost ─────────────────────────────────────────────────────────────────
+   * O(n^2) with no spatial index, exactly as the original. Measured on the
+   * busiest level this port has rather than assumed — see the T125 note in
+   * `HANDOFF.md`. The early exits carry it: the broad phase rejects on two
+   * comparisons before any square root, and `separationBetween` is called at
+   * most `n - 1` times per enemy.
+   */
+  /** Read once per scene — see `devSeparationEnabled`. Always true in a build. */
+  private readonly separationOn = devSeparationEnabled();
+
+  /**
+   * DEV-AID: how many separation effects the last frame actually applied.
+   *
+   * Reachability, not behaviour. `--separation`'s aggregate moved the wrong way
+   * on its first controlled run, and the first question that has to be settled
+   * is whether the loop runs at all — this project's signature failure is a
+   * correct module nothing calls. A share-of-overlapping-pairs figure cannot
+   * distinguish "wired and weak" from "not wired".
+   */
+  private separationApplied = 0;
+
+  private separateEnemy(enemy: Enemy): void {
+    if (!this.separationOn) return;
+    const subject = enemy.separationBody;
+    // A teleporting *subject* is skipped wholesale: `:5367` gates the whole
+    // movement block on it, so an enemy mid-hop neither pushes nor integrates.
+    if (enemy.teleporting) return;
+
+    for (const other of this.enemies) {
+      if (other === enemy) continue;
+
+      const effect = separationBetween(subject, other.separationBody);
+      if (effect.kind === 'none') continue;
+
+      enemy.applySeparation(effect);
+      this.separationApplied += 1;
+      if (effect.kind === 'bossPush') {
+        // `:5206-5209` — the same visit writes the other body too.
+        other.applyBossCounterPush(effect.other);
+      }
+
+      // The subject's position may have moved, so later pairs measure from
+      // where it is now — the AS3 reads `theEnemy.x` fresh on every iteration.
+      subject.x = enemy.separationBody.x;
+      subject.y = enemy.separationBody.y;
+    }
+  }
 
   private updateParticles(): void {
     this.particles = tickParticles(this.particles);

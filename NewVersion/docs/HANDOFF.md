@@ -903,6 +903,41 @@ implementation moves it up instead and looks more correct. That case is what
 `steppedBy` exists for: this port integrates before the walls run, so expressing
 "no movement at all" means handing back the step to undo.
 
+**Pass (c) landed in T125 — the loop is wired and enemies separate.** The pair
+resolution sits inside the per-enemy iteration, immediately before
+`enemy.update`, because the AS3 nests it there: pairs for enemy *i*, then the
+decay at `:5365`, then the integration at `:5370`. Hoisting it into a global
+pass would change the result, since the normal-vs-normal branch writes position
+immediately and later pairs are supposed to see the moved body.
+`safetyDistance` is rolled once at spawn from `Math.random`.
+
+**Three instrument faults in one session, all of them mine, all caught by
+disbelieving a clean number:**
+
+1. **The scenario measured nothing.** A stationary tank on the busiest level in
+   the game (7-32, 58 enemies) gave *0% overlapping and a worst ratio of 9.7* —
+   no two enemies ever came within nine times their combined radii. Enemies
+   converging on a still target arrive one at a time and die on contact, so no
+   crowd forms. Four runs agreed with each other and all four were worthless.
+2. **The tutorial gate ate the window.** Moving the `d` keydown to after the
+   mouse press stopped the Move step clearing, so spawning began after the
+   sampling window and two runs reported *0 populated samples*.
+3. **The aggregate moved the wrong way** on the first controlled run — 0.8% ->
+   1.1% overlapping — with no way to tell "wired and weak" from "not wired". A
+   per-frame applied-effect counter settled it in one run: **0 effects with the
+   flag off, 121 with it on.** Reachability and effect size are different
+   claims and the second is worthless without the first.
+
+**Defense levels are where this is observable** (8-4), not Normal ones: enemies
+march in formation and coexist, where a chase kills them one at a time. Tower is
+worse still — 1-7 gave 2 enemies and a worst ratio of 35.
+
+**Cost is not a problem and was measured, not assumed.** `--frames` on 7-32:
+mean 17.2ms, p50 16.7, p95 16.8, p99 33.4, heap flat at 10MB across 25s. Every
+long frame landed at **n=0 enemies** — level entry, the T113 transition cost —
+not in the crowd. Peak concurrency observed is 18, so the O(n^2) is ~300 pair
+tests a frame behind a two-comparison broad phase.
+
 **For whoever ports enemy-enemy separation:** the AS3 tests `xVel + pushVelX`
 against the wall. `pushVel` has **0 occurrences in `src/`** against 21 in the
 AS3, so the term is identically zero and the rule reads `xVel` alone today. When

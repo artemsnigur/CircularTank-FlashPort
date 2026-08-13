@@ -31,6 +31,7 @@ import {
 } from '../enemies/enemySteering';
 import type { SteeringState } from '../enemies/enemySteering';
 import { decayPush } from '../enemies/enemySeparation';
+import type { SeparationBody, SeparationEffect } from '../enemies/enemySeparation';
 import { resolveDamageMultipliers } from '../enemies/damageTypes';
 import { ENEMY_CLIPS, enemyClipKey, enemyShape, restingTint } from './enemyArt';
 import { shrinkScale, shrinksWithHealth } from '../enemies/enemyBodies';
@@ -203,6 +204,22 @@ export class Enemy extends Phaser.GameObjects.Container {
    */
   pushVelX = 0;
   pushVelY = 0;
+
+  /**
+   * Broad-phase padding for separation — `:3354`/`:3358`.
+   *
+   * `40 + random() * 60` for an ordinary enemy, `160 + random() * 10` for a
+   * boss, rolled **once at spawn** as the AS3 does.
+   *
+   * ── `Math.random`, and deliberately not `PM_PRNG` ─────────────────────────
+   * The AS3 uses `Math.random()` here, which in Flash is a different generator
+   * from the seeded `PM_PRNG` driving background-prop layout. Routing this
+   * through `PM_PRNG` would draw from that stream — and a Lehmer generator has
+   * no resynchronisation, so one extra draw shifts every later prop on the
+   * level. `core/PM_PRNG.ts` says so at length; this is the site where it would
+   * have been easy to get wrong.
+   */
+  readonly safetyDistance: number;
 
   /** The radius this enemy spawned at. `Shrinking` scales relative to it. */
   readonly radiusStart: number;
@@ -406,6 +423,9 @@ export class Enemy extends Phaser.GameObjects.Container {
     }
 
     this.radius = diameter / 2;
+    // `:3352-3359` — rolled once, per enemy, from the unseeded generator.
+    this.safetyDistance =
+      config.level === 'B' ? 160 + Math.random() * 10 : 40 + Math.random() * 60;
     this.radiusStart = this.radius;
     this.roomWidth = config.roomWidth;
     this.roomHeight = config.roomHeight;
@@ -1042,6 +1062,67 @@ export class Enemy extends Phaser.GameObjects.Container {
     // update sees.
     this.healthChanged = false;
     this.healthDropped = false;
+  }
+
+  /**
+   * Applies one ordered pair's separation effect — `:5186-5218`.
+   *
+   * The three branches write to three different places, which is why this takes
+   * the discriminated effect rather than a vector: a nudge is **position**, a
+   * boss push is an **assignment** to `pushVel`, and a boss-on-normal shove is
+   * an **addition** to velocity. Collapsing them is the mistake
+   * `enemySeparation.ts` is shaped to prevent.
+   *
+   * Mutates immediately, as the AS3 does. Later pairs in the same frame see the
+   * moved position, so the result depends on array order — that is the
+   * original's behaviour and the reason the loop must not be reordered or
+   * distance-sorted.
+   */
+  applySeparation(effect: SeparationEffect): void {
+    if (effect.kind === 'nudge') {
+      this.steering = {
+        ...this.steering,
+        x: this.steering.x + effect.dx,
+        y: this.steering.y + effect.dy,
+      };
+      // Kept in step so a later pair in this same frame measures from where the
+      // enemy now is, not where it started the frame.
+      this.setPosition(this.steering.x, this.steering.y);
+      return;
+    }
+
+    if (effect.kind === 'velocity') {
+      this.steering = {
+        ...this.steering,
+        xVel: this.steering.xVel + effect.dxVel,
+        yVel: this.steering.yVel + effect.dyVel,
+      };
+      return;
+    }
+
+    if (effect.kind === 'bossPush') {
+      // `:5203-5205` — assignment, not accumulation.
+      this.pushVelX = effect.subject.pushVelX;
+      this.pushVelY = effect.subject.pushVelY;
+    }
+  }
+
+  /** `:5206-5209` — the other body of a boss pair, written by the same visit. */
+  applyBossCounterPush(push: { pushVelX: number; pushVelY: number }): void {
+    this.pushVelX = push.pushVelX;
+    this.pushVelY = push.pushVelY;
+  }
+
+  /** The body this enemy presents to the separation rule. */
+  get separationBody(): SeparationBody {
+    return {
+      x: this.steering.x,
+      y: this.steering.y,
+      radius: this.radius,
+      enemyLevel: this.enemyLevel,
+      safetyDistance: this.safetyDistance,
+      teleporting: this.teleporting,
+    };
   }
 
   /** Current speed in design units per frame, for the debug readout. */

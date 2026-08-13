@@ -48,6 +48,12 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     // round-trip, so "where does the flare sit" had no photographable answer.
     // Lengthens the flare and nothing else — position and anchor are geometric.
     'hold the muzzle flare on screen via ?flarehold=<frames>',
+    // T125: the A/B for enemy separation. Comparing against an older commit
+    // would compare two builds and two runs; this compares one build with one
+    // flag moved.
+    'disable enemy separation via ?separation=0',
+    'every enemy as a bare circle, for the separation A/B',
+    'separation effects applied per frame, for reachability',
   ],
   // T114: a persisted damage-flash tint, which no unit test could see (nothing
   // constructs an `Enemy`) and no screenshot could reliably read.
@@ -119,6 +125,13 @@ describe('dev aids are enumerable', () => {
     // which is shorter than a screenshot round-trip, so "where is the flare"
     // had no photographable answer at all until this. It changes the flare's
     // duration and nothing else — position and anchor have no time term.
-    expect(total).toBe(28);
+    // 31 since T125 — `?separation=0`, the unsorted `bodies` projection, and
+    // the per-frame applied-effect counter. The third exists because the A/B
+    // aggregate moved the wrong way and could not distinguish "wired and weak"
+    // from "not wired at all".
+    // `?separation=0` and the unsorted `bodies` projection,
+    // the pair the separation A/B needs: one to turn the subsystem off, one to
+    // see every enemy rather than the distance-sorted top 24.
+    expect(total).toBe(31);
   });
 });

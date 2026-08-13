@@ -79,6 +79,8 @@ function parseArgs(argv) {
     if (argv[i] === '--boss-life') args.bossLife = true;
     if (argv[i] === '--walls') args.walls = true;
     if (argv[i] === '--frames') args.frames = true;
+    if (argv[i] === '--separation') args.separation = true;
+    if (argv[i] === '--separation-level') args.separationLevel = argv[i + 1];
     if (argv[i] === '--hits') args.hits = true;
     if (argv[i] === '--turret') args.turret = true;
     if (argv[i] === '--sprites') args.sprites = true;
@@ -4286,6 +4288,189 @@ await shot('05b-secondary-revealed');
 await delay(args.hold);
 await shot('06-later');
 await hud('06-hud-later');
+
+if (args.separation) {
+  /**
+   * Enemy-enemy interpenetration, measured A/B on one build — T125.
+   *
+   * ── What is counted, and why it is a ratio ───────────────────────────────
+   * For every unordered pair of live enemies, every sample: `d / (r1 + r2)`.
+   * Below 1.0 the circles overlap. A ratio rather than a raw distance because
+   * enemy radii differ by type, so "37 units apart" means nothing without
+   * knowing whose 37 it is.
+   *
+   * Reported as the **share of sampled pairs that overlap**, plus the worst
+   * ratio seen. The share is the number that should move; the worst ratio says
+   * how bad the worst case still is, because separation is a push per frame and
+   * not a constraint solver — two enemies spawning on top of each other start
+   * overlapped and take several frames to part.
+   *
+   * ── The A/B ─────────────────────────────────────────────────────────────
+   * Both halves are the same build, the same level and the same sample count,
+   * differing only by `?separation=0`. Comparing against an older commit would
+   * vary the build and the run together, and this project has already had one
+   * measurement invalidated that way (the CDP profiler in T113).
+   *
+   * Bosses are counted separately: their branch is a *force* into `pushVel`
+   * with a mass split, while the normal branch is a flat 0.5 of position, so
+   * mixing them averages two unrelated rules.
+   */
+  const sepTarget = args.separationLevel ?? '1-13';
+  const [sepW, sepL] = sepTarget.split('-').map(Number);
+  const SEP_SAMPLES = Number(process.env.SEPARATION_SAMPLES ?? 240);
+
+  const measureSeparation = async (separationOn) => {
+    const query = separationOn ? '?primary=Cannon' : '?primary=Cannon&separation=0';
+    await page.goto(`${URL}${query}`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /level select/i }).first().click();
+    await delay(800);
+    if (sepW !== 1) {
+      await page.locator(`.dev-jump__world:text-is("${sepW}")`).first().click();
+      await delay(300);
+    }
+    const cell = page.getByRole('button', {
+      name: new RegExp(`^World ${sepW}, level ${sepL},`, 'i'),
+    });
+    if ((await cell.count()) === 0) return null;
+    await cell.first().click();
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => {});
+
+    // Satisfy the tutorial gate, then **kite**: hold one movement key for the
+    // whole window so the tank runs to a wall and the chasers arrive as a pack.
+    //
+    // A stationary tank measures nothing, which the first run of this proved:
+    // 193 samples on the busiest level in the game gave **0% overlapping and a
+    // worst ratio of 9.7** — no two enemies ever came within nine times their
+    // combined radii. Enemies converging on a still target reach it one at a
+    // time and die on contact, so they never crowd. Kiting is what puts them
+    // shoulder to shoulder, which is the case separation exists for.
+    //
+    // Deliberately not firing: killing them is the other way to keep a crowd
+    // from forming, and both halves must see the same one.
+    // The gate first, exactly as every other mode satisfies it: **`d` held
+    // while the mouse is down**. Moving the keydown to after the press delayed
+    // every spawn past the sampling window and produced two runs of "0
+    // populated samples" — the tutorial's Move step was never cleared.
+    await page.keyboard.down('d');
+    await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+    await page.mouse.down();
+    await delay(700);
+    await page.mouse.up();
+    await page.keyboard.up('d');
+
+    // Let the crowd build before sampling: the first enemies spawn at the room
+    // edge and need to cross it. Sampling from frame one spends most of the
+    // window on an empty arena, which is what made the first attempts thin.
+    await delay(3000);
+
+    // Then kite for the whole window, so the chasers arrive as a pack.
+    await page.keyboard.down('d');
+
+    let pairs = 0;
+    let overlapping = 0;
+    let bossPairs = 0;
+    let bossOverlapping = 0;
+    let worst = Infinity;
+    let maxEnemies = 0;
+    let samples = 0;
+    // Reachability, kept separate from the geometry: "the loop ran N times" and
+    // "the crowd is less overlapped" are different claims and the second is
+    // worthless without the first.
+    let appliedTotal = 0;
+    let framesWithEffects = 0;
+    let reportedOn = null;
+
+    for (let i = 0; i < SEP_SAMPLES; i += 1) {
+      const frame = await page.evaluate(() => ({
+        bodies: globalThis.__arena?.bodies ?? [],
+        separation: globalThis.__arena?.separation ?? null,
+      }));
+      const bodies = frame.bodies;
+      if (frame.separation) {
+        reportedOn = frame.separation.on;
+        appliedTotal += frame.separation.applied;
+        if (frame.separation.applied > 0) framesWithEffects += 1;
+      }
+      // `SEPARATION_DUMP=1` prints one populated sample raw. Kept because the
+      // first four runs of this mode all reported a worst ratio near 9.6
+      // regardless of scenario, which is the shape of an instrument fault
+      // rather than a game property — and it was one.
+      if (process.env.SEPARATION_DUMP === '1' && bodies.length > 2 && samples === 3) {
+        console.log('[separation] raw sample:', JSON.stringify(bodies.slice(0, 6)));
+      }
+      if (bodies.length > 1) {
+        samples += 1;
+        maxEnemies = Math.max(maxEnemies, bodies.length);
+        for (let a = 0; a < bodies.length; a += 1) {
+          for (let b = a + 1; b < bodies.length; b += 1) {
+            const A = bodies[a];
+            const B = bodies[b];
+            const sum = A.r + B.r;
+            if (sum <= 0) continue;
+            const ratio = Math.hypot(B.x - A.x, B.y - A.y) / sum;
+            if (A.boss && B.boss) {
+              bossPairs += 1;
+              if (ratio < 1) bossOverlapping += 1;
+            } else {
+              pairs += 1;
+              if (ratio < 1) overlapping += 1;
+              if (ratio < worst) worst = ratio;
+            }
+          }
+        }
+      }
+      await delay(20);
+    }
+
+    await page.keyboard.up('d');
+    return {
+      pairs,
+      overlapping,
+      bossPairs,
+      bossOverlapping,
+      worst,
+      maxEnemies,
+      samples,
+      appliedTotal,
+      framesWithEffects,
+      reportedOn,
+    };
+  };
+
+  const sepOff = await measureSeparation(false);
+  const sepOn = await measureSeparation(true);
+
+  const sepLine = (label, m) => {
+    if (!m) return `[separation] ${label}: no dev cell for ${sepTarget}`;
+    const share = m.pairs > 0 ? ((100 * m.overlapping) / m.pairs).toFixed(1) : 'n/a';
+    const bossShare =
+      m.bossPairs > 0 ? ((100 * m.bossOverlapping) / m.bossPairs).toFixed(1) : 'n/a';
+    return (
+      `[separation] ${label.padEnd(3)}: ${String(m.samples).padStart(3)} samples · ` +
+      `up to ${String(m.maxEnemies).padStart(2)} enemies · ` +
+      `${String(m.pairs).padStart(6)} normal pairs, ${share}% overlapping` +
+      ` · worst ratio ${m.worst === Infinity ? 'n/a' : m.worst.toFixed(3)}` +
+      ` · ${m.bossPairs} boss pairs, ${bossShare}% overlapping` +
+      ` · loop ${m.reportedOn === null ? '?' : m.reportedOn ? 'on' : 'off'},` +
+      ` ${m.appliedTotal} effects over ${m.framesWithEffects} sampled frames`
+    );
+  };
+
+  console.log(`[separation] level ${sepTarget}, ${SEP_SAMPLES} samples per half`);
+  console.log(sepLine('off', sepOff));
+  console.log(sepLine('on', sepOn));
+  if (sepOff && sepOn && sepOff.pairs > 0 && sepOn.pairs > 0) {
+    const before = (100 * sepOff.overlapping) / sepOff.pairs;
+    const after = (100 * sepOn.overlapping) / sepOn.pairs;
+    console.log(
+      `[separation] overlapping share ${before.toFixed(1)}% -> ${after.toFixed(1)}%` +
+        ` (${before > 0 ? (((before - after) / before) * 100).toFixed(0) : 'n/a'}% fewer)`,
+    );
+  }
+}
 
 console.log(`[look] frames -> ${args.out}`);
 console.log(problems.length ? `[look] page problems:\n  ${problems.join('\n  ')}` : '[look] no page errors');
