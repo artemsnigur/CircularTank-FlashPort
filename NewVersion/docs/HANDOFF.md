@@ -864,6 +864,22 @@ boss's turn direction toward map centre), which is **unported**. Production
 always passes `'None'`. Driven in tests for all three values so a later pass
 inherits a pinned rule — but its presence is not evidence the border AI exists.
 
+**Pass (a) landed in T123** — `enemies/enemySeparation.ts`, the pair rule as
+pure functions with 27 tests and **no caller**. Knip lists it under
+`Unused files (1)`; that is the expected state until pass (c).
+
+**One scoping claim was wrong and the tests caught it.** The scope said the
+ordered-pair loop visits every pair twice. It does — but the *broad phase* at
+`:2354` treats enemy centres as rect corners and pads only in `+x`/`+y`, so it
+is **direction-dependent**: when the subject is larger than the other body, a
+genuine overlap can be invisible to one of the two orderings. Swept over
+241,816 overlapping configurations (radii 5..60, offsets +-120): **17.2% are
+seen by exactly one ordering, and 0% by neither**. The zero is what keeps this
+from being a dropped collision, and it is now a test rather than a claim.
+Consequences for pass (c): a boss pair always resolves (the surviving visit
+writes *both* bodies' `pushVel`), while a mismatched normal pair is nudged on
+one side only — the **smaller** body's.
+
 **For whoever ports enemy-enemy separation:** the AS3 tests `xVel + pushVelX`
 against the wall. `pushVel` has **0 occurrences in `src/`** against 21 in the
 AS3, so the term is identically zero and the rule reads `xVel` alone today. When
