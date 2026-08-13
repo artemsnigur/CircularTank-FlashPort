@@ -35,6 +35,9 @@
  *   is correct and looks wrong.
  */
 
+import { TOWER_GEOMETRY } from '../../assets/spriteGeometry';
+import type { TowerGeometry } from '../../assets/spriteGeometry';
+
 /** `assets.swf` character ids for the three parts. */
 export const TANK_SYMBOLS = { body: 5, tower: 18, shield: 212 } as const;
 
@@ -83,35 +86,57 @@ export const TANK_SIZES = { body: 29, tower: 21, shield: 97.1 } as const;
 export const SHIELD_FRAMES = [208, 209, 210, 211] as const;
 
 /**
+ * The turret each weapon shows, and the geometry it is drawn with.
+ *
+ * The weapon -> frame table used to sit here as a literal. It now lives in
+ * `scripts/lib/tank-tower-frames.mjs` because the *generator* needs it too —
+ * `TOWER_GEOMETRY` is that table joined against each shape's authored bounds —
+ * and two copies of a mapping whose index and meaning are separately
+ * meaningful is precisely the drift this project keeps finding. One table,
+ * generated through, re-exported here so callers see no difference.
+ */
+export { TOWER_GEOMETRY };
+
+/** The Cannon's turret, used for any name not in the table. */
+const DEFAULT_TOWER = TOWER_GEOMETRY.Cannon;
+
+/** The turret geometry for a primary weapon, or the Cannon's when unrecognised. */
+export function towerGeometry(weaponName: string): TowerGeometry {
+  return TOWER_GEOMETRY[weaponName] ?? DEFAULT_TOWER;
+}
+
+/**
  * Primary weapon -> 1-based turret frame — `ScreenGame.setVisibleTankWeapon`
  * (`ScreenGame.as:521-570`).
  *
- * **Written as name -> index from the AS3's own chain, not inferred from the
- * order the frames appear in `assets.swf`.** Index and meaning are separately
- * meaningful here, which is the pairing that has gone wrong before: the frames
- * are 6..17 in id order, and the weapons are *not* in that order — Flamethrower
- * is frame 4 while it sits ninth in the port's roster, and Big Cannon is 3
- * where the roster has it third but for unrelated reasons. Deriving this from
- * either list's ordering would produce a table that is right for a few entries
- * and silently wrong for the rest.
+ * **Derived from the shape each weapon draws, not restated.** The mapping's
+ * one hand-kept copy is `scripts/lib/tank-tower-frames.mjs`, which the
+ * generator joins against the SWF; recovering the frame number from the shape
+ * id here means the two cannot disagree, because there is only one of them.
  */
-export const TOWER_FRAME_BY_WEAPON: Readonly<Record<string, number>> = {
-  Cannon: 1,
-  MiniGun: 2,
-  'Big Cannon': 3,
-  Flamethrower: 4,
-  Shotgun: 5,
-  'Timed Bomb Cannon': 6,
-  'Gummy Bear Cannon': 7,
-  'Poison Cannon': 8,
-  'Laser Cannon': 9,
-  'Cake Cannon': 10,
-  'Penetration Cannon': 11,
-  'Magic Cannon': 12,
-};
+export const TOWER_FRAME_BY_WEAPON: Readonly<Record<string, number>> = Object.freeze(
+  Object.fromEntries(
+    Object.entries(TOWER_GEOMETRY).map(([weapon, art]) => [
+      weapon,
+      TANK_TOWER_FRAMES.indexOf(art.shape) + 1,
+    ]),
+  ),
+);
 
 /** The turret shape for a primary weapon, or the Cannon's when unrecognised. */
 export function towerShape(weaponName: string): number {
-  const frame = TOWER_FRAME_BY_WEAPON[weaponName] ?? 1;
-  return TANK_TOWER_FRAMES[frame - 1] ?? TANK_TOWER_FRAMES[0];
+  return towerGeometry(weaponName).shape;
+}
+
+/**
+ * How far the barrel reaches from the tank's centre, in design units.
+ *
+ * `Tank.as:63` adds the turret at (0,0), so the shape's registration point is
+ * the tank centre and the barrel tip is whatever the shape extends past it —
+ * 10.5 for most weapons, 11.3 for the Gummy Bear, 17.9 for the Magic Cannon.
+ * Read per weapon rather than fixed, so a weapon with a longer gun gets a
+ * longer reach without anyone editing a constant.
+ */
+export function barrelReach(weaponName: string): number {
+  return towerGeometry(weaponName).barrelReach;
 }

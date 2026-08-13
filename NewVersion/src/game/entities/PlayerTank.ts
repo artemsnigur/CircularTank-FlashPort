@@ -20,7 +20,25 @@ import {
 } from '../player/tankMovement';
 import type { DirectionalInput, TankState, TankStats } from '../player/tankMovement';
 import type { UpgradeState } from '../upgrades/upgradeState';
-import { TANK_BODY_FRAMES, TANK_SIZES, towerShape } from './tankArt';
+import { TANK_BODY_FRAMES, TANK_SIZES, towerGeometry, towerShape } from './tankArt';
+
+/**
+ * Draws a turret at its authored size, pivoting on its registration point.
+ *
+ * **Both halves are the fix, and each was wrong on its own.** The turret was
+ * drawn `setDisplaySize(21, 21)` — a square — with Phaser's default centred
+ * origin. Only six of the twelve turret shapes are square and centred; the
+ * other six were stretched to fit and pivoted off their real hinge. The Magic
+ * Cannon is the worst of them at an authored 26.4 x 17: squeezed to 21 wide,
+ * stretched to 21 tall, and swung about a point 4.7 units from its pivot.
+ *
+ * `Tank.as:63` adds the turret with no x/y, so the registration point *is* the
+ * tank's centre — which is what `originX/originY` restore here.
+ */
+function applyTowerGeometry(sprite: Phaser.GameObjects.Sprite, weaponName: string): void {
+  const art = towerGeometry(weaponName);
+  sprite.setOrigin(art.originX, art.originY).setDisplaySize(art.width, art.height);
+}
 import { TANK_RADIUS } from '../player/tankDamage';
 
 /** Body diameter in design units — the extracted TankBody shape is ~58. */
@@ -114,10 +132,8 @@ export class PlayerTank extends Phaser.GameObjects.Container {
     // sibling rather than a child (see below), so nothing else puts it there
     // until `syncTurret` first runs — and a turret sitting at (0, 0) is a
     // turret in the room's top-left corner.
-    this.tower = scene.add
-      .sprite(x, y, `unit-${towerShape(weaponName)}`)
-      .setDisplaySize(TANK_SIZES.tower, TANK_SIZES.tower)
-      .setDepth(11);
+    this.tower = scene.add.sprite(x, y, `unit-${towerShape(weaponName)}`).setDepth(11);
+    applyTowerGeometry(this.tower, weaponName);
 
     // Above their sources, and hidden until a hit.
     this.hullFlash = scene.add.sprite(0, 0, `unit-${TANK_BODY_FRAMES[0]}`).setVisible(false);
@@ -262,7 +278,7 @@ export class PlayerTank extends Phaser.GameObjects.Container {
    */
   setWeaponArt(weaponName: string): void {
     this.tower.setTexture(`unit-${towerShape(weaponName)}`);
-    this.tower.setDisplaySize(TANK_SIZES.tower, TANK_SIZES.tower);
+    applyTowerGeometry(this.tower, weaponName);
   }
 
   /**
@@ -296,6 +312,10 @@ export class PlayerTank extends Phaser.GameObjects.Container {
         .setTexture(source.texture.key)
         .setPosition(source.x, source.y)
         .setRotation(source.rotation)
+        // Origin as well as size: the turret is anchored at its registration
+        // point, not its centre, so an overlay left at the default 0.5 sits
+        // off to one side of the part it is meant to be reddening.
+        .setOrigin(source.originX, source.originY)
         .setDisplaySize(source.displayWidth, source.displayHeight)
         .setAlpha(strength)
         .setVisible(true);

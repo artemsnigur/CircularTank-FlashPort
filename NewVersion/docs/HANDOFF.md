@@ -4,7 +4,7 @@
 the reports and decide what happens next. This is written so you can catch me
 being wrong.
 
-Current as of **T107**, commit `e769afa`, 12 August 2026. Keep it current — it is
+Current as of **T120**, commit `aaeccb0`, 13 August 2026. Keep it current — it is
 part of the deliverable, like the audit.
 
 **The hash is the commit this file sat on when it was written** — i.e. the parent
@@ -527,23 +527,50 @@ Rendered at its **authored 33x33**, not at `FLAG_RADIUS * 2`. The radius is
 pickup range; the two are separate quantities, which is the rule T85 set when
 projectile art stopped being sized from `bulletRadius`.
 
-**The muzzle flare was already correct — and was moved anyway in T120.** Read
-both halves of this together, because the first half is still true.
+**The muzzle flare: two passes, and the second one corrected the first.** Read
+all of this before touching the flare — the reasoning that produced the wrong
+answer is still persuasive on its own.
 
-The report was that it draws at the tank's centre. `PartGameArea.as:3962` puts it
-at `tank.x + cos(angle) * 10`, and the port matched that exactly — driven at two
-turret angles, distance 10.0 both times, bearing and flare rotation agreeing.
-**Why it reads as "centred" is geometry, not a defect:** `TANK_SIZES` has
-`body: 29` and `tower: 21`, so the body's radius is 14.5 while the turret's own
-reach is ~10.5 — the barrel does not protrude past the body at all, and a flare
-at 10 is inside the body's silhouette. That is what the original does too.
+The report in T116 was that the flare draws at the tank's centre.
+`PartGameArea.as:3962` puts it at `tank.x + cos(angle) * 10`, the port matched
+that exactly, and T116 declined to change it. **T120 then moved it to the hull
+edge** (`TANK_SIZES.body / 2 + 1.5`, 16 units) on the reasoning that the hull's
+radius is 14.5 so a flare at 10 is inside the silhouette. **That was wrong.**
+Every one of these barrels ends at **10.5** — the turret shapes' own bounds say
+so — so 16 floated the flare clear of the gun. The reasoning never asked where
+the barrel actually ends.
 
-So this was **not** a defect, and T116 declined to change it. The user then
-decided to change it anyway, as a deliberate divergence — see **`A10`** in the
-audit. `MUZZLE_FLARE_OFFSET` is now `TANK_SIZES.body / 2 + 1.5` (16), so the
-flare clears the hull. Bearing and rotation are untouched; only the distance
-moved. Do not "restore" the 10 on fidelity grounds — that argument was made,
-heard, and overruled.
+**T121 is the state to work from.** Two separate quantities, both now right:
+
+- **Position** — `muzzleFlareOffset(weapon)` returns that weapon's
+  `barrelReach`: 10.5 for eleven turrets, 11.3 for the Gummy Bear, 17.9 for the
+  Magic Cannon (which fires no flare — the AS3's chain omits it). Read per
+  weapon from `spriteGeometry.ts`, not a constant.
+- **Anchor** — the flares' registration point is their flat **base** (local
+  x = 0), and the port drew them centred, so half of every flare sat behind the
+  muzzle. This, not the position, is what "buried in the tank" actually was.
+  Fixed via `PARTICLE_ANCHORS`.
+
+Driven, `npm run look -- --sprites`: Cannon 10.5 at 0 deg and -121 deg, Gummy
+Bear 11.3 at 0 deg and -117 deg, anchor x = 0 on all four, flare rotation
+tracking the turret each time.
+
+**The turret itself was also being drawn wrong**, and had to be fixed for any of
+the above to mean anything: `setDisplaySize(21, 21)` — square, centred — against
+five turret shapes that are not square and a Magic Cannon pivoting 4.7 units off
+its hinge. It now draws at authored size on its registration point. See "A
+registration point is not a centre" in the audit; the same question has **not**
+been asked of enemy, projectile or prop art.
+
+**Photographing a flare needs `?flarehold=<frames>`.** Its lifetime is **2
+frames**, about 33ms, and a CDP screenshot round-trip is nearer 200ms — three
+orderings of poll-and-shoot were tried in T121 and each either missed the frame
+or sampled more coarsely than the flare is long. The dev aid lengthens the flare
+and changes nothing else; position and anchor have no time term. Two traps came
+with it, both now handled in `look.mjs`: held flares outlive their shot, so the
+harness **drains** between angles and reads the **newest** flare — a run that
+read the head of the list measured the previous angle's flare and reported the
+wrong bearing with complete confidence.
 
 #### T117 — shield and warning wired, enemy bullets scoped
 

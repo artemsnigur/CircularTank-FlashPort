@@ -158,6 +158,7 @@ import { presetFor, spawnParticles, tickParticles } from '../effects/particles';
 import type { Particle, SpawnInput } from '../effects/particles';
 import { particleShape } from '../effects/particleArt';
 import { PARTICLE_RASTER_SCALE } from '../../assets/manifest';
+import { PARTICLE_ANCHORS } from '../../assets/spriteGeometry';
 import { STRONG_WEAK_TIMER_MAX, impactBurst, impactClassOf } from '../effects/impactCue';
 import { muzzleFlareFor } from '../effects/muzzleFlare';
 import { applyKillReload, killReloadBonus } from '../upgrades/killReload';
@@ -426,6 +427,34 @@ function devPrimaryOverride(): string | null {
   if (typeof window === 'undefined') return null;
   const name = new URLSearchParams(window.location.search).get('primary');
   return name && getWeapon(name) ? name : null;
+}
+
+/**
+ * DEV-AID: hold the muzzle flare on screen, from `?flarehold=<frames>`.
+ *
+ * **The flare's lifetime is 2 frames** — `particles.ts`, from the AS3's own
+ * preset — which is about 33ms at 60fps. A CDP screenshot round-trip is nearer
+ * 200ms, so photographing one at full speed is a coin flip that loses most of
+ * the time: three orderings of poll-and-shoot were tried in T121 and each
+ * either missed the frame or sampled more coarsely than the flare is long.
+ * Throttling the page did not help either, because particles age **per frame**
+ * rather than per millisecond.
+ *
+ * So the harness lengthens it. **Duration is the only thing this changes** —
+ * position is `tank + bearing * barrelReach` and the anchor is a sprite origin,
+ * neither of which has a time term, so a held flare sits exactly where a
+ * 2-frame one sits. What a `?flarehold=` frame proves is *where* the flare is,
+ * never *how long* it lasts; a screenshot was never evidence of the latter.
+ *
+ * Returns 0 outside DEV, and 0 without the parameter, so no production path
+ * passes anything but the preset's own lifetime.
+ */
+function devFlareHold(): number {
+  if (!import.meta.env.DEV) return 0;
+  if (typeof window === 'undefined') return 0;
+  const raw = new URLSearchParams(window.location.search).get('flarehold');
+  const frames = raw === null ? 0 : Number.parseInt(raw, 10);
+  return Number.isFinite(frames) && frames > 0 ? Math.min(frames, 600) : 0;
 }
 
 /**
@@ -1864,7 +1893,7 @@ export class GameplayScene extends Phaser.Scene {
             rotation: spec.rotation,
             towerRotation: this.player.towerRotationDegrees,
           });
-          if (flare) this.burst(flare);
+          if (flare) this.burst(flare, devFlareHold());
         }
       }
     }
@@ -3097,6 +3126,13 @@ export class GameplayScene extends Phaser.Scene {
           rotationDeg: Math.round(this.player.towerRotationDegrees),
           texture: this.player.tower.texture.key,
           visible: this.player.tower.visible,
+          // As drawn, not as configured — a turret stretched to a square or
+          // pivoted on its texture centre reads correctly in every other field
+          // and is wrong only here.
+          width: Math.round(this.player.tower.displayWidth * 10) / 10,
+          height: Math.round(this.player.tower.displayHeight * 10) / 10,
+          originX: Math.round(this.player.tower.originX * 1000) / 1000,
+          originY: Math.round(this.player.tower.originY * 1000) / 1000,
         },
       },
       /**
@@ -3153,12 +3189,21 @@ export class GameplayScene extends Phaser.Scene {
       })),
       flares: this.particles
         .filter((p) => p.type.startsWith('MuzzleFlare'))
-        .slice(0, 4)
+        // The **newest** four, not the oldest. Particles are appended, and
+        // `?flarehold=` can keep a dozen alive at once — a run that read the
+        // head of this list measured a flare from the previous turret angle
+        // and reported the wrong bearing with total confidence.
+        .slice(-4)
         .map((p) => ({
           type: p.type,
           dx: Math.round((p.x - this.player.x) * 10) / 10,
           dy: Math.round((p.y - this.player.y) * 10) / 10,
           rotationDeg: Math.round(p.rotation),
+          // The anchor the sprite is actually drawn with. `dx/dy` say where the
+          // flare's *position* is; without the origin they cannot say whether
+          // that position is its base or its middle, which is the whole
+          // difference between a flare on the barrel and one buried in the tank.
+          originX: PARTICLE_ANCHORS[p.type]?.originX ?? 0.5,
         })),
       /**
        * Live enemies, nearest first, in the same screen space as the tank.
@@ -3352,12 +3397,20 @@ export class GameplayScene extends Phaser.Scene {
         sprite.setVisible(false);
         continue;
       }
-      const shape = particleShape(presetFor(particle.type).sprite, 1);
+      const clip = presetFor(particle.type).sprite;
+      const shape = particleShape(clip, 1);
+      // Flash anchors a clip at its **registration point**; Phaser defaults to
+      // the centre. Identical for 33 of the 44 particle shapes, and not for the
+      // muzzle flares, whose registration is the flare's flat base — drawn
+      // centred, half of every flare sat behind the muzzle inside the tank.
+      // `PARTICLE_ANCHORS` carries only the clips where the two differ.
+      const anchor = PARTICLE_ANCHORS[clip];
       sprite
         .setVisible(true)
         .setTexture(shape !== undefined && this.textures.exists(`particle-${shape}`)
           ? `particle-${shape}`
           : 'particle-dot')
+        .setOrigin(anchor?.originX ?? 0.5, anchor?.originY ?? 0.5)
         .setPosition(particle.x, particle.y)
         .setRotation(Phaser.Math.DegToRad(particle.rotation))
         // Divided by the raster oversampling — see `PARTICLE_RASTER_SCALE`.
@@ -3366,10 +3419,18 @@ export class GameplayScene extends Phaser.Scene {
     }
   }
 
-  /** Spawns a burst — `spawnParticle` (`:718`). */
-  private burst(input: SpawnInput): void {
+  /**
+   * Spawns a burst — `spawnParticle` (`:718`).
+   *
+   * `holdFrames` is the dev-only lifetime override; see `devFlareHold`. It is
+   * `0` — no change — in every production path.
+   */
+  private burst(input: SpawnInput, holdFrames = 0): void {
     const made = spawnParticles(input);
-    this.particles = [...this.particles, ...made];
+    this.particles = [
+      ...this.particles,
+      ...(holdFrames > 0 ? made.map((p) => ({ ...p, lifeTime: holdFrames })) : made),
+    ];
 
     // Grow the pool to match; it never shrinks, so a busy frame sizes it once.
     while (this.particleSprites.length < this.particles.length) {

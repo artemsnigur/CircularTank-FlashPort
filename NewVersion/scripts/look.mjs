@@ -513,13 +513,153 @@ if (args.sprites) {
    * pinned to the tank centre and one correctly offset are the same point when
    * the turret happens to face along an axis you only tested once.
    *
-   * The expected distance is **16**, not `PartGameArea.as:3962`'s 10 — the
-   * flare was moved to the body edge in T120 as divergence `A10`. This ran
-   * against the 10 first and agreed with it; do not read a 10 here as a pass.
+   * ── What the numbers should say (T121, divergence `A10`) ─────────────────
+   * The flare sits at the equipped weapon's **own barrel reach**, not at a
+   * shared constant: **10.5** for the Cannon, **11.3** for the Gummy Bear.
+   * Neither is `PartGameArea.as:3962`'s flat 10, and neither is T120's 16 —
+   * that was the hull edge, 5.5 units past where any of these barrels end.
+   *
+   * Two weapons are run rather than one, because a per-weapon read and a
+   * constant are indistinguishable on any single weapon. The Magic Cannon's
+   * turret is measured too — it is the one genuinely long barrel at 17.9 — but
+   * it fires no flare: the AS3's chain omits it, so there is nothing to
+   * photograph there and the turret geometry is the claim instead.
    */
+  /**
+   * Enters 1-5 with a given primary equipped, past the tutorial gate.
+   *
+   * A reload per weapon rather than an in-game switch: `?primary=` grants
+   * ownership as well as equipping, and a weapon the profile does not own
+   * resolves to null stats and never fires — which photographs identically to
+   * a broken flare.
+   */
+  const enterLevelFive = async (primary) => {
+    // `flarehold=40` because the flare's own lifetime is **2 frames** — about
+    // 33ms, against a ~200ms screenshot round-trip. Without it the crop is a
+    // coin flip that mostly loses, which is what three earlier orderings in
+    // this run kept discovering. It lengthens the flare and moves nothing:
+    // position is `tank + bearing * barrelReach`, the anchor is a sprite
+    // origin, and neither has a time term.
+    await page.goto(
+      `${URL}?primary=${encodeURIComponent(primary)}&secondary=Shield&flarehold=40`,
+      { waitUntil: 'domcontentloaded' },
+    );
+    await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: /level select/i }).first().click();
+    await delay(800);
+    const target = page.getByRole('button', { name: /^World 1, level 5,/i });
+    if ((await target.count()) === 0) return false;
+    await target.first().click();
+    await page
+      .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+      .catch(() => {});
+
+    await page.keyboard.down('d');
+    await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+    await page.mouse.down();
+    await delay(700);
+    await page.mouse.up();
+    await page.keyboard.up('d');
+    return true;
+  };
+
+  /** The turret as drawn, then its flare at two angles. */
+  const flaresFor = async (weapon) => {
+    const turret = await page.evaluate(() => globalThis.__arena?.tank?.turret ?? null);
+    console.log(
+      turret
+        ? `[sprites] turret ${weapon.padEnd(17)}: texture ${turret.texture} · ` +
+            `drawn ${turret.width}x${turret.height} · origin ${turret.originX},${turret.originY}`
+        : `[sprites] turret ${weapon}: no arena projection`,
+    );
+
+    for (const [label, sx, sy] of [
+      ['east', 1200, 400],
+      ['north', 640, 80],
+    ]) {
+      await page.locator('canvas').hover({ position: { x: sx, y: sy } });
+      await delay(120);
+      await page.mouse.down();
+
+      // **Poll fast, shoot on the hit, then confirm the flare was still there.**
+      //
+      // Each half is a trap this run has already fallen into. Polling at 20ms
+      // and shooting afterwards gets the numbers but often photographs a bare
+      // tank, because the flare lives ~5 frames (~165ms) and the round-trip
+      // spends most of it. Shooting *first* and validating after fixes the
+      // frame but wrecks the sampling: a screenshot is ~200ms, so the reads
+      // between shots are further apart than the flare is long, and the run
+      // reported "none observed" for a flare it had just photographed.
+      //
+      // So: cheap reads to find the flare, the crop immediately on the hit, and
+      // a second cheap read to confirm it outlived the shutter. Retried while
+      // the trigger is held, because most attempts land inside the 600ms
+      // reload.
+      const slug = `${weapon.replace(/\s+/g, '')}-${label}`;
+      const readFlare = () =>
+        page.evaluate(() => {
+          const a = globalThis.__arena;
+          if (!a?.flares?.length) return null;
+          // The newest, for the same reason the projection sends the newest:
+          // `?flarehold=` keeps earlier flares alive, and the first entry is
+          // the one fired at the *previous* angle.
+          return { turret: a.tank.turret.rotationDeg, flare: a.flares[a.flares.length - 1] };
+        });
+
+      // Drain first. Held flares outlive the shot that made them, including the
+      // ones fired while satisfying the tutorial gate, so an angle measured
+      // without draining reports a flare from before the turret turned.
+      for (let i = 0; i < 60; i += 1) {
+        const alive = await page.evaluate(() => globalThis.__arena?.flares?.length ?? 0);
+        if (alive === 0) break;
+        await delay(50);
+      }
+
+      let seen = null;
+      let photographed = false;
+      for (let i = 0; i < 120 && !photographed; i += 1) {
+        const hit = await readFlare();
+        if (!hit) {
+          await delay(20);
+          continue;
+        }
+        seen = hit;
+        await shot(`sprites-flare-${slug}-close`, { x: 725, y: 320, width: 160, height: 160 });
+        photographed = (await readFlare()) !== null;
+      }
+      // The crop box is fixed because the tank does not move in this section —
+      // no movement key is held — so it sits at the same screen point at every
+      // angle; if that changes, the crop slides off the tank and the miss is
+      // obvious rather than subtle.
+      await shot(`sprites-flare-${slug}`);
+      await page.mouse.up();
+      if (!seen) {
+        console.log(`[sprites] flare ${weapon} ${label}: none observed`);
+        continue;
+      }
+      if (!photographed) {
+        // Said out loud rather than left for a reader to infer from a frame
+        // that looks like a bare tank: the numbers below are real, the crop is
+        // not evidence for this angle.
+        console.log(`[sprites] flare ${weapon} ${label}: measured, but no frame caught it`);
+      }
+      const dist = Math.hypot(seen.flare.dx, seen.flare.dy);
+      const bearing = (Math.atan2(seen.flare.dy, seen.flare.dx) * 180) / Math.PI;
+      console.log(
+        `[sprites] flare ${weapon.padEnd(17)} ${label.padEnd(5)}: turret ${String(seen.turret).padStart(4)}deg` +
+          ` · offset (${seen.flare.dx},${seen.flare.dy})` +
+          ` dist ${dist.toFixed(1)} bearing ${bearing.toFixed(0)}deg` +
+          ` · flare rot ${seen.flare.rotationDeg}deg · anchor x ${seen.flare.originX}` +
+          ` · ${seen.flare.type}`,
+      );
+    }
+  };
+
   // `secondary=Shield` because the default is Mine, and the shield is one of
   // the two sprites this run exists to check.
-  await page.goto(`${URL}?primary=Cannon&secondary=Shield`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${URL}?primary=Cannon&secondary=Shield&flarehold=40`, {
+    waitUntil: 'domcontentloaded',
+  });
   await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
   await page.getByRole('button', { name: /level select/i }).first().click();
   await delay(800);
@@ -599,52 +739,29 @@ if (args.sprites) {
       );
     }
 
-    // ── The muzzle flare, at two turret angles ────────────────────────────
-    for (const [label, sx, sy] of [
-      ['east', 1200, 400],
-      ['north', 640, 80],
-    ]) {
-      await page.locator('canvas').hover({ position: { x: sx, y: sy } });
-      await delay(120);
-      await page.mouse.down();
-      let seen = null;
-      for (let i = 0; i < 80 && !seen; i += 1) {
-        const s = await page.evaluate(() => {
-          const a = globalThis.__arena;
-          if (!a?.flares?.length) return null;
-          return { turret: a.tank.turret.rotationDeg, flare: a.flares[0] };
-        });
-        if (s) seen = s;
-        await delay(20);
-      }
-      // Cropped tight enough to read, and taken **first**: a full-frame
-      // screenshot costs a couple of hundred ms and the flare lives ~5 frames,
-      // so shooting the wide frame first spends the flare's whole life before
-      // the crop is taken. The first run did exactly that and the close-up of
-      // one of the two angles came back empty.
-      //
-      // The box is fixed because the tank does not move in this section — no
-      // movement key is held — so it sits at the same screen point at both
-      // angles; if that changes, the crop slides off the tank and the miss is
-      // obvious rather than subtle.
-      await shot(`sprites-flare-${label}-close`, { x: 725, y: 320, width: 160, height: 160 });
-      await shot(`sprites-flare-${label}`);
-      await page.mouse.up();
-      if (!seen) {
-        console.log(`[sprites] flare ${label}: none observed`);
-        continue;
-      }
-      const dist = Math.hypot(seen.flare.dx, seen.flare.dy);
-      const bearing = (Math.atan2(seen.flare.dy, seen.flare.dx) * 180) / Math.PI;
-      console.log(
-        `[sprites] flare ${label.padEnd(5)}: turret ${String(seen.turret).padStart(4)}deg` +
-          ` · offset (${seen.flare.dx},${seen.flare.dy})` +
-          ` dist ${dist.toFixed(1)} bearing ${bearing.toFixed(0)}deg` +
-          ` · flare rot ${seen.flare.rotationDeg}deg · ${seen.flare.type}`,
-      );
-    }
+    await flaresFor('Cannon');
   }
 
+  // The second weapon, and the reason there is a second: a per-weapon read and
+  // a shared constant are the same number on any one weapon. The Gummy Bear's
+  // barrel reaches 11.3 where the Cannon's reaches 10.5.
+  if (await enterLevelFive('Gummy Bear Cannon')) await flaresFor('Gummy Bear Cannon');
+
+  // The long barrel, turret only. 17.9 against everything else's 10.5 — and the
+  // AS3's flare chain omits the Magic Cannon entirely, so there is no flare to
+  // photograph here and the turret's drawn geometry is the claim instead.
+  if (await enterLevelFive('Magic Cannon')) {
+    const magic = await page.evaluate(() => globalThis.__arena?.tank?.turret ?? null);
+    await shot('sprites-turret-MagicCannon-close', { x: 725, y: 320, width: 160, height: 160 });
+    console.log(
+      magic
+        ? `[sprites] turret ${'Magic Cannon'.padEnd(17)}: texture ${magic.texture} · ` +
+            `drawn ${magic.width}x${magic.height} · origin ${magic.originX},${magic.originY}`
+        : '[sprites] turret Magic Cannon: no arena projection',
+    );
+  }
+
+  {
     // ── Enemy bullets, across the six shooting types ──────────────────────
     // Each type belongs to particular enemies, so this drives the isolated dev
     // levels from the Enemies screen — a mixed arena cannot guarantee any given
@@ -742,7 +859,7 @@ if (args.sprites) {
     console.log(
       `[sprites] enemy bullets: ${seenBullets.size} state(s) seen, ${distinct.size} distinct texture(s)`,
     );
-
+  }
 }
 
 if (args.turret) {

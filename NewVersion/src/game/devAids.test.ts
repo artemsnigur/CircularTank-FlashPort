@@ -44,6 +44,10 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     // stable identity. Keying on it reported zero wall contacts for a boss that
     // sat against a wall for 152 consecutive samples.
     'stable per-enemy ids for the debug projection',
+    // T121: the muzzle flare's lifetime is 2 frames, shorter than a screenshot
+    // round-trip, so "where does the flare sit" had no photographable answer.
+    // Lengthens the flare and nothing else — position and anchor are geometric.
+    'hold the muzzle flare on screen via ?flarehold=<frames>',
   ],
   // T114: a persisted damage-flash tint, which no unit test could see (nothing
   // constructs an `Enemy`) and no screenshot could reliably read.
@@ -111,6 +115,10 @@ describe('dev aids are enumerable', () => {
     // all. A `WeakMap` in the scene rather than a field on `Enemy`, so removing
     // it at release takes nothing in the game with it.
     // 27 since T114 — the enemy sprite tint accessor.
-    expect(total).toBe(27);
+    // 28 since T121 — `?flarehold=<frames>`. The muzzle flare lives 2 frames,
+    // which is shorter than a screenshot round-trip, so "where is the flare"
+    // had no photographable answer at all until this. It changes the flare's
+    // duration and nothing else — position and anchor have no time term.
+    expect(total).toBe(28);
   });
 });

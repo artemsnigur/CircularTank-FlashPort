@@ -26,7 +26,7 @@
  */
 
 import type { SpawnInput } from './particles';
-import { TANK_SIZES } from '../entities/tankArt';
+import { barrelReach } from '../entities/tankArt';
 
 /** `:3960`, `:3964`, `:3968` — the three tiers, by primary weapon name. */
 const FLARE_BY_WEAPON: Readonly<Record<string, string>> = {
@@ -44,23 +44,33 @@ const FLARE_BY_WEAPON: Readonly<Record<string, string>> = {
 /**
  * How far along the round's bearing the flare sits — **divergence `A10`**.
  *
- * `:3962` uses a flat `10` from the tank centre. That is faithfully the barrel
- * tip *in the original's geometry*: `TANK_SIZES.tower` is 21, so the turret's
- * own reach is ~10.5. But the body is 29 wide, radius 14.5, so the turret never
- * protrudes and a flare at 10 sits **inside the body silhouette** — which reads
- * as the tank firing from its middle rather than from a barrel.
+ * `:3962` uses a flat `10` from the tank centre for every weapon. This reads
+ * the equipped weapon's **own barrel** instead: `barrelReach` is the distance
+ * from the turret's registration point to the end of its art, straight off the
+ * shape's authored bounds.
  *
- * Measured before changing: the port matched `:3962` exactly, at distance 10.0
- * along the turret bearing at every angle. This is a deliberate change, not a
- * bug fix.
+ * ── What the measurement actually showed ──────────────────────────────────
+ * Eleven of the twelve turrets reach **10.5**, the Gummy Bear reaches 11.3 and
+ * the Magic Cannon 17.9. So the AS3's flat `10` was very nearly right, and the
+ * divergence here is small in magnitude for most weapons — half a unit — while
+ * being correct for the two that differ. **That is the honest size of it**: the
+ * per-weapon read is what stops the Gummy Bear and any future long gun being
+ * wrong, not a large visible change on the Cannon.
  *
- * Derived from the body's own radius rather than typed as a number, so it keeps
- * tracking the art if `TANK_SIZES.body` ever changes. The `+ 1.5` clears the
- * edge so the flare reads as leaving the barrel rather than sitting on the rim.
+ * The visible fix is not this number at all, it is the **anchor**: the flare's
+ * registration point is its flat base (`PARTICLE_ANCHORS`), and the port was
+ * drawing it centred, burying half of every flare inside the tank. Position and
+ * anchor are separate quantities and both had to be right.
  *
- * Full rationale and what is lost: `docs/AUDIT-2026-07.md`, `A10`.
+ * The earlier `TANK_SIZES.body / 2 + 1.5` is gone. It put the flare on the
+ * *hull* edge at 16, which is 5.5 units past where any of these barrels end —
+ * the flare floated clear of the gun.
+ *
+ * Full rationale: `docs/AUDIT-2026-07.md`, `A10`.
  */
-export const MUZZLE_FLARE_OFFSET = TANK_SIZES.body / 2 + 1.5;
+export function muzzleFlareOffset(weaponName: string): number {
+  return barrelReach(weaponName);
+}
 
 /** `:3962`'s value, kept as documentation. Nothing reads it at runtime. */
 export const AS3_MUZZLE_FLARE_OFFSET = 10;
@@ -87,11 +97,12 @@ export function muzzleFlareFor(input: MuzzleFlareInput): SpawnInput | undefined 
   }
 
   const radians = (input.rotation * Math.PI) / 180;
+  const offset = muzzleFlareOffset(input.weaponName);
   return {
     type,
     count: 1,
-    x: input.tankX + Math.cos(radians) * MUZZLE_FLARE_OFFSET,
-    y: input.tankY + Math.sin(radians) * MUZZLE_FLARE_OFFSET,
+    x: input.tankX + Math.cos(radians) * offset,
+    y: input.tankY + Math.sin(radians) * offset,
     // `distance: 0` and `randAngle: 0` — the flare does not scatter; it points
     // where the round went and stays put.
     distance: 0,
