@@ -111,6 +111,13 @@ export function attachStoreBridge(): () => void {
     store.getState().setSlotList(slots);
   });
 
+  // The pause flag is mirrored here like any other gameplay value, even though
+  // its emitter is React rather than a scene: the bus is the channel either
+  // way, and a second path would be a second source of truth.
+  on('ui:pause', ({ paused }) => {
+    store.getState().setPaused(paused);
+  });
+
   on('ui:slot-picker', ({ open }) => {
     store.getState().setSlotPickerOpen(open);
   });

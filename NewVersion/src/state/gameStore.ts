@@ -187,6 +187,17 @@ export interface GameState {
   achievements: AchievementToast[];
 
   /** Set when a level finishes; null while one is in progress. */
+  /**
+   * Whether gameplay is paused — `PartGameArea.gamePaused`.
+   *
+   * **The single source of truth, deliberately.** The pause key latch and the
+   * overlay's Resume button both change it, and if either kept its own copy the
+   * two would disagree the first time a player used one after the other: press
+   * P, click Resume, press P — and the key would try to unpause an already
+   * running game. Mirrored here from `ui:pause` so both read the same value.
+   */
+  paused: boolean;
+
   levelOutcome: LevelOutcomeSummary | null;
 
   /** The selectable levels of the current world, published by LevelSelectScene. */
@@ -267,6 +278,7 @@ export interface GameState {
   setBestiary: (bestiary: BestiaryListing) => void;
   setLevelGuide: (guide: GameEventMap['level-guide:changed']) => void;
   setResumePoint: (point: { world: number; level: number }) => void;
+  setPaused: (paused: boolean) => void;
   pushAchievement: (toast: AchievementToast) => void;
   dismissAchievement: (id: string) => void;
   setViewport: (viewport: ViewportSnapshot) => void;
@@ -299,6 +311,7 @@ const initialRunState = {
   flagsRemaining: 0,
   countdown: null,
   achievements: [] as AchievementToast[],
+  paused: false,
   levelOutcome: null as LevelOutcomeSummary | null,
   levelList: null as LevelListing | null,
   worldList: null as WorldListing | null,
@@ -351,7 +364,12 @@ export const useGameStore = create<GameState>()((set) => ({
   setWave: (wave, enemiesRemaining, levelMode, flagsRemaining) =>
     set({ wave, enemiesRemaining, levelMode, flagsRemaining }),
   setCountdown: (countdown) => set({ countdown }),
-  endLevel: (levelOutcome) => set({ levelOutcome }),
+  setPaused: (paused: boolean) => set({ paused }),
+  // A finished level is never "paused" as far as the UI is concerned: the
+  // results overlay owns the screen and the pause panel must not appear over
+  // it. Cleared here as well as gated in the latch, so neither path can leave
+  // the panel stranded on top of the results.
+  endLevel: (levelOutcome) => set({ levelOutcome, paused: false }),
   clearLevelOutcome: () => set({ levelOutcome: null }),
   setLevelList: (levelList) => set({ levelList }),
   setWorldList: (worldList) => set({ worldList }),

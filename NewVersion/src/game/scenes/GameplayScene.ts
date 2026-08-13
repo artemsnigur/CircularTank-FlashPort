@@ -1094,9 +1094,13 @@ export class GameplayScene extends Phaser.Scene {
     this.teardown.push(
       GameEvents.subscribe('ui:goto', ({ key }) => {
         if (key === SceneKeys.Gameplay) {
-          // Retry from the results overlay. The scene is paused at that point,
-          // so it has to be resumed before the restart takes effect.
-          if (this.outcome.finished) {
+          // Retry from the results overlay, or **Reset Level from the pause
+          // panel** (`ButtonPause.as:97`). Both arrive here with the scene
+          // paused — the results overlay pauses it at `:4819`, the pause panel
+          // through `ui:pause` — and both want the same restart, so the
+          // condition is "paused for either reason" rather than a second
+          // branch that would drift from this one.
+          if (this.outcome.finished || this.scene.isPaused()) {
             this.scene.resume();
             // `sandbox` rides along: retrying a dev run must not become a
             // real one.

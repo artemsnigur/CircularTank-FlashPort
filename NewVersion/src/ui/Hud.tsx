@@ -18,6 +18,7 @@ import { buildStatusPages, initialPageIndex,
 import { AudioToggles } from './AudioToggles';
 import { GameEvents } from '../game/events/GameEvents';
 import { usePauseControl } from './usePauseControl';
+import { PauseOverlay } from './PauseOverlay';
 import { formatNumber } from '../game/core/Functions';
 import {
   FADE_OUT_MS,
@@ -690,6 +691,9 @@ export function Hud(): React.ReactElement | null {
       </div>
 
       <CountdownPanel />
+      {/* Above the countdown, below the results: a finished level clears
+          `paused`, so the two can never stack. */}
+      <PauseOverlay />
       <LevelOutcomeOverlay />
       <AchievementToasts />
     </div>

@@ -41,6 +41,12 @@ export function usePauseControl(active: boolean): void {
   // `SaveStore` reached through a Phaser scene, and React must never hold a
   // scene reference. The options screen reads the same mirror.
   const autoPause = useGameStore((s) => s.gameplayOptions.autoPause);
+  // **Read, not owned.** The overlay's Resume button changes this too, so a
+  // copy held in the latch would go stale the first time a player mixed the
+  // button and the key — press P, click Resume, press P, and the key would try
+  // to unpause an already running game. `PartGameArea.gamePaused` is a static
+  // for the same reason; only `canPause` is local here.
+  const paused = useGameStore((s) => s.paused);
 
   // Refs rather than state: the latch must not re-render anything, and the
   // listeners must see the current value without being torn down and rebuilt
@@ -51,6 +57,8 @@ export function usePauseControl(active: boolean): void {
   finishedRef.current = levelFinished;
   const autoPauseRef = useRef(autoPause);
   autoPauseRef.current = autoPause;
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   useEffect(() => {
     if (!active) {
@@ -61,13 +69,14 @@ export function usePauseControl(active: boolean): void {
     }
 
     const apply = (over: { keyHeld?: boolean; focused?: boolean }) => {
-      const next = stepPauseLatch(latch.current, {
+      const next = stepPauseLatch({ canPause: latch.current.canPause, paused: pausedRef.current }, {
         keyHeld: over.keyHeld ?? false,
         focused: over.focused ?? true,
         autoPause: autoPauseRef.current,
         levelFinished: finishedRef.current,
       });
       latch.current = { canPause: next.canPause, paused: next.paused };
+      // The store is what everything else reads; this only reports the edge.
       if (next.toggled) GameEvents.emit('ui:pause', { paused: next.paused });
     };
 

@@ -1914,3 +1914,75 @@ code {
   margin: var(--space-2) auto;
 }
 .achievement-icon img { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/*
+ * The pause panel — `PartInterface.pauseGame` (`:426-476`).
+ *
+ * The scrim is the AS3's own 75% black (`:430`), which is darker than the
+ * results overlay's 62% and deliberately so: results are a screen you read,
+ * pause is a screen that says the game has stopped.
+ */
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 75%);
+  pointer-events: auto;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.pause-overlay__panel {
+  min-width: min(280px, 80vw);
+  padding: 1.5rem 1.75rem;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  text-align: center;
+}
+
+.pause-overlay__title {
+  margin: 0 0 1.25rem;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  letter-spacing: 0.04em;
+}
+
+.pause-overlay__actions {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* Order matches `:438`, `:452`, `:456` — Resume, Reset, Quit. */
+/*
+ * Sized to the same 44px minimum the HUD buttons use — the touch target rule
+ * this project already follows, not a new number.
+ */
+.pause-overlay__button {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-family: var(--font-display);
+  cursor: pointer;
+}
+
+.pause-overlay__button:hover,
+.pause-overlay__button:focus-visible {
+  background: var(--panel);
+}
+
+.pause-overlay__option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-top: 1.1rem;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  cursor: pointer;
+}
