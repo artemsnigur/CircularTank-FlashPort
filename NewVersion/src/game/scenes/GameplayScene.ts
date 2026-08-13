@@ -1148,6 +1148,22 @@ export class GameplayScene extends Phaser.Scene {
       GameEvents.subscribe('ui:pause', ({ paused }) => {
         if (paused) this.scene.pause();
         else this.scene.resume();
+
+        // `:2687` and `:2693` — the music pauses with the game. `musicPaused`
+        // is the AS3's own flag and this port already carries it; nothing set
+        // it until now, so the track played on over the pause panel.
+        //
+        // **It stops the music rather than suspending it.** `handleMusicChange`
+        // tears the channels down when the flag is set (`SoundManager.as:947`),
+        // so resuming restarts the track from the top. That is the original's
+        // behaviour, not an approximation of it.
+        //
+        // The manager ticks on the game's `PRE_STEP`, not this scene's update,
+        // so it keeps running while the scene is paused and the flag takes
+        // effect immediately. A scene-driven tick would have left the music
+        // playing until the moment the player resumed.
+        const sound = getSoundManager(this);
+        if (sound) sound.musicPaused = paused;
       }),
     );
 

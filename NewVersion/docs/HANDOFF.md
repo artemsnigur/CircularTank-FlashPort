@@ -390,6 +390,46 @@ be checked against a second mode on the same build before it is believed.
 
 ---
 
+## Pause — shipped T127-T129
+
+**There is no pause button in the AS3.** `PartGameArea.as:2682` triggers on
+`Main.keyP || Main.keyEsc` plus an auto-pause on focus loss; the four
+`ButtonPause*` classes are the buttons *inside* the panel. So the port binds
+**P and Escape**, and the panel carries Resume / Reset Level / Quit Level.
+
+**The trigger lives in React, not in `GameplayScene`.** A paused Phaser scene
+stops dispatching its own keys — `KeyboardPlugin` checks `isActive()` — so a
+`keydown-P` handler in the scene would pause the game and then be unable to
+unpause it. It listens on `window` and goes over the bus, which is the
+sanctioned React -> Phaser direction anyway.
+
+**`canPause` is an edge detector and it matters.** The AS3 polls a *held* key
+every frame, so without the latch pause toggles sixty times a second. Extracted
+to `pauseLatch.ts` and driven over 60 and 200 frames of a held key, requiring
+exactly one toggle. The auto arm carries its own `!gamePaused`, so losing focus
+can pause but never resume — pinned over 300 unfocused frames.
+
+**`paused` lives in the store, not in the latch.** The key and the Resume button
+both change it; a local copy would go stale the first time a player mixed them.
+`endLevel` also clears it, so the pause panel and the results overlay can never
+stack — belt and braces with the latch's finished-level gate, and both wanted.
+
+**Three inert things now have consumers:** `ui:pause` (a correct handler with
+zero emitters), `autoPause` (persisted and shown on the options screen, read by
+nothing), and `SoundManager.musicPaused` (a field the class carried from the
+start that nothing ever set). Setting it **stops** the music rather than
+suspending it — `SoundManager.as:947` tears the channels down, so resuming
+restarts the track from the top. The manager ticks on the game's `PRE_STEP`
+rather than a scene update, so it keeps running while the scene is paused and
+the flag takes effect at once.
+
+**Two divergences**, both tested so they cannot be undone by accident: the panel
+does **not** duplicate the HUD's audio toggles, and Quit goes to **LevelSelect**
+(`ButtonPause.as:105`) while the HUD's separate Menu button still goes to the
+title.
+
+---
+
 ## 5. What is open
 
 ### The live queue — one measurement note

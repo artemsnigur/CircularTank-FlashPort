@@ -553,3 +553,68 @@ describe('continuous loops', () => {
     expect(backend.of('startLoop'), 'never restarted').toHaveLength(1);
   });
 });
+
+/**
+ * The pause flag — `SoundManager.as:947`, wired in T129.
+ *
+ * `musicPaused` has existed on this class since the port began and **nothing
+ * ever set it**, so the music played on over a pause that had no panel yet.
+ * These pin what setting it does, because "the music stops" and "the music is
+ * suspended" are different behaviours and the AS3 does the first.
+ */
+describe('musicPaused', () => {
+  /** Gets a track actually playing, past the crossfade. */
+  function playing(): SoundManager {
+    const m = makeManager();
+    // `'Menu'` is the logical name; `112_MusicMenu.mp3` is the file. Naming
+    // the file here makes `setMusic` warn and play nothing, which the
+    // stop-channel assertion below would still have passed — for the wrong
+    // reason.
+    m.setMusic('Menu');
+    m.update(FRAME);
+    m.update(MUSIC_CROSSFADE_MS + FRAME);
+    return m;
+  }
+
+  it('tears the channels down rather than suspending them', () => {
+    const m = playing();
+    const stopsBefore = backend.of('stopMusic').length;
+
+    m.musicPaused = true;
+    m.update(FRAME);
+
+    // `:947-960` stops both channels, so a resume restarts the track from the
+    // top rather than continuing it.
+    expect(backend.of('stopMusic').length).toBe(stopsBefore + 2);
+  });
+
+  it('lets the same track start again on resume', () => {
+    // The counterpart: pausing must not be a one-way door. `changeMusic` still
+    // holds the request, so clearing the flag re-runs the crossfade.
+    const m = playing();
+    m.musicPaused = true;
+    m.update(FRAME);
+    const playsBefore = backend.of('playMusic').length;
+
+    m.musicPaused = false;
+    m.update(FRAME);
+
+    expect(backend.of('playMusic').length).toBeGreaterThan(playsBefore);
+  });
+
+  it('is independent of the music toggle', () => {
+    // Two reasons for silence, and neither may swallow the other: unpausing
+    // while the toggle is off must stay silent.
+    const m = playing();
+    m.musicOn = false;
+    m.update(FRAME);
+    const playsAfterToggleOff = backend.of('playMusic').length;
+
+    m.musicPaused = false;
+    m.update(FRAME);
+
+    expect(backend.of('playMusic').length, 'the toggle is still off').toBe(
+      playsAfterToggleOff,
+    );
+  });
+});

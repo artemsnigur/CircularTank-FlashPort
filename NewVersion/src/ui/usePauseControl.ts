@@ -25,6 +25,7 @@ import { GameEvents } from '../game/events/GameEvents';
 import { createPauseLatch, stepPauseLatch } from '../game/ui/pauseLatch';
 import type { PauseLatchState } from '../game/ui/pauseLatch';
 import { useGameStore } from '../state/gameStore';
+import { CLICK_SOUND } from './buttonSounds';
 
 /** `Main.keyP` and `Main.keyEsc` — `Main.as:719`, `:723`. */
 const PAUSE_KEYS = new Set(['KeyP', 'Escape']);
@@ -77,7 +78,13 @@ export function usePauseControl(active: boolean): void {
       });
       latch.current = { canPause: next.canPause, paused: next.paused };
       // The store is what everything else reads; this only reports the edge.
-      if (next.toggled) GameEvents.emit('ui:pause', { paused: next.paused });
+      if (!next.toggled) return;
+      GameEvents.emit('ui:pause', { paused: next.paused });
+      // `:2695` — the AS3 queues the click inside the same block, so it sounds
+      // for the **auto** pause as well as the key. The panel's own buttons get
+      // theirs from the delegated listener in `buttonSounds.ts`; this is the
+      // path that has no button to delegate from.
+      GameEvents.emit('ui:sound', { name: CLICK_SOUND });
     };
 
     const onKeyDown = (event: KeyboardEvent) => {

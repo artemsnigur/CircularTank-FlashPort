@@ -80,8 +80,16 @@ export function PauseOverlay(): React.ReactElement | null {
           so it persists by the one path, rather than being written twice.
         */}
         <label className="pause-overlay__option">
+          {/*
+            `role` stated explicitly so the delegated button-sound listener
+            matches it: `isAudible` reads `closest('[role="checkbox"]')`, which
+            an implicit role does not satisfy. The AS3's checkbox is a button
+            and clicks like one (`ButtonOptionCheckBox`), so silence here would
+            be the divergence.
+          */}
           <input
             type="checkbox"
+            role="checkbox"
             checked={autoPause}
             onChange={() => GameEvents.emit('ui:set-option', { autoPause: !autoPause })}
           />

@@ -1420,6 +1420,20 @@ transcript is not findable, which is the same failure as a count without a list.
 
 ---
 
+## Pause — **CLOSED T127-T129**
+
+`ui:pause` had a correct `scene.pause()`/`resume()` handler and zero emitters;
+it has one now. **Not a button** — `PartGameArea.as:2682` triggers on P/Escape
+plus an auto-pause on focus loss, and the `ButtonPause*` classes are the panel's
+own buttons. Shipped in three commits: the trigger and its `canPause` latch, the
+panel, and the audio pausing. Detail in `HANDOFF.md`.
+
+Closed alongside it, all three previously inert: `autoPause` (persisted, shown
+on the options screen, read by nothing), `SoundManager.musicPaused` (a field
+nothing ever set), and the `ui:pause` handler itself.
+
+---
+
 ## Dependencies
 
 **Every edge in the original graph has been discharged.** It is kept below,
