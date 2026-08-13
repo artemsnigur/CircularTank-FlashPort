@@ -69,8 +69,35 @@ export interface GameplayOptions {
   tutorialOn: boolean;
 }
 
-/** `:824-831` — every default the first run writes. */
+/**
+ * The first run's defaults — `SaveManager.as:824-831`, **with two changed**.
+ *
+ * The AS3 writes all six `true`. `crosshair` and `tutorialOn` are `false` here
+ * by decision — divergence `A13`. Both remain switchable on the options screen
+ * and both persist normally once touched; only the value a brand-new profile
+ * starts with differs.
+ *
+ * The AS3 values are kept beside this rather than in a comment, so the
+ * divergence is a diff between two objects rather than a claim about one.
+ */
 export const DEFAULT_GAMEPLAY_OPTIONS: GameplayOptions = {
+  crosshair: false,
+  autoPause: true,
+  windowUL: true,
+  autoSelect: true,
+  achievementPopUp: true,
+  tutorialOn: false,
+};
+
+/**
+ * `:824-831` exactly, kept as documentation. Nothing reads it at runtime.
+ *
+ * **`tutorialOn` is the consequential one.** `ScreenGame.as:390` builds the
+ * tutorial layer on `tutorialOn && !tutorialCompleted`, so defaulting it off
+ * does not postpone onboarding — it removes it for any player who never opens
+ * the options screen. Asked for explicitly and recorded in `A13`.
+ */
+export const AS3_DEFAULT_GAMEPLAY_OPTIONS: GameplayOptions = {
   crosshair: true,
   autoPause: true,
   windowUL: true,
