@@ -32,7 +32,12 @@ import type { GameplayOptions } from '../../game/options/gameplayOptions';
 const CONTROLS: { key: keyof GameplayOptions; label: string; hint: string }[] = [
   { key: 'crosshair', label: 'Crosshair', hint: 'Draw the aiming crosshair.' },
   { key: 'autoPause', label: 'Auto-pause', hint: 'Pause when the window loses focus.' },
-  { key: 'windowUL', label: 'Info window', hint: 'Show the upper-left info panel.' },
+  // **No `windowUL` row — divergence `A11`.** "UL" is *Upgrade Limit*, not
+  // upper-left: `ScreenLevelSelect.as:1001`/`:1024` and `ButtonNextLevel.as:123`
+  // /`:147` gate the "Upgrade Limit" warning window on it, and its "don't show
+  // this again" checkbox is this flag. That mechanic is deliberately not ported
+  // (`A11`), so the toggle governed nothing. The key is still read and written
+  // so an existing player's stored value survives; only the row is gone.
   // `ButtonLevelGuideAutoSelect.as:60` states what it does, verbatim:
   // "Automatically selects the upcoming level for the level guide and the level
   // select screen." It **never starts a level** — it decides where the guide

@@ -49,7 +49,21 @@ export interface GameplayOptions {
   crosshair: boolean;
   /** `optionAutoPauseOn` — pause when the window loses focus. */
   autoPause: boolean;
-  /** `optionWindowULOn` — the upper-left info window. */
+  /**
+   * `optionWindowULOn` — **"UL" is Upgrade Limit, not upper-left.**
+   *
+   * It gates the "Upgrade Limit" warning window: `ScreenLevelSelect.as:1001`
+   * scans the equipped loadout against the level's cap when it is on, `:1024`
+   * raises the window, and `ButtonNextLevel.as:123`/`:147` do the same from the
+   * results screen. The window's "don't show this message again" checkbox is
+   * this flag.
+   *
+   * **Nothing reads it here and no options row offers it** — the cap mechanic
+   * is deliberately unported (`A11`), so the toggle governed a warning about a
+   * rule that does not exist. Kept in the type and the store so an existing
+   * player's stored value round-trips rather than being dropped on the next
+   * save; see `A11` for what reinstating it would take.
+   */
   windowUL: boolean;
   /**
    * `LevelGuide.autoSelect` — whether the level guide follows your progress.
