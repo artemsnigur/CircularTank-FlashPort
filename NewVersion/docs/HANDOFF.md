@@ -527,22 +527,23 @@ Rendered at its **authored 33x33**, not at `FLAG_RADIUS * 2`. The radius is
 pickup range; the two are separate quantities, which is the rule T85 set when
 projectile art stopped being sized from `bulletRadius`.
 
-**The muzzle flare was already correct — do not "fix" it.** The report was that
-it draws at the tank's centre. `PartGameArea.as:3962` puts it at
-`tank.x + cos(angle) * 10`, and the port matches that exactly. Driven at two
-turret angles:
+**The muzzle flare was already correct — and was moved anyway in T120.** Read
+both halves of this together, because the first half is still true.
 
-| Turret | Flare offset | Distance | Bearing | Flare rotation |
-|---|---|---|---|---|
-| 0 deg | (10, 0) | **10.0** | 0 deg | 0 deg |
-| -117 deg | (-4.6, -8.9) | **10.0** | -117 deg | -117 deg |
-
-It tracks the turret, sits 10 units along that bearing, and is itself rotated to
-match. **Why it reads as "centred" is geometry, not a defect:** `TANK_SIZES` has
+The report was that it draws at the tank's centre. `PartGameArea.as:3962` puts it
+at `tank.x + cos(angle) * 10`, and the port matched that exactly — driven at two
+turret angles, distance 10.0 both times, bearing and flare rotation agreeing.
+**Why it reads as "centred" is geometry, not a defect:** `TANK_SIZES` has
 `body: 29` and `tower: 21`, so the body's radius is 14.5 while the turret's own
 reach is ~10.5 — the barrel does not protrude past the body at all, and a flare
 at 10 is inside the body's silhouette. That is what the original does too.
-Moving it out would be an invented deviation; it is a decision, not a fix.
+
+So this was **not** a defect, and T116 declined to change it. The user then
+decided to change it anyway, as a deliberate divergence — see **`A10`** in the
+audit. `MUZZLE_FLARE_OFFSET` is now `TANK_SIZES.body / 2 + 1.5` (16), so the
+flare clears the hull. Bearing and rotation are untouched; only the distance
+moved. Do not "restore" the 10 on fidelity grounds — that argument was made,
+heard, and overruled.
 
 #### T117 — shield and warning wired, enemy bullets scoped
 

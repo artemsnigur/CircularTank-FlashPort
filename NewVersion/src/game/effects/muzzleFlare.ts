@@ -26,6 +26,7 @@
  */
 
 import type { SpawnInput } from './particles';
+import { TANK_SIZES } from '../entities/tankArt';
 
 /** `:3960`, `:3964`, `:3968` — the three tiers, by primary weapon name. */
 const FLARE_BY_WEAPON: Readonly<Record<string, string>> = {
@@ -40,8 +41,29 @@ const FLARE_BY_WEAPON: Readonly<Record<string, string>> = {
   'Penetration Cannon': 'MuzzleFlareBig',
 };
 
-/** `:3962` — the flare sits this far along the round's own bearing. */
-export const MUZZLE_FLARE_OFFSET = 10;
+/**
+ * How far along the round's bearing the flare sits — **divergence `A10`**.
+ *
+ * `:3962` uses a flat `10` from the tank centre. That is faithfully the barrel
+ * tip *in the original's geometry*: `TANK_SIZES.tower` is 21, so the turret's
+ * own reach is ~10.5. But the body is 29 wide, radius 14.5, so the turret never
+ * protrudes and a flare at 10 sits **inside the body silhouette** — which reads
+ * as the tank firing from its middle rather than from a barrel.
+ *
+ * Measured before changing: the port matched `:3962` exactly, at distance 10.0
+ * along the turret bearing at every angle. This is a deliberate change, not a
+ * bug fix.
+ *
+ * Derived from the body's own radius rather than typed as a number, so it keeps
+ * tracking the art if `TANK_SIZES.body` ever changes. The `+ 1.5` clears the
+ * edge so the flare reads as leaving the barrel rather than sitting on the rim.
+ *
+ * Full rationale and what is lost: `docs/AUDIT-2026-07.md`, `A10`.
+ */
+export const MUZZLE_FLARE_OFFSET = TANK_SIZES.body / 2 + 1.5;
+
+/** `:3962`'s value, kept as documentation. Nothing reads it at runtime. */
+export const AS3_MUZZLE_FLARE_OFFSET = 10;
 
 export interface MuzzleFlareInput {
   weaponName: string;

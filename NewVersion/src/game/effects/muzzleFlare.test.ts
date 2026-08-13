@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { MUZZLE_FLARE_OFFSET, muzzleFlareFor } from './muzzleFlare';
+import { AS3_MUZZLE_FLARE_OFFSET, MUZZLE_FLARE_OFFSET, muzzleFlareFor } from './muzzleFlare';
+import { TANK_SIZES } from '../entities/tankArt';
 import type { MuzzleFlareInput } from './muzzleFlare';
 
 function input(over: Partial<MuzzleFlareInput> = {}): MuzzleFlareInput {
@@ -74,5 +75,50 @@ describe('muzzleFlareFor — placement', () => {
     // `randAngle: 0` is the difference between a flare and a debris burst.
     expect(flare?.randAngle).toBe(0);
     expect(flare?.distance).toBe(0);
+  });
+});
+
+describe('the flare sits at the barrel tip — divergence A10', () => {
+  it('clears the body edge rather than sitting inside it', () => {
+    // The whole point of `A10`: at the AS3's 10 the flare is inside a body of
+    // radius 14.5, so the tank reads as firing from its middle.
+    expect(MUZZLE_FLARE_OFFSET).toBeGreaterThan(TANK_SIZES.body / 2);
+    expect(MUZZLE_FLARE_OFFSET).toBe(16);
+  });
+
+  it('records the AS3 value it diverges from', () => {
+    // Stated from `:3962`, not read back out of the module, so a change to the
+    // divergence cannot quietly rewrite what it claims to diverge from.
+    expect(AS3_MUZZLE_FLARE_OFFSET).toBe(10);
+    expect(MUZZLE_FLARE_OFFSET).not.toBe(AS3_MUZZLE_FLARE_OFFSET);
+    // And the direction of the divergence: further out, never nearer.
+    expect(MUZZLE_FLARE_OFFSET).toBeGreaterThan(AS3_MUZZLE_FLARE_OFFSET);
+  });
+
+  it('still places along the round bearing, at the new distance', () => {
+    // Facing east and north, so the offset is checked on both axes rather than
+    // only where cos or sin happens to be 1.
+    const east = muzzleFlareFor({
+      weaponName: 'Cannon',
+      tankX: 100,
+      tankY: 200,
+      rotation: 0,
+      towerRotation: 0,
+    });
+    expect(east?.x).toBeCloseTo(100 + MUZZLE_FLARE_OFFSET, 6);
+    expect(east?.y).toBeCloseTo(200, 6);
+
+    const south = muzzleFlareFor({
+      weaponName: 'Cannon',
+      tankX: 100,
+      tankY: 200,
+      rotation: 90,
+      towerRotation: 90,
+    });
+    expect(south?.x).toBeCloseTo(100, 6);
+    expect(south?.y).toBeCloseTo(200 + MUZZLE_FLARE_OFFSET, 6);
+    // The flare's own facing is unchanged by A10 — it still points where the
+    // round went, which is what `startAngle` carries.
+    expect(south?.startAngle).toBe(90);
   });
 });

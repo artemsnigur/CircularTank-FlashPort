@@ -211,7 +211,16 @@ page.on('console', (m) => {
   if (m.type() === 'error') problems.push(`console: ${m.text()}`);
 });
 
-const shot = (name) => page.screenshot({ path: `${args.out}/${name}.png` });
+/**
+ * A frame, optionally cropped.
+ *
+ * `clip` exists because a full 1280x800 frame is the wrong instrument for a
+ * small sprite: the muzzle flare is ~10px on it, which cannot distinguish a
+ * flare at the tank's centre from one at its barrel. A crop is not extra
+ * evidence, it is the same evidence at a legible size.
+ */
+const shot = (name, clip) =>
+  page.screenshot({ path: `${args.out}/${name}.png`, ...(clip ? { clip } : {}) });
 
 /**
  * A short burst instead of one frame at a fixed delay.
@@ -500,11 +509,13 @@ if (args.sprites) {
    * ~5-frame life that a screenshot catches only by luck. Frames are taken too,
    * but the numbers are the claim.
    *
-   * The flare's offset is checked against `PartGameArea.as:3962` — 10 units
-   * along the round's bearing from the tank centre — at **two** turret angles,
-   * because a flare pinned to the tank centre and one correctly offset are the
-   * same point when the turret happens to face along an axis you only tested
-   * once.
+   * The flare's offset is checked at **two** turret angles, because a flare
+   * pinned to the tank centre and one correctly offset are the same point when
+   * the turret happens to face along an axis you only tested once.
+   *
+   * The expected distance is **16**, not `PartGameArea.as:3962`'s 10 — the
+   * flare was moved to the body edge in T120 as divergence `A10`. This ran
+   * against the 10 first and agreed with it; do not read a 10 here as a pass.
    */
   // `secondary=Shield` because the default is Mine, and the shield is one of
   // the two sprites this run exists to check.
@@ -606,6 +617,17 @@ if (args.sprites) {
         if (s) seen = s;
         await delay(20);
       }
+      // Cropped tight enough to read, and taken **first**: a full-frame
+      // screenshot costs a couple of hundred ms and the flare lives ~5 frames,
+      // so shooting the wide frame first spends the flare's whole life before
+      // the crop is taken. The first run did exactly that and the close-up of
+      // one of the two angles came back empty.
+      //
+      // The box is fixed because the tank does not move in this section — no
+      // movement key is held — so it sits at the same screen point at both
+      // angles; if that changes, the crop slides off the tank and the miss is
+      // obvious rather than subtle.
+      await shot(`sprites-flare-${label}-close`, { x: 725, y: 320, width: 160, height: 160 });
       await shot(`sprites-flare-${label}`);
       await page.mouse.up();
       if (!seen) {
