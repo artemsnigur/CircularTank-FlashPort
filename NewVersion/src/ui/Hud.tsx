@@ -17,6 +17,7 @@ import { buildStatusPages, initialPageIndex,
 } from '../game/waves/statusPages';
 import { AudioToggles } from './AudioToggles';
 import { GameEvents } from '../game/events/GameEvents';
+import { usePauseControl } from './usePauseControl';
 import { formatNumber } from '../game/core/Functions';
 import {
   FADE_OUT_MS,
@@ -655,6 +656,12 @@ function CountdownPanel(): React.ReactElement | null {
 export function Hud(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
   const inGame = activeScene === 'Gameplay';
+
+  // Above the early return, because hooks must run unconditionally — and it
+  // takes `inGame` rather than being placed after the guard for the same
+  // reason. The trigger lives here rather than in `GameplayScene` because a
+  // paused scene stops dispatching its own keys; see `usePauseControl`.
+  usePauseControl(inGame);
 
   if (!inGame) return <AchievementToasts />;
 
