@@ -20,6 +20,7 @@ import { GameEvents } from '../events/GameEvents';
 import { PlayerTank } from '../entities/PlayerTank';
 import type { PlayerInput } from '../entities/PlayerTank';
 import { SHIELD_FRAMES, TANK_SIZES } from '../entities/tankArt';
+import { enemyBulletSize, enemyBulletTexture } from '../enemies/enemyBulletArt';
 import { Enemy } from '../entities/Enemy';
 import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/soundService';
 import { getLevel } from '../levels/levelData';
@@ -750,6 +751,11 @@ export class GameplayScene extends Phaser.Scene {
     hookOwner: Enemy | null;
     /** AS3 class name, for the Shield's Trap exemption — see `isReflectable`. */
     bulletClass: string;
+    /**
+     * The firing enemy's `shootType`, kept so a reflection can select frame 2
+     * (`:1600`) without looking back at an enemy that may already be dead.
+     */
+    shootType: string | undefined;
   }> =
     [];
 
@@ -3133,6 +3139,18 @@ export class GameplayScene extends Phaser.Scene {
             }
           : null;
       })(),
+      /**
+       * Live enemy bullets, for `--sprites`. Reported as texture keys because
+       * the defect being fixed was one red dot standing in for six classes —
+       * and six small dots and six small sprites look the same in a frame.
+       */
+      enemyBullets: this.enemyBullets.slice(0, 12).map((e) => ({
+        shootType: e.shootType,
+        texture: e.sprite.texture.key,
+        tinted: e.sprite.isTinted,
+        rotationDeg: Math.round(Phaser.Math.RadToDeg(e.sprite.rotation)),
+        reflected: e.state.reflected === true,
+      })),
       flares: this.particles
         .filter((p) => p.type.startsWith('MuzzleFlare'))
         .slice(0, 4)
@@ -4164,11 +4182,25 @@ export class GameplayScene extends Phaser.Scene {
       const isTrap = enemy.stats.shootType === 'Trap';
 
       for (const state of volley) {
+        // Real `EnemyBullet*` art per `shootType` (T118) — it replaced one
+        // red-tinted `particle-dot` shared by all six classes. Sized from the
+        // SWF's authored dimensions rather than `radius`; the two are separate
+        // quantities and the AS3's own values disagree (`Basic` is radius 4
+        // against an 11px clip).
+        const art = enemyBulletSize(enemy.stats.shootType);
+        const texture = enemyBulletTexture(enemy.stats.shootType, state.reflected);
         const sprite = this.add
-          .image(state.x, state.y, 'particle-dot')
-          .setDisplaySize(state.radius * 2.5, state.radius * 2.5)
-          .setTint(state.damage > 1 ? 0xff3b6b : 0xff6b6b)
+          .image(state.x, state.y, texture ?? 'particle-dot')
+          .setDisplaySize(
+            art?.width ?? state.radius * 2.5,
+            art?.height ?? state.radius * 2.5,
+          )
+          // `:6985` and the fan branches set `rotation` from the firing enemy;
+          // the clip is rendered with it, as player projectiles are (T88).
+          .setRotation(Phaser.Math.DegToRad(state.rotation))
           .setDepth(isTrap ? ENEMY_TRAP_DEPTH : ENEMY_BULLET_DEPTH);
+        // Only the fallback needs a tint; the real art carries its own colour.
+        if (!texture) sprite.setTint(state.damage > 1 ? 0xff3b6b : 0xff6b6b);
         // Carried per bullet so the homing step needs no lookup back to an
         // enemy that may already be dead.
         this.enemyBullets.push({
@@ -4179,6 +4211,7 @@ export class GameplayScene extends Phaser.Scene {
           // on expiry to free the one-hook slot.
           hookOwner: enemy.stats.shootType === 'Hook' ? enemy : null,
           bulletClass: isTrap ? 'EnemyBulletTrap' : 'EnemyBulletBasic',
+          shootType: enemy.stats.shootType,
         });
       }
     }
@@ -4259,9 +4292,16 @@ export class GameplayScene extends Phaser.Scene {
           reflectChance(this.shield.on, bulletReflectChance(this.upgrades))
         ) {
           entry.state = reflectBullet(next, tank);
-          entry.sprite
-            .setPosition(entry.state.x, entry.state.y)
-            .setTint(0x9ad8ff);
+          // `:1600` — `gotoAndStop(2)`, the reflected frame. It replaced a cyan
+          // tint on the shared dot. `:1595` also rewrote the bearing, so the
+          // rotation below turns the round to face the way it now travels.
+          const reflectedTexture = enemyBulletTexture(
+            entry.shootType,
+            true,
+          );
+          entry.sprite.setPosition(entry.state.x, entry.state.y);
+          if (reflectedTexture) entry.sprite.setTexture(reflectedTexture);
+          else entry.sprite.setTint(0x9ad8ff);
           getSoundManager(this)?.queue('ReflectBullet');
           surviving.push(entry);
           continue;
@@ -4296,7 +4336,12 @@ export class GameplayScene extends Phaser.Scene {
       }
 
       entry.state = next;
-      entry.sprite.setPosition(next.x, next.y).setAlpha(bulletAlpha(next));
+      entry.sprite
+        .setPosition(next.x, next.y)
+        // Kept live so a homing round (`:1522`) and a reflected one (`:1595`)
+        // both face where they are actually going, not where they were fired.
+        .setRotation(Phaser.Math.DegToRad(next.rotation))
+        .setAlpha(bulletAlpha(next));
       surviving.push(entry);
     }
 

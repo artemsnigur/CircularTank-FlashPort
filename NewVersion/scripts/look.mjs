@@ -622,6 +622,105 @@ if (args.sprites) {
       );
     }
   }
+
+    // ── Enemy bullets, across the six shooting types ──────────────────────
+    // Each type belongs to particular enemies, so this drives the isolated dev
+    // levels from the Enemies screen — a mixed arena cannot guarantee any given
+    // shooter turns up in a short window, which is the same reason
+    // `--sound-sweep` uses them.
+    // `shootType` splits by **rank**: `Basic`/`Following` on the normal variant
+    // and `BasicBoss`/`FollowingBoss` on the boss one, so the four dev levels
+    // below reach only four of the six. The two Boss types are driven from real
+    // Boss levels afterwards — 1-27 has a `Shooting` boss and 9-9 a `Soldier`.
+    const seenBullets = new Map();
+    for (const type of ['Shooting', 'Soldier', 'Trap', 'GrapplingHook']) {
+      await page.goto(`${URL}?primary=Cannon`, { waitUntil: 'domcontentloaded' });
+      await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+      await page.getByRole('button', { name: /enemy behaviour/i }).click();
+      await delay(700);
+      const row = page.locator('li', { hasText: type }).first();
+      const test = row.getByRole('button', { name: /test/i });
+      if ((await test.count()) === 0) {
+        console.log(`[sprites] no Test button for ${type}`);
+        continue;
+      }
+      await test.first().click();
+      await page
+        .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+        .catch(() => {});
+      // Satisfy the tutorial spawn gate, then stand still and let them shoot.
+      await page.keyboard.down('d');
+      await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+      await page.mouse.down();
+      await delay(700);
+      await page.mouse.up();
+      await page.keyboard.up('d');
+
+      for (let i = 0; i < 240; i += 1) {
+        const rows = await page.evaluate(() => globalThis.__arena?.enemyBullets ?? []);
+        for (const b of rows) {
+          if (b.shootType && !seenBullets.has(`${b.shootType}:${b.reflected}`)) {
+            seenBullets.set(`${b.shootType}:${b.reflected}`, b);
+          }
+        }
+        if (i === 120) await shot(`sprites-bullets-${type}`);
+        await delay(25);
+      }
+    }
+    // The two Boss-rank shootTypes, from levels whose boss row shoots.
+    for (const [bw, bl, who] of [
+      [1, 27, 'Shooting boss -> BasicBoss'],
+      [9, 9, 'Soldier boss -> FollowingBoss'],
+    ]) {
+      await page.goto(`${URL}?primary=Cannon`, { waitUntil: 'domcontentloaded' });
+      await page.getByRole('button', { name: /play|continue/i }).first().waitFor({ timeout: 30_000 });
+      await page.getByRole('button', { name: /level select/i }).first().click();
+      await delay(800);
+      if (bw !== 1) {
+        await page.locator(`.dev-jump__world:text-is("${bw}")`).first().click();
+        await delay(300);
+      }
+      const bcell = page.getByRole('button', { name: new RegExp(`^World ${bw}, level ${bl},`, 'i') });
+      if ((await bcell.count()) === 0) {
+        console.log(`[sprites] no dev cell for ${bw}-${bl} (${who})`);
+        continue;
+      }
+      await bcell.first().click();
+      await page
+        .waitForFunction(() => globalThis.__arena?.countDownDone === true, null, { timeout: 15_000 })
+        .catch(() => {});
+      await page.keyboard.down('d');
+      await page.locator('canvas').hover({ position: { x: 800, y: 400 } });
+      await page.mouse.down();
+      await delay(700);
+      await page.mouse.up();
+      await page.keyboard.up('d');
+      for (let i = 0; i < 400; i += 1) {
+        const rows = await page.evaluate(() => globalThis.__arena?.enemyBullets ?? []);
+        for (const b of rows) {
+          if (b.shootType && !seenBullets.has(`${b.shootType}:${b.reflected}`)) {
+            seenBullets.set(`${b.shootType}:${b.reflected}`, b);
+          }
+        }
+        await delay(25);
+      }
+    }
+
+    if (seenBullets.size === 0) console.log('[sprites] enemy bullets: none observed');
+    for (const [, b] of [...seenBullets.entries()].sort()) {
+      console.log(
+        `[sprites] bullet ${String(b.shootType).padEnd(14)}` +
+          ` texture ${String(b.texture).padEnd(10)}` +
+          ` tinted ${String(b.tinted).padEnd(5)}` +
+          ` rot ${String(b.rotationDeg).padStart(4)}deg` +
+          ` reflected ${b.reflected}`,
+      );
+    }
+    const distinct = new Set([...seenBullets.values()].map((b) => b.texture));
+    console.log(
+      `[sprites] enemy bullets: ${seenBullets.size} state(s) seen, ${distinct.size} distinct texture(s)`,
+    );
+
 }
 
 if (args.turret) {

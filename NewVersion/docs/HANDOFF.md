@@ -571,7 +571,7 @@ dot for real art therefore drew it at ~150 units instead of 75 — measured, not
 guessed: the first run reported `width 149`. It is `setDisplaySize` now, and the
 `* 0.5` went with the dot it was damping.
 
-#### Enemy bullets — scoped, not built
+#### Enemy bullets — shipped (T118)
 
 **The original does not use plain dots.** Six distinct classes, each its own
 sprite, instantiated at `PartGameArea.as:6918-6964`:
@@ -585,12 +585,31 @@ sprite, instantiated at `PartGameArea.as:6918-6964`:
 | `EnemyBulletFollowing` | `:6955` | 1172 | 1170, 1171 | 2 |
 | `EnemyBulletFollowingBoss` | `:6964` | 1163 | 1161, 1162 | 2 |
 
-The port draws all six as one red-tinted `particle-dot` sized from
-`state.radius`, so **this is a real infidelity, not a faithful simplification**.
-`:6975` calls `eBullet.gotoAndStop(1)`, so at least one branch selects a frame —
-whoever picks this up should establish per class whether the second frame is a
-selection or an animation, the same question pass (c) answered for projectiles.
-Nine of the eleven shapes are not synced. **Not started.**
+All eleven shapes are synced, in `UNIT_SHAPES`, and wired through
+`enemies/enemyBulletArt.ts`. They replaced one red-tinted `particle-dot` shared
+by all six classes.
+
+**Frame 2 is the reflected round — a selection, not an animation.** `:6975`
+pins `gotoAndStop(1)` at spawn for every non-Trap type, and the *only* other
+frame call in the file is `:1600`'s `gotoAndStop(2)`, which fires beside
+`:1601`'s `reflected = true`. Same shape as `BulletGummyBear`'s bounce stage.
+`:1600` carries no class branch, so one rule covers all five two-frame clips;
+`Trap` has a single frame and `:6976-6979` adds it without pinning anything.
+
+**Facing is ported with it.** The bearing is written at spawn from the firing
+enemy and rewritten on reflection (`:1595`), and the sprite is rotated to it
+every frame — so a homing round (`:1522`) and a reflected one both face where
+they are actually going. Sizes come from the authored SVGs, **not** `radius`:
+the AS3's own values disagree (`Basic` is `radius = 4` against an 11px clip),
+which is the rule T85 set for projectiles.
+
+**Driven 4 of 6.** `Basic` `unit-1173`, `Following` `unit-1170`, `Hook`
+`unit-1167`, `Trap` `unit-1159` — four distinct textures, untinted, each
+rotated to its own bearing. **`BasicBoss` and `FollowingBoss` were not observed
+in play**: `shootType` splits by rank, so they need a boss that shoots, and the
+bosses on 1-27 and 9-9 spawn too late in their waves for the sampling window.
+Their mappings are covered by `enemyBulletArt.test.ts` instead, which is a
+weaker claim and is stated as one.
 
 #### Placeholder audit — non-enemy, non-projectile
 
@@ -600,7 +619,7 @@ Nine of the eleven shapes are not synced. **Not started.**
 | Tank shield | dot + cyan tint | `TankShield` 212 -> **208-211** | **fixed, T117** — one-shot 1->4 intro, holds on 4 |
 | Enemy spawn warning | dot + red tint | `WarningEnemy` 376 -> **375** | **fixed, T117** — synced, wired, and the `setScale` trap caught |
 | Timed-bomb warning | `unit-370`/`unit-371` | `WarningTimedBomb` 372 -> 370, 371 | **already real** |
-| Enemy bullets | `particle-dot` + red tint | — | left alone: projectile-class, and the T84-T87 passes covered *player* projectiles only |
+| Enemy bullets | dot + red tint | six `EnemyBullet*` sprites, 11 shapes | **fixed, T118** — frame 2 is the reflected round |
 | Background props | `particle-dot` **only** when a key is missing | real prop art wired | fallback, not a placeholder |
 | Particles | `particle-dot` when a shape is missing | real particle art wired | fallback; muzzle flare shapes 1108-1121 confirmed loaded |
 

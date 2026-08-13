@@ -240,6 +240,20 @@ export const UNIT_SHAPES: readonly ShapeAsset[] = [
   // absolute and resolution-independent, so the oversample needs no matching
   // divide at the draw — same as the projectile shapes below.
   shape('unit-1199', '1199.svg', 400, 400, 'Indicator clip frame'),
+  // Enemy bullet art (T118) — six classes. Frame 1 is the normal round and
+  // frame 2 is the **reflected** one (`PartGameArea.as:1600`), a selection
+  // rather than an animation. Authored sizes x4 for UNIT_RASTER_SCALE.
+  shape('unit-1159', '1159.svg', 68, 68, 'EnemyBullet clip frame'),
+  shape('unit-1161', '1161.svg', 64, 64, 'EnemyBullet clip frame'),
+  shape('unit-1162', '1162.svg', 64, 64, 'EnemyBullet clip frame'),
+  shape('unit-1164', '1164.svg', 64, 64, 'EnemyBullet clip frame'),
+  shape('unit-1165', '1165.svg', 64, 64, 'EnemyBullet clip frame'),
+  shape('unit-1167', '1167.svg', 48, 60, 'EnemyBullet clip frame'),
+  shape('unit-1168', '1168.svg', 48, 60, 'EnemyBullet clip frame'),
+  shape('unit-1170', '1170.svg', 44, 44, 'EnemyBullet clip frame'),
+  shape('unit-1171', '1171.svg', 44, 44, 'EnemyBullet clip frame'),
+  shape('unit-1173', '1173.svg', 44, 44, 'EnemyBullet clip frame'),
+  shape('unit-1174', '1174.svg', 44, 44, 'EnemyBullet clip frame'),
   // `ItemFlag` — sprite 1360 places shape 1359, `frameCount: 1`, so there is no
   // waving animation to defer. Authored 33x33, so 4x is 132.
   shape('unit-1359', '1359.svg', 132, 132, 'ItemFlag'),

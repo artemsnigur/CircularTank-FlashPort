@@ -108,6 +108,18 @@ const CURATED_SHAPES = new Set([
   '1128.svg',
   '1130.svg',
   '1132.svg',
+  // Enemy bullet art (T118) — six classes, sprites 1160/1163/1166/1169/1172/1175.
+  '1159.svg',
+  '1161.svg',
+  '1162.svg',
+  '1164.svg',
+  '1165.svg',
+  '1167.svg',
+  '1168.svg',
+  '1170.svg',
+  '1171.svg',
+  '1173.svg',
+  '1174.svg',
   '1337.svg',
   // Enemy and tank art (T34) — 40 `Enemy*` clips and the three `Tank*` parts.
   '3.svg',
