@@ -880,6 +880,29 @@ Consequences for pass (c): a boss pair always resolves (the surviving visit
 writes *both* bodies' `pushVel`), while a mismatched normal pair is nudged on
 one side only — the **smaller** body's.
 
+**Pass (b) landed in T124** — `pushVel` on `Enemy`, threaded through
+`bounceOffWalls` and `clampToRoom`, decayed in the AS3's order (after the pair
+loop, before integration). **Still no producer**, so nothing moved: the 48
+existing wall and steering tests pass with **zero deletions**, which the diff
+shows directly — `enemyWalls.test.ts` is +222/-0 and `enemySteering.test.ts` is
+untouched.
+
+**The `-y` branch differs in three ways, not the one the scope found.** Written
+out as a table in `applyPush`: `:5488` omits the push from its predicate, omits
+it from its bounds test, **and never clears it on contact** — the other three
+branches all do `pushVel = 0` when they snap. Two visible consequences, both
+pinned: an enemy shoved up keeps its push after touching the top wall, and the
+`-y` arm can carry one *past* the top bound (the AS3 leaves it there; this
+port's positional reflection pulls it back, which is the port's net and not the
+original's).
+
+**And the gate has teeth.** An enemy drifting down while shoved up harder than
+it drifts satisfies neither y predicate, so it does not move vertically at all
+that frame — not by the push, not by the velocity it already had. A symmetric
+implementation moves it up instead and looks more correct. That case is what
+`steppedBy` exists for: this port integrates before the walls run, so expressing
+"no movement at all" means handing back the step to undo.
+
 **For whoever ports enemy-enemy separation:** the AS3 tests `xVel + pushVelX`
 against the wall. `pushVel` has **0 occurrences in `src/`** against 21 in the
 AS3, so the term is identically zero and the rule reads `xVel` alone today. When

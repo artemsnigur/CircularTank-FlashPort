@@ -30,6 +30,7 @@ import {
   towerRotSpeedMax,
 } from '../enemies/enemySteering';
 import type { SteeringState } from '../enemies/enemySteering';
+import { decayPush } from '../enemies/enemySeparation';
 import { resolveDamageMultipliers } from '../enemies/damageTypes';
 import { ENEMY_CLIPS, enemyClipKey, enemyShape, restingTint } from './enemyArt';
 import { shrinkScale, shrinksWithHealth } from '../enemies/enemyBodies';
@@ -186,6 +187,22 @@ export class Enemy extends Phaser.GameObjects.Container {
    * rather than caching a copy at spawn.
    */
   radius: number;
+
+  /**
+   * Separation velocity — `theEnemy.pushVelX`/`pushVelY` (`:5203-5209`).
+   *
+   * **Only the boss-on-boss branch of the pair loop ever writes these, and that
+   * loop is not wired yet** (pass (c)). They are therefore permanently zero
+   * today: `decayPush` runs on them each frame and returns zero, `applyPush`
+   * sees zero and returns its input untouched, and every wall test passes
+   * unedited. That is the point — the plumbing lands with no behaviour change,
+   * so the pass that does change behaviour changes only the producer.
+   *
+   * Public because pass (c)'s pair loop lives in `GameplayScene` and assigns
+   * them from outside, exactly as the AS3 does across `:5203-5209`.
+   */
+  pushVelX = 0;
+  pushVelY = 0;
 
   /** The radius this enemy spawned at. `Shrinking` scales relative to it. */
   readonly radiusStart: number;
@@ -906,7 +923,19 @@ export class Enemy extends Phaser.GameObjects.Container {
       roomHeight: this.roomHeight,
     });
 
-    const stepped = this.grapple?.isGrapping
+    // `:5365-5366` — the separation push sheds 0.5 a frame, **after the pair
+    // loop and before integration**. Decaying after integrating would spend a
+    // stale velocity for one frame, which is invisible in a still frame and
+    // wrong in motion.
+    //
+    // Nothing writes `pushVel` yet — the pair loop is pass (c) — so this runs
+    // on zeros and `decayPush(0, 0)` is `(0, 0)`. It is here now so that pass
+    // (c) is a pure wiring change with no ordering decisions left in it.
+    const decayed = decayPush({ pushVelX: this.pushVelX, pushVelY: this.pushVelY });
+    this.pushVelX = decayed.pushVelX;
+    this.pushVelY = decayed.pushVelY;
+
+    const steppedCore = this.grapple?.isGrapping
       ? this.reelStep(target, frames)
       : steerToward(
       this.steering,
@@ -935,6 +964,21 @@ export class Enemy extends Phaser.GameObjects.Container {
           ? towerAngleToTarget(this.steering, goal, this.stats.moveSpeedMax, this.roomWidth)
           : undefined,
       );
+
+    // The push rides along with the step. `steerToward` builds a fresh state
+    // and does not carry it, which is deliberate — the separation velocity is
+    // not a steering output — so it is re-attached here, together with the
+    // distance this frame's integration actually covered. `applyPush` needs
+    // that distance for the AS3's all-or-nothing axis gate; see `WallOptions`.
+    const stepped: SteeringState = {
+      ...steppedCore,
+      pushVelX: this.pushVelX,
+      pushVelY: this.pushVelY,
+    };
+    const steppedBy = {
+      x: stepped.x - this.steering.x,
+      y: stepped.y - this.steering.y,
+    };
 
     // Checked before clamping: `clampToRoom` pulls the enemy back inside, so
     // afterwards the crossing is no longer visible.
@@ -972,10 +1016,21 @@ export class Enemy extends Phaser.GameObjects.Container {
         };
       }
     } else {
-      walled = bounceOffWalls(stepped, this.roomWidth, this.roomHeight, this.radius, wallOptions);
+      walled = bounceOffWalls(
+        stepped,
+        this.roomWidth,
+        this.roomHeight,
+        this.radius,
+        wallOptions,
+        steppedBy,
+      );
     }
 
     this.steering = clampToRoom(walled, this.roomWidth, this.roomHeight, this.radius);
+    // Written back so the next frame decays what the walls left, rather than
+    // what the pair loop produced before they clipped it.
+    this.pushVelX = this.steering.pushVelX ?? 0;
+    this.pushVelY = this.steering.pushVelY ?? 0;
     this.setPosition(this.steering.x, this.steering.y);
     this.setRotation(Phaser.Math.DegToRad(this.steering.rotation));
     this.applyBodyScale();

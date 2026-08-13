@@ -220,3 +220,225 @@ describe('a boss turns toward the tank at a wall instead of bouncing', () => {
     expect(atWall(state({ x: 300, y: H - R }), W, H, R, { skipBottom: true })).toBe(false);
   });
 });
+
+/**
+ * The separation push through the wall branches — `:5370-5513`, pass (b).
+ *
+ * **Nothing writes `pushVel` yet**, so every assertion here drives it directly.
+ * That is the point of the pass: the plumbing is provable before the producer
+ * exists, and the producer then changes only itself.
+ *
+ * The four branches are *not* the same rule four times. `:5488` — the `-y` one
+ * — differs in three ways, and each is asserted against a sibling that does the
+ * opposite on identical geometry. A test that only proved "the push moves the
+ * enemy" would pass on a symmetric implementation, which is the thing this is
+ * guarding against.
+ */
+describe('the separation push, through each wall branch', () => {
+  it('adds the push to the step when the wall is clear', () => {
+    // Mid-room, so no branch reaches its bound: the enemy moves by the push on
+    // top of wherever integration already put it. Both pushes point the same
+    // way as their velocity, so both branches open on the sum.
+    const out = bounceOffWalls(
+      state({ x: 320, y: 480, rotation: 0, xVel: 1, yVel: 1, pushVelX: 4, pushVelY: 3 }),
+      W,
+      H,
+      R,
+    );
+    expect(out.x).toBe(324);
+    expect(out.y).toBe(483);
+    // Untouched — nothing hit a wall, so nothing is cleared.
+    expect(out.pushVelX).toBe(4);
+    expect(out.pushVelY).toBe(3);
+  });
+
+  /**
+   * **The `-y` asymmetry has teeth, and this is where they show.**
+   *
+   * An enemy drifting *down* (`yVel` positive) shoved *up* harder than it is
+   * drifting satisfies neither y predicate: `+y` needs `yVel + pushVelY > 0`
+   * and gets -2, `-y` needs `yVel < 0` and gets +1. The AS3 therefore applies
+   * **no y movement at all** that frame — not the push, and not the velocity it
+   * would otherwise have travelled.
+   *
+   * Written as a test because it is the single most surprising consequence of
+   * `:5488`, and because a symmetric implementation — `yVel + pushVelY < 0` for
+   * the second predicate — moves the enemy up by 2 and looks more correct.
+   */
+  it('moves an enemy not at all when the up-push outweighs a down-drift', () => {
+    const out = bounceOffWalls(
+      state({ x: 320, y: 480, rotation: 0, xVel: 0, yVel: 1, pushVelY: -3 }),
+      W,
+      H,
+      R,
+      {},
+      // Integration had already carried it 1 down; the gate undoes exactly that.
+      { x: 0, y: 1 },
+    );
+    expect(out.y).toBe(479);
+    // The push is not spent either — it is still there next frame, less decay.
+    expect(out.pushVelY).toBe(-3);
+  });
+
+  it('clears the push on the +x wall and snaps — `:5379-5380`', () => {
+    // 5 short of the right bound with a push of 9: the bound test
+    // `x + pushVelX < right` fails, so the AS3 snaps and zeroes.
+    const out = bounceOffWalls(
+      state({ x: W - R - 5, y: 400, rotation: 0, xVel: 1, yVel: 0, pushVelX: 9 }),
+      W,
+      H,
+      R,
+    );
+    expect(out.x).toBe(W - R);
+    expect(out.pushVelX).toBe(0);
+  });
+
+  it('clears the push on the -x wall too — `:5415-5416`', () => {
+    const out = bounceOffWalls(
+      state({ x: R + 5, y: 400, rotation: 180, xVel: -1, yVel: 0, pushVelX: -9 }),
+      W,
+      H,
+      R,
+    );
+    expect(out.x).toBe(R);
+    expect(out.pushVelX).toBe(0);
+  });
+
+  it('clears the push on the +y wall — `:5451-5452`', () => {
+    const out = bounceOffWalls(
+      state({ x: 300, y: H - R - 5, rotation: 90, xVel: 0, yVel: 1, pushVelY: 9 }),
+      W,
+      H,
+      R,
+    );
+    expect(out.y).toBe(H - R);
+    expect(out.pushVelY).toBe(0);
+  });
+
+  /**
+   * **The asymmetry, and all three halves of it — `:5488-5497`.**
+   *
+   * The `-y` branch alone: gates on `yVel < 0` without the push, tests the
+   * bound without the push, and does **not** clear the push on contact. Driven
+   * against the `+y` branch above, which does all three.
+   */
+  it('does not clear the push on the -y wall, unlike the other three', () => {
+    const out = bounceOffWalls(
+      state({ x: 300, y: R + 5, rotation: -90, xVel: 0, yVel: -1, pushVelY: -9 }),
+      W,
+      H,
+      R,
+    );
+    // `y > top` is 17 > 12, so `:5490` takes the *moving* arm and the push would
+    // carry the enemy to 8 — through the bound, because the test guarding it
+    // omits the push. **In the AS3 it would sit there.** In this port the
+    // positional reflection that runs straight afterwards catches it, which is
+    // the port's own net and not the original's.
+    expect(out.y).toBe(R);
+    // The reflection turns the velocity around, as it does for any wall.
+    expect(out.yVel).toBe(1);
+    // **But the push survives**, where all three sibling branches zero it.
+    // That is `:5496`'s missing `pushVelY = 0`, and it is the asymmetry's third
+    // half.
+    expect(out.pushVelY).toBe(-9);
+  });
+
+  it('snaps to the top without clearing the push', () => {
+    // Already at the bound, so the bound test fails and the `else` runs.
+    const out = bounceOffWalls(
+      state({ x: 300, y: R, rotation: -90, xVel: 0, yVel: -1, pushVelY: -9 }),
+      W,
+      H,
+      R,
+    );
+    expect(out.y).toBe(R);
+    // The sibling branches set this to 0; `:5496` does not.
+    expect(out.pushVelY).toBe(-9);
+  });
+
+  /**
+   * The `-y` predicate ignores the push, so a push alone cannot open that
+   * branch — where the `+y` predicate would open on the sum. Both on the same
+   * geometry, differing only in sign.
+   */
+  it('will not open the -y branch on the push alone', () => {
+    // yVel is 0, so `yVel < 0` is false and the upward push does nothing.
+    const upward = bounceOffWalls(
+      state({ x: 300, y: 480, rotation: 0, xVel: 0, yVel: 0, pushVelY: -9 }),
+      W,
+      H,
+      R,
+    );
+    expect(upward.y).toBe(480);
+
+    // Its counterpart: the +y predicate *is* `yVel + pushVelY > 0`, so the same
+    // magnitude downward does move the enemy with yVel still 0.
+    const downward = bounceOffWalls(
+      state({ x: 300, y: 480, rotation: 0, xVel: 0, yVel: 0, pushVelY: 9 }),
+      W,
+      H,
+      R,
+    );
+    expect(downward.y).toBe(489);
+  });
+
+  /**
+   * **The all-or-nothing axis gate.** When velocity and push cancel exactly,
+   * the AS3 takes neither branch, so `xVel` is not applied either — the enemy
+   * does not move on that axis at all. This port integrates first, so the step
+   * has to be handed back for the undo to be possible.
+   */
+  it('undoes the integrated step when the push exactly cancels the velocity', () => {
+    // Integration already moved it +3; the push is -3, so the sum is 0.
+    const out = bounceOffWalls(
+      state({ x: 323, y: 480, rotation: 0, xVel: 3, yVel: 0, pushVelX: -3 }),
+      W,
+      H,
+      R,
+      {},
+      { x: 3, y: 0 },
+    );
+    expect(out.x).toBe(320);
+  });
+
+  it('leaves the step alone when no cancellation happens', () => {
+    // The counterpart: same `steppedBy`, a push that does not cancel.
+    const out = bounceOffWalls(
+      state({ x: 323, y: 480, rotation: 0, xVel: 3, yVel: 0, pushVelX: -1 }),
+      W,
+      H,
+      R,
+      {},
+      { x: 3, y: 0 },
+    );
+    expect(out.x).toBe(322);
+  });
+
+  /**
+   * The safety property, stated as a test rather than left to the other 48.
+   * With no push the function must return its **input object**, so the layer
+   * added in this pass cannot be doing anything at all on the existing path.
+   */
+  it('returns the same object when there is no push', () => {
+    const mid = state({ x: 320, y: 480, rotation: 42, xVel: 1, yVel: 1 });
+    expect(bounceOffWalls(mid, W, H, R)).toBe(mid);
+    // Explicit zeros, which is what `Enemy` actually passes.
+    const zeroed = state({ x: 320, y: 480, rotation: 42, xVel: 1, yVel: 1, pushVelX: 0, pushVelY: 0 });
+    expect(bounceOffWalls(zeroed, W, H, R)).toBe(zeroed);
+  });
+
+  /** `clampToRoom` kills the push on the axis it had to correct. */
+  it('clears the push on the axis clampToRoom pulls back', () => {
+    const out = clampToRoom(
+      state({ x: 300, y: -40, rotation: -90, xVel: 1, yVel: -2, pushVelX: 5, pushVelY: -9 }),
+      W,
+      H,
+      R,
+    );
+    expect(out.y).toBe(R);
+    expect(out.pushVelY).toBe(0);
+    // The untouched axis keeps both its velocity and its push.
+    expect(out.xVel).toBe(1);
+    expect(out.pushVelX).toBe(5);
+  });
+});

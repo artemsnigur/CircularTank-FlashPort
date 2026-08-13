@@ -50,6 +50,18 @@ export interface SteeringState {
   rotation: number;
   xVel: number;
   yVel: number;
+  /**
+   * Separation velocity — `theEnemy.pushVelX`/`pushVelY` (`:5203-5209`).
+   *
+   * **Optional, and absent means zero.** Only the boss-on-boss branch of
+   * `enemySeparation.ts` ever writes it, and nothing writes it yet (pass (c)),
+   * so every existing caller omits it and every existing behaviour is
+   * unchanged. That is the safety property this pass rests on: with both
+   * components zero, the code added for them is a no-op and the 48 wall and
+   * steering tests pass **unedited**.
+   */
+  pushVelX?: number;
+  pushVelY?: number;
 }
 
 export interface SteeringStats {
@@ -234,6 +246,14 @@ export function clampToRoom(
     ...state,
     x,
     y,
+    // The separation push is killed on the same axis and for the same reason.
+    // **This is the port's net, not the AS3's** — the original has no clamp at
+    // all, and clears `pushVel` inside three of its four wall branches (see
+    // `applyPush`). Without this, a push that carried an enemy through the
+    // `-y` bound — the one branch that neither tests nor clears it — would keep
+    // driving into the wall on every later frame.
+    pushVelX: x === state.x ? state.pushVelX : 0,
+    pushVelY: y === state.y ? state.pushVelY : 0,
     // Kill the component that pushed into the wall so it does not accumulate.
     xVel: x === state.x ? state.xVel : 0,
     yVel: y === state.y ? state.yVel : 0,
@@ -321,19 +341,151 @@ export function crossesDefenseLine(
  * `pushVelY` to the position. That asymmetry is in the original. It is not a
  * port bug and tidying it into false symmetry would change behaviour.
  */
+export interface WallOptions {
+  /** Defense's carve-out at `:5449` — the bottom edge is the objective. */
+  skipBottom?: boolean;
+}
+
+/**
+ * How far this frame's integration already moved the enemy, per axis.
+ *
+   * Needed only for the AS3's **all-or-nothing** axis gate. `:5370` and `:5406`
+   * apply `xVel` *inside* the branch, so when neither branch is taken — the
+   * velocity and the push exactly cancelling — the original moves the enemy
+   * **not at all** on that axis. This port integrates in `steerToward` before
+   * the walls run, so the only way to express "not at all" here is to subtract
+   * what was already applied.
+   *
+ * Omitted means zero, which is exactly right while `pushVel` is zero: the
+ * cancelling case then requires `xVel === 0`, and undoing a zero step is a
+ * no-op.
+ *
+ * A separate parameter rather than a field on `WallOptions` so the two frozen
+ * option constants in `Enemy` stay usable — T113 hoisted those out of the
+ * per-enemy-per-frame path and a spread here would put the allocation back.
+ */
+export interface SteppedBy {
+  x: number;
+  y: number;
+}
+
+/**
+ * The separation push, applied to position — `:5370-5513`, the increments only.
+ *
+ * ── Why this is a layer rather than a rewrite of the branches ─────────────
+ * The AS3 fuses four things into each branch: a velocity-sign test, a bounds
+ * test, the position increments, and the reflection. This port already reflects
+ * on **position** (`x >= right`), velocity-independently, and its tests pin
+ * that — several of them reflect a heading with `xVel === 0`, which no
+ * velocity-gated branch would ever reach. Rewriting the reflection into the
+ * AS3's shape would change behaviour that is deliberately pinned, in a pass
+ * whose whole point is changing nothing.
+ *
+ * So the push increments and the `pushVel` clearing are transcribed here, in
+ * the AS3's branch structure, and the existing positional reflection runs
+ * afterwards on the result. With `pushVel` zero this function returns its input
+ * object unchanged, so the layer is invisible until pass (c).
+ *
+ * ── The `-y` branch is not like the other three ──────────────────────────
+ * `:5488` differs in **three** ways, all of them the original's:
+ *
+ *   | | `+x` `:5370` | `-x` `:5406` | `+y` `:5442` | `-y` `:5488` |
+ *   |---|---|---|---|---|
+ *   | predicate includes push | yes | yes | yes | **no** |
+ *   | bounds test includes push | yes | yes | yes | **no** |
+ *   | clears push on contact | yes | yes | yes | **no** |
+ *   | adds push to position | yes | yes | yes | yes |
+ *
+ * The scoping pass found the first of those. The third was found here, writing
+ * the transcription out as a table. Do not make them symmetric — two visible
+ * consequences, both pinned in `enemyWalls.test.ts`:
+ *
+ * - An enemy shoved upward keeps its `pushVel` after touching the top wall.
+ * - The `-y` arm can move an enemy *past* the top bound, because the test
+ *   guarding it ignores the push. **The AS3 leaves it there**; this port's
+ *   positional reflection, which runs immediately after this function, pulls it
+ *   back to the bound. That correction is the port's, not the original's.
+ *
+ * And the gate itself has teeth: an enemy drifting down while shoved up harder
+ * than it drifts satisfies **neither** y predicate, so it does not move
+ * vertically at all that frame — not by the push, and not by the velocity it
+ * had already been given.
+ */
+function applyPush(
+  state: SteeringState,
+  bounds: { left: number; right: number; top: number; bottom: number },
+  options: WallOptions,
+  steppedBy?: SteppedBy,
+): SteeringState {
+  const pushX = state.pushVelX ?? 0;
+  const pushY = state.pushVelY ?? 0;
+  if (pushX === 0 && pushY === 0) return state;
+
+  const stepped = steppedBy ?? ZERO_STEP;
+  let { x, y, pushVelX, pushVelY } = {
+    x: state.x,
+    y: state.y,
+    pushVelX: pushX,
+    pushVelY: pushY,
+  };
+
+  // ── x, `:5370` and `:5406` ──────────────────────────────────────────────
+  // The port's `x` already carries `xVel`, so the AS3's `x + xVel + pushVelX`
+  // is this `x + pushVelX`.
+  if (state.xVel + pushX > 0) {
+    if (x + pushX < bounds.right) x += pushX;
+    else {
+      x = bounds.right;
+      pushVelX = 0;
+    }
+  } else if (state.xVel + pushX < 0) {
+    if (x + pushX > bounds.left) x += pushX;
+    else {
+      x = bounds.left;
+      pushVelX = 0;
+    }
+  } else {
+    // Neither branch: the AS3 applies no x movement at all this frame.
+    x -= stepped.x;
+  }
+
+  // ── y, `:5442` and `:5488` ──────────────────────────────────────────────
+  if (state.yVel + pushY > 0) {
+    if (y + pushY < bounds.bottom) y += pushY;
+    else if (options.skipBottom !== true) {
+      y = bounds.bottom;
+      pushVelY = 0;
+    }
+    // Defense (`skipBottom`): `:5449`'s `else if` fails, so the original does
+    // neither the move nor the snap. The port leaves `y` where integration put
+    // it, which is what `crossesDefenseLine` has already been measured against.
+  } else if (state.yVel < 0) {
+    // **No `pushY` in the predicate or the bounds test — `:5488`, `:5490`.**
+    if (y > bounds.top) y += pushY;
+    else y = bounds.top;
+    // **And no `pushVelY = 0` here**, unlike all three siblings.
+  } else {
+    y -= stepped.y;
+  }
+
+  if (x === state.x && y === state.y && pushVelX === pushX && pushVelY === pushY) return state;
+  return { ...state, x, y, pushVelX, pushVelY };
+}
+
 export function bounceOffWalls(
   state: SteeringState,
   roomWidth: number,
   roomHeight: number,
   radius: number,
-  options: { skipBottom?: boolean } = {},
+  options: WallOptions = {},
+  steppedBy?: SteppedBy,
 ): SteeringState {
   const left = radius;
   const right = roomWidth - radius;
   const top = radius;
   const bottom = roomHeight - radius;
 
-  let next = state;
+  let next = applyPush(state, { left, right, top, bottom }, options, steppedBy);
 
   if (next.x <= left || next.x >= right) {
     const intoRight = next.x >= right;
@@ -361,6 +513,9 @@ export function bounceOffWalls(
 
   return next;
 }
+
+/** Shared, so the no-push path allocates nothing. */
+const ZERO_STEP: SteppedBy = Object.freeze({ x: 0, y: 0 });
 
 /** `180 - theta`, normalised — `PartGameArea.as:5389-5396`. */
 function mirrorAcrossVertical(rotation: number): number {
