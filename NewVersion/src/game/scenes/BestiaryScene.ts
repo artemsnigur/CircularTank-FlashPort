@@ -25,7 +25,8 @@ import { SceneKeys } from '../config/constants';
 import { GameEvents } from '../events/GameEvents';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import { getPlayerProfile } from '../player/playerProfile';
-import { buildBestiaryListing } from '../enemies/enemyKnowledge';
+import { DEFAULT_BESTIARY_VIEW, buildBestiaryListing } from '../enemies/enemyKnowledge';
+import type { BestiaryView } from '../enemies/enemyKnowledge';
 import { BESTIARY } from '../enemies/bestiaryData';
 
 /**
@@ -54,6 +55,13 @@ function devKnownEnemies(): string[] | null {
 export class BestiaryScene extends Phaser.Scene {
   private backdrop!: Phaser.GameObjects.TileSprite;
 
+  /**
+   * The selector state — `ScreenEnemies.enemyDifficulty` and
+   * `selectedEnemyLevel`. Opens on Easy / tier 1 every time, as the original's
+   * statics do.
+   */
+  private view: BestiaryView = DEFAULT_BESTIARY_VIEW;
+
   constructor() {
     super(SceneKeys.Bestiary);
   }
@@ -71,6 +79,20 @@ export class BestiaryScene extends Phaser.Scene {
 
     this.publishBestiary();
 
+    /**
+     * The two selector rows. React emits, this holds the selection and
+     * republishes — the shape `setGameplayOption` established, and required
+     * here rather than preferred: the stats are withheld per row, so only the
+     * side that knows what the player has met can recompute them.
+     *
+     * Not persisted, matching the original: `enemyDifficulty` and
+     * `selectedEnemyLevel` are plain statics, reset when the SWF reloads.
+     */
+    const offView = GameEvents.subscribe('ui:bestiary-view', (view) => {
+      this.view = view;
+      this.publishBestiary();
+    });
+
     // While this scene is active every other scene is torn down, so anything
     // the screen can emit has to be handled here — see uiEventListeners.test.ts,
     // which checks that pairing for every screen rather than the one that broke.
@@ -86,6 +108,7 @@ export class BestiaryScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offGoto();
+      offView();
       GameEvents.off('viewport:changed', onResize);
       GameEvents.emit('scene:shutdown', { key: SceneKeys.Bestiary });
     });
@@ -98,7 +121,10 @@ export class BestiaryScene extends Phaser.Scene {
     // testable without standing up a scene — see enemyKnowledge.test.ts.
     GameEvents.emit(
       'bestiary:listed',
-      buildBestiaryListing(devKnownEnemies() ?? getPlayerProfile(this).slot.knownEnemies),
+      buildBestiaryListing(
+        devKnownEnemies() ?? getPlayerProfile(this).slot.knownEnemies,
+        this.view,
+      ),
     );
   }
 }

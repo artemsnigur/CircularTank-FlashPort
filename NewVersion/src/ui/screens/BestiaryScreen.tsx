@@ -15,6 +15,9 @@ import { GameEvents } from '../../game/events/GameEvents';
 import { ResistanceIcon } from '../ResistanceIcon';
 import { EnemyTile } from '../EnemyTile';
 import type { ResistanceBadge } from '../../game/enemies/resistanceIcons';
+import { BESTIARY_TIERS, TIER_LABEL } from '../../game/enemies/bestiaryView';
+import type { BestiaryStats, BestiaryView } from '../../game/enemies/bestiaryView';
+import { Difficulties } from '../../game/config/constants';
 
 /**
  * One resistance row — the AS3 draws the badges alone, with no caption.
@@ -38,6 +41,93 @@ function ResistanceRow({
         <ResistanceIcon key={`${badge.frame}-${i}`} badge={badge} />
       ))}
     </span>
+  );
+}
+
+/**
+ * The four stat lines — `ScreenEnemies.as:544-567`.
+ *
+ * The AS3 prints each as one string ("Health: 120 HP"); split into a label and
+ * a value here so the numbers can line up in a column, which a proportional
+ * DOM font needs and a fixed stage layout did not.
+ */
+function StatBlock({ stats }: { stats: BestiaryStats }): React.ReactElement {
+  const speed =
+    stats.speedMax === undefined ? `${stats.speed}` : `${stats.speed}-${stats.speedMax}`;
+
+  return (
+    <dl className="bestiary-stats">
+      <div className="bestiary-stats__item">
+        <dt>Money</dt>
+        <dd>{stats.money}$</dd>
+      </div>
+      <div className="bestiary-stats__item">
+        <dt>Health</dt>
+        <dd>{stats.health} HP</dd>
+      </div>
+      <div className="bestiary-stats__item">
+        <dt>Damage</dt>
+        <dd>{stats.damage} HP</dd>
+      </div>
+      <div className="bestiary-stats__item">
+        <dt>Speed</dt>
+        {/* `:551` — px per second. The range form is Temperamental's and
+            Accelerating's only; see `bestiaryStats.ts`. */}
+        <dd>{speed} PX/Sec</dd>
+      </div>
+    </dl>
+  );
+}
+
+/**
+ * The difficulty and tier selectors — `ScreenEnemies.as:583-611`.
+ *
+ * **One pair for the whole screen, not one per row.** Both are statics in the
+ * original (`enemyDifficulty`, `selectedEnemyLevel`), so a change re-reads
+ * every enemy; twenty copies of a single setting would be twenty ways to ask
+ * the same question.
+ *
+ * The scene owns the state. This emits and re-renders from what comes back, so
+ * the buttons cannot claim a selection the numbers do not reflect.
+ */
+function ViewControls({ view }: { view: BestiaryView }): React.ReactElement {
+  const set = (next: Partial<BestiaryView>): void => {
+    GameEvents.emit('ui:bestiary-view', { ...view, ...next });
+  };
+
+  return (
+    <div className="bestiary-controls">
+      <div className="bestiary-controls__group" role="group" aria-label="Difficulty">
+        {Difficulties.map((difficulty) => (
+          <button
+            key={difficulty}
+            type="button"
+            className={`bestiary-controls__button${
+              view.difficulty === difficulty ? ' bestiary-controls__button--on' : ''
+            }`}
+            aria-pressed={view.difficulty === difficulty}
+            onClick={() => set({ difficulty })}
+          >
+            {difficulty}
+          </button>
+        ))}
+      </div>
+      <div className="bestiary-controls__group" role="group" aria-label="Enemy level">
+        {BESTIARY_TIERS.map((tier) => (
+          <button
+            key={tier}
+            type="button"
+            className={`bestiary-controls__button${
+              view.tier === tier ? ' bestiary-controls__button--on' : ''
+            }`}
+            aria-pressed={view.tier === tier}
+            onClick={() => set({ tier })}
+          >
+            {TIER_LABEL[tier]}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -65,6 +155,8 @@ export function BestiaryScreen(): React.ReactElement | null {
           {knownCount} / {total}
         </span>
       </header>
+
+      {bestiary && <ViewControls view={bestiary.view} />}
 
       {entries.length === 0 ? (
         <p className="screen__hint">Loading…</p>
@@ -103,6 +195,9 @@ export function BestiaryScreen(): React.ReactElement | null {
                 Rule 7: those are frozen screen constants, not a layout, so the
                 port uses a flow row at the same 38px pitch.
               */}
+              {/* Absent for an unmet enemy: the listing sends no stats, so
+                  there is no number here to hide. */}
+              {entry.stats && <StatBlock stats={entry.stats} />}
               {entry.strengths.length > 0 && (
                 <span className="bestiary-row__resist">
                   <ResistanceRow label="Strong vs" badges={entry.strengths} />

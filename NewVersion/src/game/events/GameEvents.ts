@@ -16,6 +16,8 @@
 import type { SlotSummary } from '../save/slotSummary';
 import type { AchievementListing } from '../achievements/achievementListing';
 import type { ResistanceBadge } from '../enemies/resistanceIcons';
+import type { BestiaryStats } from '../enemies/bestiaryStats';
+import type { BestiaryView } from '../enemies/enemyKnowledge';
 import type { GameplayOptions } from '../options/gameplayOptions';
 import Phaser from 'phaser';
 import type { Difficulty, SceneKey } from '../config/constants';
@@ -419,11 +421,29 @@ export interface GameEventMap {
        * reaches the store; every locked tile is the same triple.
        */
       tile: readonly number[];
+      /**
+       * Money / health / damage / speed at the listing's own `view`, or absent
+       * for an unmet enemy — withheld with everything else on the row.
+       */
+      stats?: BestiaryStats;
       known: boolean;
     }>;
     knownCount: number;
     total: number;
+    /** What the two selectors were set to when this was built. */
+    view: BestiaryView;
   };
+
+  /**
+   * The bestiary's difficulty / tier selectors — `ScreenEnemies`' two button
+   * rows, whose AS3 counterparts are screen-wide statics.
+   *
+   * React emits; `BestiaryScene` holds the selection and republishes the
+   * listing, the same shape as `ui:set-option`. The screen cannot recompute the
+   * stats itself, and must not be able to: it would then hold the numbers for
+   * enemies the player has never met.
+   */
+  'ui:bestiary-view': BestiaryView;
 
   'upgrades:listed': {
     /** How many upgrades exist but are unported, so the shop can say so. */

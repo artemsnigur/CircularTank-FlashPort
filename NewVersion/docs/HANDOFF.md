@@ -552,6 +552,44 @@ A batch from one report, four atomic commits, three of them divergences.
 
 ---
 
+## The bestiary, completed — T142/T143
+
+**Audited first, and the unlock rule was already right.** Worth knowing before
+changing anything there: discovery is **not** by kill count. `ScreenStatus.as:415`
+calls `ScreenEnemies.updateEnemies(world, level + 1)` when a level is *won*, so
+clearing a level reveals what is waiting in the next one. The port does the same
+from `playerProfile.recordLevel:341`, and simulating a full 405-level clear
+reaches 20/20 with nothing stranded.
+
+What was missing was all display: no enemy pictures, no stat block, no
+difficulty or tier selectors. All three are in now.
+
+- **The pictures are the tiles, not the gameplay clips.** `ScreenEnemies` never
+  builds an `ImageEnemy` — that belongs to the level-select panel this port does
+  not have (`A8`), and its plate is still synced-and-undrawn. The bestiary's art
+  is `ButtonEnemy<Type>`, whose **frame 4 is a built-in locked state**, so an
+  unmet enemy is hidden with the original's own "?" glyph.
+- **Which frame to draw is decided in `buildBestiaryListing`.** `BestiaryScreen`
+  is barred by test from importing `bestiaryData`, `enemyKnowledge`,
+  `bestiaryArt` or `bestiaryStats`; it may import only `bestiaryView`, a leaf
+  holding the view shapes and tier labels and no enemy data at all. That list
+  grew in T143 for a reason worth keeping: a picture and a stat block are as
+  leakable as a description.
+- **The stats are the screen's own formula, and they agree with the game.**
+  `bestiaryStats.ts` is driven against `resolveEnemyStats` across all 180
+  type/tier/difficulty combinations. They part on boss money alone, on purpose:
+  the resolver divides by the level's boss count and the bestiary is not looking
+  at a level.
+- **The selectors live in the header, one pair for the screen** — the AS3's are
+  statics, so they were screen-wide there too. The scene owns the selection and
+  republishes; React emits `ui:bestiary-view`, exactly as the options screen
+  works.
+
+Layout differences are `A16`; the port keeps its flat list rather than the
+original's grid plus detail pane.
+
+---
+
 ## 5. What is open
 
 ### The live queue — one measurement note

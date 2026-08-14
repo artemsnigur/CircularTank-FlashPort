@@ -1668,6 +1668,54 @@ code {
   /* Fixed so the two rows' badges line up under each other. */
   min-width: 4.5rem;
 }
+/* The difficulty / tier selectors — one pair for the screen, as the AS3's two
+   statics are. Sits under the header so it reads as governing the whole list. */
+.bestiary-controls {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+.bestiary-controls__group { display: flex; gap: 0.25rem; }
+.bestiary-controls__button {
+  padding: 0.2rem 0.6rem;
+  font-size: var(--text-2xs);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.bestiary-controls__button:hover { color: var(--accent); }
+.bestiary-controls__button--on {
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+/* The four stat lines. A grid rather than flow so the values line up down the
+   column — the AS3 got that free from a fixed-width font on a fixed stage. */
+.bestiary-stats {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 0.1rem 0.75rem;
+  margin: 0;
+  align-self: center;
+}
+.bestiary-stats__item { display: flex; gap: 0.3rem; align-items: baseline; }
+.bestiary-stats dt {
+  font-size: var(--text-3xs);
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.bestiary-stats dd {
+  margin: 0;
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
 /* The bestiary tile — `ButtonEnemy<Type>`, three stacked shapes in a square
    box. Same construction as `.resistance-icon` below, and deliberately not
    merged with it: the two clips have different pitches (41px against 38px) and

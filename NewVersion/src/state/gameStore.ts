@@ -15,6 +15,8 @@
 import { create } from 'zustand';
 import type { AchievementListing } from '../game/achievements/achievementListing';
 import type { ResistanceBadge } from '../game/enemies/resistanceIcons';
+import type { BestiaryStats } from '../game/enemies/bestiaryStats';
+import type { BestiaryView } from '../game/enemies/enemyKnowledge';
 import type { GameEventMap } from '../game/events/GameEvents';
 import { DEFAULT_GAMEPLAY_OPTIONS } from '../game/options/gameplayOptions';
 import type { GameplayOptions } from '../game/options/gameplayOptions';
@@ -78,10 +80,13 @@ export interface BestiaryListing {
     weaknesses: ResistanceBadge[];
     /** See `GameEvents.ts` — frame 1 or the locked frame 4, decided upstream. */
     tile: readonly number[];
+    /** Absent until met, at the listing's own `view`. */
+    stats?: BestiaryStats;
     known: boolean;
   }>;
   knownCount: number;
   total: number;
+  view: BestiaryView;
 }
 
 /** One world's levels with their unlock state. */

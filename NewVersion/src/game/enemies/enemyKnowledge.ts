@@ -23,6 +23,10 @@
 
 import { BESTIARY, INITIAL_KNOWN_ENEMIES } from './bestiaryData';
 import { BESTIARY_TILE_CLIPS, BESTIARY_TILE_FRAME } from './bestiaryArt';
+import { bestiaryStats } from './bestiaryStats';
+import type { BestiaryStats } from './bestiaryStats';
+import { DEFAULT_BESTIARY_VIEW } from './bestiaryView';
+import type { BestiaryView } from './bestiaryView';
 import { ENEMY_STATS } from './enemyStatsData';
 import { resistanceBadges } from './resistanceIcons';
 import type { ResistanceBadge } from './resistanceIcons';
@@ -130,13 +134,28 @@ export interface BestiaryRow {
    * hint of which enemy it is hiding. `enemyKnowledge.test.ts` pins that.
    */
   tile: readonly number[];
+  /**
+   * The four stat lines — `ScreenEnemies.as:544-567`, at the view's difficulty
+   * and tier.
+   *
+   * **Absent until met, like the description.** An unmet enemy's health and
+   * damage are exactly the sort of thing the bestiary is withholding, and
+   * sending them "for the component to hide" would put them in the store.
+   */
+  stats?: BestiaryStats;
   known: boolean;
 }
+
+
+export type { BestiaryView } from './bestiaryView';
+export { DEFAULT_BESTIARY_VIEW } from './bestiaryView';
 
 export interface BestiaryListing {
   entries: BestiaryRow[];
   knownCount: number;
   total: number;
+  /** Echoed back so the screen's buttons show what they are actually showing. */
+  view: BestiaryView;
 }
 
 /**
@@ -165,7 +184,10 @@ function tileLayers(id: string, met: boolean): readonly number[] {
   return clip.frames[frame - 1] ?? [];
 }
 
-export function buildBestiaryListing(known: readonly string[]): BestiaryListing {
+export function buildBestiaryListing(
+  known: readonly string[],
+  view: BestiaryView = DEFAULT_BESTIARY_VIEW,
+): BestiaryListing {
   return {
     entries: BESTIARY.map((entry) => {
       const met = isEnemyKnown(known, entry.id);
@@ -187,6 +209,8 @@ export function buildBestiaryListing(known: readonly string[]): BestiaryListing 
         strengths: stats ? resistanceBadges(stats.strengths, 'strength') : [],
         weaknesses: stats ? resistanceBadges(stats.weaknesses, 'weakness') : [],
         tile: tileLayers(entry.id, met),
+        // Withheld on the same condition as everything else on this row.
+        ...(met ? { stats: bestiaryStats(entry.id, view.tier, view.difficulty) } : {}),
         known: met,
       };
     }),
@@ -195,5 +219,6 @@ export function buildBestiaryListing(known: readonly string[]): BestiaryListing 
     // bestiary entry, which would push the count past the denominator.
     knownCount: knownCount(known),
     total: BESTIARY.length,
+    view,
   };
 }
