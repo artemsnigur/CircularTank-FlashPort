@@ -26,6 +26,7 @@ import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/s
 import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
 import { crosshairVisible } from '../ui/crosshairVisibility';
+import { MINIMAP_SIZE, minimapPlan } from '../ui/minimap';
 import { shouldRunDuringCountdown } from '../waves/countdownGate';
 import { countdownSkipped, createCountdown, tickCountdown } from '../waves/countdown';
 import type { CountdownState } from '../waves/countdown';
@@ -303,6 +304,15 @@ const HAZARD_DEPTH = 0;
 const PARTICLE_DEPTH = 14;
 /** `:2506` — `indicatorLayer`, above enemies and below particles. */
 const INDICATOR_DEPTH = 9;
+
+/**
+ * Gap between the minimap and the safe-area corner.
+ *
+ * Not an AS3 figure — the original butts its panel against the stage edge
+ * (`:660`, `x = 640 - width`), which is only safe because a Flash stage has no
+ * notch or home bar. See `layout()`.
+ */
+const MINIMAP_MARGIN = 8;
 /** Tutorial panels sit above everything in the world. */
 const TUTORIAL_DEPTH = 40;
 /** `WarningTimedBomb` frames: 1 ordinary, 2 boss. */
@@ -582,6 +592,14 @@ export class GameplayScene extends Phaser.Scene {
   private marginStyle: MarginStyle = 'gradient';
   private hudText!: Phaser.GameObjects.Text;
   private crosshair!: Phaser.GameObjects.Image;
+
+  /**
+   * The minimap panel — `PartInterface.drawMinimap`.
+   *
+   * One `Graphics` redrawn each frame, as the AS3 redraws its `Sprite`: the
+   * contents are every enemy's position, so there is nothing to cache.
+   */
+  private minimap!: Phaser.GameObjects.Graphics;
 
   /**
    * `ScreenOptions.optionCrosshairOn` for this profile, read once at create.
@@ -1387,6 +1405,12 @@ export class GameplayScene extends Phaser.Scene {
       this.player.syncTurret(aim ?? undefined);
     }
 
+    // **Ungated, as `PartInterface.update` has it.** `drawMinimap` sits at
+    // `:1081` under `if(!gamePaused)` and nothing else — not the countdown, not
+    // `levelDone`. A pause stops this scene updating, which is the same effect
+    // the original's gate has.
+    this.drawMinimap();
+
     // No parallax. `createBackground` puts the ground tiles and every prop in
     // the same `bg` container (`:1145`, `:3551`), so they scroll as one and
     // nothing in the original moves at a different rate.
@@ -1714,6 +1738,11 @@ export class GameplayScene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setDepth(100);
+
+    // Screen furniture, like `hudText`: it shows the room, it does not live in
+    // it. Depth above the world and below nothing else in canvas — the React
+    // HUD is a separate layer entirely.
+    this.minimap = this.add.graphics().setScrollFactor(0).setDepth(100);
 
     this.layout();
   }
@@ -5362,6 +5391,39 @@ export class GameplayScene extends Phaser.Scene {
     void delta;
   }
 
+
+  /**
+   * `PartInterface.drawMinimap` (`:652-694`).
+   *
+   * **The order, the clipping and the arithmetic are all in `minimapPlan`**,
+   * which returns the fills as a value. This method only paints them — so the
+   * one part a scene test cannot reach is a `for` loop over `fillRect`, and
+   * everything that could be wrong about the picture is driven in
+   * `minimap.test.ts`.
+   */
+  private drawMinimap(): void {
+    const g = this.minimap;
+    g.clear();
+
+    for (const fill of minimapPlan({
+      // The **live** camera, not the AS3's frozen 640x400 — see `minimap.ts`.
+      camera: this.cameras.main.worldView,
+      room: { width: this.roomWidth, height: this.roomHeight },
+      enemies: this.enemies.map((enemy) => ({
+        x: enemy.x,
+        y: enemy.y,
+        boss: enemy.enemyLevel === 'B',
+      })),
+      // Null on every mode but Flag, and once the last flag is taken — the same
+      // condition as `levelMode == "Flag" && stage.contains(gameArea.flag)`.
+      flag: this.flag ? { x: this.flag.x, y: this.flag.y } : null,
+      tank: { x: this.player.x, y: this.player.y },
+    })) {
+      g.fillStyle(fill.colour, fill.alpha);
+      g.fillRect(fill.rect.x, fill.rect.y, fill.rect.width, fill.rect.height);
+    }
+  }
+
   private layout(): void {
     const controller = getViewportController(this);
     if (controller) {
@@ -5374,5 +5436,19 @@ export class GameplayScene extends Phaser.Scene {
     // a notched phone the camera edge is under the status bar.
     const safe = controller?.safeRect;
     this.hudText.setPosition((safe?.x ?? 0) + 12, (safe?.y ?? 0) + 10);
+
+    /**
+     * The minimap's corner — **not** the AS3's `(640 - 80, 400)`.
+     *
+     * Those are stage coordinates on a 640x480 Flash stage whose bottom 80px
+     * were a HUD band outside the 640x400 camera. This port has no such band:
+     * the camera fills the screen and the HUD is DOM on top. So the panel
+     * anchors to the safe rect's bottom-right, which is the same *place* —
+     * out of the way, below the action — expressed in this port's terms.
+     * `A5` records the same reasoning for the objective panel.
+     */
+    const right = (safe?.x ?? 0) + (safe?.width ?? this.cameras.main.width);
+    const bottom = (safe?.y ?? 0) + (safe?.height ?? this.cameras.main.height);
+    this.minimap.setPosition(right - MINIMAP_SIZE - MINIMAP_MARGIN, bottom - MINIMAP_SIZE - MINIMAP_MARGIN);
   }
 }

@@ -624,6 +624,34 @@ the AS3's grid-plus-detail-pane layout. Same call as the bestiary's `A16`.
 
 ---
 
+## The minimap — T146
+
+**The first of four HUD gaps the T146 audit found**, and the only one closed so
+far. `PartInterface.drawMinimap` (`:652-694`) draws an 80x80 panel: grey ground,
+a 20%-white rectangle for what the camera sees, a red 4px dot per enemy (8px for
+a boss), a black dot for the flag on Flag levels, and a white dot for the tank —
+**in that order**, so the tank can never be hidden under an enemy standing on
+it.
+
+`ui/minimap.ts` owns all of it, including `minimapPlan`, which returns the fills
+as an ordered list of values. `GameplayScene.drawMinimap` is a loop over that
+list and nothing else, so the part a scene test cannot reach is one `fillRect`
+call and everything that could be wrong about the picture is driven.
+
+Two things to know before changing it:
+
+- **The viewport rect uses the live camera**, so on a room smaller than the
+  camera it exceeds the panel and `clampToPanel` — the AS3's own mask — hides
+  the overflow. Both the honest figure and the clamped one are pinned.
+- **Placement is `A17`**, not the AS3's `(560, 400)`: those are stage
+  coordinates for a HUD band this port does not have.
+
+Still open from that audit: off-screen enemy markers (`G2`), the off-screen flag
+marker (`G3`), HUD weapon art (`G4`), a credits line, two stale doc comments,
+and a knip triage of 467 unused exports.
+
+---
+
 ## 5. What is open
 
 ### The live queue — one measurement note
