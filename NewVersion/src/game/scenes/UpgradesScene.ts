@@ -51,6 +51,7 @@ import { getSoundManager } from '../audio/soundService';
 import { equipPrimary, equipSecondary, NO_WEAPON } from '../loadout/loadout';
 import type { LoadoutState } from '../loadout/loadout';
 import { previewLines } from '../upgrades/upgradePreview';
+import { upgradeTileLayers } from '../upgrades/upgradeTile';
 
 /**
  * Which slot holds a named primary, or null.
@@ -218,6 +219,16 @@ export class UpgradesScene extends Phaser.Scene {
           // preview and description tables are keyed by.
           index: spec.index,
           previews: previewLines(spec, spec.category, spec.index + 1, level),
+          // The tile — `ButtonWeapon.as:193-206`. Resolved here because the
+          // frame depends on owned/equipped, which live with the profile; the
+          // component paints what it is given.
+          tile: upgradeTileLayers(spec.id, {
+            owned: level > 0,
+            equipped:
+              spec.category === 'secondary'
+                ? loadout.secondaryWeapon === spec.name
+                : slotHolding(loadout, spec.name) !== null,
+          }),
         };
       }),
       withheld: withheldUpgrades().length,

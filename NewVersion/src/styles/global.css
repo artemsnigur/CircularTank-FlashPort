@@ -1716,6 +1716,22 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
+/* The shop tile — `ButtonWeapon` / `ButtonMisc`, three stacked shapes. Same
+   construction as the two below; kept separate because the row lays it out as
+   a flex item that must not shrink when the stat lines get long. */
+.upgrade-icon {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  align-self: center;
+}
+.upgrade-icon__layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 /* The bestiary tile — `ButtonEnemy<Type>`, three stacked shapes in a square
    box. Same construction as `.resistance-icon` below, and deliberately not
    merged with it: the two clips have different pitches (41px against 38px) and

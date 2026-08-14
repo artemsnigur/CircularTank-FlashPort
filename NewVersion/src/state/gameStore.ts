@@ -145,6 +145,8 @@ export interface ShopCatalogue {
      * upgrade does not use. Sending only the non-empty ones would let the
      * previously selected upgrade's line survive on screen.
      */
+    /** Tile shape layers for this row's state — see `GameEvents.ts`. */
+    tile: readonly number[];
     previews: string[];
   }>;
   /**

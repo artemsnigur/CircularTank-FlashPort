@@ -469,6 +469,11 @@ export interface GameEventMap {
        * Five stat-preview lines in slot order — `ScreenUpgrades`' `infoText1-5`.
        * `''` clears an unused line and must be carried, not filtered.
        */
+      /**
+       * The tile's shape layers, back to front — the resting frame for this
+       * row's owned/equipped state, chosen by `upgradeTileFrame`.
+       */
+      tile: readonly number[];
       previews: string[];
     }>;
   };

@@ -590,6 +590,40 @@ original's grid plus detail pane.
 
 ---
 
+## The shop's tiles — T144/T145
+
+**The audit's surprise was what was already there.** The stat block the AS3
+shows — five lines, current level beside next — has been implemented and wired
+since `upgradePreview.ts` landed, including the `statsIncludeLevelZero` quirk
+that only affects Speed. Driven: `Cannon @1` gives
+`["Damage: 7 HP  7.33", "Reload: 0.43 Sec  0.43", "Explosion: 30 PX  33", "", ""]`,
+and at level 10 the next-value half drops away. All 28 upgrades produce at least
+one line at every level.
+
+What was missing was the pictures, and nothing else of substance.
+
+- **Nine frames, not one.** `ButtonWeapon.as:145-206` is a 3x3 of state
+  (owned / owned-and-equipped / not owned) by interaction (rest / hover /
+  pressed); `ButtonMisc.as` is the same without the equipped row. Resting frames
+  are **1, 4, 7** for a weapon and **1, 4** for a misc upgrade.
+- **The not-owned row has its own glyph.** The original does not dim the owned
+  art, it draws a different picture. Pinned, because a CSS filter is the obvious
+  thing to reach for.
+- `upgradeTile.ts` holds the rule and asks *owned?* before *equipped?*, as
+  `:193` does. `UpgradesScene` resolves it and sends the layers; `UpgradeIcon`
+  paints them and is `aria-hidden`, since the row already names the upgrade in
+  text.
+
+**Also fixed:** the footer said "Equipping is not ported yet" directly under
+working equip controls. The withheld-upgrades notice next to it is *dormant*,
+not stale — nothing is withheld today, but `purchasable.ts` is still the gate,
+so it stays.
+
+Not done, by decision: the slot 1<->2 swap button (`ButtonWeaponSwitch`), and
+the AS3's grid-plus-detail-pane layout. Same call as the bestiary's `A16`.
+
+---
+
 ## 5. What is open
 
 ### The live queue — one measurement note

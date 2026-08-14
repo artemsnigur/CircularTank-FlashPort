@@ -13,6 +13,7 @@ import { GameEvents } from '../../game/events/GameEvents';
 import { formatNumber } from '../../game/core/Functions';
 import { useInfoText } from '../useInfoText';
 import { LevelGuideWidget } from '../LevelGuideWidget';
+import { UpgradeIcon } from '../UpgradeIcon';
 import { siteCorner } from '../../game/ui/infoTextSites';
 import { UPGRADE_DESCRIPTIONS } from '../../game/upgrades/upgradeDescriptionData';
 
@@ -110,6 +111,9 @@ function UpgradeRow({ row }: { row: ShopRow }): React.ReactElement {
 
   return (
     <li className="shop-row" {...hover}>
+      {/* `ScreenUpgrades.as` draws the tile first; the row reads left to right
+          picture, name, stats, price. Decorative — the name is right beside it. */}
+      <UpgradeIcon layers={row.tile} label={row.name} />
       <div className="shop-row__info">
         <span className="shop-row__name">{row.name}</span>
         <span className="shop-row__level">
@@ -215,9 +219,12 @@ export function UpgradesScreen(): React.ReactElement | null {
         })
       )}
 
-      {/* Say what is missing rather than silently omitting it. Thirteen of the
-          28 upgrades are withheld because their effects are unported; a shop
-          that just showed fifteen would read as the whole catalogue. */}
+      {/* Say what is missing rather than silently omitting it.
+          **Nothing is withheld today** — all 28 upgrades are sold, so this
+          renders nothing. Kept rather than deleted: `purchasable.ts` is still
+          the gate, and the day an upgrade is pulled from sale again this is
+          what stops the shop reading as the whole catalogue. The count used to
+          be 13; the comment said so long after it was 0. */}
       {(shop?.withheld ?? 0) > 0 && (
         <p className="screen__hint">
           {shop!.withheld} more upgrades exist in the original but are not sold yet — their
@@ -245,10 +252,6 @@ export function UpgradesScreen(): React.ReactElement | null {
         </button>
       </div>
 
-      <p className="screen__hint">
-        Equipping is not ported yet — buying makes a weapon available, and Q cycles the
-        ones you own during a level.
-      </p>
     </div>
   );
 }
