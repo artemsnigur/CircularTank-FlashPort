@@ -56,6 +56,12 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     'separation effects applied per frame, for reachability',
     'force two bosses together via ?bosspair=x,y',
     'the last boss collision and its audibility verdict',
+    // T147: the minimap shipped and did not appear. Every reason it could be
+    // invisible is a separate field — position, visibility, alpha, depth, fills
+    // painted, and the camera transform — which is what turned "it is not
+    // rendering" into "it renders at (464, 224) at double size" in one run.
+    'the minimap`s live state and camera transform',
+    'fills painted by the last minimap draw',
   ],
   // T114: a persisted damage-flash tint, which no unit test could see (nothing
   // constructs an `Enemy`) and no screenshot could reliably read.
@@ -141,6 +147,11 @@ describe('dev aids are enumerable', () => {
     // `?separation=0` and the unsorted `bodies` projection,
     // the pair the separation A/B needs: one to turn the subsystem off, one to
     // see every enemy rather than the distance-sorted top 24.
-    expect(total).toBe(34);
+    // 36 since T147 — the minimap's live state and its fill counter. The panel
+    // shipped in T146 and did not appear; these turned "it is not rendering"
+    // into "it renders at (464, 224) at double size, because a
+    // `setScrollFactor(0)` object is placed in camera-pixel space" in a single
+    // run, which no amount of reading the scene had managed.
+    expect(total).toBe(36);
   });
 });

@@ -18,6 +18,7 @@ import {
   clampToPanel,
   dotSize,
   marker,
+  minimapAnchor,
   minimapPlan,
   viewportRect,
 } from './minimap';
@@ -236,5 +237,70 @@ describe('the draw plan', () => {
     const enemies = Array.from({ length: 12 }, (_, i) => ({ x: 100, y: 100 + i, boss: false }));
 
     expect(minimapPlan({ ...base, enemies }).filter((f) => f.kind === 'enemy')).toHaveLength(12);
+  });
+});
+
+/**
+ * Where the panel sits — the T146 defect, which was **placement, not wiring**.
+ *
+ * `drawMinimap` really was running and painting four rects; a
+ * `setScrollFactor(0)` object is just positioned in camera-pixel space with
+ * the zoom applied about the camera centre, so a design-unit coordinate landed
+ * mid-screen at double size. World units against the live `worldView` have no
+ * such transform, and these pin that.
+ */
+describe('the anchor', () => {
+  const margin = 8;
+  const noInset = { right: 0, bottom: 0 };
+
+  it('sits in the bottom-right of whatever the camera can see', () => {
+    // A camera scrolled to (500, 300) showing 640x400 of the world: the panel
+    // belongs at the far corner of *that*, not of the room and not of the
+    // design rectangle.
+    const at = minimapAnchor({ x: 500, y: 300, width: 640, height: 400 }, noInset, margin);
+
+    expect(at).toEqual({ x: 500 + 640 - 80 - 8, y: 300 + 400 - 80 - 8 });
+  });
+
+  it('moves with the camera', () => {
+    // The counterpart, and the property `setScrollFactor(0)` was there to buy:
+    // the panel must stay in the corner as the view scrolls, which here comes
+    // from re-anchoring rather than from a fixed factor.
+    const a = minimapAnchor({ x: 0, y: 0, width: 640, height: 400 }, noInset, margin);
+    const b = minimapAnchor({ x: 260, y: 320, width: 640, height: 400 }, noInset, margin);
+
+    expect(b.x - a.x).toBe(260);
+    expect(b.y - a.y).toBe(320);
+  });
+
+  it('keeps the whole panel inside the view', () => {
+    // 80 for the panel and 8 for the margin: the far edge must land one margin
+    // short of the view's, or the corner is clipped by the canvas edge.
+    const view = { x: 0, y: 0, width: 640, height: 400 };
+    const at = minimapAnchor(view, noInset, margin);
+
+    expect(at.x + 80 + margin).toBe(view.width);
+    expect(at.y + 80 + margin).toBe(view.height);
+  });
+
+  it('pulls in from a notch or home bar', () => {
+    // Insets arrive already converted to world units — `safeRect` is in design
+    // units and a zoomed camera sees fewer world units than the viewport is
+    // wide, which is the conversion the scene does before calling.
+    const at = minimapAnchor(
+      { x: 0, y: 0, width: 640, height: 400 },
+      { right: 30, bottom: 20 },
+      margin,
+    );
+
+    expect(at).toEqual({ x: 640 - 80 - 8 - 30, y: 400 - 80 - 8 - 20 });
+  });
+
+  it('ignores a negative inset rather than pushing the panel outward', () => {
+    // A bad `env()` read has produced negative insets before. Treating one as a
+    // shove toward the edge would put the panel half off-canvas.
+    const at = minimapAnchor({ x: 0, y: 0, width: 640, height: 400 }, { right: -50, bottom: -50 }, margin);
+
+    expect(at).toEqual(minimapAnchor({ x: 0, y: 0, width: 640, height: 400 }, noInset, margin));
   });
 });

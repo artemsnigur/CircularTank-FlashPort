@@ -26,7 +26,7 @@ import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/s
 import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
 import { crosshairVisible } from '../ui/crosshairVisibility';
-import { MINIMAP_SIZE, minimapPlan } from '../ui/minimap';
+import { minimapAnchor, minimapPlan } from '../ui/minimap';
 import { shouldRunDuringCountdown } from '../waves/countdownGate';
 import { countdownSkipped, createCountdown, tickCountdown } from '../waves/countdown';
 import type { CountdownState } from '../waves/countdown';
@@ -313,6 +313,21 @@ const INDICATOR_DEPTH = 9;
  * notch or home bar. See `layout()`.
  */
 const MINIMAP_MARGIN = 8;
+
+/**
+ * How much room the DOM HUD's bottom row needs, in **CSS pixels**.
+ *
+ * The panel is a canvas object in world units; the HUD is DOM laid out in CSS
+ * pixels, and the two scales differ by the camera zoom. So this is stated in
+ * the HUD's own unit and converted at the draw, rather than being a world-unit
+ * fudge that only clears the row at one window size.
+ *
+ * Measured, not guessed: `.hud__row--bottom` reported `top` 89 CSS px above the
+ * canvas bottom at 1280x800, with the Menu button and the audio toggles in it.
+ * 96 leaves a little air. The AS3 needs no equivalent — its HUD was a band
+ * *below* the camera, so nothing could overlap the panel.
+ */
+const HUD_BOTTOM_CLEARANCE_CSS = 96;
 /** Tutorial panels sit above everything in the world. */
 const TUTORIAL_DEPTH = 40;
 /** `WarningTimedBomb` frames: 1 ordinary, 2 boss. */
@@ -600,6 +615,9 @@ export class GameplayScene extends Phaser.Scene {
    * contents are every enemy's position, so there is nothing to cache.
    */
   private minimap!: Phaser.GameObjects.Graphics;
+
+  /** DEV-AID: fills painted by the last `drawMinimap`, for `__arena`. */
+  private minimapFills = 0;
 
   /**
    * `ScreenOptions.optionCrosshairOn` for this profile, read once at create.
@@ -1739,10 +1757,15 @@ export class GameplayScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(100);
 
-    // Screen furniture, like `hudText`: it shows the room, it does not live in
-    // it. Depth above the world and below nothing else in canvas — the React
-    // HUD is a separate layer entirely.
-    this.minimap = this.add.graphics().setScrollFactor(0).setDepth(100);
+    /**
+     * **Not `setScrollFactor(0)`, and that was T146's bug.** A scroll-factor-
+     * zero object is placed in camera-pixel space with the zoom applied about
+     * the camera centre, so a design-unit coordinate lands somewhere else
+     * entirely — measured at zoom 2 as the middle of the play area, at double
+     * size. This is positioned in world units against the live `worldView`
+     * instead, every frame, in `drawMinimap`.
+     */
+    this.minimap = this.add.graphics().setDepth(100);
 
     this.layout();
   }
@@ -3239,6 +3262,30 @@ export class GameplayScene extends Phaser.Scene {
     });
 
     (window as unknown as Record<string, unknown>).__arena = {
+      /**
+       * DEV-AID: the minimap's live state, for T147.
+       *
+       * It shipped in T146 and did not appear on screen. Every reason it could
+       * be invisible is a different field here — position, visibility, alpha,
+       * depth, how many fills the last plan produced, and the camera transform
+       * that maps a `scrollFactor(0)` object to the screen — so the cause is
+       * read off rather than guessed at.
+       */
+      minimap: {
+        x: Math.round(this.minimap.x),
+        y: Math.round(this.minimap.y),
+        visible: this.minimap.visible,
+        alpha: this.minimap.alpha,
+        depth: this.minimap.depth,
+        fills: this.minimapFills,
+        camera: {
+          zoom: Math.round(this.cameras.main.zoom * 1000) / 1000,
+          width: Math.round(this.cameras.main.width),
+          height: Math.round(this.cameras.main.height),
+          scrollX: Math.round(this.cameras.main.scrollX),
+          scrollY: Math.round(this.cameras.main.scrollY),
+        },
+      },
       /**
        * `PartGameArea.countDownDone`, so the harness can wait on the real flag
        * instead of sleeping.
@@ -5404,6 +5451,35 @@ export class GameplayScene extends Phaser.Scene {
   private drawMinimap(): void {
     const g = this.minimap;
     g.clear();
+    this.minimapFills = 0;
+
+    /**
+     * Re-anchored every frame, because the panel is a world object that has to
+     * follow the camera. Cheaper than it looks — this method already walks
+     * every enemy to redraw the dots.
+     *
+     * The safe-area insets come from `safeRect`, which is in **design** units;
+     * a zoomed camera sees fewer world units than the viewport is wide, so
+     * they are scaled before use. On a desktop window both are zero.
+     */
+    const view = this.cameras.main.worldView;
+    const controller = getViewportController(this);
+    const viewport = controller?.current;
+    const safe = controller?.safeRect;
+    const perDesign = viewport && viewport.logicalWidth > 0 ? view.width / viewport.logicalWidth : 1;
+    // The DOM HUD's bottom row, in world units. A CSS-pixel quantity divided by
+    // CSS pixels per world unit — not by the zoom, which is CSS-to-render.
+    const worldPerCss = viewport && viewport.cssHeight > 0 ? view.height / viewport.cssHeight : 0;
+    const hudClearance = HUD_BOTTOM_CLEARANCE_CSS * worldPerCss;
+    const inset =
+      viewport && safe
+        ? {
+            right: (viewport.logicalWidth - (safe.x + safe.width)) * perDesign,
+            bottom: (viewport.logicalHeight - (safe.y + safe.height)) * perDesign + hudClearance,
+          }
+        : { right: 0, bottom: hudClearance };
+    const at = minimapAnchor(view, inset, MINIMAP_MARGIN);
+    g.setPosition(at.x, at.y);
 
     for (const fill of minimapPlan({
       // The **live** camera, not the AS3's frozen 640x400 — see `minimap.ts`.
@@ -5421,6 +5497,7 @@ export class GameplayScene extends Phaser.Scene {
     })) {
       g.fillStyle(fill.colour, fill.alpha);
       g.fillRect(fill.rect.x, fill.rect.y, fill.rect.width, fill.rect.height);
+      this.minimapFills += 1;
     }
   }
 
@@ -5437,18 +5514,5 @@ export class GameplayScene extends Phaser.Scene {
     const safe = controller?.safeRect;
     this.hudText.setPosition((safe?.x ?? 0) + 12, (safe?.y ?? 0) + 10);
 
-    /**
-     * The minimap's corner — **not** the AS3's `(640 - 80, 400)`.
-     *
-     * Those are stage coordinates on a 640x480 Flash stage whose bottom 80px
-     * were a HUD band outside the 640x400 camera. This port has no such band:
-     * the camera fills the screen and the HUD is DOM on top. So the panel
-     * anchors to the safe rect's bottom-right, which is the same *place* —
-     * out of the way, below the action — expressed in this port's terms.
-     * `A5` records the same reasoning for the objective panel.
-     */
-    const right = (safe?.x ?? 0) + (safe?.width ?? this.cameras.main.width);
-    const bottom = (safe?.y ?? 0) + (safe?.height ?? this.cameras.main.height);
-    this.minimap.setPosition(right - MINIMAP_SIZE - MINIMAP_MARGIN, bottom - MINIMAP_SIZE - MINIMAP_MARGIN);
   }
 }

@@ -132,6 +132,39 @@ export function dotSize(isBoss: boolean): number {
   return isBoss ? MINIMAP_BOSS_DOT : MINIMAP_DOT;
 }
 
+/**
+ * Where the panel's top-left corner goes, in **world** units.
+ *
+ * ── Why world units and not `setScrollFactor(0)` ──────────────────────────
+ * The first attempt (T146) placed the panel with `setScrollFactor(0)` at a
+ * design-unit coordinate, and it rendered in the middle of the play area at
+ * double size. A scroll-factor-zero object is positioned in *camera-pixel*
+ * space, and the camera's zoom is then applied about its centre — so at zoom 2
+ * a point at 552 lands at `(552 - 640) * 2 + 640 = 464`. Measured, not
+ * reasoned about: the debug projection reported `zoom: 2`, `camera.width:
+ * 1280`, and a screenshot put the box exactly there.
+ *
+ * Anchoring to the camera's live `worldView` needs no inverse transform. The
+ * panel is 80 world units, which is 80 design units, which is the same eighth
+ * of the view the AS3's 80px is of its 640-wide stage — and it stays glued to
+ * the corner because the scene repositions it every frame, which it already
+ * does to redraw the dots.
+ *
+ * `insetRight`/`insetBottom` are the safe-area insets **already converted to
+ * world units** by the caller. They are not `safeRect` itself: that is in
+ * design units, and on a zoomed camera the two scales differ.
+ */
+export function minimapAnchor(
+  view: Rect,
+  inset: { right: number; bottom: number },
+  margin: number,
+): { x: number; y: number } {
+  return {
+    x: view.x + view.width - MINIMAP_SIZE - margin - Math.max(0, inset.right),
+    y: view.y + view.height - MINIMAP_SIZE - margin - Math.max(0, inset.bottom),
+  };
+}
+
 /** One filled rectangle, already clipped to the panel. */
 export interface MinimapFill {
   /** What it represents, so a test can assert order without matching colours. */
