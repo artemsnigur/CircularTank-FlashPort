@@ -23,6 +23,7 @@ import { PROJECTILE_SPRITE_IDS } from './lib/projectile-sprites.mjs';
 import { ICON_SPRITE_IDS } from './lib/icon-sprites.mjs';
 import { LEVEL_GUIDE_SPRITE_IDS } from './lib/level-guide-sprites.mjs';
 import { ENEMY_TILE_SPRITE_IDS } from './lib/enemy-tile-sprites.mjs';
+import { BESTIARY_SPRITE_IDS } from './lib/bestiary-sprites.mjs';
 import { achievementSymbols } from './lib/achievement-sprites.mjs';
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
@@ -424,6 +425,18 @@ for (const id of shapeIdsForSprites(LEVEL_GUIDE_SPRITE_IDS)) {
  * state visible rather than looking like a mistake.
  */
 for (const id of shapeIdsForSprites(ENEMY_TILE_SPRITE_IDS)) {
+  CURATED_SHAPES.add(`${id}.svg`);
+}
+
+/**
+ * The 20 bestiary tiles — 25 shapes, derived from `BESTIARY_SPRITE_IDS`.
+ *
+ * Not to be confused with the plate above: that one backs `ImageEnemy` on the
+ * level-select panel and is undrawn, while these are `ScreenEnemies`' own enemy
+ * pictures and are drawn by `EnemyTile.tsx`. Both are "enemy art on a screen",
+ * which is exactly why the distinction is written down twice.
+ */
+for (const id of shapeIdsForSprites(Object.values(BESTIARY_SPRITE_IDS))) {
   CURATED_SHAPES.add(`${id}.svg`);
 }
 

@@ -22,6 +22,7 @@
  */
 
 import { BESTIARY, INITIAL_KNOWN_ENEMIES } from './bestiaryData';
+import { BESTIARY_TILE_CLIPS, BESTIARY_TILE_FRAME } from './bestiaryArt';
 import { ENEMY_STATS } from './enemyStatsData';
 import { resistanceBadges } from './resistanceIcons';
 import type { ResistanceBadge } from './resistanceIcons';
@@ -115,6 +116,20 @@ export interface BestiaryRow {
    */
   strengths: ResistanceBadge[];
   weaknesses: ResistanceBadge[];
+  /**
+   * The tile's shape layers, back to front — `ButtonEnemy<Type>`.
+   *
+   * **Chosen here, not in the view, and that is the whole point.** An unmet
+   * entry gets frame 4's layers, which draw the "?" glyph on the ordinary
+   * plate; a met one gets frame 1's. Sending the clip and letting the
+   * component pick would put the enemy's appearance in the store for every
+   * type, which is precisely what this listing exists to withhold — the same
+   * rule the description and the badges already follow.
+   *
+   * Every locked tile is the identical triple, so the array itself carries no
+   * hint of which enemy it is hiding. `enemyKnowledge.test.ts` pins that.
+   */
+  tile: readonly number[];
   known: boolean;
 }
 
@@ -136,6 +151,20 @@ export interface BestiaryListing {
  * mistake can reveal it. `BestiaryScreen` has a test asserting it cannot import
  * the bestiary data itself, which is what makes that guarantee hold.
  */
+/**
+ * The layers of the frame this entry should draw — `ButtonEnemy.as:78-112`.
+ *
+ * Met enemies rest on frame 1; everything `notDiscovered` falls through to
+ * frame 4. Hover and selected (2 and 3) belong to a grid this port does not
+ * have, so they are generated and unused rather than invented away.
+ */
+function tileLayers(id: string, met: boolean): readonly number[] {
+  const clip = BESTIARY_TILE_CLIPS[id];
+  if (!clip) return [];
+  const frame = met ? BESTIARY_TILE_FRAME.normal : BESTIARY_TILE_FRAME.locked;
+  return clip.frames[frame - 1] ?? [];
+}
+
 export function buildBestiaryListing(known: readonly string[]): BestiaryListing {
   return {
     entries: BESTIARY.map((entry) => {
@@ -157,6 +186,7 @@ export function buildBestiaryListing(known: readonly string[]): BestiaryListing 
         ...(met ? { description: entry.description } : {}),
         strengths: stats ? resistanceBadges(stats.strengths, 'strength') : [],
         weaknesses: stats ? resistanceBadges(stats.weaknesses, 'weakness') : [],
+        tile: tileLayers(entry.id, met),
         known: met,
       };
     }),

@@ -76,6 +76,8 @@ export interface BestiaryListing {
      */
     strengths: ResistanceBadge[];
     weaknesses: ResistanceBadge[];
+    /** See `GameEvents.ts` — frame 1 or the locked frame 4, decided upstream. */
+    tile: readonly number[];
     known: boolean;
   }>;
   knownCount: number;

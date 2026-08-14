@@ -1668,6 +1668,21 @@ code {
   /* Fixed so the two rows' badges line up under each other. */
   min-width: 4.5rem;
 }
+/* The bestiary tile — `ButtonEnemy<Type>`, three stacked shapes in a square
+   box. Same construction as `.resistance-icon` below, and deliberately not
+   merged with it: the two clips have different pitches (41px against 38px) and
+   only one of them ever carries text. */
+.enemy-tile {
+  position: relative;
+  display: inline-block;
+  flex: none;
+}
+.enemy-tile__layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
 .resistance-icon {
   position: relative;
   display: inline-block;

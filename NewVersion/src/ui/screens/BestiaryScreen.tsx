@@ -13,6 +13,7 @@
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 import { ResistanceIcon } from '../ResistanceIcon';
+import { EnemyTile } from '../EnemyTile';
 import type { ResistanceBadge } from '../../game/enemies/resistanceIcons';
 
 /**
@@ -74,6 +75,17 @@ export function BestiaryScreen(): React.ReactElement | null {
               key={entry.id}
               className={`bestiary-row ${entry.known ? '' : 'bestiary-row--locked'}`}
             >
+              {/*
+                The enemy's picture — `ButtonEnemy<Type>` frame 1, or frame 4
+                for an unmet one. Which of the two is decided in the listing,
+                not here: this screen is not allowed to know what a locked
+                enemy looks like, which is the same rule that keeps the
+                description out of it.
+              */}
+              <EnemyTile
+                layers={entry.tile}
+                label={entry.known ? entry.displayName : 'Not yet encountered'}
+              />
               <span className="bestiary-row__name">
                 {entry.known ? entry.displayName : '???'}
               </span>

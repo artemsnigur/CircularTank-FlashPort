@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BESTIARY, INITIAL_KNOWN_ENEMIES } from './bestiaryData';
+import { BESTIARY_LOCKED_GLYPH, BESTIARY_TILE_CLIPS, BESTIARY_TILE_FRAME } from './bestiaryArt';
 import {
   buildBestiaryListing,
   createInitialKnownEnemies,
@@ -265,5 +266,57 @@ describe('buildBestiaryListing', () => {
 
   it('reports a fresh profile as knowing exactly one', () => {
     expect(buildBestiaryListing(createInitialKnownEnemies()).knownCount).toBe(1);
+  });
+});
+
+/**
+ * The tile the screen draws, and the fact that choosing it is the *listing's*
+ * job. `BestiaryScreen` cannot import the art table — the same no-import
+ * guarantee that keeps descriptions out of it — so if the wrong frame were
+ * chosen here, nothing downstream could correct it.
+ */
+describe('the tile a row carries', () => {
+  const rowFor = (known: string[], id: string) =>
+    buildBestiaryListing(known).entries.find((e) => e.id === id)!;
+
+  it('draws the enemy`s own art once it has been met', () => {
+    const met = rowFor(['Basic', 'Ghost'], 'Ghost');
+
+    expect(met.known).toBe(true);
+    expect(met.tile).toEqual([...BESTIARY_TILE_CLIPS.Ghost.frames[BESTIARY_TILE_FRAME.normal - 1]]);
+    expect(met.tile).toContain(BESTIARY_TILE_CLIPS.Ghost.frames[0][2]);
+  });
+
+  /**
+   * **The counterpart, on the same enemy.** Ghost met against Ghost unmet is
+   * what makes "the locked tile hides it" mean something: the two rows differ,
+   * and they differ in the layer that carries the picture.
+   */
+  it('draws the locked glyph until then', () => {
+    const unmet = rowFor(['Basic'], 'Ghost');
+
+    expect(unmet.known).toBe(false);
+    expect(unmet.tile[2]).toBe(BESTIARY_LOCKED_GLYPH);
+    expect(unmet.tile).not.toContain(BESTIARY_TILE_CLIPS.Ghost.frames[0][2]);
+  });
+
+  it('sends the same locked tile for every unmet enemy', () => {
+    // A fresh profile: 19 locked rows that must be indistinguishable from each
+    // other. If the frame were picked per type by mistake — say frame 1 for
+    // some path — this is what would catch it, and the row-level test above
+    // would not, because it only looks at one enemy.
+    const fresh = buildBestiaryListing(createInitialKnownEnemies());
+    const locked = fresh.entries.filter((e) => !e.known);
+
+    expect(locked).toHaveLength(fresh.total - 1);
+    expect(new Set(locked.map((e) => e.tile.join(',')))).toHaveProperty('size', 1);
+  });
+
+  it('gives every entry a tile, met or not', () => {
+    // The listing is the only source; an empty array would render no picture
+    // and the screen has no fallback to reach for.
+    for (const entry of buildBestiaryListing(['Basic']).entries) {
+      expect(entry.tile, entry.id).toHaveLength(3);
+    }
   });
 });

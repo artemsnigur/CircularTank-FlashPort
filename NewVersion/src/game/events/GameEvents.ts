@@ -412,6 +412,13 @@ export interface GameEventMap {
        */
       strengths: ResistanceBadge[];
       weaknesses: ResistanceBadge[];
+      /**
+       * Tile shape layers, back to front — `ButtonEnemy<Type>` frame 1 when
+       * met, frame 4 (the "?" glyph) when not. **The frame is chosen in
+       * `buildBestiaryListing`**, so an unmet entry's real artwork never
+       * reaches the store; every locked tile is the same triple.
+       */
+      tile: readonly number[];
       known: boolean;
     }>;
     knownCount: number;
