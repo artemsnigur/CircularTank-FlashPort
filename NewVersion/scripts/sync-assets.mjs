@@ -24,6 +24,7 @@ import { ICON_SPRITE_IDS } from './lib/icon-sprites.mjs';
 import { LEVEL_GUIDE_SPRITE_IDS } from './lib/level-guide-sprites.mjs';
 import { ENEMY_TILE_SPRITE_IDS } from './lib/enemy-tile-sprites.mjs';
 import { BESTIARY_SPRITE_IDS } from './lib/bestiary-sprites.mjs';
+import { UPGRADE_SPRITE_IDS } from './lib/upgrade-sprites.mjs';
 import { achievementSymbols } from './lib/achievement-sprites.mjs';
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
@@ -437,6 +438,17 @@ for (const id of shapeIdsForSprites(ENEMY_TILE_SPRITE_IDS)) {
  * which is exactly why the distinction is written down twice.
  */
 for (const id of shapeIdsForSprites(Object.values(BESTIARY_SPRITE_IDS))) {
+  CURATED_SHAPES.add(`${id}.svg`);
+}
+
+/**
+ * The 28 shop tiles — 70 shapes, derived from `UPGRADE_SPRITE_IDS`.
+ *
+ * Most of the count is shared furniture: five plate states and three badges
+ * appear on every tile, so the per-weapon glyphs are 56 of the 70 (two each,
+ * owned and not owned).
+ */
+for (const id of shapeIdsForSprites(Object.values(UPGRADE_SPRITE_IDS))) {
   CURATED_SHAPES.add(`${id}.svg`);
 }
 
