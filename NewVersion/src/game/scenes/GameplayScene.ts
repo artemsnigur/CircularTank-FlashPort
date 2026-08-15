@@ -1291,6 +1291,15 @@ export class GameplayScene extends Phaser.Scene {
       }),
       weapon: this.weapon?.name ?? 'Cannon',
       secondaryName: this.secondary?.name ?? null,
+      // The weapon panel's other two icons — `WeaponInterface`'s `unused` and
+      // `special` instances. The loadout is read live rather than latched at
+      // create: `cycleWeapon` moves `currentSlot`, and the preview is the whole
+      // point of the unused icon.
+      equipped: this.profile.loadout.equippedWeapons,
+      slot: this.currentSlot,
+      // `:637` tests the cooldown itself. `secondaryFiring.reloadTime` is that
+      // value; the fill above is a different question about the same clock.
+      secondaryReady: this.secondaryFiring.reloadTime <= 0,
     });
   }
 

@@ -5,10 +5,10 @@
 
 Tracking the rewrite of 643 decompiled ActionScript 3 classes (`SWFimported/scripts`) into TypeScript/Phaser.
 
-**38 / 556** game classes started · **17** verified · 6 marked not applicable · 81 third-party classes excluded.
+**39 / 556** game classes started · **18** verified · 6 marked not applicable · 81 third-party classes excluded.
 
 ```
-██░░░░░░░░░░░░░░░░░░░░░░  6.8%
+██░░░░░░░░░░░░░░░░░░░░░░  7.0%
 ```
 
 ## How to use this file
@@ -57,7 +57,7 @@ below — everything else hangs off those.
 - [Screens and screen parts](#screens-and-screen-parts) — 10/49
 - [Player tank](#player-tank) — 1/6
 - [Enemies](#enemies) — 8/52
-- [Projectiles, weapons and objects](#projectiles-weapons-and-objects) — 10/33
+- [Projectiles, weapons and objects](#projectiles-weapons-and-objects) — 11/33
 - [Achievements](#achievements) — 0/38
 - [Tutorial](#tutorial) — 0/25
 - [Particles and effects](#particles-and-effects) — 0/7
@@ -300,7 +300,7 @@ below — everything else hangs off those.
 
 ## Projectiles, weapons and objects
 
-`███████░░░░░░░░░░░░░░░░░` 10/33
+`████████░░░░░░░░░░░░░░░░` 11/33
 
 - [ ] `Bullet` — not started
 - [ ] `BulletBig` — not started
@@ -332,7 +332,7 @@ below — everything else hangs off those.
 - [ ] `PremiumWeaponMagicBunny` — not started
 - [ ] `PremiumWeaponMagicCannon` — not started
 - [ ] `PremiumWeaponPenetrationCannon` — not started
-- [ ] `WeaponInterface` — not started
+- [x] `WeaponInterface` — tested
 - [ ] `WeaponReloadIndicator` — not started
 - [ ] `WeaponSlotImage` — not started
 

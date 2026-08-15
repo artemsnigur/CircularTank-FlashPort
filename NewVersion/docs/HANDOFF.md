@@ -668,8 +668,22 @@ reset block: the two fields beside it are rebuilt per run by construction, and
 been missed off. If you add a marker, add it there. Full write-up in the audit
 under "A pooled game object outlives the scene that built it".
 
-Still open from that audit: HUD weapon art (`G4`), a credits line, two stale doc comments,
-and a knip triage of 467 unused exports.
+**The HUD weapon art followed in T150** — `G4`, and the last of the audit's four
+gaps. `WeaponInterface` (symbol 1198) is **one clip with three instances**: the
+weapon in hand, the other slot at 0.75x, and the special. `ui/weaponArt.ts` is
+generated from the SWF and `ui/weaponPanel.ts` is the transcription — frame
+numbers, which instance shows what, and the special's dim while it reloads.
+
+The thing to know before touching it: **the layers align by origin, not by
+centre.** Every placement inside 1198 is identity with translate (0, 0), so
+both shapes sit at the clip origin, and a shape's origin is usually not its box
+centre — 22 of the 24 glyphs are off, worst `Cannon` at 4.31 units on a 30-unit
+socket. `UpgradeIcon` centres its layers and is right to; copying that here
+would hang the default weapon's barrel out of its socket. Layout divergences are
+`A22`, and the weapon name kept as text under the art is `A21`.
+
+Still open from that audit: a credits line, two stale doc comments, and a knip
+triage of 467 unused exports.
 
 ---
 

@@ -121,6 +121,9 @@ describe('Hud', () => {
         secondary: 1,
         weapon: 'Cannon',
         secondaryName: null,
+        equipped: ['Cannon', 'None'],
+        slot: 1,
+        secondaryReady: true,
       });
     });
     rerender(<Hud />);
@@ -133,6 +136,9 @@ describe('Hud', () => {
         secondary: 0.5,
         weapon: 'Cannon',
         secondaryName: 'Mine',
+        equipped: ['Cannon', 'None'],
+        slot: 1,
+        secondaryReady: false,
       });
     });
     rerender(<Hud />);
@@ -153,6 +159,9 @@ describe('Hud', () => {
           secondary: 1,
           weapon: 'Cannon',
           secondaryName: null,
+          equipped: ['Cannon', 'None'],
+          slot: 1,
+          secondaryReady: true,
         });
       });
       rerender(<Hud />);
@@ -176,6 +185,9 @@ describe('Hud', () => {
         secondary: 1,
         weapon: 'Cannon',
         secondaryName: null,
+        equipped: ['Cannon', 'None'],
+        slot: 1,
+        secondaryReady: true,
       });
     });
     rerender(<Hud />);
@@ -187,12 +199,156 @@ describe('Hud', () => {
         secondary: 1,
         weapon: 'MiniGun',
         secondaryName: null,
+        equipped: ['MiniGun', 'None'],
+        slot: 1,
+        secondaryReady: true,
       });
     });
     rerender(<Hud />);
 
     expect(screen.getByText('MiniGun')).toBeInTheDocument();
     expect(screen.queryByText('Cannon')).not.toBeInTheDocument();
+  });
+
+  /**
+   * The weapon art — T150.
+   *
+   * These are about the *wiring*, not the pictures: which icons mount, what
+   * they point at and when they dim. The frame table, the layer offsets and
+   * the two AS3 rules behind them are driven in `ui/weaponPanel.test.ts`
+   * against the SWF geometry, which is where a wrong picture is catchable.
+   *
+   * `data-weapon` exists for these assertions: the icons are `aria-hidden`
+   * decorations, so there is no accessible name to query them by, and querying
+   * the `<img>` sources would assert on shape ids in two places.
+   */
+  it('draws an icon for the weapon in hand', () => {
+    enterGameplay();
+    const { rerender } = render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('reload:changed', {
+        primary: 1,
+        secondary: 1,
+        weapon: 'Big Cannon',
+        secondaryName: null,
+        equipped: ['Big Cannon', 'None'],
+        slot: 1,
+        secondaryReady: true,
+      });
+    });
+    rerender(<Hud />);
+
+    const icons = document.querySelectorAll('.weapon-icon');
+    expect(icons).toHaveLength(1);
+    expect(icons[0].getAttribute('data-weapon')).toBe('Big Cannon');
+    // Socket plus one glyph — frame 4. A single layer would mean the glyph
+    // never resolved and the socket was drawn alone.
+    expect(icons[0].querySelectorAll('img')).toHaveLength(2);
+  });
+
+  it('previews the other slot only when both slots are filled', () => {
+    // `PartInterface.as:242` against `WeaponInterface.as:44-51`, driven as a
+    // pair on the same payload shape: one slot filled shows one icon, two
+    // slots filled show two, and the second is the one *not* in hand.
+    enterGameplay();
+    const { rerender } = render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('reload:changed', {
+        primary: 1,
+        secondary: 1,
+        weapon: 'Cannon',
+        secondaryName: null,
+        equipped: ['Cannon', 'None'],
+        slot: 1,
+        secondaryReady: true,
+      });
+    });
+    rerender(<Hud />);
+    expect(document.querySelectorAll('.weapon-icon')).toHaveLength(1);
+
+    act(() => {
+      GameEvents.emit('reload:changed', {
+        primary: 1,
+        secondary: 1,
+        weapon: 'Cannon',
+        secondaryName: null,
+        equipped: ['Cannon', 'Shotgun'],
+        slot: 1,
+        secondaryReady: true,
+      });
+    });
+    rerender(<Hud />);
+
+    const shown = [...document.querySelectorAll('.weapon-icon')].map((el) =>
+      el.getAttribute('data-weapon'),
+    );
+    expect(shown).toEqual(['Shotgun', 'Cannon']);
+  });
+
+  it('follows the slot in hand when the weapon is switched', () => {
+    // The preview is the *opposite* slot, so switching swaps both icons. A
+    // component that read `equipped[1]` unconditionally would pass the test
+    // above and fail this one.
+    enterGameplay();
+    const { rerender } = render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('reload:changed', {
+        primary: 1,
+        secondary: 1,
+        weapon: 'Shotgun',
+        secondaryName: null,
+        equipped: ['Cannon', 'Shotgun'],
+        slot: 2,
+        secondaryReady: true,
+      });
+    });
+    rerender(<Hud />);
+
+    const shown = [...document.querySelectorAll('.weapon-icon')].map((el) =>
+      el.getAttribute('data-weapon'),
+    );
+    expect(shown).toEqual(['Cannon', 'Shotgun']);
+  });
+
+  it('dims the special while it reloads and lights it when ready', () => {
+    // `:648` against `:643`. Both directions on the same element, because a
+    // component that hard-coded either value would pass one of them.
+    enterGameplay();
+    const { rerender } = render(<Hud />);
+
+    const special = (): HTMLElement | null =>
+      document.querySelector<HTMLElement>('.weapon-icon[data-weapon="Mine"]');
+
+    act(() => {
+      GameEvents.emit('reload:changed', {
+        primary: 1,
+        secondary: 0.4,
+        weapon: 'Cannon',
+        secondaryName: 'Mine',
+        equipped: ['Cannon', 'None'],
+        slot: 1,
+        secondaryReady: false,
+      });
+    });
+    rerender(<Hud />);
+    expect(special()?.style.opacity).toBe('0.25');
+
+    act(() => {
+      GameEvents.emit('reload:changed', {
+        primary: 1,
+        secondary: 1,
+        weapon: 'Cannon',
+        secondaryName: 'Mine',
+        equipped: ['Cannon', 'None'],
+        slot: 1,
+        secondaryReady: true,
+      });
+    });
+    rerender(<Hud />);
+    expect(special()?.style.opacity).toBe('1');
   });
 
   // Deleted in T78: `it('hides the readout entirely when capacity drops to zero')`.

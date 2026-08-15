@@ -75,8 +75,11 @@ export function attachStoreBridge(): () => void {
     store.getState().setHealth(health, maxHealth);
   });
 
-  on('reload:changed', ({ primary, secondary, weapon, secondaryName }) => {
-    store.getState().setReload(primary, secondary, weapon, secondaryName);
+  // Forwarded whole: every field is a HUD value and the payload already has
+  // the setter's shape, so destructuring here would only create a place for a
+  // new field to be dropped silently.
+  on('reload:changed', (payload) => {
+    store.getState().setReload(payload);
   });
 
   on('countdown:changed', (panel) => {

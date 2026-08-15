@@ -123,12 +123,25 @@ describe('attachStoreBridge', () => {
     GameEvents.emit('player:damaged', { amount: 30, health: 70, maxHealth: 100 });
     expect(useGameStore.getState().health).toBe(70);
 
-    GameEvents.emit('reload:changed', { primary: 0.25, secondary: 1, weapon: 'Shotgun', secondaryName: null });
+    GameEvents.emit('reload:changed', {
+      primary: 0.25,
+      secondary: 1,
+      weapon: 'Shotgun',
+      secondaryName: null,
+      equipped: ['Shotgun', 'MiniGun'],
+      slot: 1,
+      secondaryReady: true,
+    });
     expect(useGameStore.getState()).toMatchObject({
       reloadPrimary: 0.25,
       reloadSecondary: 1,
       weapon: 'Shotgun',
       secondaryName: null,
+      // The weapon panel's three additions ride the same event, so the bridge
+      // forwarding the payload whole is what these pin.
+      equippedWeapons: ['Shotgun', 'MiniGun'],
+      weaponSlot: 1,
+      secondaryReady: true,
     });
   });
 

@@ -569,9 +569,20 @@ code {
   border: 1px solid var(--border);
 }
 
-.hud-reload__bars {
+/* The primary and the special, side by side — `bgWeapon` at x 388 and
+   `bgWeapon2` at 474 (`:234`, `:237`). */
+.hud-reload__slots {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* One weapon: its icon, and its own bar beside it. The AS3 pairs each bar with
+   its own plate (`:262`, `:266`) rather than grouping the bars together, which
+   is what says which bar belongs to which weapon. */
+.hud-reload__slot {
+  display: flex;
+  align-items: center;
   gap: 0.35rem;
   height: 2.5rem;
 }
@@ -1719,6 +1730,30 @@ code {
 /* The shop tile — `ButtonWeapon` / `ButtonMisc`, three stacked shapes. Same
    construction as the two below; kept separate because the row lays it out as
    a flex item that must not shrink when the stat lines get long. */
+/* The HUD's weapon icon — `WeaponInterface`, a socket with a glyph over it.
+
+   Deliberately not merged with `.upgrade-icon` below, though both stack images
+   in a box. That one fills its box with every layer, which is right for the
+   shop tiles: their layers are all the same size. These layers are not, and
+   each carries its own origin offset, so both the size and the position come
+   from the element's inline style and this rule must not overrule either. */
+.weapon-icon {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  align-self: center;
+  /* The dim/undim when the special comes off cooldown (`:643`, `:648`). Short
+     enough to read as a state change rather than as an animation. */
+  transition: opacity 120ms linear;
+}
+.weapon-icon__layer {
+  position: absolute;
+  /* Anchored at the centre; the inline transform then applies the layer's own
+     origin offset. `inset: 0` would stretch every layer to the socket. */
+  left: 50%;
+  top: 50%;
+}
+
 .upgrade-icon {
   position: relative;
   display: inline-block;

@@ -179,6 +179,12 @@ export interface GameState {
   weapon: string;
   /** Equipped secondary's name, or null when there is none. */
   secondaryName: string | null;
+  /** Both primary slots — `ScreenGame.equippedWeapons`. */
+  equippedWeapons: readonly [string, string];
+  /** Which slot is in hand, 1 or 2 — `ScreenGame.currentWeapon`. */
+  weaponSlot: number;
+  /** `reloadTimeSecondary <= 0`, which decides the special icon's opacity. */
+  secondaryReady: boolean;
   wave: number;
   enemiesRemaining: number;
   /** Level mode, so the HUD can show mode-specific counters. */
@@ -263,12 +269,24 @@ export interface GameState {
   setCurrency: (total: number) => void;
   addCurrency: (amount: number) => void;
   setHealth: (health: number, maxHealth?: number) => void;
-  setReload: (
-    primary: number,
-    secondary: number,
-    weapon: string,
-    secondaryName: string | null,
-  ) => void;
+  /**
+   * The whole weapon panel in one call — bars, names, both slots and the
+   * special's readiness.
+   *
+   * **An object, not seven positional arguments.** Two of them are strings that
+   * mean different weapons and one is a bare boolean; at that width a
+   * transposed pair type-checks and shows the wrong weapon, which is precisely
+   * the failure this port has already had at a wiring site.
+   */
+  setReload: (input: {
+    primary: number;
+    secondary: number;
+    weapon: string;
+    secondaryName: string | null;
+    equipped: readonly [string, string];
+    slot: number;
+    secondaryReady: boolean;
+  }) => void;
   setWave: (
     wave: number,
     enemiesRemaining: number,
@@ -314,6 +332,12 @@ const initialRunState = {
   reloadSecondary: 1,
   weapon: 'none',
   secondaryName: null,
+  // Before the first emit there is no loadout to draw. `'None'` in both slots
+  // is the AS3's own empty state, and it resolves to the bare socket rather
+  // than to a missing texture.
+  equippedWeapons: ['None', 'None'] as [string, string],
+  weaponSlot: 1,
+  secondaryReady: false,
   wave: 0,
   enemiesRemaining: 0,
   levelMode: 'Normal',
@@ -386,8 +410,16 @@ export const useGameStore = create<GameState>()((set) => ({
       maxHealth: maxHealth ?? s.maxHealth,
     })),
 
-  setReload: (reloadPrimary, reloadSecondary, weapon, secondaryName) =>
-    set({ reloadPrimary, reloadSecondary, weapon, secondaryName }),
+  setReload: ({ primary, secondary, weapon, secondaryName, equipped, slot, secondaryReady }) =>
+    set({
+      reloadPrimary: primary,
+      reloadSecondary: secondary,
+      weapon,
+      secondaryName,
+      equippedWeapons: equipped,
+      weaponSlot: slot,
+      secondaryReady,
+    }),
   setWave: (wave, enemiesRemaining, levelMode, flagsRemaining) =>
     set({ wave, enemiesRemaining, levelMode, flagsRemaining }),
   setCountdown: (countdown) => set({ countdown }),

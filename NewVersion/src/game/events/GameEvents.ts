@@ -121,6 +121,27 @@ export interface GameEventMap {
     weapon: string;
     /** Null when no secondary is equipped, so the bar can be hidden. */
     secondaryName: string | null;
+    /**
+     * Both primary slots and which one is in hand — `ScreenGame.equippedWeapons`
+     * and `currentWeapon`, the two values `weaponInterfaceUnused` reads
+     * (`WeaponInterface.as:44-51`, `PartInterface.as:242`).
+     *
+     * **The pair and the index, not the derived answer.** Which slot the
+     * preview shows, and whether it appears at all, is a rule with two AS3
+     * sites; sending the raw state keeps that rule in `weaponPanel.ts` where it
+     * is driven, instead of splitting it between the scene and the HUD.
+     */
+    equipped: readonly [string, string];
+    /** 1 or 2 — `ScreenGame.currentWeapon`. */
+    slot: number;
+    /**
+     * `reloadTimeSecondary <= 0` (`:637`), which dims the special's icon.
+     *
+     * Sent as the predicate rather than read off `secondary` above: that fill
+     * is also full when no cooldown is configured, so the two agree on every
+     * real weapon and disagree exactly where it would be wrong.
+     */
+    secondaryReady: boolean;
   };
   /**
    * The opening countdown's panel — `PartInterface.as:303-308`.

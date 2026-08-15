@@ -25,6 +25,13 @@ import {
   SLIDE_OUT_DISTANCE,
   SLIDE_OUT_MS,
 } from '../game/waves/countdownPanel';
+import { WeaponIcon } from './WeaponIcon';
+import {
+  ICON_SCALE,
+  UNUSED_ICON_SCALE,
+  otherSlotWeapon,
+  specialIconAlpha,
+} from '../game/ui/weaponPanel';
 import { showingToast } from '../game/achievements/toastQueue';
 import { previewForLevel } from '../game/levels/levelPreview';
 import { achievementFrame, achievementTooltip } from '../game/achievements/achievementTooltip';
@@ -144,20 +151,75 @@ function FlagCounter(): React.ReactElement | null {
  * whole readout. The secondary bar is the only conditional part, and it is
  * conditional on *having a secondary*, which is what `secondaryName` says.
  */
+/**
+ * The socket's drawn size, in CSS pixels.
+ *
+ * The AS3 draws a 30-unit socket at `scaleX = 1.25` — 37.5 stage units, in a
+ * HUD band this port does not have (`A5`). 34 is that figure fitted to the
+ * bottom row: the reload bars beside it are `2.5rem` tall, and an icon larger
+ * than 34 makes the row taller than the health bar next to it. The **ratio**
+ * between the two icon sizes is the part that carries meaning, and that comes
+ * from `weaponPanel.ts` rather than from a second literal here.
+ */
+const ICON_SIZE = 34;
+
 function ReloadReadout(): React.ReactElement {
   const primary = useGameStore((s) => s.reloadPrimary);
   const secondary = useGameStore((s) => s.reloadSecondary);
   const weapon = useGameStore((s) => s.weapon);
   const secondaryName = useGameStore((s) => s.secondaryName);
+  const equipped = useGameStore((s) => s.equippedWeapons);
+  const slot = useGameStore((s) => s.weaponSlot);
+  const secondaryReady = useGameStore((s) => s.secondaryReady);
+
+  // `WeaponInterface.as:44-51` with `PartInterface.as:242` — the other slot,
+  // or nothing at all when only one primary is equipped.
+  const other = otherSlotWeapon(equipped, slot);
 
   return (
     <div className="hud-reload">
-      <div className="hud-reload__bars">
-        <ReloadBar fill={primary} label={`${weapon} reload`} />
+      {/* Each icon pairs with its own bar, as the AS3 pairs `reloadBar1` with
+          `bgWeapon` and `reloadBar2` with `bgWeapon2` (`:262`, `:266`). The
+          port's earlier layout stacked both bars together and both names
+          together, which gave no clue which bar belonged to which weapon. */}
+      <div className="hud-reload__slots">
+        <div className="hud-reload__slot">
+          {/* The unused slot's preview, smaller — `:28` against `:33`. It sits
+              before the weapon in hand because that is the order the AS3 puts
+              them in on screen (`x = bgWeapon.x - 20` against `+ 37`). */}
+          {other !== null && (
+            <WeaponIcon
+              weapon={other}
+              size={ICON_SIZE * (UNUSED_ICON_SCALE / ICON_SCALE)}
+              label={`${other} (press Q to switch)`}
+            />
+          )}
+          <WeaponIcon weapon={weapon} size={ICON_SIZE} label={weapon} />
+          <ReloadBar fill={primary} label={`${weapon} reload`} />
+        </div>
+
         {secondaryName !== null && (
-          <ReloadBar fill={secondary} label={`${secondaryName} reload`} />
+          <div className="hud-reload__slot">
+            <WeaponIcon
+              weapon={secondaryName}
+              size={ICON_SIZE}
+              opacity={specialIconAlpha(secondaryReady)}
+              label={secondaryName}
+            />
+            <ReloadBar fill={secondary} label={`${secondaryName} reload`} />
+          </div>
         )}
       </div>
+
+      {/*
+        The names stay, as text, beneath the art.
+
+        The AS3 has no weapon *name* anywhere in its HUD — the picture is the
+        whole readout there. Kept here for two reasons that do not apply to the
+        original: the icons are decorative and `aria-hidden`, so removing this
+        would leave a screen reader with two unlabelled bars; and a player who
+        has not memorised 24 glyphs has nothing else to read. Recorded as `A21`.
+      */}
       <div className="hud-reload__names">
         <span className="hud-reload__weapon">{weapon}</span>
         {secondaryName !== null && (

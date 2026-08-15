@@ -26,6 +26,7 @@ import { ENEMY_TILE_SPRITE_IDS } from './lib/enemy-tile-sprites.mjs';
 import { BESTIARY_SPRITE_IDS } from './lib/bestiary-sprites.mjs';
 import { UPGRADE_SPRITE_IDS } from './lib/upgrade-sprites.mjs';
 import { MARKER_SPRITE_IDS } from './lib/marker-sprites.mjs';
+import { WEAPON_PANEL_SPRITE_ID } from './lib/weapon-panel-sprites.mjs';
 import { achievementSymbols } from './lib/achievement-sprites.mjs';
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
@@ -458,6 +459,16 @@ for (const id of shapeIdsForSprites(Object.values(UPGRADE_SPRITE_IDS))) {
  * `MarkerFlag`'s eight directions.
  */
 for (const id of shapeIdsForSprites(Object.values(MARKER_SPRITE_IDS))) {
+  CURATED_SHAPES.add(`${id}.svg`);
+}
+
+/**
+ * The HUD's weapon icon — 25 shapes: one socket and 24 weapon glyphs.
+ *
+ * One symbol, not three. `PartInterface` draws the primary, the special and
+ * the unused slot's preview from the same `WeaponInterface` clip.
+ */
+for (const id of shapeIdsForSprites([WEAPON_PANEL_SPRITE_ID])) {
   CURATED_SHAPES.add(`${id}.svg`);
 }
 
