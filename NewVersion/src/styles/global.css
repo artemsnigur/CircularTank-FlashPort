@@ -281,6 +281,28 @@ body {
   color: var(--text-dim);
 }
 
+/* `ButtonCredit` — bottom-left of the menu, `ScreenMenu.as:270-271` places it at
+   x 20 with 68px of clearance below. Quiet by design: in the original it is an
+   unlabelled icon, and the attribution only appears on hover. */
+.screen__credit {
+  margin: var(--space-3) 0 0;
+}
+.credit-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.credit-button:hover,
+.credit-button:focus-visible {
+  color: var(--text);
+}
+
 .screen__error {
   margin: 0;
   max-width: 40ch;

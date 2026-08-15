@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   applyWallInset,
   faceTarget,
-  randomEdgeSpawn,
   resolveSpawn,
 } from './enemySpawn';
 import type { SpawnGeometry } from './enemySpawn';
@@ -203,34 +202,6 @@ describe('resolveSpawn — Tower mode', () => {
         expect(Number.isFinite(spawn.rotation), `${x},${y}`).toBe(true);
         expect(Number.isFinite(spawn.xVel), `${x},${y}`).toBe(true);
       }
-    }
-  });
-});
-
-describe('randomEdgeSpawn', () => {
-  it('always lands on a room edge', () => {
-    let seed = 0;
-    const random = (): number => {
-      seed += 0.137;
-      return seed % 1;
-    };
-
-    for (let i = 0; i < 200; i += 1) {
-      const spawn = randomEdgeSpawn(640, 960, random);
-      const onEdge =
-        spawn.x === 0 || spawn.x === 640 || spawn.y === 0 || spawn.y === 960;
-      expect(onEdge, `${spawn.x},${spawn.y}`).toBe(true);
-      expect([1, 2, 3, 4]).toContain(spawn.wall);
-    }
-  });
-
-  it('stays within the room bounds', () => {
-    for (let i = 0; i < 50; i += 1) {
-      const spawn = randomEdgeSpawn(640, 960);
-      expect(spawn.x).toBeGreaterThanOrEqual(0);
-      expect(spawn.x).toBeLessThanOrEqual(640);
-      expect(spawn.y).toBeGreaterThanOrEqual(0);
-      expect(spawn.y).toBeLessThanOrEqual(960);
     }
   });
 });

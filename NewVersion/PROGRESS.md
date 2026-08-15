@@ -5,10 +5,10 @@
 
 Tracking the rewrite of 643 decompiled ActionScript 3 classes (`SWFimported/scripts`) into TypeScript/Phaser.
 
-**39 / 556** game classes started · **18** verified · 6 marked not applicable · 81 third-party classes excluded.
+**40 / 556** game classes started · **19** verified · 6 marked not applicable · 81 third-party classes excluded.
 
 ```
-██░░░░░░░░░░░░░░░░░░░░░░  7.0%
+██░░░░░░░░░░░░░░░░░░░░░░  7.2%
 ```
 
 ## How to use this file
@@ -63,7 +63,7 @@ below — everything else hangs off those.
 - [Particles and effects](#particles-and-effects) — 0/7
 - [Sound and music triggers](#sound-and-music-triggers) — 0/115
 - [Background props and terrain](#background-props-and-terrain) — 0/27
-- [UI widgets](#ui-widgets) — 4/196
+- [UI widgets](#ui-widgets) — 5/196
 - [Uncategorised](#uncategorised) — 0/2
 
 ## Third-party libraries — do not port
@@ -585,7 +585,7 @@ below — everything else hangs off those.
 
 > Most of these become React components rather than Phaser display objects.
 
-`░░░░░░░░░░░░░░░░░░░░░░░░` 4/196 · 1 not applicable
+`█░░░░░░░░░░░░░░░░░░░░░░░` 5/196 · 1 not applicable
 
 - [ ] `ArrowToMenu` — not started
 - [ ] `BackgroundEnemyImage` — not started
@@ -623,7 +623,7 @@ below — everything else hangs off those.
 - [ ] `ButtonCancel` — not started
 - [ ] `ButtonConfirm` — not started
 - [ ] `ButtonConvertSave` — not started
-- [ ] `ButtonCredit` — not started
+- [x] `ButtonCredit` — tested · wired
 - [ ] `ButtonDifficultyEasy` — not started
 - [ ] `ButtonDifficultyHard` — not started
 - [ ] `ButtonDifficultyMedium` — not started

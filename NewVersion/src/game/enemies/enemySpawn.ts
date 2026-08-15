@@ -160,27 +160,18 @@ export function resolveSpawn(
   return { x, y, rotation: faceTarget(x, y, target), xVel: 0, yVel: 0 };
 }
 
-/**
- * Picks a random point on the room perimeter, with the wall it belongs to.
+/*
+ * Deleted in T151: `randomEdgeSpawn`.
  *
- * The AS3 places spawn markers through a warning-indicator system that is part
- * of the wave logic and out of this slice; this is a stand-in good enough to
- * exercise the spawn path.
+ * Its docstring said the AS3's own spawn-marker placement was "part of the wave
+ * logic and out of this slice", and that this was "a stand-in good enough to
+ * exercise the spawn path". Both halves stopped being true when
+ * `waves/spawnPlacement.ts` landed: `placeOnEdge` and `placeWarning` are the
+ * real rule, they take the live camera, and `GameplayScene` calls them. The
+ * stand-in kept its own uniform-random edge picker with no AS3 line behind it,
+ * had no production caller, and was held up only by its two tests.
+ *
+ * Recorded here rather than removed silently, because a reader who finds the
+ * stand-in referenced somewhere older should be sent to its replacement rather
+ * than left wondering what was dropped.
  */
-export function randomEdgeSpawn(
-  roomWidth: number,
-  roomHeight: number,
-  random: () => number = Math.random,
-): { x: number; y: number; wall: SpawnWall } {
-  const wall = ((Math.floor(random() * 4) % 4) + 1) as 1 | 2 | 3 | 4;
-  switch (wall) {
-    case 1:
-      return { x: random() * roomWidth, y: 0, wall };
-    case 2:
-      return { x: 0, y: random() * roomHeight, wall };
-    case 3:
-      return { x: random() * roomWidth, y: roomHeight, wall };
-    default:
-      return { x: roomWidth, y: random() * roomHeight, wall };
-  }
-}

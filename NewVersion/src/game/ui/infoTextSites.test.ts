@@ -18,7 +18,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { INFO_TEXT_SITES, siteCorner } from './infoTextSites';
+import { CREDIT_TEXT, INFO_TEXT_SITES, siteCorner } from './infoTextSites';
 
 const AS3 = '../SWFimported/scripts';
 
@@ -132,6 +132,26 @@ describe('the table covers the source', () => {
     expect([...found].sort()).toEqual([...INFO_TEXT_SITES.map((s) => s.source)].sort());
   });
 
+  /**
+   * The credit, read back out of `ButtonCredit.as` rather than restated.
+   *
+   * It is a person's name in a string literal — the one kind of constant where
+   * a silent paraphrase is a wrong that no other check would ever surface, and
+   * where "the author was careful" is not a mechanism. So the assertion derives
+   * the expected value from the AS3 line the same way the corners above are
+   * derived, and a re-typed `&` or a dropped word fails here.
+   */
+  it('quotes the menu credit exactly as ButtonCredit.as writes it', () => {
+    const line = linesOf('ButtonCredit.as').find((l) => l.includes('theText = '));
+    expect(line, 'ButtonCredit.as no longer assigns theText').toBeDefined();
+
+    const quoted = /"([^"]+)"/.exec(line ?? '');
+    expect(quoted?.[1]).toBe(CREDIT_TEXT);
+    // The counterpart: prove the extraction found a real string and is not
+    // comparing undefined to undefined.
+    expect(CREDIT_TEXT).toContain('Wesley Jue');
+  });
+
   it('has the wired sites recorded, and says what the rest wait on', () => {
     const wired = INFO_TEXT_SITES.filter((s) => s.status === 'wired');
     expect(wired.map((s) => s.source)).toEqual([
@@ -144,6 +164,10 @@ describe('the table covers the source', () => {
       'ButtonLevelGuideAutoSelect.as:104',
       'Achievement.as:103',
       'Achievement.as:99',
+      // T151. It moved out of "no consumer" without anything being built:
+      // `ButtonCredit` has no click handler, so its tooltip was always the
+      // whole feature and the row's note had guessed at a screen behind it.
+      'ButtonCredit.as:37',
     ]);
     // Every unwired row must carry a reason — a blank note is the "documented
     // in a commit message" failure this table replaces.

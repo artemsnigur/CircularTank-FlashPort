@@ -24,10 +24,21 @@
  * ── Defense skips the whole path, not just the leading ────────────────────
  * `:4528` gates the entire block on `levelMode != "Defense"`, including the
  * `else` that would have aimed at the tank. A Defense enemy therefore takes no
- * goal from here at all; it runs its own lane logic in `defenseMode.ts`. This
- * returns the tank position for Defense so callers have one shape to handle,
- * but the reason is "this rule does not apply", not "Defense does not lead" —
- * a distinction that matters if anyone later adds leading to Defense.
+ * goal from here at all.
+ *
+ * **And it has no lane logic waiting for it elsewhere, because the rule is a
+ * subtraction.** An earlier version of this comment sent the reader to a
+ * `defenseMode.ts` that has never existed. What Defense actually does is keep
+ * the heading `resolveSpawn` gave it and travel in a straight line for its
+ * whole life — steering is simply skipped, while acceleration and integration
+ * (`:5027`) stay outside the gate. The two carve-outs that *are* code live in
+ * `enemySteering.ts`: `crossesDefenseLine` and `bounceOffWalls`' `skipBottom`.
+ * `defenseMode.test.ts` drives the whole rule across those modules, which is
+ * why there is a test file with no module beside it.
+ *
+ * This returns the tank position for Defense so callers have one shape to
+ * handle, but the reason is "this rule does not apply", not "Defense does not
+ * lead" — a distinction that matters if anyone later adds leading to Defense.
  *
  * Frozen and teleporting enemies are excluded by the same `if`. The port
  * already suppresses their whole update through `Enemy.simulated`, so there is

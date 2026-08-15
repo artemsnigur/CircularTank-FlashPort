@@ -15,19 +15,26 @@
  * against the source lines; a screen that opens the wrong way now needs two
  * edits that disagree, not one that drifts.
  *
- * ── The reachable surface is 9 of 20, and nothing is deferred ─────────────
+ * ── The reachable surface is 10 of 20, and nothing is deferred ────────────
  * Step 1 was scoped as "14 core + 2 rich text". That count is right about the
- * AS3 and was never right about this port. As of T104 the table is settled:
+ * AS3 and was never right about this port. As of T151 the table is settled:
  *
- *   **9 wired** — shop rows, bestiary badges, next-level preview, the Level
- *     Guide's four, and both `Achievement` branches.
+ *   **10 wired** — shop rows, bestiary badges, next-level preview, the Level
+ *     Guide's four, both `Achievement` branches, and the menu's credit.
  *   **4 redundant** — icon buttons whose tooltip is the button's own name,
  *     which this port renders as a visible label.
- *   **7 no-consumer** — Credits and Armor Games online saves are not ported;
- *     `ImageEnemy` x2 need per-enemy tiles in a *selected-level* panel, and
- *     this port has no selection step (divergence `A8`).
+ *   **6 no-consumer** — Armor Games online saves are not ported; `ImageEnemy`
+ *     x2 need per-enemy tiles in a *selected-level* panel, and this port has no
+ *     selection step (divergence `A8`).
  *   **0 deferred** — nothing is waiting on unbuilt work any more. What is left
  *     is waiting on decisions already made.
+ *
+ * **`ButtonCredit` is worth knowing about as a category error**, not just as a
+ * row that moved. It sat under "no consumer" for six weeks because its note
+ * said the Credits *screen* was not ported — and there is no Credits screen in
+ * the AS3 either. The class binds roll-over, roll-out and a frame tick and
+ * nothing else (`ButtonCredit.as:15-22`), so the tooltip was always the entire
+ * feature. A status guessed from a name kept a one-line port off the list.
  *
  * The one AS3 branch still unported behind this is
  * `addStrengthsAndWeaknessIcons`' `"Normal"` mode (`:446-453`), reachable only
@@ -36,6 +43,16 @@
  * Recorded per row rather than in a report, because the person who builds the
  * Credits screen is the one who needs it.
  */
+
+/**
+ * The menu's attribution — `ButtonCredit.as:36`, verbatim including the `&`.
+ *
+ * Here rather than in the screen because it is a **credit to a person**: it is
+ * the one string in this port that must not be paraphrased, re-cased or
+ * reflowed by whoever next touches the menu's copy, and a constant beside its
+ * AS3 line says that better than a comment above a JSX literal.
+ */
+export const CREDIT_TEXT = 'Testing & Editing by Wesley Jue';
 
 /** `:168` — `changeText(theText, left, top, specialType, p1, p2)`. */
 export interface InfoTextSite {
@@ -119,8 +136,13 @@ export const INFO_TEXT_SITES: readonly InfoTextSite[] = Object.freeze([
   { source: 'ButtonMenu.as:46', showLeft: false, showTop: false, status: 'redundant', note: 'Text is "Menu"; the port\'s back button is captioned "‹ MENU".' },
   { source: 'ButtonOptions.as:56', showLeft: false, showTop: false, status: 'redundant', note: 'Text is "Options"; rendered as the button label.' },
 
+  // Wired in T151. It never needed a Credits *screen* — `ButtonCredit` has no
+  // click handler at all (`ButtonCredit.as:15-22` binds roll-over, roll-out and
+  // a frame tick, and nothing else), so the tooltip *is* the whole feature. It
+  // sat under "no consumer" because the note guessed at a screen behind it.
+  { source: 'ButtonCredit.as:37', showLeft: true, showTop: false, status: 'wired', note: 'Menu attribution — MainMenuScreen.tsx CreditButton. Text is CREDIT_TEXT below.' },
+
   // ── No consumer in this port ────────────────────────────────────────────
-  { source: 'ButtonCredit.as:37', showLeft: true, showTop: false, status: 'no-consumer', note: 'Credits screen is not ported. Text: "Testing & Editing by Wesley Jue".' },
   { source: 'ButtonPremium.as:73', showLeft: false, showTop: false, status: 'no-consumer', note: 'Sponsor buttons ("Armor Games", "WTFCake") — third-party, not ported.' },
   { source: 'ButtonSaveInfo.as:52', showLeft: false, showTop: true, status: 'no-consumer', note: 'Explains local vs online saves; this port has local slots only.' },
   { source: 'ButtonSaveInfo.as:56', showLeft: false, showTop: true, status: 'no-consumer', note: 'The online half of the same pair.' },
