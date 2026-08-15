@@ -62,6 +62,12 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     // rendering" into "it renders at (464, 224) at double size" in one run.
     'the minimap`s live state and camera transform',
     'fills painted by the last minimap draw',
+    // T148: the markers have the same "renders, but where?" failure mode the
+    // minimap had, plus two gates that can each silently produce nothing — the
+    // room-size check and `outsideWindow`. The projection reports both inputs
+    // alongside the counts, which is what separated "no enemy is off screen"
+    // from "the pool never grows" in one run.
+    'off-screen marker counts, gates and first placement',
   ],
   // T114: a persisted damage-flash tint, which no unit test could see (nothing
   // constructs an `Enemy`) and no screenshot could reliably read.
@@ -152,6 +158,7 @@ describe('dev aids are enumerable', () => {
     // into "it renders at (464, 224) at double size, because a
     // `setScrollFactor(0)` object is placed in camera-pixel space" in a single
     // run, which no amount of reading the scene had managed.
-    expect(total).toBe(36);
+    // 37 since T148 — the off-screen markers' counts and gate inputs.
+    expect(total).toBe(37);
   });
 });

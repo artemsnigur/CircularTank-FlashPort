@@ -6,6 +6,7 @@
  */
 import { audioUrl, imageUrl, shapeUrl } from './registry';
 import { PROJECTILE_SHAPE_FILES } from './projectileArt';
+import { MARKER_SHAPE_FILES } from '../game/ui/markerArt';
 
 export interface ImageAsset {
   key: string;
@@ -516,6 +517,18 @@ export const SAMPLE_FONTS = [
  */
 export const PROJECTILE_SHAPES: readonly ShapeAsset[] = PROJECTILE_SHAPE_FILES.map((entry) =>
   shape(entry.key, entry.file, entry.width, entry.height, 'Projectile art from assets.swf'),
+);
+
+/**
+ * The two off-screen marker clips — `MarkerEnemy` and `MarkerFlag`.
+ *
+ * Derived from the generated table rather than hand-listed, as
+ * `PROJECTILE_SHAPES` is: key, file and raster size all come from `assets.swf`,
+ * so a hand-written entry could disagree with the mapping that resolved it.
+ * Keyed `unit-<shapeId>`, matching the enemy and tank art.
+ */
+export const MARKER_SHAPES: readonly ShapeAsset[] = MARKER_SHAPE_FILES.map((entry) =>
+  shape(entry.key, entry.file, entry.width, entry.height, 'Off-screen marker art'),
 );
 
 export type SampleFontFamily = (typeof SAMPLE_FONTS)[number]['family'];

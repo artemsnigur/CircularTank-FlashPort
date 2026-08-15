@@ -646,8 +646,17 @@ Two things to know before changing it:
 - **Placement is `A17`**, not the AS3's `(560, 400)`: those are stage
   coordinates for a HUD band this port does not have.
 
-Still open from that audit: off-screen enemy markers (`G2`), the off-screen flag
-marker (`G3`), HUD weapon art (`G4`), a credits line, two stale doc comments,
+**The off-screen markers followed in T148** — `G2` and `G3`. `outsideWindow`
+lives in `ui/offScreenMarkers.ts` with both placements and the flag's pulse;
+`GameplayScene.drawOffScreenMarkers` is placement only. Three things worth
+knowing: an enemy is outside only when its **whole box** clears the view, a
+**teleporting** enemy is never marked, and the enemy marker's direction comes
+from *which edge it was pinned to*, not from a computed bearing — eight fixed
+rotations, corners included. The flag's marker is 8-frame directional art with
+a two-curve pulse (`easeOut` down, `easeIn` up) that starts when the countdown
+ends. Placement is `A18`.
+
+Still open from that audit: HUD weapon art (`G4`), a credits line, two stale doc comments,
 and a knip triage of 467 unused exports.
 
 ---

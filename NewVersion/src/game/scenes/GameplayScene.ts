@@ -27,6 +27,14 @@ import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
 import { crosshairVisible } from '../ui/crosshairVisibility';
 import { minimapAnchor, minimapPlan } from '../ui/minimap';
+import { MARKER_CLIPS, MARKER_SHAPE_FILES } from '../ui/markerArt';
+import {
+  enemyMarker,
+  flagMarker,
+  flagPulseScale,
+  markersApply,
+  outsideWindow,
+} from '../ui/offScreenMarkers';
 import { shouldRunDuringCountdown } from '../waves/countdownGate';
 import { countdownSkipped, createCountdown, tickCountdown } from '../waves/countdown';
 import type { CountdownState } from '../waves/countdown';
@@ -618,6 +626,19 @@ export class GameplayScene extends Phaser.Scene {
 
   /** DEV-AID: fills painted by the last `drawMinimap`, for `__arena`. */
   private minimapFills = 0;
+
+  /**
+   * Edge-of-screen markers — `PartInterface.handleEnemyMarkers` / `markTheFlag`.
+   *
+   * A pool, grown to the number of off-screen enemies and hidden rather than
+   * destroyed when the count drops, as the AS3 grows and shrinks
+   * `markerEnemyArray`. The flag has exactly one, which the AS3 adds to and
+   * removes from the stage; here it is one sprite toggled by `setVisible`.
+   */
+  private enemyMarkers: Phaser.GameObjects.Image[] = [];
+  private flagMarkerSprite!: Phaser.GameObjects.Image;
+  /** Frames since the countdown ended — drives the flag marker's pulse. */
+  private markerFrames = 0;
 
   /**
    * `ScreenOptions.optionCrosshairOn` for this profile, read once at create.
@@ -1428,6 +1449,10 @@ export class GameplayScene extends Phaser.Scene {
     // `levelDone`. A pause stops this scene updating, which is the same effect
     // the original's gate has.
     this.drawMinimap();
+    // The pulse runs from the end of the countdown (`:721`), not from create.
+    // 30 is the AS3's fixed rate, as every other frame conversion here does it.
+    if (this.countdown.done) this.markerFrames += (delta / 1000) * 30;
+    this.drawOffScreenMarkers();
 
     // No parallax. `createBackground` puts the ground tiles and every prop in
     // the same `bg` container (`:1145`, `:3551`), so they scroll as one and
@@ -1766,6 +1791,13 @@ export class GameplayScene extends Phaser.Scene {
      * instead, every frame, in `drawMinimap`.
      */
     this.minimap = this.add.graphics().setDepth(100);
+
+    // Same layer as the minimap: screen furniture over the world. Positioned
+    // in world units against the live `worldView`, for the reason `A17` gives.
+    this.flagMarkerSprite = this.add
+      .image(0, 0, `unit-${MARKER_CLIPS.MarkerFlag.shapes[0]}`)
+      .setDepth(100)
+      .setVisible(false);
 
     this.layout();
   }
@@ -3271,6 +3303,47 @@ export class GameplayScene extends Phaser.Scene {
        * that maps a `scrollFactor(0)` object to the screen — so the cause is
        * read off rather than guessed at.
        */
+      /**
+       * DEV-AID: the off-screen markers, for T148.
+       *
+       * The minimap taught this: "it does not render" and "it renders
+       * somewhere else" look identical from outside, and only the live numbers
+       * separate them. Counts and the first marker's placement.
+       */
+      markers: {
+        room: { w: this.roomWidth, h: this.roomHeight },
+        view: {
+          x: Math.round(this.cameras.main.worldView.x),
+          y: Math.round(this.cameras.main.worldView.y),
+          w: Math.round(this.cameras.main.worldView.width),
+          h: Math.round(this.cameras.main.worldView.height),
+        },
+        apply: markersApply(
+          { width: this.roomWidth, height: this.roomHeight },
+          this.cameras.main.worldView,
+        ),
+        enemies: this.enemies.length,
+        outside: this.enemies.filter(
+          (e) =>
+            outsideWindow(
+              { x: e.x, y: e.y, halfWidth: e.radius, halfHeight: e.radius },
+              this.cameras.main.worldView,
+              e.teleporting,
+            ).outside,
+        ).length,
+        enemyPool: this.enemyMarkers.length,
+        enemyVisible: this.enemyMarkers.filter((m) => m.visible).length,
+        first: this.enemyMarkers.find((m) => m.visible)
+          ? {
+              x: Math.round(this.enemyMarkers.find((m) => m.visible)!.x),
+              y: Math.round(this.enemyMarkers.find((m) => m.visible)!.y),
+              angle: Math.round(this.enemyMarkers.find((m) => m.visible)!.angle),
+              w: Math.round(this.enemyMarkers.find((m) => m.visible)!.displayWidth * 10) / 10,
+            }
+          : null,
+        flagVisible: this.flagMarkerSprite.visible,
+        flagScale: Math.round(this.flagMarkerSprite.displayWidth * 100) / 100,
+      },
       minimap: {
         x: Math.round(this.minimap.x),
         y: Math.round(this.minimap.y),
@@ -5438,6 +5511,91 @@ export class GameplayScene extends Phaser.Scene {
     void delta;
   }
 
+
+  /**
+   * Edge-of-screen markers — `PartInterface.handleEnemyMarkers` (`:477`) and
+   * `markTheFlag` (`:318`), called from the same per-frame block as the
+   * minimap.
+   *
+   * **The AS3's marker pool is a growing array of clips reused across frames**
+   * (`:495-515`); this hides spares instead of destroying them, which is the
+   * same lifetime with less churn. Every rule about *where* a marker goes lives
+   * in `offScreenMarkers.ts`, so this is placement and nothing else.
+   */
+  private drawOffScreenMarkers(): void {
+    const view = this.cameras.main.worldView;
+    const room = { width: this.roomWidth, height: this.roomHeight };
+    const mode = this.levelSpec?.mode ?? 'Normal';
+
+    /* ── enemies ─────────────────────────────────────────────────────────── */
+    // `:1073` — no markers at all when the room fits inside the view, because
+    // nothing can be off screen. Live view, not the AS3's frozen 640x400.
+    const wanted: { x: number; y: number; rotation: number; danger: boolean; scale: number }[] = [];
+    if (markersApply(room, view)) {
+      for (const enemy of this.enemies) {
+        const where = outsideWindow(
+          { x: enemy.x, y: enemy.y, halfWidth: enemy.radius, halfHeight: enemy.radius },
+          view,
+          enemy.teleporting,
+        );
+        if (!where.outside) continue;
+        wanted.push(
+          enemyMarker(where, { x: enemy.x - view.x, y: enemy.y - view.y }, view, {
+            boss: enemy.enemyLevel === 'B',
+            defense: mode === 'Defense',
+            damageAddict: enemy.enemyType === 'DamageAddict',
+          }),
+        );
+      }
+    }
+
+    while (this.enemyMarkers.length < wanted.length) {
+      this.enemyMarkers.push(
+        this.add.image(0, 0, `unit-${MARKER_CLIPS.MarkerEnemy.shapes[0]}`).setDepth(100),
+      );
+    }
+
+    for (const [index, sprite] of this.enemyMarkers.entries()) {
+      const marker = wanted[index];
+      if (!marker) {
+        sprite.setVisible(false);
+        continue;
+      }
+      const shape = MARKER_CLIPS.MarkerEnemy.shapes[marker.danger ? 1 : 0];
+      const size = MARKER_SHAPE_FILES.find((f) => f.key === `unit-${shape}`);
+      sprite
+        .setTexture(`unit-${shape}`)
+        .setPosition(view.x + marker.x, view.y + marker.y)
+        .setAngle(marker.rotation)
+        .setVisible(true);
+      // `setDisplaySize`, not `setScale`: the texture is rasterised at 4x its
+      // authored size, so a scale of 1 would draw it four times too big. The
+      // same coupling `manifest.ts` names, and the boss multiplier rides on top.
+      if (size) {
+        sprite.setDisplaySize(size.nativeWidth * marker.scale, size.nativeHeight * marker.scale);
+      }
+    }
+
+    /* ── the flag ────────────────────────────────────────────────────────── */
+    const flag = this.flag ? flagMarker({ x: this.flag.x, y: this.flag.y }, view) : null;
+    if (!flag) {
+      this.flagMarkerSprite.setVisible(false);
+      return;
+    }
+
+    const shape = MARKER_CLIPS.MarkerFlag.shapes[flag.frame - 1];
+    const size = MARKER_SHAPE_FILES.find((f) => f.key === `unit-${shape}`);
+    // `:721` starts the pulse when the countdown ends, so the count starts
+    // there too rather than at scene create.
+    const pulse = flagPulseScale(this.markerFrames);
+    this.flagMarkerSprite
+      .setTexture(`unit-${shape}`)
+      .setPosition(view.x + flag.x, view.y + flag.y)
+      .setVisible(true);
+    if (size) {
+      this.flagMarkerSprite.setDisplaySize(size.nativeWidth * pulse, size.nativeHeight * pulse);
+    }
+  }
 
   /**
    * `PartInterface.drawMinimap` (`:652-694`).

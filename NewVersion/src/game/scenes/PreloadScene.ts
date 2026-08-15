@@ -13,6 +13,7 @@ import {
   SAMPLE_SHAPES,
   PROJECTILE_SHAPES,
   PARTICLE_SHAPES,
+  MARKER_SHAPES,
   UNIT_SHAPES,
   PROP_SHAPES,
 } from '../../assets/manifest';
@@ -84,6 +85,13 @@ export class PreloadScene extends Phaser.Scene {
     }
 
     for (const asset of UNIT_SHAPES) {
+      this.load.svg(asset.key, asset.url, { width: asset.width, height: asset.height });
+    }
+
+    // Off-screen markers. Keyed `unit-<shapeId>` like the group above and
+    // rasterised the same way; kept a separate loop so the generated table is
+    // visibly the source rather than being merged into a hand-kept list.
+    for (const asset of MARKER_SHAPES) {
       this.load.svg(asset.key, asset.url, { width: asset.width, height: asset.height });
     }
 

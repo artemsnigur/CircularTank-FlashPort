@@ -25,6 +25,7 @@ import { LEVEL_GUIDE_SPRITE_IDS } from './lib/level-guide-sprites.mjs';
 import { ENEMY_TILE_SPRITE_IDS } from './lib/enemy-tile-sprites.mjs';
 import { BESTIARY_SPRITE_IDS } from './lib/bestiary-sprites.mjs';
 import { UPGRADE_SPRITE_IDS } from './lib/upgrade-sprites.mjs';
+import { MARKER_SPRITE_IDS } from './lib/marker-sprites.mjs';
 import { achievementSymbols } from './lib/achievement-sprites.mjs';
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
@@ -449,6 +450,14 @@ for (const id of shapeIdsForSprites(Object.values(BESTIARY_SPRITE_IDS))) {
  * owned and not owned).
  */
 for (const id of shapeIdsForSprites(Object.values(UPGRADE_SPRITE_IDS))) {
+  CURATED_SHAPES.add(`${id}.svg`);
+}
+
+/**
+ * The two off-screen markers — 10 shapes. `MarkerEnemy`'s two frames and
+ * `MarkerFlag`'s eight directions.
+ */
+for (const id of shapeIdsForSprites(Object.values(MARKER_SPRITE_IDS))) {
   CURATED_SHAPES.add(`${id}.svg`);
 }
 
