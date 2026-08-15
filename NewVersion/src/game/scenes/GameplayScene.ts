@@ -1799,6 +1799,30 @@ export class GameplayScene extends Phaser.Scene {
       .setDepth(100)
       .setVisible(false);
 
+    /**
+     * **The enemy marker pool is emptied here, and here is the point.**
+     *
+     * `this.scene.restart` (`:1175` retry, `:1205` next level) runs the scene's
+     * `SHUTDOWN`, and Phaser's `DisplayList.shutdown` calls `destroy(true)` on
+     * every object it holds — the pool's images included. The array survives,
+     * because it is a field on a scene instance Phaser reuses across runs. So
+     * on the second run `drawOffScreenMarkers` found a pool already long enough
+     * (it only grows `while (length < wanted.length)`), created nothing, and
+     * called `setTexture` on a destroyed image — `this.scene` is `undefined`
+     * there, so every frame with an off-screen enemy threw.
+     *
+     * It belongs in `create` next to `flagMarkerSprite` rather than in the
+     * `init` reset block, because *this* is the position that makes it safe:
+     * the two fields beside it are rebuilt per run by construction, and a third
+     * marker added here inherits that instead of depending on someone
+     * remembering a line in a reset block 700 lines up. The minimap never had
+     * this bug for exactly that reason.
+     *
+     * No `destroy()` loop: the shutdown already ran, and destroying a destroyed
+     * object is a no-op early return anyway.
+     */
+    this.enemyMarkers = [];
+
     this.layout();
   }
 

@@ -654,7 +654,19 @@ knowing: an enemy is outside only when its **whole box** clears the view, a
 from *which edge it was pinned to*, not from a computed bearing — eight fixed
 rotations, corners included. The flag's marker is 8-frame directional art with
 a two-curve pulse (`easeOut` down, `easeIn` up) that starts when the countdown
-ends. Placement is `A18`.
+ends. Placement is `A18`; two smaller divergences are `A19` (the appear
+threshold is the collision radius, not the art's half-width) and `A20` (the flag
+marker is full size during the countdown, where the AS3's scale is `NaN`).
+
+**T149 fixed a crash in it that no instrument here could see.** The enemy marker
+pool is a field on a scene instance Phaser reuses across `scene.restart`, and
+Phaser destroys its images on shutdown — so every level after the first threw on
+the first frame with an off-screen enemy, while all 29 marker tests passed. The
+pool is now emptied in `create` beside `flagMarkerSprite`, **not** in the `init`
+reset block: the two fields beside it are rebuilt per run by construction, and
+`enemyMarkers` was the one field of seven that the reset block's convention had
+been missed off. If you add a marker, add it there. Full write-up in the audit
+under "A pooled game object outlives the scene that built it".
 
 Still open from that audit: HUD weapon art (`G4`), a credits line, two stale doc comments,
 and a knip triage of 467 unused exports.

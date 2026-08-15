@@ -8,6 +8,7 @@
  * pass any "it points roughly there" test and be wrong everywhere.
  */
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 import {
   FLAG_FRAME,
@@ -259,5 +260,79 @@ describe('the flag marker`s pulse', () => {
     // The scene passes a monotonically increasing frame count, so the cycle has
     // to wrap here. Without the modulo this drifts off the top of the curve.
     expect(flagPulseScale(1000 * FLAG_PULSE_FRAMES * 2 + 3)).toBeCloseTo(flagPulseScale(3), 6);
+  });
+});
+
+/**
+ * The marker pool does not survive a restart — T149.
+ *
+ * ── What this is, honestly ────────────────────────────────────────────────
+ * **A source-shape test. It proves the reset is written, not that it runs.**
+ * Nothing here boots a scene: `src/test/sceneHarness.ts` records why that route
+ * was rejected under jsdom, so there is no way to drive `create` from a test.
+ * The same limit `sandboxRun.test.ts` states about its own scene half applies
+ * word for word here, and `docs/AUDIT-2026-07.md` carries it as a known limit
+ * rather than as coverage.
+ *
+ * It is here because the failure it guards is silent in every other
+ * instrument. The whole marker module above is green, and was green while the
+ * bug shipped: the defect was never in a rule, it was in a field's lifetime.
+ *
+ * ── The bug it pins ───────────────────────────────────────────────────────
+ * `this.enemyMarkers` is a field on a scene instance Phaser reuses across
+ * runs, holding images Phaser destroys on `SHUTDOWN`
+ * (`DisplayList.shutdown` → `destroy(true)`). `drawOffScreenMarkers` only ever
+ * *grows* the pool, so after `this.scene.restart` it found one long enough,
+ * created nothing, and called `setTexture` on a destroyed image — whose
+ * `scene` is `undefined`. Every frame with an off-screen enemy threw, on the
+ * second level of every session.
+ */
+describe('GameplayScene rebuilds the marker pool per run', () => {
+  const path = 'src/game/scenes/GameplayScene.ts';
+  const source = readFileSync(path, 'utf8');
+
+  /**
+   * The `create` path only — `setupHud`, where the pool's sibling sprites are
+   * built. Sliced rather than searched whole, because the point is *where* the
+   * reset sits: a field initialiser or a stray assignment elsewhere would
+   * satisfy a whole-file `toContain` while running once per instance, which is
+   * exactly the shape that was wrong.
+   */
+  function setupHudBody(): string {
+    const start = source.indexOf('  private setupHud(): void {');
+    expect(start, `${path} no longer declares setupHud`).toBeGreaterThan(-1);
+    // Methods sit at two-space indent, so the first `\n  }` closes this one.
+    const end = source.indexOf('\n  }', start);
+    expect(end).toBeGreaterThan(start);
+    return source.slice(start, end);
+  }
+
+  it('empties the pool in create, not only at construction', () => {
+    expect(setupHudBody()).toContain('this.enemyMarkers = [];');
+  });
+
+  /**
+   * The negative control, on the identical input.
+   *
+   * Without it the assertion above proves nothing about the matcher: a slice
+   * that silently came back as the whole file, or a `toContain` on a string
+   * that appears in a comment, would pass just as happily. So the same check
+   * is driven over the same body with the statement removed, and is required
+   * to fail there.
+   */
+  it('and the check can tell the difference', () => {
+    const withoutReset = setupHudBody().replace('this.enemyMarkers = [];', '');
+    expect(withoutReset).not.toContain('this.enemyMarkers = [];');
+  });
+
+  /**
+   * The coupling that makes the reset load-bearing rather than tidy.
+   *
+   * A pool that rebuilt itself every frame would not care about a stale array.
+   * This one grows monotonically, which is what turns a survivor into a crash,
+   * so a future change to the pooling has to come past this line.
+   */
+  it('grows the pool monotonically, which is why the reset matters', () => {
+    expect(source).toContain('while (this.enemyMarkers.length < wanted.length)');
   });
 });
