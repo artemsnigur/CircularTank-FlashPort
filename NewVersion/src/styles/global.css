@@ -337,22 +337,39 @@ body {
 /*
  * `BackgroundMainMenu` — the cover picture, filling the body behind the panels.
  *
- * `object-fit: cover` on the layer rather than `contain`: the art is a 4:3
- * scene and the body is whatever the viewport gives it, so letterboxing it
- * would put black bars inside a screen that has just been given a background.
- * Cropping the sky and the ground edges loses nothing — the tank and the
- * enemies sit in the middle third.
+ * ── The wrapper is load-bearing, and this is what it cost to learn ────────
+ * These rules were on the `ChromeArt` element itself and **did not apply**.
+ * `.chrome-art` sets `position: relative` and is declared later in this file
+ * than any screen's rules, so at equal specificity it won; and the clip's
+ * `aspect-ratio` is set *inline* by the component, which no stylesheet can
+ * override. The art therefore stayed in flow at full body height and pushed
+ * the panels past the bottom of a body with `overflow: hidden` — the menu
+ * showed its picture and nothing else.
+ *
+ * So the positioning lives on a wrapper the screen owns outright, and the art
+ * is told only to fill it. Any other screen wanting an extracted clip as a
+ * background needs the same shape; styling `.chrome-art` from outside is the
+ * trap.
+ *
+ * `object-fit: cover` rather than `contain`: the art is a 4:3 scene and the
+ * body is whatever the viewport gives it, so letterboxing would put bars
+ * inside a screen that has just been given a background. Cropping the sky and
+ * the ground edges loses nothing — the tank and the enemies sit in the middle
+ * third.
  */
 .menu-scene {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  /* The clip's own aspect ratio must not win here; the box is the body. */
-  aspect-ratio: auto;
 }
 
-.menu-scene .chrome-art__layer {
+/* Both dimensions explicit, which is also what makes the inline
+   `aspect-ratio` inert: it only applies when one of them is `auto`. */
+.menu-scene__art {
+  width: 100%;
+  height: 100%;
+}
+
+.menu-scene__art .chrome-art__layer {
   width: 100%;
   height: 100%;
   object-fit: cover;

@@ -47,8 +47,20 @@ export function MainMenuScreen(): React.ReactElement | null {
         The illustrated scene — `BackgroundMainMenu` (1322), a full 640x480 of
         vector art. Decorative: it is the game's own cover picture and says
         nothing a control does not, so it is `aria-hidden` and sits behind.
+
+        **Wrapped, and the wrapper is the fix for T160's bug.** `ChromeArt`
+        gives every clip `position: relative` from `.chrome-art` and an
+        **inline** `aspect-ratio`. A class on the art itself cannot reliably
+        override either — the inline style always wins, and `.chrome-art` is
+        declared later in the stylesheet than any screen's rules, so at equal
+        specificity it wins too. Styling it directly left the art in flow at
+        full body height, which pushed the panels below a body with
+        `overflow: hidden` and made them vanish. The wrapper is an element this
+        screen owns outright, so its `position: absolute` is not in a contest.
       */}
-      <ChromeArt clip="BackgroundMainMenu" className="menu-scene" />
+      <div className="menu-scene">
+        <ChromeArt clip="BackgroundMainMenu" className="menu-scene__art" />
+      </div>
 
       <div className="menu-panels">
         {/*
