@@ -13,13 +13,24 @@ import { useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 import { ScreenShell } from '../ScreenShell';
+import { ChromeArt } from '../ChromeArt';
+import { EnemyTile } from '../EnemyTile';
 import { LEVELS } from '../../game/levels/levelData';
 import { Difficulties as DIFFICULTIES, Worlds } from '../../game/config/constants';
 import { MAX_LEVEL_VALUE } from '../../game/levels/levelProgress';
 import { previewForLevel } from '../../game/levels/levelPreview';
 import { useInfoText } from '../useInfoText';
+import { DIFFICULTY_FRAMES, difficultyFrame } from '../../game/ui/navTabs';
 import type { LevelListing } from '../../state/gameStore';
 import type { Difficulty } from '../../game/config/constants';
+import type { ChromeClipName } from '../ChromeArt';
+
+/** Each difficulty's own clip — three symbols, not three frames of one. */
+const DIFFICULTY_CLIP: Readonly<Record<Difficulty, ChromeClipName>> = {
+  Easy: 'ButtonDifficultyEasy',
+  Medium: 'ButtonDifficultyMedium',
+  Hard: 'ButtonDifficultyHard',
+};
 
 /**
  * DEV-AID: jump to any level in any world.
@@ -136,17 +147,35 @@ function DifficultyPicker(): React.ReactElement {
       role="group"
       aria-label="Difficulty"
     >
-      {DIFFICULTIES.map((option) => (
-        <button
-          key={option}
-          type="button"
-          className={`difficulty__button${option === difficulty ? ' difficulty__button--on' : ''}`}
-          aria-pressed={option === difficulty}
-          onClick={() => GameEvents.emit('ui:set-difficulty', { difficulty: option })}
-        >
-          {option}
-        </button>
-      ))}
+      {DIFFICULTIES.map((option) => {
+        const selected = option === difficulty;
+        return (
+          <button
+            key={option}
+            type="button"
+            className={`difficulty__button${selected ? ' difficulty__button--on' : ''}`}
+            aria-pressed={selected}
+            aria-label={option}
+            onClick={() => GameEvents.emit('ui:set-difficulty', { difficulty: option })}
+          >
+            {/*
+              The original's own art. Frame 3 is **selected**, not pressed —
+              `ButtonGameDifficulty:73` — so the resting frame carries the
+              answer and the hover frame stacks over it, as everywhere else.
+            */}
+            <ChromeArt
+              clip={DIFFICULTY_CLIP[option]}
+              frame={difficultyFrame(selected)}
+              className="difficulty__face"
+            />
+            <ChromeArt
+              clip={DIFFICULTY_CLIP[option]}
+              frame={DIFFICULTY_FRAMES.hover}
+              className="difficulty__face difficulty__face--hover"
+            />
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -256,10 +285,13 @@ function LevelCell({
   world,
   entry,
   difficulty,
+  onFocus,
 }: {
   world: number;
   entry: NonNullable<LevelListing>['levels'][number];
   difficulty: Difficulty;
+  /** Points the detail panel at this level — hover and keyboard focus alike. */
+  onFocus: () => void;
 }): React.ReactElement {
   const preview = entry.unlocked ? previewForLevel(world, entry.level, difficulty) : null;
 
@@ -298,6 +330,22 @@ function LevelCell({
           GameEvents.emit('ui:start-game', { world, level: entry.level, difficulty })
         }
         {...(preview ? hover : {})}
+        /*
+         * **Composed, and after the spread.** `useInfoText` supplies its own
+         * `onMouseEnter` for the tooltip; declaring one before the spread lets
+         * the spread win, and the detail panel silently never updates —
+         * typecheck caught it here, which it only does because both are on the
+         * same element.
+         *
+         * Focus as well as hover: the panel describes what the player is
+         * pointing at, and a keyboard points with focus. Hover alone leaves it
+         * stale for anyone tabbing the grid.
+         */
+        onMouseEnter={() => {
+          onFocus();
+          if (preview) hover.onMouseEnter();
+        }}
+        onFocus={onFocus}
       >
         <span className="level-grid__number">{entry.unlocked ? entry.level : '🔒'}</span>
         {entry.unlocked && <span className="level-grid__mode">{entry.mode}</span>}
@@ -307,11 +355,100 @@ function LevelCell({
   );
 }
 
+/**
+ * The right-hand column — `ScreenLevelSelect.as:390-429`'s `bgWindow` and the
+ * six fields it holds: level name, mode, difficulty, objective, note, enemies.
+ *
+ * ── It describes a level; it does not gate starting one ───────────────────
+ * The original **selects** a level and then needs `ButtonPlayLevel` to start
+ * it. This port starts one on click — divergence `A8`, which the maintainer
+ * confirmed stays. So the two ideas are separated: the grid still launches on
+ * click, and this panel describes whichever level the player is *pointing at*,
+ * falling back to the one they would play next.
+ *
+ * `PLAY LEVEL` therefore adds a route rather than replacing one. It is the
+ * original's own art doing the original's own job for the level named directly
+ * above it — and on a keyboard it is reachable in a way a grid of 30 tiles is
+ * not.
+ */
+function LevelDetail({
+  world,
+  entry,
+  difficulty,
+}: {
+  world: number;
+  entry: NonNullable<LevelListing>['levels'][number] | null;
+  difficulty: Difficulty;
+}): React.ReactElement {
+  const preview = entry && entry.unlocked ? previewForLevel(world, entry.level, difficulty) : null;
+
+  return (
+    <aside className="levels__detail chrome-panel chrome-panel--dark" aria-label="Level detail">
+      <p className="levels__name">
+        {entry ? `Level ${world}-${entry.level}` : 'No level'}
+      </p>
+
+      {/* `:424` draws `modeText` as its own line in red. Flag, Boss, Tower and
+          Defense are the modes that say something; "Normal" is the absence of
+          one, and the original still prints it. */}
+      <p className="levels__mode">{preview ? `${preview.mode} mode` : '—'}</p>
+
+      <button
+        type="button"
+        className="levels__play"
+        disabled={!entry || !entry.unlocked}
+        aria-label={
+          entry && entry.unlocked ? `Play level ${world}-${entry.level}` : 'No level selected'
+        }
+        onClick={() =>
+          entry && GameEvents.emit('ui:start-game', { world, level: entry.level, difficulty })
+        }
+      >
+        <ChromeArt clip="ButtonPlayLevel" frame={1} className="levels__play-face" />
+        <ChromeArt clip="ButtonPlayLevel" frame={2} className="levels__play-face levels__play-face--hover" />
+        <ChromeArt clip="ButtonPlayLevel" frame={3} className="levels__play-face levels__play-face--pressed" />
+      </button>
+
+      <DifficultyPicker />
+
+      {/* `:425`/`:426` — the caption is its own field above the value, which is
+          why they are two elements rather than one string. */}
+      <p className="levels__label">Objective</p>
+      <p className="levels__objective">{preview?.objective ?? '—'}</p>
+
+      <p className="levels__label">Enemies</p>
+      {preview && preview.rows.length > 0 ? (
+        <ul className="levels__enemies">
+          {preview.rows.map((row, i) => (
+            <li key={`${row.type}-${i}`} className="levels__enemy">
+              {row.shape !== undefined && (
+                <EnemyTile layers={[row.shape]} label={row.type} />
+              )}
+              <span className="levels__enemy-level">{row.levelLabel}</span>
+              <span className="levels__enemy-amount">{row.amountLabel}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="levels__objective">{entry?.unlocked ? '—' : 'Locked'}</p>
+      )}
+    </aside>
+  );
+}
+
 export function LevelSelectScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
   const listing = useGameStore((s) => s.levelList);
   const worldList = useGameStore((s) => s.worldList);
   const difficulty = useGameStore((s) => s.difficulty);
+  /**
+   * Which level the detail panel describes.
+   *
+   * `null` until the player points at something, and then it follows hover and
+   * keyboard focus alike — the panel is a description of what is under the
+   * cursor, so the two inputs mean the same thing here.
+   */
+  const [focused, setFocused] = useState<number | null>(null);
   if (activeScene !== 'LevelSelect') return null;
 
   // `selected` 0 is the picker — the AS3's `selectedWorld = 0`. The scene owns
@@ -320,6 +457,19 @@ export function LevelSelectScreen(): React.ReactElement | null {
   const levels = showingPicker ? [] : (listing?.levels ?? []);
   const cleared = levels.filter((l) => l.cleared).length;
   const medals = levels.reduce((sum, l) => sum + l.value, 0);
+
+  /**
+   * The level the detail panel falls back to when nothing is hovered: the
+   * furthest one open, which is the one the player is here to play.
+   *
+   * The AS3 has the same idea under a different name — `autoSelect` points the
+   * level guide at the upcoming level (`ButtonLevelGuideAutoSelect.as:60`) —
+   * but this is not that option and does not read it: nothing is being
+   * *selected*, and no press is being redirected. It only decides what an
+   * otherwise empty panel describes.
+   */
+  const frontier = levels.filter((l) => l.unlocked).at(-1)?.level ?? null;
+  const shown = focused ?? frontier;
 
   return (
     <ScreenShell
@@ -359,23 +509,37 @@ export function LevelSelectScreen(): React.ReactElement | null {
         </h2>
       </div>
 
-      <DifficultyPicker />
-
       {showingPicker ? (
-        <WorldPicker />
+        <>
+          <DifficultyPicker />
+          <WorldPicker />
+        </>
       ) : levels.length === 0 ? (
         <p className="screen__hint">No levels available.</p>
       ) : (
-        <ul className="level-grid">
-          {levels.map((entry) => (
-            <LevelCell
-              key={entry.level}
-              world={listing!.world}
-              entry={entry}
-              difficulty={difficulty}
-            />
-          ))}
-        </ul>
+        <div className="levels__layout">
+          {/* The metallic plate the grid sits on — `BackgroundSquare`'s role in
+              the original, where the tiles are drawn over a silver panel. */}
+          <section className="levels__grid-panel chrome-panel" aria-label="Levels">
+            <ul className="level-grid">
+              {levels.map((entry) => (
+                <LevelCell
+                  key={entry.level}
+                  world={listing!.world}
+                  entry={entry}
+                  difficulty={difficulty}
+                  onFocus={() => setFocused(entry.level)}
+                />
+              ))}
+            </ul>
+          </section>
+
+          <LevelDetail
+            world={listing!.world}
+            entry={levels.find((l) => l.level === shown) ?? null}
+            difficulty={difficulty}
+          />
+        </div>
       )}
 
       {showingPicker ? (

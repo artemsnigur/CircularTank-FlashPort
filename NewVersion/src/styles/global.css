@@ -330,6 +330,146 @@ body {
   backdrop-filter: blur(2px);
 }
 
+/*
+ * ── Level select's two columns ─────────────────────────────────────────────
+ *
+ * `ScreenLevelSelect` puts the grid on a silver plate at the left and a dark
+ * info window at the right (`bgLevelSelect` and `bgWindow`, `:390`/`:418`).
+ * Proportions kept, coordinates not: `minmax(0, 1fr)` on the grid column is
+ * what lets the tiles shrink on a phone instead of pushing the panel off.
+ *
+ * **The stacking breakpoint is the detail panel's own width, not a device
+ * guess.** Below ~46rem the two columns cannot both hold their content, so
+ * they stack and the panel moves under the grid — where it is still the thing
+ * you read after pointing at a tile.
+ */
+.levels__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 46rem) {
+  .levels__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.levels__grid-panel {
+  padding: var(--space-3);
+}
+
+/* The detail column — dark plate, fields stacked in the AS3's own order:
+   name, mode, play, difficulty, objective, enemies (`:421-429`). */
+.levels__detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  text-align: left;
+}
+
+.levels__name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+/* `:424` draws the mode in red, on its own line. A bar rather than bare text:
+   it is the loudest thing in the original's column and reads as a banner. */
+.levels__mode {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  background: var(--pill-red);
+  border: 2px solid var(--steel-900);
+  border-radius: 4px;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--accent-ink);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* `ButtonPlayLevel` — the original's art, with its three frames cross-faded
+   exactly as the nav buttons do. */
+.levels__play {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.levels__play:disabled {
+  filter: grayscale(0.7) brightness(0.5);
+  cursor: default;
+}
+
+.levels__play-face--hover,
+.levels__play-face--pressed {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.levels__play:not(:disabled):hover .levels__play-face--hover,
+.levels__play:not(:disabled):focus-visible .levels__play-face--hover {
+  opacity: 1;
+}
+
+.levels__play:not(:disabled):active .levels__play-face--pressed {
+  opacity: 1;
+}
+
+/* `:423`/`:425` — the small captions above each value, in the smaller of the
+   two text formats the screen uses (`textFormat3`, 12px against 16px). */
+.levels__label {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* `:426` — the objective itself is red in the original, and it is the one
+   line the player is here to read. */
+.levels__objective {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  color: var(--danger);
+}
+
+.levels__enemies {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.levels__enemy {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-2xs);
+  color: var(--text-dim);
+}
+
+.levels__enemy-amount {
+  margin-left: auto;
+  color: var(--text);
+}
+
 .screen__header {
   display: flex;
   align-items: center;
@@ -425,15 +565,24 @@ code {
 
 /* ── Level grid ──────────────────────────────────────────────────────────── */
 
+/*
+ * The tile grid — six columns, as `ScreenLevelSelect` lays out its 30 levels.
+ *
+ * `repeat(6, minmax(0, 1fr))` rather than `auto-fill`: the original's shape is
+ * six across and five down, and auto-fill made the column count a function of
+ * the container's width, so the same world read as a different grid on a
+ * phone. `minmax(0, …)` lets the tiles shrink instead of forcing a scrollbar.
+ *
+ * No `max-width` any more — the plate around it is what bounds it now.
+ */
 .level-grid {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(4rem, 1fr));
-  gap: 0.6rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.4rem;
   width: 100%;
-  max-width: 30rem;
 }
 
 .level-grid__cell {
@@ -1208,23 +1357,43 @@ code {
   margin: 0.25rem 0 0.75rem;
 }
 
+/*
+ * The three difficulty buttons now draw the original's art, so the element is
+ * a hit target and nothing else — no padding, no border, no background of its
+ * own to show through the picture.
+ *
+ * **The label is `aria-label`, not text.** The word is inside the artwork, and
+ * rendering it again underneath would double it for a sighted reader and read
+ * it twice to a screen reader.
+ */
 .difficulty__button {
-  padding: 0.3rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-dim);
-  font: inherit;
-  font-size: var(--text-xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  position: relative;
+  display: block;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
   cursor: pointer;
+  height: 1.75rem;
 }
 
-.difficulty__button--on {
-  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
+.difficulty__button > .chrome-art {
+  height: 100%;
+  width: auto;
+}
+
+/* Which one is set lives in the *frame* — `ButtonGameDifficulty:73` — so
+   `--on` has nothing left to colour. It stays as the focus/selection hook the
+   tutorial hint animation and any future styling can reach for. */
+.difficulty__face--hover {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.difficulty__button:hover .difficulty__face--hover,
+.difficulty__button:focus-visible .difficulty__face--hover {
+  opacity: 1;
 }
 
 /* `Main.hDifficultyChosen` still unset — the AS3 points a helper hand here.

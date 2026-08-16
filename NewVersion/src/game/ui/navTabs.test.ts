@@ -7,7 +7,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DIFFICULTY_FRAMES,
   MENU_FRAMES,
+  difficultyFrame,
   isNavigable,
   navFrames,
   restingFrame,
@@ -94,5 +96,29 @@ describe('which tab marks itself', () => {
   it('still shifts the rest frame for affordability while another screen is current', () => {
     // The two rules compose: not current, so rest — but the affordable rest.
     expect(restingFrame('Upgrades', 'LevelSelect', true)).toBe(4);
+  });
+});
+
+describe('the difficulty buttons, whose third frame is not the pressed one', () => {
+  /**
+   * `ButtonGameDifficulty:73` — the selected difficulty draws frame **3**,
+   * where every nav button's frame 3 is its pressed state.
+   *
+   * Driven against the nav rule on purpose. The two are the assertion: if
+   * these ever agree, one of them has been read as the other, and the symptom
+   * is a difficulty picker that shows nothing as chosen.
+   */
+  it('uses frame 3 for selected, where a nav tab uses 3 for pressed', () => {
+    expect(DIFFICULTY_FRAMES).toEqual({ rest: 1, hover: 2, selected: 3 });
+    expect(navFrames('LevelSelect').pressed).toBe(3);
+    expect(DIFFICULTY_FRAMES.selected).toBe(navFrames('LevelSelect').pressed);
+    // Same number, opposite meaning — which is exactly why they are separate
+    // constants rather than one shared triplet.
+    expect(DIFFICULTY_FRAMES).not.toHaveProperty('pressed');
+  });
+
+  it('answers both ways for one button', () => {
+    expect(difficultyFrame(true)).toBe(3);
+    expect(difficultyFrame(false)).toBe(1);
   });
 });

@@ -173,6 +173,16 @@ export interface LevelPreview {
    * divergence `A11`.
    */
   summary: string;
+  /**
+   * The same mode and objective the summary spells out, kept structured.
+   *
+   * `ScreenLevelSelect` draws them as two separate fields — a red mode bar and
+   * an objective line (`:424`, `:426`) — so a screen that wants them has two
+   * other options, and both are a second source for one value: parse them back
+   * out of `summary`, or recompute them beside the call that already made them.
+   */
+  mode: string;
+  objective: string;
   rows: LevelPreviewRow[];
 }
 
@@ -265,5 +275,5 @@ export function levelPreview(
     };
   });
 
-  return { summary, rows };
+  return { summary, mode: spec.mode, objective, rows };
 }

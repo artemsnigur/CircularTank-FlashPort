@@ -89,3 +89,31 @@ export function restingFrame(
 export function isNavigable(destination: NavDestination, current: NavDestination | null): boolean {
   return destination !== current;
 }
+
+/* ── The difficulty triplet, whose third frame means something else ───────── */
+
+/**
+ * `ButtonGameDifficulty` — the shared base of `ButtonDifficultyEasy/Medium/Hard`.
+ *
+ * Also three frames, and **not** the same three. `:63-87` reads:
+ *
+ *     this difficulty is the selected one  -> gotoAndStop(3)   (`:73`)
+ *     the cursor is over it                -> gotoAndStop(2)   (`:82`)
+ *     otherwise                            -> gotoAndStop(1)   (`:87`)
+ *
+ * So **frame 3 is *selected*, not pressed.** The nav buttons' third frame is
+ * the pressed state, and reading these the same way would leave the chosen
+ * difficulty looking merely hovered — with no frame anywhere that says which
+ * one is actually set, on a control whose entire job is to say that.
+ *
+ * It lives beside the bar's rules because it is the same question — which
+ * frame does this piece of chrome show — answered from the same family of
+ * button classes, and keeping the two answers apart is how one gets applied to
+ * the other.
+ */
+export const DIFFICULTY_FRAMES = Object.freeze({ rest: 1, hover: 2, selected: 3 });
+
+/** The resting frame for a difficulty button: selected, or not. */
+export function difficultyFrame(selected: boolean): number {
+  return selected ? DIFFICULTY_FRAMES.selected : DIFFICULTY_FRAMES.rest;
+}
