@@ -41,6 +41,7 @@ import { shapeUrl } from '../assets/registry';
 import { DIFFICULTY_RANK } from '../game/levels/levelProgress';
 import type { AchievementPage } from '../game/waves/statusPages';
 import { siteCorner } from '../game/ui/infoTextSites';
+import { ChromeArt } from './ChromeArt';
 import { useInfoText } from './useInfoText';
 import type { LevelRef } from '../game/levels/levelProgress';
 import type { Difficulty } from '../game/config/constants';
@@ -509,8 +510,23 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
       <div className="level-outcome__panel">
         {(
           <>
-            <h2 className="level-outcome__title">
-              {outcome.result === 'won' ? 'Level Cleared' : 'Tank Destroyed'}
+            {/*
+              `ScreenStatus.as:446-457` heads the results with art, picked by
+              outcome: `TitleDefeat` or `TitleVictory`, both at x 320 — the
+              stage centre — and 0.9 scale. Both were extracted in T154 and had
+              no consumer until now.
+
+              The `<h2>` stays underneath it, visually hidden. The letters are
+              paths, so the art needs a name; and this is the page's heading,
+              which a screen reader should meet as a heading rather than as an
+              image that happens to sit at the top.
+            */}
+            <ChromeArt
+              clip={outcome.result === 'won' ? 'TitleVictory' : 'TitleDefeat'}
+              className="level-outcome__art"
+            />
+            <h2 className="level-outcome__title visually-hidden">
+              {outcome.result === 'won' ? 'Victory' : 'Defeat'}
             </h2>
             <MedalRow value={outcome.medals} />
             <dl className="level-outcome__stats">

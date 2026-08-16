@@ -814,8 +814,11 @@ code {
      Found by looking at a frame — the digit sequence logged correctly
      throughout. */
   padding: 0.6rem 2.5rem 1rem;
-  background: rgb(0 0 0 / 55%);
-  border-radius: 12px;
+  /* Was a bare 55% black scrim. The plate reads as the game's own furniture
+     over an arena that is already dark, where the scrim read as a shadow. */
+  background: rgb(0 0 0 / 72%);
+  border: 3px solid var(--steel-900);
+  border-radius: 8px;
 }
 
 .hud-countdown__digit {
@@ -1035,9 +1038,14 @@ code {
   flex-direction: column;
   align-items: center;
   padding: 0.5rem 1rem;
-  border-radius: 10px;
-  background: var(--accent);
-  color: var(--accent-ink);
+  border-radius: 8px;
+  /* Gold on dark, as an earned achievement cell is on its board (T159) — the
+     two announce the same thing and should look related. Red is the
+     objective/danger colour everywhere else here, which is the wrong reading
+     for a reward. */
+  background: linear-gradient(180deg, var(--steel-700), var(--steel-900));
+  border: 2px solid var(--medal-gold);
+  color: var(--text);
   animation: toast-in 260ms ease-out;
 }
 
@@ -1217,12 +1225,46 @@ code {
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
+/*
+ * The results title — `TitleVictory` / `TitleDefeat`, at the top of the panel.
+ *
+ * Sized by height like the screen titles, since the two words are different
+ * widths (253.35 against 223.35) and a fixed width would letterbox one of them.
+ */
+.level-outcome__art {
+  width: auto;
+  height: 2.25rem;
+  margin: 0 auto var(--space-3);
+}
+
+.level-outcome__art .chrome-art__layer {
+  height: 100%;
+  width: auto;
+}
+
+/* The heading text stays in the DOM under the art — the letters are paths, so
+   the dialog would otherwise have no heading at all. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 .level-outcome__panel {
   min-width: min(320px, 80vw);
   padding: 1.5rem 1.75rem;
-  border-radius: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  border-radius: 8px;
+  /* The dark plate, matching the reading panels on the menu screens: heavy
+     black edge, `--panel` body. A hairline read as a card on the old light
+     palette and reads as nothing over the arena. */
+  background: var(--panel);
+  border: 3px solid var(--panel-border);
   text-align: center;
 }
 
@@ -1256,10 +1298,12 @@ code {
   transform: translateX(-50%);
   min-width: min(300px, 76vw);
   padding: 1.5rem 1.75rem;
-  border-radius: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: 0 12px 40px rgb(31 30 29 / 10%);
+  border-radius: 8px;
+  /* The dark plate, matching the reading panels on the menu screens: heavy
+     black edge, `--panel` body. A hairline read as a card on the old light
+     palette and reads as nothing over the arena. */
+  background: var(--panel);
+  border: 3px solid var(--panel-border);
   text-align: center;
 }
 
@@ -2961,9 +3005,9 @@ code {
 .pause-overlay__panel {
   min-width: min(280px, 80vw);
   padding: 1.5rem 1.75rem;
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--panel);
-  border: 1px solid var(--panel-border);
+  border: 3px solid var(--panel-border);
   text-align: center;
 }
 
@@ -2988,17 +3032,21 @@ code {
   width: 100%;
   min-height: 44px;
   padding: 0 1rem;
-  border-radius: 10px;
-  border: 1px solid var(--panel-border);
-  background: var(--surface-sunken);
+  border-radius: 999px;
+  border: 2px solid var(--steel-900);
+  background: var(--pill-steel);
   color: var(--text);
   font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 60%);
   cursor: pointer;
 }
 
 .pause-overlay__button:hover,
 .pause-overlay__button:focus-visible {
-  background: var(--panel);
+  filter: brightness(1.15);
+  background: var(--pill-steel);
 }
 
 .pause-overlay__option {

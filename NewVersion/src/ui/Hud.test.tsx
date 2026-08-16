@@ -383,7 +383,10 @@ describe('Hud', () => {
     rerender(<Hud />);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Level Cleared')).toBeInTheDocument();
+    // T161: the heading is `TitleVictory` art with the word under it, so the
+    // assertion moved from the old prose to what the art actually says.
+    expect(screen.getByText('Victory')).toBeInTheDocument();
+    expect(document.querySelector('[data-clip="TitleVictory"]')).not.toBeNull();
     expect(screen.getByText('12')).toBeInTheDocument();
     expect(screen.getByText('240')).toBeInTheDocument();
   });
@@ -428,7 +431,7 @@ describe('Hud', () => {
     expect(screen.queryByText('Award a2')).not.toBeInTheDocument();
 
     // …and the panel the toasts used to bury is intact.
-    expect(screen.getByText('Level Cleared')).toBeInTheDocument();
+    expect(screen.getByText('Victory')).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
@@ -530,7 +533,11 @@ describe('Hud', () => {
     });
     rerender(<Hud />);
 
-    expect(screen.getByText('Tank Destroyed')).toBeInTheDocument();
+    expect(screen.getByText('Defeat')).toBeInTheDocument();
+    // The counterpart to the win above, on the same mechanism: a panel wired to
+    // one clip would pass whichever of the two was asserted alone.
+    expect(document.querySelector('[data-clip="TitleDefeat"]')).not.toBeNull();
+    expect(document.querySelector('[data-clip="TitleVictory"]')).toBeNull();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 

@@ -209,11 +209,51 @@ from the code.
 
 ---
 
+## 3b. The visual overhaul — T154-T161
+
+The UI was restyled to the original's look across eight passes. What a reader
+needs to know before touching it:
+
+- **The chrome is the original's own art, not a recreation.** Every screen
+  title, the nav tabs, the panels, the difficulty and audio buttons and the
+  menu's cover picture are extracted SWF shapes (`chromeArt.ts`, 29 clips),
+  drawn by `<ChromeArt>`. No web font was added: the headers are *pictures*,
+  and the labels use `SWFMainFont`, which is the game's own "JG" face and was
+  already in the repo.
+- **Frame numbers mean different things on different clips, and the three
+  conventions look interchangeable.** Frame 3 is *pressed* on a nav tab,
+  *selected* on a difficulty button and *off* on an audio toggle. All three
+  live in `game/ui/navTabs.ts` with their AS3 lines and a test asserting they
+  disagree. Do not merge them.
+- **Never style `.chrome-art` from a screen.** It sets `position: relative` and
+  is declared after every screen's rules, and its `aspect-ratio` is inline —
+  so a screen's own rule loses twice over. Wrap it. This shipped as a bug: the
+  menu rendered its picture and nothing else, because the art stayed in flow
+  and pushed every control past a clipped body.
+- **Colours came off the SVGs, not off the screenshots.** The reference images
+  are 320px JPEGs; sampling them would have carried compression noise into the
+  tokens. The ramp and the signal colours are in `:root` with their sources.
+- Divergences from the restyle are `A21`-`A26`.
+
+**jsdom cannot see any of this.** Layout bugs here are found by measuring boxes
+in a real browser — see the trap below — and the visual judgement is the
+maintainer's, per the standing instruction above `npm run look`.
+
 ## 4. Instrument traps
 
 **Every one of these cost at least one pass, and several recurred after being
 written down.** The pattern is always the same: *a tool returned a clean,
 decisive, wrong result and was believed.*
+
+0. **`npm run smoke` is not a layout check.** It passed on the commit where the
+   main menu showed nothing but its background: Playwright counts an element
+   visible when it has a **box**, and being clipped by an ancestor's `overflow`
+   does not remove one. It answers "did the app boot", not "can you see the
+   app". For layout, measure — `getBoundingClientRect` plus
+   `elementFromPoint` in a throwaway Playwright script found both the cause and
+   the fix. And when reading that hit test, remember `elementFromPoint`
+   **skips `pointer-events: none`**, so a passive readout correctly reports the
+   canvas beneath it rather than itself.
 
 1. **Truncated grep.** `grep … | head -4` answers "the first four matches", not
    "the matches". Produced "enemies never shoot", then "defeat is unreachable".
