@@ -585,6 +585,27 @@ code {
   width: 100%;
 }
 
+/*
+ * Three columns on a narrow screen, rather than six that have shrunk.
+ *
+ * Six across is the original's shape and it holds down to about a tablet;
+ * below that `minmax(0, 1fr)` keeps honouring the column count by making each
+ * tile smaller, so the layout stays *correct* and stops being *tappable* —
+ * the failure mode a fixed column count has, and the reason `auto-fill` was
+ * tempting in the first place.
+ *
+ * Three, not two or four: it halves the original cleanly, so a world's 30
+ * levels stay in whole rows (10 of 3 against 5 of 6) and the reading order
+ * does not change. 30rem is where six tiles plus their gaps fall under the
+ * ~44px tap target on a 16px root.
+ */
+@media (max-width: 30rem) {
+  .level-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+}
+
 .level-grid__cell {
   width: 100%;
   aspect-ratio: 1;
