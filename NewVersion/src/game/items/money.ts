@@ -33,8 +33,8 @@ export const COIN_ATTRACTION = 2.5;
 export const COIN_MAX_SPEED = 8;
 
 /** `:628` — a scattered coin's launch speed is `1.2 + random()`. */
-export const COIN_SPEED_BASE = 1.2;
-export const COIN_SPEED_RANDOM = 1;
+const COIN_SPEED_BASE = 1.2;
+const COIN_SPEED_RANDOM = 1;
 
 /**
  * Splits an amount into coins, largest first — `:372-446`.

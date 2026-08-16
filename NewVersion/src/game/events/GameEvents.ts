@@ -559,7 +559,7 @@ export type GameEventHandler<K extends GameEventName> = (payload: GameEventMap[K
  * `emit('currency:earned', { amount: 5 })` fails to compile because `total`
  * is missing, and `on('currency:earnd', …)` fails because of the typo.
  */
-export class TypedGameEmitter {
+class TypedGameEmitter {
   private readonly emitter = new Phaser.Events.EventEmitter();
 
   emit<K extends GameEventName>(event: K, payload: GameEventMap[K]): boolean {

@@ -35,8 +35,8 @@ export function countdownLabel(framesLeft: number): string {
 }
 
 /** `:713-721` — the fade runs 20 frames, the slide 30. */
-export const FADE_OUT_FRAMES = 20;
-export const SLIDE_OUT_FRAMES = 30;
+const FADE_OUT_FRAMES = 20;
+const SLIDE_OUT_FRAMES = 30;
 export const FADE_OUT_MS = (FADE_OUT_FRAMES / AS3_FPS) * 1000;
 export const SLIDE_OUT_MS = (SLIDE_OUT_FRAMES / AS3_FPS) * 1000;
 
@@ -50,7 +50,7 @@ export const SLIDE_OUT_MS = (SLIDE_OUT_FRAMES / AS3_FPS) * 1000;
  */
 export const SLIDE_OUT_DISTANCE = 168;
 
-export type ObjectiveMode = 'Normal' | 'Tower' | 'Defense' | 'Flag' | 'Boss';
+type ObjectiveMode = 'Normal' | 'Tower' | 'Defense' | 'Flag' | 'Boss';
 
 export interface ObjectiveInput {
   mode: ObjectiveMode;

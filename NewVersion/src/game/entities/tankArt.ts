@@ -93,9 +93,13 @@ export const SHIELD_FRAMES = [208, 209, 210, 211] as const;
  * `TOWER_GEOMETRY` is that table joined against each shape's authored bounds —
  * and two copies of a mapping whose index and meaning are separately
  * meaningful is precisely the drift this project keeps finding. One table,
- * generated through, re-exported here so callers see no difference.
+ * generated through, imported here and used by `towerGeometry` below.
+ *
+ * The re-export that used to sit here is gone (T152): nothing imported
+ * `TOWER_GEOMETRY` *from this module* — the one test that wants the table
+ * takes it from `assets/spriteGeometry`, where it is declared — so it was a
+ * second public path to one table, which is the thing this note is about.
  */
-export { TOWER_GEOMETRY };
 
 /** The Cannon's turret, used for any name not in the table. */
 const DEFAULT_TOWER = TOWER_GEOMETRY.Cannon;

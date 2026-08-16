@@ -9,7 +9,7 @@
  * All 32 resolved and all 44 shapes were already exported — no extraction step,
  * unlike the props.
  */
-export interface ParticleClip {
+interface ParticleClip {
   /** `assets.swf` character id. */
   symbol: number;
   /** Shape id per 1-based frame. */

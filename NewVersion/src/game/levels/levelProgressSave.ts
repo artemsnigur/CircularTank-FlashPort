@@ -18,8 +18,8 @@ import { createEmptyProgress } from './levelProgress';
 import type { LevelValues, ProgressTable } from './levelProgress';
 
 export const WORLD_VALUES_KEY = 'wva';
-export const PREVIOUS_LEVEL_KEY = 'pl';
-export const PREVIOUS_LEVEL_WON_KEY = 'plw';
+const PREVIOUS_LEVEL_KEY = 'pl';
+const PREVIOUS_LEVEL_WON_KEY = 'plw';
 
 export interface LevelSelectSaveData {
   progress: ProgressTable;

@@ -237,8 +237,8 @@ export const DECAY_BASE = 0.045;
 export const BOSS_DECAY = 0.1;
 
 /** Health below which it starts slowing — `:4890` (boss: `:4908`). */
-export const DECAY_SLOW_THRESHOLD = 3;
-export const BOSS_DECAY_SLOW_THRESHOLD = 30;
+const DECAY_SLOW_THRESHOLD = 3;
+const BOSS_DECAY_SLOW_THRESHOLD = 30;
 /** The speed it slows *to*, not zero — both branches lerp to this. */
 export const DECAY_SPEED_FLOOR = 0.2;
 

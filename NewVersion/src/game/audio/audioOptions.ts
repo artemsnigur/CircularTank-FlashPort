@@ -22,10 +22,10 @@ import type { SaveStore } from '../save/SaveStore';
 import type { SoundManager } from './SoundManager';
 
 /** Keys verbatim from `SaveManager.as:846-849`. */
-export const SOUND_ON_KEY = 'soundOn';
-export const MUSIC_ON_KEY = 'musicOn';
-export const SOUND_VOL_KEY = 'soundVol';
-export const MUSIC_VOL_KEY = 'musicVol';
+const SOUND_ON_KEY = 'soundOn';
+const MUSIC_ON_KEY = 'musicOn';
+const SOUND_VOL_KEY = 'soundVol';
+const MUSIC_VOL_KEY = 'musicVol';
 
 export interface AudioOptions {
   soundOn: boolean;

@@ -35,12 +35,12 @@
 import type { SaveStore } from '../save/SaveStore';
 
 /** `:822` — absent means a first run. */
-export const OPTIONS_INITIATED_KEY = 'optionsInitiated';
+const OPTIONS_INITIATED_KEY = 'optionsInitiated';
 
 export const CROSSHAIR_KEY = 'optionCrosshairOn';
-export const AUTO_PAUSE_KEY = 'optionAutoPauseOn';
-export const WINDOW_UL_KEY = 'optionWindowUL';
-export const AUTO_SELECT_KEY = 'autoSelect';
+const AUTO_PAUSE_KEY = 'optionAutoPauseOn';
+const WINDOW_UL_KEY = 'optionWindowUL';
+const AUTO_SELECT_KEY = 'autoSelect';
 export const ACHIEVEMENT_POPUP_KEY = 'achievementPopUp';
 export const TUTORIAL_ON_KEY = 'tutorialOn';
 

@@ -39,8 +39,8 @@ import type { LevelSpec } from '../levels/levelData';
 export const FLAG_ARM_FRAMES = 10;
 
 /** Candidate angles `spawnFlag` walks, in 4-degree steps. */
-export const FLAG_ANGLE_STEPS = 89;
-export const FLAG_ANGLE_STEP_DEGREES = 4;
+const FLAG_ANGLE_STEPS = 89;
+const FLAG_ANGLE_STEP_DEGREES = 4;
 
 /** It stops looking once this many valid positions are found. */
 export const FLAG_MAX_CANDIDATES = 10;

@@ -39,7 +39,7 @@ export const CONTINUE_FRAMES = 50;
 export const FAST_CONTINUE_FRAMES = 1;
 
 /** `:300` — the three steps that use the fast delay, named as the AS3 names them. */
-export const FAST_CONTINUE_STEPS: ReadonlySet<TutorialId> = new Set([
+const FAST_CONTINUE_STEPS: ReadonlySet<TutorialId> = new Set([
   'Move',
   'AimShoot',
   'Special',

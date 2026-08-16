@@ -30,7 +30,7 @@ export const MAX_ENEMIES = 35;
 const AS3_FPS = 30;
 
 /** One entry of the mutable spawn pool. */
-export interface PoolEntry {
+interface PoolEntry {
   type: string;
   level: EnemyLevel;
   /** Decremented on each spawn in the non-Flag/Boss path. */

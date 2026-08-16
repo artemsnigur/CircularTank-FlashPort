@@ -17,7 +17,7 @@ import type { TutorialState } from './tutorialState';
 
 export const TUTORIAL_COMPLETED_KEY = 'tc';
 export const TUTORIAL_UNSEEN_KEY = 'tau';
-export const TUTORIAL_QUEUE_KEY = 'taq';
+const TUTORIAL_QUEUE_KEY = 'taq';
 export const TUTORIAL_DONE_KEY = 'tad';
 
 const VALID_IDS = new Set<string>(TUTORIAL_IDS);

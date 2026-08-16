@@ -54,10 +54,10 @@ export const FLAME_CROWD_RADIUS = 50;
 export const FLAME_CROWD_MIN = 5;
 
 /** Scale added per frame of age, while the flame is still growing. */
-export const FLAME_GROWTH_PER_FRAME = 0.2;
+const FLAME_GROWTH_PER_FRAME = 0.2;
 
 /** Age at which the crowd is counted, in frames. */
-export const FLAME_THIN_AGE = 2;
+const FLAME_THIN_AGE = 2;
 
 export interface FlameState {
   /** Frames of life remaining. */
@@ -105,7 +105,7 @@ export function createFlame(lifetimeMax: number, rangeMultiplier = 1): FlameStat
   };
 }
 
-export interface FlamePoint {
+interface FlamePoint {
   x: number;
   y: number;
 }

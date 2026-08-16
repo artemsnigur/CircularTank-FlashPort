@@ -209,7 +209,7 @@ export const TUTORIAL_CLIPS: Readonly<Record<string, TutorialClip>> = {
 };
 
 /** `:319` — every panel but one sits at this inset from the top-left. */
-export const PANEL_INSET = 16;
+const PANEL_INSET = 16;
 
 /** `:340` — `Objective` is bottom-anchored, and at its own x. */
 export const OBJECTIVE_X = 194;
@@ -282,7 +282,7 @@ export function panelPosition(
 export const TWEEN_FRAMES = 30;
 
 /** `:458` — the jitter's reach at full transparency. */
-export const JITTER_RADIUS = 10;
+const JITTER_RADIUS = 10;
 
 /**
  * The panel's offset while a tween runs — `:457-459`.
@@ -356,7 +356,7 @@ export function jitterOffset(
  * text stack on it at the panel's origin rather than laid out. See
  * `PANEL_LAYOUT_UNPORTED` at the draw site.
  */
-export const SHAPE_SIZES: Readonly<Record<number, readonly [number, number]>> = {
+const SHAPE_SIZES: Readonly<Record<number, readonly [number, number]>> = {
   43: [54, 54],
   167: [20, 20],
   187: [16, 16],

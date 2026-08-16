@@ -44,7 +44,7 @@ export const LASER_START_OFFSET = 16;
 /** `endX = tank + cos(rot) * (16 + 1000)` — the beam is 1000 units long. */
 export const LASER_LENGTH = 1000;
 
-export interface Point {
+interface Point {
   x: number;
   y: number;
 }
@@ -77,7 +77,7 @@ export function createBeam(x: number, y: number, towerRotation: number): LaserBe
   };
 }
 
-export interface CircleLineResult {
+interface CircleLineResult {
   /** The segment lies entirely within the circle. */
   inside: boolean;
   /** The segment crosses the circle's edge. */

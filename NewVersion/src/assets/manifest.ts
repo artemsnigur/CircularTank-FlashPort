@@ -531,7 +531,6 @@ export const MARKER_SHAPES: readonly ShapeAsset[] = MARKER_SHAPE_FILES.map((entr
   shape(entry.key, entry.file, entry.width, entry.height, 'Off-screen marker art'),
 );
 
-export type SampleFontFamily = (typeof SAMPLE_FONTS)[number]['family'];
 
 /** Total number of discrete loader tasks, for progress reporting. */
 export const SAMPLE_ASSET_COUNT =

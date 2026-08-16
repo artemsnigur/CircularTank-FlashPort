@@ -14,7 +14,6 @@
  * range of each other can.
  */
 
-import type { Targetable } from './enemyVisibility';
 
 /** Frames between pulses — `PartGameArea.as:3116`. */
 export const HEAL_TIMER_MAX = 15;
@@ -92,8 +91,3 @@ export function healsOthers(enemyType: string): boolean {
   return HEALS.has(enemyType);
 }
 
-/** The shape the scene's heal loop needs from an enemy. */
-export interface Healable extends HealCandidate, Targetable {
-  health: number;
-  maxHealth: number;
-}

@@ -30,7 +30,7 @@ import type { Difficulty } from '../config/constants';
 /** Medals earned per difficulty: [hard, medium, easy]. */
 export type LevelValues = [number, number, number];
 /** One world's levels. */
-export type WorldProgress = LevelValues[];
+type WorldProgress = LevelValues[];
 /** All nine worlds. Indexed [world - 1][level - 1]. */
 export type ProgressTable = WorldProgress[];
 
@@ -140,7 +140,7 @@ export function getCurrentWorldAndLevel(
 }
 
 /** Worlds available without premium — Main.as:319. */
-export const FREE_WORLD_COUNT = 6;
+const FREE_WORLD_COUNT = 6;
 /** Worlds available with premium — Main.as:315. */
 export const PREMIUM_WORLD_COUNT = 9;
 

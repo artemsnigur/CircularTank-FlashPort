@@ -105,7 +105,7 @@ export function knownCount(known: readonly string[]): number {
 }
 
 /** One row of the bestiary as the screen renders it. */
-export interface BestiaryRow {
+interface BestiaryRow {
   id: string;
   displayName: string;
   /** Absent until met — an unmet entry must not describe itself. */

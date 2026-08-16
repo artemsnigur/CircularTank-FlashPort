@@ -37,9 +37,9 @@ import type { LevelMode, LevelSpec } from './levelData';
  * Normal/Flag level plays 800x600" stays true of every level that is not
  * currently an experiment, rather than becoming "mostly 800x600".
  */
-export type OverrideReason = 'standard' | 'experiment';
+type OverrideReason = 'standard' | 'experiment';
 
-export interface LevelSizeOverride {
+interface LevelSizeOverride {
   world: number;
   level: number;
   /** The size the AS3 specifies. Asserted against the source. */
@@ -52,7 +52,7 @@ export interface LevelSizeOverride {
 }
 
 /** The one size every overridden level is standardised to — 1-4's room. */
-export const WORLD_1_STANDARD_ROOM: readonly [number, number] = [800, 600];
+const WORLD_1_STANDARD_ROOM: readonly [number, number] = [800, 600];
 
 /**
  * World 1, `Normal` and `Flag` only, standardised to 800x600 (decided
@@ -107,7 +107,7 @@ export const LEVEL_SIZE_OVERRIDES: readonly LevelSizeOverride[] = [
 ];
 
 /** The size every Tower arena plays at. Square, deliberately — see below. */
-export const TOWER_ROOM: readonly [number, number] = [800, 800];
+const TOWER_ROOM: readonly [number, number] = [800, 800];
 
 /**
  * The size every Defense lane plays at.
@@ -115,9 +115,9 @@ export const TOWER_ROOM: readonly [number, number] = [800, 800];
  * 712 is the *minimum* width that fills a 16:9 viewport, not a round number
  * chosen for tidiness, and the difference matters — see the rule below.
  */
-export const DEFENSE_ROOM: readonly [number, number] = [712, 960];
+const DEFENSE_ROOM: readonly [number, number] = [712, 960];
 
-export interface ModeSizeOverride {
+interface ModeSizeOverride {
   mode: LevelMode;
   /** The size the AS3 specifies for **every** level of this mode. Asserted. */
   from: readonly [number, number];

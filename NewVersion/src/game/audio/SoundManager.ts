@@ -50,7 +50,7 @@ export const MUSIC_CROSSFADE_MS = (30 / AS3_FPS) * 1000;
 /** SoundManager.as `musicMultiplier` — music sits below SFX in the mix. */
 export const MUSIC_MULTIPLIER = 0.75;
 /** SoundManager.as `soundMultiplier`. */
-export const SOUND_MULTIPLIER = 1;
+const SOUND_MULTIPLIER = 1;
 
 /**
  * SoundManager.as `flameThrowerVolChangeValue` = 0.1 per frame at 30 fps.

@@ -47,7 +47,7 @@ export type CountdownCue = '3' | '2' | '1' | 'GO';
  *
  * Ordered high to low, which is the order the counter passes them.
  */
-export const CUE_FRAMES: readonly (readonly [CountdownCue, number])[] = [
+const CUE_FRAMES: readonly (readonly [CountdownCue, number])[] = [
   ['3', 54],
   ['2', 36],
   ['1', 18],

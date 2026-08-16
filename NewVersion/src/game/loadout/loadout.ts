@@ -25,8 +25,8 @@ export const NO_WEAPON = 'None';
 
 /** ScreenGame.as initialisers. */
 export const DEFAULT_EQUIPPED: readonly [string, string] = ['Cannon', NO_WEAPON];
-export const DEFAULT_PRIMARY = 'Cannon';
-export const DEFAULT_SECONDARY = 'Mine';
+const DEFAULT_PRIMARY = 'Cannon';
+const DEFAULT_SECONDARY = 'Mine';
 
 /** There are exactly two primary slots. */
 export const PRIMARY_SLOT_COUNT = 2;

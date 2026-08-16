@@ -11,7 +11,7 @@
  * maps a layout type plus theme onto one of them, because `Rock` and `Crack`
  * are one type each in the layout tables and several clips in the art.
  */
-export interface PropClip {
+interface PropClip {
   /** `assets.swf` character id, for tracing back. */
   symbol: number;
   /** Shape id per 1-based frame. */
@@ -91,7 +91,7 @@ export function propShape(type: string, theme: string, frame: number): number | 
  * seven times its size, with its aspect ratio destroyed. That was the size half
  * of the first bug this port ever found by looking at it.
  */
-export const SHAPE_SIZE: Readonly<Record<number, readonly [number, number]>> = {
+const SHAPE_SIZE: Readonly<Record<number, readonly [number, number]>> = {
   1458: [62.45, 50.35],
   1459: [62.45, 50.35],
   1460: [60.50, 52.80],

@@ -29,8 +29,8 @@ export const TELE_PHASE_FRAMES = 30;
 /** Reseed range after arriving — `:3222` and `:3230`. */
 export const TELE_START_MIN = 120;
 export const TELE_START_MAX = 150;
-export const TELE_START_MIN_BOSS = 150;
-export const TELE_START_MAX_BOSS = 225;
+const TELE_START_MIN_BOSS = 150;
+const TELE_START_MAX_BOSS = 225;
 
 /** Tower: no teleport within this of the tank, centre to centre — `:4938`. */
 export const TOWER_MIN_TANK_DISTANCE = 65;
@@ -39,7 +39,7 @@ export const DEFENSE_EDGE_MARGIN = 160;
 /** Defense: a hop must move at least this far horizontally — `:4997`. */
 export const DEFENSE_MIN_HOP = 100;
 /** Defense: vertical drift either way — `:5000`. */
-export const DEFENSE_VERTICAL_DRIFT = 100;
+const DEFENSE_VERTICAL_DRIFT = 100;
 /** Each hop closes to 90% of the current range — `:4956`. */
 export const APPROACH_FACTOR = 0.9;
 
@@ -59,7 +59,7 @@ export const APPROACH_FACTOR = 0.9;
  */
 export const MAX_DESTINATION_ATTEMPTS = 32;
 
-export type TeleportPhase = 'waiting' | 'leaving' | 'arriving';
+type TeleportPhase = 'waiting' | 'leaving' | 'arriving';
 
 export interface TeleportState {
   phase: TeleportPhase;
@@ -74,7 +74,7 @@ export function createTeleportState(isBoss: boolean, random: () => number): Tele
   return { phase: 'waiting', timer: 0, startTimer: nextStartDelay(isBoss, random), isBoss };
 }
 
-export function nextStartDelay(isBoss: boolean, random: () => number): number {
+function nextStartDelay(isBoss: boolean, random: () => number): number {
   const min = isBoss ? TELE_START_MIN_BOSS : TELE_START_MIN;
   const max = isBoss ? TELE_START_MAX_BOSS : TELE_START_MAX;
   return min + random() * (max - min);

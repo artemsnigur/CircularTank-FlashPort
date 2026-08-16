@@ -47,7 +47,7 @@ export function getDifficulty(scene: Phaser.Scene): Difficulty {
  * player who picks a difficulty now will never be shown the hint once the
  * tutorial does land.
  */
-export function difficultyHintPending(scene: Phaser.Scene): boolean {
+function difficultyHintPending(scene: Phaser.Scene): boolean {
   const profile = getPlayerProfile(scene);
   return shouldShowHint(profile.mainFlags, 'DifficultyChosen', {
     tutorialOn: profile.tutorial.on,

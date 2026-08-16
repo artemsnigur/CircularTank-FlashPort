@@ -13,7 +13,7 @@
  * documented below only affects transfer codes.
  */
 
-export const SLOT_COUNT = 3;
+const SLOT_COUNT = 3;
 
 /** An empty save string: three empty slots. */
 export const EMPTY_SAVE_STRING = '()'.repeat(SLOT_COUNT);

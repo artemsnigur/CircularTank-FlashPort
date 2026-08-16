@@ -134,7 +134,7 @@ export function numberArrayToShortString(
 /** Levels per world in the save layout — SaveManager.as, hard-coded 45. */
 export const LEVELS_PER_WORLD = 45;
 /** Values stored per level (stars / flags / towers) — hard-coded 3. */
-export const VALUES_PER_LEVEL = 3;
+const VALUES_PER_LEVEL = 3;
 
 /**
  * `SaveManager.getWorldValuesArraysFromShortString(string)` — inverse of
@@ -190,7 +190,7 @@ export function formatSaveDateTime(date: Date = new Date()): string {
  * than three date fields keeps the extras. Reproduced rather than looping to
  * exhaustion, because the bound is observable.
  */
-export const MAX_DATE_FIELDS_REMOVED = 3;
+const MAX_DATE_FIELDS_REMOVED = 3;
 
 export function removeDateFromSaveString(text: string): string {
   let result = text;

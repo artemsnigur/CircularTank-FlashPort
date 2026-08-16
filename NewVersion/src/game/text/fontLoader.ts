@@ -32,7 +32,7 @@ export interface LoadFontsOptions {
   measure?: (family: string) => { measured: number; fallback: number };
 }
 
-export const DEFAULT_FONT_TIMEOUT_MS = 6000;
+const DEFAULT_FONT_TIMEOUT_MS = 6000;
 
 /** Sample string with varied glyph widths; a short one can collide by chance. */
 const MEASURE_SAMPLE = 'Achievements 0123456789 WTF Cake';
@@ -46,7 +46,7 @@ const FALLBACK_FAMILY = 'monospace';
  * the browser did not actually apply. Identical widths mean the fallback was
  * substituted.
  */
-export function measureFamily(
+function measureFamily(
   family: string,
   fallback = FALLBACK_FAMILY,
 ): { measured: number; fallback: number } {

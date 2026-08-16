@@ -39,9 +39,9 @@ export const BASIC_BULLET_SPEED = 4;
  * seconds where a Basic runs for thirty, so boss fire does not accumulate
  * across the arena.
  */
-export const BOSS_BULLET_RADIUS = 6;
-export const BOSS_BULLET_DAMAGE = 2;
-export const BOSS_BULLET_LIFETIME = 90;
+const BOSS_BULLET_RADIUS = 6;
+const BOSS_BULLET_DAMAGE = 2;
+const BOSS_BULLET_LIFETIME = 90;
 
 /**
  * `lifeTimeMax = 900` — thirty seconds.
@@ -52,7 +52,7 @@ export const BOSS_BULLET_LIFETIME = 90;
 export const BASIC_BULLET_LIFETIME = 900;
 
 /** Below this many frames left, the bullet fades out (`:1499`). */
-export const BULLET_FADE_FRAMES = 10;
+const BULLET_FADE_FRAMES = 10;
 
 export interface EnemyBulletState {
   x: number;

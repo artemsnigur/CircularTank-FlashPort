@@ -232,7 +232,7 @@ export const ICE_GRENADE: SecondarySpec = {
  * `durationTrack` is the trail's lifetime and is the stat that matters most:
  * 220-300 frames, plus the 15 the gate eats — see `activeWindow`.
  */
-export const ICE_BALL: SecondarySpec = {
+const ICE_BALL: SecondarySpec = {
   name: 'Ice Ball',
   upgradeId: 'Iceball',
   reloadTrack: 0,
@@ -267,7 +267,7 @@ export const ICE_BALL: SecondarySpec = {
  * The cooldown is 700 against Ice Ball's 400, the widest gap between two
  * otherwise identically-shaped secondaries.
  */
-export const LAVA_BALL: SecondarySpec = {
+const LAVA_BALL: SecondarySpec = {
   name: 'Lava Ball',
   upgradeId: 'Lavaball',
   reloadTrack: 0,
@@ -304,7 +304,7 @@ export const LAVA_BALL: SecondarySpec = {
  * length. Magic Bunny is the weapon that made that ambiguity worth a
  * discriminator.
  */
-export const CRAZY_CHEESE: SecondarySpec = {
+const CRAZY_CHEESE: SecondarySpec = {
   name: 'Crazy Cheese',
   upgradeId: 'CrazyCheese',
   reloadTrack: 0,

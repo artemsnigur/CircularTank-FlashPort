@@ -46,7 +46,7 @@ function createProbe(): HTMLElement {
   return probe;
 }
 
-export function readSafeAreaInsets(): SafeAreaInsets {
+function readSafeAreaInsets(): SafeAreaInsets {
   if (typeof document === 'undefined' || !document.body) return NO_INSETS;
 
   const probe = createProbe();

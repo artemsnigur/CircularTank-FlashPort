@@ -31,7 +31,6 @@
  * The proportion walk is *not* dead with it: its count for index 0 is read as
  * `maxCountPossible` and caps group size.
  */
-import type { LevelSpec } from './levelData';
 import { PM_PRNG } from '../core/PM_PRNG';
 import { propShape, shapeSize } from './propArt';
 
@@ -128,7 +127,7 @@ export function displayFrame(type: string, theme: string, frame: number): number
 }
 
 /** One theme's table — `:1190-1243`. Weights are proportions, not counts. */
-export interface ThemeProps {
+interface ThemeProps {
   /** `[name, weight]` pairs, in the AS3's declared order. Order is load-bearing. */
   proportions: ReadonlyArray<readonly [string, number]>;
   /** Props **per background tile**, before the tile multiply at `:1244`. */
@@ -161,7 +160,7 @@ export const THEME_PROPS: Readonly<Record<string, ThemeProps>> = {
 };
 
 /** Group clustering per type — `:1306-1369`. Absent means "never groups". */
-export interface GroupRule {
+interface GroupRule {
   minCount: number;
   maxCount: number;
   chance: number;
@@ -184,7 +183,7 @@ export const GROUP_RULES: Readonly<Record<string, GroupRule>> = {
   FuturisticSquare: { minCount: 2, maxCount: 5, chance: 0.3, minDistance: 30, maxDistance: 120 },
 };
 
-export interface PlacedProp {
+interface PlacedProp {
   type: string;
   x: number;
   y: number;
@@ -407,23 +406,15 @@ function placeProps(rng: PM_PRNG, input: PropLayoutInput): PlacedProp[] {
  * output real art will change, and the reason the placement stream is pinned
  * separately from the collision result.
  */
-export const PLACEHOLDER_SIZE: Readonly<Record<string, number>> = {
-  Rock: 40,
-  Crack: 60,
-  FlowerWhite: 24,
-  FlowerRed: 24,
-  FlowerPurple: 24,
-  Seastuff: 32,
-  Trash: 36,
-  Diamond: 28,
-  Skeleton: 48,
-  Dirt: 40,
-  RedBloodCell: 30,
-  WhiteBloodCell: 34,
-  Bacteria: 26,
-  FuturisticLines: 64,
-  FuturisticSquare: 44,
-};
+/*
+ * Deleted in T152: `PLACEHOLDER_SIZE`.
+ *
+ * A table of stand-in prop sizes from before `propArt.ts` resolved the real
+ * shapes. `shapeSize` has supplied every size in this module since, and
+ * nothing — not even a test — read this. The note above about placeholder art
+ * shifting the collision pass still stands and still applies to the real
+ * sizes, which is why it stays.
+ */
 
 
 /**
@@ -479,7 +470,7 @@ export function propScale(type: string, draw: number): number {
 }
 
 /** `:2617` — width and height are the *scaled* display size. */
-export function propRadius(prop: PlacedProp, theme = 'Desert'): number {
+function propRadius(prop: PlacedProp, theme = 'Desert'): number {
   // `(height + width) * 0.2` off the **rendered** sprite. Both operands were
   // wrong in the first render: an invented placeholder size, and the raw scale
   // draw instead of the type's mapping. The pass ran and under-removed, which
@@ -581,15 +572,16 @@ export function layoutLevelProps(input: PropLayoutInput): CollisionResult {
   return resolveCollisions(placed, rng, input.theme);
 }
 
-/** Convenience wrapper for a level row. */
-export function layoutPropsForLevel(spec: LevelSpec): PlacedProp[] {
-  return layoutProps({
-    seed: spec.seed,
-    roomWidth: spec.roomWidth,
-    roomHeight: spec.roomHeight,
-    theme: spec.theme,
-  });
-}
+/*
+ * Deleted in T152: `layoutPropsForLevel`.
+ *
+ * **Not merely unused — the wrong entry point.** It wrapped `layoutProps`,
+ * which is the *placement* stage only; the level's real layout is
+ * `layoutLevelProps`, placement followed by collision removal on the same
+ * generator, and that is what `GameplayScene` calls. A name reading "props for
+ * a level" sitting beside the function that actually does it is a trap on a
+ * subsystem where one extra or missing draw shifts the entire stream.
+ */
 
 /*
  * ── Deliberately absent, and what discharges each ────────────────────────

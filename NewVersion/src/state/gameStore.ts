@@ -29,9 +29,9 @@ import type { LevelResult } from '../game/waves/levelOutcome';
 import type { LevelRef } from '../game/levels/levelProgress';
 import { NO_INSETS } from '../game/config/viewport';
 
-export type LoadPhase = 'idle' | 'booting' | 'loading' | 'ready' | 'error';
+type LoadPhase = 'idle' | 'booting' | 'loading' | 'ready' | 'error';
 
-export interface ViewportSnapshot {
+interface ViewportSnapshot {
   cssWidth: number;
   cssHeight: number;
   zoom: number;
@@ -48,7 +48,7 @@ export interface AchievementToast {
 }
 
 /** What the results overlay renders. */
-export interface LevelOutcomeSummary {
+interface LevelOutcomeSummary {
   result: LevelResult;
   world: number;
   level: number;
@@ -64,7 +64,7 @@ export interface LevelOutcomeSummary {
 }
 
 /** The bestiary as the screen renders it. */
-export interface BestiaryListing {
+interface BestiaryListing {
   entries: Array<{
     id: string;
     displayName: string;
@@ -90,7 +90,7 @@ export interface BestiaryListing {
 }
 
 /** One world's levels with their unlock state. */
-export interface WorldListing {
+interface WorldListing {
   /** 0 while the picker is showing; otherwise the open world. */
   selected: number;
   worlds: Array<{
@@ -120,7 +120,7 @@ export interface LevelListing {
 }
 
 /** Everything the shop rows render, precomputed by UpgradesScene. */
-export interface ShopCatalogue {
+interface ShopCatalogue {
   money: number;
   upgrades: Array<{
     id: string;
@@ -463,5 +463,10 @@ export const useGameStore = create<GameState>()((set) => ({
   reset: () => set({ ...initialRunState }),
 }));
 
-/** Non-reactive accessor for Phaser code. */
-export const getGameState = (): GameState => useGameStore.getState();
+/*
+ * Deleted in T152: `getGameState`.
+ *
+ * A wrapper around `useGameStore.getState()` that nothing ever called —
+ * scenes use `getState()` directly, which is the path `CLAUDE.md` documents.
+ * Two names for one accessor invites half the codebase onto each.
+ */

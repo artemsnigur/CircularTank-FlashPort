@@ -31,7 +31,7 @@ import type { DamageMultipliers } from '../enemies/damageTypes';
 import { applyDamageType } from '../enemies/damageTypes';
 
 /** Explosion flavours — `spawnExplosion`'s `explosionType`. */
-export type ExplosionType = 'Normal' | 'Ice' | 'Poison';
+type ExplosionType = 'Normal' | 'Ice' | 'Poison';
 
 /**
  * `spawnExplosion` scales the art by `radius / 250`, so 250 is the artwork's

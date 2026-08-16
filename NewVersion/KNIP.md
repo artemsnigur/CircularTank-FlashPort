@@ -44,21 +44,71 @@ appears in the output. If it does not, the plugins are back on.
 
 ## Baseline
 
-As of the July 2026 audit, on a correctly-configured run:
+Current, after the T152 triage:
 
 ```
-Unused files (1)          — src/game/core/PM_PRNG.ts
-Unused exports (242)      — 102 functions, 4 classes, 136 values
-Unused exported types (29)
+Unused exports (414)
+Unused exported types (7)
 ```
 
-242 is not a regression; it is the number that was always true and previously
-reported as 49. The jump is the tool starting to work, not the codebase getting
-worse.
+Sorted by `node scripts/knip-triage.mjs <knip.json>`:
 
-`PM_PRNG.ts` appearing as an **unused file** is the headline: the module
-`CLAUDE.md` calls reproducibility-critical, carrying a BigInt differential test
-over 35,000 draws, has no production importer at all.
+```
+src-importer  1     knip disagrees with a real importer — look at it
+test-only     407   imported by a test and nothing else
+internal      5     used only inside its own file — all five generated
+dead          8     referenced nowhere, and kept on purpose (listed below)
+```
+
+**Read the total as a worklist length, not a debt.** 407 of the 421 are
+test-only, which is the baseline this configuration is *designed* to produce:
+see "Why test files are not entry points". The number that matters is
+`internal` + `dead`, and T152 took those from 137 to 13.
+
+**The five remaining `internal` are in generated files and stay there.** The
+unexport pass edited `achievementArt.ts`, `levelGuideArt.ts`,
+`resistanceIconArt.ts`, `bestiaryArt.ts` and `upgradeArt.ts` — and
+`data:check` failed on all five, correctly: a generated file's text belongs to
+its generator, and hand-editing one makes the two disagree without changing
+anything the generator would produce next run. They were regenerated and the
+exports came back. **Do not unexport anything in a generated file** — change
+the generator, or leave it. This is the same boundary the "Generated data"
+limitation below describes, found from the other side.
+
+### What T152 changed, and what it deliberately did not
+
+- **114 exports became module-private.** Nothing outside their own file
+  imported them; they were category 3 below. That is where most of the drop
+  came from, and it is the change with the least behind it — no code moved.
+  (119 were changed; five were in generated files and were put back.)
+- **10 dead symbols were deleted**, each because something had replaced it:
+  `randomEdgeSpawn` (T151, superseded by `waves/spawnPlacement.ts`),
+  `layoutPropsForLevel`, `getGameState`, `describeViewport`, `PLACEHOLDER_SIZE`,
+  `LevelTypes`/`LevelType`, `World`, `PLAYER_SPEED_UNITS_PER_SEC`/`PLAYER_DRAG`,
+  `Healable`, `SampleFontFamily`, `StatusPageType`, and a re-export of
+  `TOWER_GEOMETRY` that duplicated its declaring module's.
+- **Nothing in category 1 was touched.** The unwired features — `tutorialState`,
+  the `achievementState` evaluator, `enemyKnowledge`'s discovery half,
+  `applyFreeze`, the achievement value sources — are all still exported and
+  still reported. They are ported behaviour waiting on a decision, and deleting
+  ported AS3 behaviour because a static tool called it unused would be the
+  worst possible reading of this file.
+- **Nothing in "one rule, two copies" was touched either.** `countCrowd`,
+  `canAfford` and `flagReward` still have inline duplicates in their callers.
+  That fix is *wiring*, not cleanup, and it changes running code — it does not
+  belong in a pass whose whole safety argument is that nothing moved.
+
+### The 8 kept dead exports, and why each stays
+
+| export | why |
+|---|---|
+| `PREMIUM_WORLD_COUNT` | `Main.as:315`, and its sibling `FREE_WORLD_COUNT` is live. Half a cited pair is worse than an unused constant. |
+| `DAMAGE_TINT_COLOUR` | `:2801`, sibling `DAMAGE_TINT_MAX` live — the tint's strength is wired and its colour is not yet. |
+| `GUMMY_STAGE_MIN` | Same shape: `GUMMY_STAGE_MAX` is live, and the pair states the AS3's 1..3 range. |
+| `WEAPON_PANEL_SYMBOL`, `WEAPON_SHAPE_IDS`, `MARKER_SHAPE_IDS`, `TANK_SYMBOLS`, `MONEY_SHAPES` | Generated contracts: "these are the shapes this subsystem draws", which is what the asset sync must have copied. They document a coupling that has broken before (T108). |
+
+If one of these ever *does* get a consumer it simply stops being reported,
+which is the outcome to want.
 
 ## Triage
 
@@ -98,7 +148,15 @@ The current 242 sort roughly as:
   `measureFamily` (`text/fontLoader.ts`) and `readSafeAreaInsets`
   (`state/safeArea.ts`), both used only as default parameters in their own file.
 
-Nothing in this list has been acted on. It is a worklist, not a defect report.
+Categories 2 and 3 were acted on in T152 — 3 by unexporting, and the dead tail
+by deleting. **Category 1 is untouched by design**, and the two bullets above
+it are why: it is the only category where the tool's output and the right
+action point in opposite directions.
+
+**It is a worklist, not a defect report.** The distinction earns its keep here:
+of the 137 findings that were not test-only, three separate ones — the
+`TANK_RADIUS` pattern, the `layoutPropsForLevel` wrapper and the duplicated
+helpers — would each have been made *worse* by the obvious action.
 
 ## What knip still cannot see
 
@@ -113,6 +171,26 @@ Nothing in this list has been acted on. It is a worklist, not a defect report.
   section of the audit.
 - **Generated data.** `src/game/**/*Data.ts` and `src/assets/*Manifest.ts` are in
   `ignore`, so `enemyStatsData.ts` and `bestiaryData.ts` are not analysed at all.
+
+## Sorting the list — `scripts/knip-triage.mjs`
+
+```bash
+npx knip --no-progress --reporter json > knip.json
+node scripts/knip-triage.mjs knip.json          # counts
+node scripts/knip-triage.mjs knip.json dead     # one bucket, with call sites
+```
+
+It resolves import specifiers to files and reads the import clause, so an
+importer is an importer. **That precision is the whole point**: a first version
+matched symbol *names* across the tree and claimed 60 findings were used by
+production code. Almost all were collisions — `Point`, `Room` and `FlamePoint`
+are declared in more than one module — and acting on that list would have been
+acting on noise. Resolving imports took the same bucket from 60 to 1.
+
+Its limits are in its header and are worth reading before deleting anything on
+its say-so: re-export chains are not followed, `import * as` counts as
+importing everything, and "used in its own file" is a word match outside
+comment lines.
 
 ## Not part of `data:check`
 

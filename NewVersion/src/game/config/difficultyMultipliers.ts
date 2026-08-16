@@ -33,7 +33,7 @@ export interface DifficultyProfile {
 }
 
 /** Baseline. AS3 has no Easy constants; every multiplier is 1. */
-export const EASY: DifficultyProfile = {
+const EASY: DifficultyProfile = {
   amount: 1,
   spawnRate: 1,
   enemyHealth: 1,
@@ -45,7 +45,7 @@ export const EASY: DifficultyProfile = {
 };
 
 /** DifficultyMultipliers.as — `*Medium` constants. */
-export const MEDIUM: DifficultyProfile = {
+const MEDIUM: DifficultyProfile = {
   amount: 1, // multiplierAmountMedium
   spawnRate: 0.95, // multiplierSpawnRateMedium
   enemyHealth: 1.225, // multiplierHealthMedium
@@ -57,7 +57,7 @@ export const MEDIUM: DifficultyProfile = {
 };
 
 /** DifficultyMultipliers.as — `*Hard` constants. */
-export const HARD: DifficultyProfile = {
+const HARD: DifficultyProfile = {
   amount: 1, // multiplierAmountHard
   spawnRate: 0.9, // multiplierSpawnRateHard
   enemyHealth: 1.4, // multiplierHealthHard

@@ -108,7 +108,7 @@ export interface Rect {
 }
 
 /** Which side of the arena a margin strip sits on. */
-export type MarginEdge = 'left' | 'right' | 'top' | 'bottom';
+type MarginEdge = 'left' | 'right' | 'top' | 'bottom';
 
 export interface MarginRect extends Rect {
   edge: MarginEdge;
@@ -192,15 +192,14 @@ export function computeSafeRect(viewport: Viewport, insets: SafeAreaInsets = NO_
   return { x: left, y: top, width, height };
 }
 
-/** Human-readable one-liner for the debug overlay. */
-export function describeViewport(viewport: Viewport): string {
-  const { cssWidth, cssHeight, renderWidth, renderHeight, pixelRatio, zoom } = viewport;
-  return (
-    `${Math.round(cssWidth)}x${Math.round(cssHeight)} css @${pixelRatio}x ` +
-    `-> ${renderWidth}x${renderHeight} px, zoom ${zoom.toFixed(3)}, ` +
-    `world ${Math.round(viewport.logicalWidth)}x${Math.round(viewport.logicalHeight)} units`
-  );
-}
+/*
+ * Deleted in T152: `describeViewport`.
+ *
+ * A one-line formatter "for the debug overlay". `DiagnosticsPanel.tsx` is that
+ * overlay and renders the same six numbers itself, as a definition list a
+ * phone can actually read; this string was a second formatter for the same
+ * facts, called by nothing.
+ */
 
 /**
  * Zoom that makes a room span the full render width, or the unchanged zoom when

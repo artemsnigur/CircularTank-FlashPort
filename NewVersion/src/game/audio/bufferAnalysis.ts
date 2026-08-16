@@ -122,7 +122,7 @@ export interface VerdictThresholds {
   maxLoopSeamDelta: number;
 }
 
-export const DEFAULT_THRESHOLDS: VerdictThresholds = {
+const DEFAULT_THRESHOLDS: VerdictThresholds = {
   // Two MP3 frames at 44.1 kHz is ~52 ms; anything beyond that is a real
   // decode discrepancy rather than encoder padding.
   maxDriftMs: 60,

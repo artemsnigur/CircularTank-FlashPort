@@ -55,7 +55,7 @@
 export const CREDIT_TEXT = 'Testing & Editing by Wesley Jue';
 
 /** `:168` — `changeText(theText, left, top, specialType, p1, p2)`. */
-export interface InfoTextSite {
+interface InfoTextSite {
   /** `<Class>.as:<line>` of the `changeText` call. */
   source: string;
   /** The `left` argument — panel opens rightward from the cursor when true. */

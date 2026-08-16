@@ -73,7 +73,7 @@ export const LAVA_BOSS_MULTIPLIER = 0.2;
 export const FIRE_DRAIN_PER_FRAME = 3;
 
 /** Random placement jitter around the ball — `:1801`. */
-export const HAZARD_SPAWN_JITTER = 8;
+const HAZARD_SPAWN_JITTER = 8;
 
 const AS3_FPS = 30;
 

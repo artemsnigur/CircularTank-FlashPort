@@ -116,7 +116,7 @@ function normalStats(type: string): EnemyBaseStats | undefined {
  * difficulty-resolved stats satisfy it — `ResolvedEnemyStats` widens
  * `particle` to `string`, so demanding the full base type rejects it.
  */
-export interface ShootDescriptor {
+interface ShootDescriptor {
   shoot?: boolean;
   shootType?: string;
   shootAngle?: string;

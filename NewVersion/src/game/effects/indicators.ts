@@ -16,7 +16,7 @@
  */
 
 /** `:2531` — the divisor in the bomb marker's size term. */
-export const BOMB_SCALE_DIVISOR = 75;
+const BOMB_SCALE_DIVISOR = 75;
 
 /** `:3120` — the medic ring is authored for a 100-unit heal radius. */
 export const MEDIC_REFERENCE_DISTANCE = 100;

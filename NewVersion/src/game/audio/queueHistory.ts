@@ -86,7 +86,7 @@
  * aids, and is listed in `src/game/devAids.test.ts`.
  */
 
-export interface QueuedSound {
+interface QueuedSound {
   name: string;
   /** Whether `audioManifest.ts` knows this name. False means it made no sound. */
   resolved: boolean;

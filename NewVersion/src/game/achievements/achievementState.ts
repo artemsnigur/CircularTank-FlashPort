@@ -92,7 +92,7 @@ export function winStateFor(spec: AchievementSpec, difficulty: Difficulty): numb
   return spec.difficultyMatters ? DIFFICULTY_STATE[difficulty] : 0;
 }
 
-export interface EvaluationResult {
+interface EvaluationResult {
   /** True when the achievement was newly earned or upgraded. */
   won: boolean;
   /** The state to store. Unchanged from `currentState` when `won` is false. */

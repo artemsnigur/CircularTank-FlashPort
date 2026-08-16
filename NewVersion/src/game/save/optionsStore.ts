@@ -26,7 +26,7 @@
 import type Phaser from 'phaser';
 import { LocalStorageBackend, OPTIONS_STORE, SaveStore } from './SaveStore';
 
-export const OPTIONS_STORE_REGISTRY_KEY = 'optionsStore';
+const OPTIONS_STORE_REGISTRY_KEY = 'optionsStore';
 
 /** The options store for this game instance, opened on first use. */
 export function getOptionsStore(scene: Phaser.Scene): SaveStore {

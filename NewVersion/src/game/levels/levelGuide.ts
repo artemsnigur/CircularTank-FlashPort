@@ -40,7 +40,7 @@ import type { ProgressTable, LevelRef } from './levelProgress';
 export type LevelGuideType = 'Previous' | 'Upcoming' | 'Last';
 
 /** How far the arrows may travel. */
-export interface LevelGuideBounds {
+interface LevelGuideBounds {
   maxWorld: number;
   maxLevel: number;
 }

@@ -25,7 +25,7 @@ import {
 } from './audioOptions';
 import { getOptionsStore } from '../save/optionsStore';
 
-export const SOUND_REGISTRY_KEY = 'soundManager';
+const SOUND_REGISTRY_KEY = 'soundManager';
 
 interface Installed {
   manager: SoundManager;

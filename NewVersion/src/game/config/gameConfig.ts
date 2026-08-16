@@ -19,7 +19,7 @@ import { INITIAL_HEIGHT, INITIAL_WIDTH } from './viewport';
  * supplied, and we supply a React-owned canvas so that ViewportController can
  * control the backing-store resolution.
  */
-export function detectRendererType(): number {
+function detectRendererType(): number {
   if (typeof document === 'undefined') return Phaser.CANVAS;
   try {
     const probe = document.createElement('canvas');

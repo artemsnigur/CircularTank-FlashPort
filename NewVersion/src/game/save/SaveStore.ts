@@ -25,7 +25,7 @@
 
 /** Store names, verbatim from SaveManager.as. */
 export const OPTIONS_STORE = 'CircularTankOptions';
-export const SAVE_SLOT_STORES = ['CircularTankSave1', 'CircularTankSave2', 'CircularTankSave3'];
+const SAVE_SLOT_STORES = ['CircularTankSave1', 'CircularTankSave2', 'CircularTankSave3'];
 
 export function saveSlotStoreName(slot: number): string {
   const name = SAVE_SLOT_STORES[slot - 1];

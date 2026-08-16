@@ -39,7 +39,7 @@
  */
 
 /** One class's frames and drawn size. */
-export interface EnemyBulletArt {
+interface EnemyBulletArt {
   /** `[normal, reflected]`; a single entry where the clip has one frame. */
   frames: readonly number[];
   /** Authored width and height, in design units. */

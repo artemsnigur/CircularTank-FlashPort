@@ -55,7 +55,7 @@ export const AS3_CAMERA_WIDTH = 640;
 export const AS3_CAMERA_HEIGHT = 400;
 
 /** Attempts before falling back to edge placement. AS3 uses 25. */
-export const OFF_CAMERA_ATTEMPTS = 25;
+const OFF_CAMERA_ATTEMPTS = 25;
 
 export interface PlacementContext {
   mode: LevelMode;

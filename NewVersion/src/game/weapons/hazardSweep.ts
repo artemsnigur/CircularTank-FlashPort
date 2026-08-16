@@ -51,7 +51,7 @@ export interface SweepEnemy {
 }
 
 /** A flame's position and reach, for the fire drain — `:7072`. */
-export interface FlamePoint {
+interface FlamePoint {
   x: number;
   y: number;
   radius: number;

@@ -35,14 +35,14 @@
 export const MINIMAP_SIZE = 80;
 
 /** `:657` `beginFill(6710886)` — the ground. */
-export const MINIMAP_GROUND = 0x666666;
+const MINIMAP_GROUND = 0x666666;
 /** `:668` `beginFill(16777215, 0.2)` — what the camera can see. */
-export const MINIMAP_VIEWPORT = 0xffffff;
+const MINIMAP_VIEWPORT = 0xffffff;
 export const MINIMAP_VIEWPORT_ALPHA = 0.2;
 /** `:675` `beginFill(16711680)` — every enemy, boss or not. */
 export const MINIMAP_ENEMY = 0xff0000;
 /** `:687` `beginFill(0)` — the flag, on Flag levels only. */
-export const MINIMAP_FLAG = 0x000000;
+const MINIMAP_FLAG = 0x000000;
 /** `:692` `beginFill(16777215)` — the tank, drawn last so it is never hidden. */
 export const MINIMAP_TANK = 0xffffff;
 
@@ -50,7 +50,7 @@ export const MINIMAP_TANK = 0xffffff;
 export const MINIMAP_DOT = 4;
 export const MINIMAP_BOSS_DOT = 8;
 
-export interface Room {
+interface Room {
   width: number;
   height: number;
 }
@@ -174,7 +174,7 @@ export interface MinimapFill {
   rect: Rect;
 }
 
-export interface MinimapSubject {
+interface MinimapSubject {
   x: number;
   y: number;
 }

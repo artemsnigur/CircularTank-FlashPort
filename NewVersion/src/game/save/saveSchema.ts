@@ -19,7 +19,7 @@
  */
 
 /** How a field is encoded on the way into the save string. */
-export type SaveFieldCodec =
+type SaveFieldCodec =
   | 'raw' // String(value)
   | 'boolean' // booleanToNumber
   | 'alphabet' // numberArrayToAlphabetShortString

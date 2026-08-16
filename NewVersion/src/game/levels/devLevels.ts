@@ -70,7 +70,7 @@ export const DEV_SINGLE_TYPE_COUNT = 30;
  * Much faster than any real level (45+) because the point is to get the
  * enemies out quickly, not to pace a fight.
  */
-export const DEV_SPAWN_INTERVAL = 12;
+const DEV_SPAWN_INTERVAL = 12;
 
 /**
  * Types in a fixed order, so a level number always means the same enemy.

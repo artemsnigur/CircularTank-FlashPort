@@ -49,7 +49,7 @@ export function fanBearings(count: number): number[] {
   return Array.from({ length: count }, (_, c) => step * c);
 }
 
-export interface FanPayload {
+interface FanPayload {
   damage: number;
   /** Frames of freeze this spike leaves. Icicles only. */
   freezeTime?: number;

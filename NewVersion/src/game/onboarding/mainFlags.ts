@@ -125,7 +125,7 @@ export function markHintDone(flags: MainFlags, id: UiHintId): MainFlags {
 /** Main.as `checkExtraMoney()` — the premium grant amount. */
 export const EXTRA_MONEY_AMOUNT = 10000;
 
-export interface ExtraMoneyResult {
+interface ExtraMoneyResult {
   flags: MainFlags;
   /** Money after the grant. Unchanged when nothing was paid. */
   money: number;

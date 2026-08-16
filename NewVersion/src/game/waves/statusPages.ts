@@ -35,9 +35,8 @@
 import { getAchievement } from '../achievements/achievementState';
 import { BESTIARY } from '../enemies/bestiaryData';
 
-export type StatusPageType = 'Standard' | 'Achievement' | 'Enemy';
 
-export interface StandardPage {
+interface StandardPage {
   type: 'Standard';
 }
 
@@ -62,7 +61,7 @@ export interface AchievementPage {
  */
 export const ACHIEVEMENT_PAGE_EARNED = true;
 
-export interface EnemyPage {
+interface EnemyPage {
   type: 'Enemy';
   /** Display name as `discoverEnemies` produced it — "Scared Ghost", not "ScaredGhost". */
   displayName: string;

@@ -172,7 +172,7 @@ export function getStatValue(
  * The AS3 compares `== 10`; this uses `>=` so a future max-level change cannot
  * silently stop counting.
  */
-export function countMaxed(state: UpgradeState, category: UpgradeCategory): number {
+function countMaxed(state: UpgradeState, category: UpgradeCategory): number {
   return levelsFor(state, category).filter((level) => level >= MAX_UPGRADE_LEVEL).length;
 }
 

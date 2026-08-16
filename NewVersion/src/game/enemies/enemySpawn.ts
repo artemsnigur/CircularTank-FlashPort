@@ -36,7 +36,7 @@ export interface SpawnGeometry {
   height: number;
 }
 
-export interface SpawnTarget {
+interface SpawnTarget {
   x: number;
   y: number;
 }

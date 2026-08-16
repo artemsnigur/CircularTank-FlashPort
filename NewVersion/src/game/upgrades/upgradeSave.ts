@@ -18,8 +18,8 @@ import { MISC_UPGRADES, PRIMARY_UPGRADES, SECONDARY_UPGRADES } from './upgradeDa
 
 export const MONEY_KEY = 'm';
 export const PRIMARY_LEVELS_KEY = 'la';
-export const MISC_LEVELS_KEY = 'lam';
-export const SECONDARY_LEVELS_KEY = 'las';
+const MISC_LEVELS_KEY = 'lam';
+const SECONDARY_LEVELS_KEY = 'las';
 
 export function encodeUpgradeFields(state: UpgradeState): SaveField[] {
   return [

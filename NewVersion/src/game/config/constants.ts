@@ -19,12 +19,15 @@ export const SceneKeys = {
 
 export type SceneKey = (typeof SceneKeys)[keyof typeof SceneKeys];
 
-/**
- * Level archetypes — ScreenGame.as `levelDataModelW1..W9`, column 7.
- * Each row is [roomW, roomH, ...4 reserved, type, difficultyTier, world, seed].
+/*
+ * Deleted in T152: `LevelTypes` / `LevelType`.
+ *
+ * A second definition of the same five archetypes, from before the level
+ * tables were generated. The live one is `LevelMode` in `levels/levelData.ts`,
+ * which is what every mode branch in the port compares against; this pair had
+ * no reference left anywhere, including in tests, and a duplicate domain type
+ * is the kind of thing that gets imported by mistake years later.
  */
-export const LevelTypes = ['Normal', 'Flag', 'Tower', 'Defense', 'Boss'] as const;
-export type LevelType = (typeof LevelTypes)[number];
 
 /**
  * Difficulty setting — `ScreenLevelSelect.levelDifficulty`, compared as a
@@ -56,8 +59,19 @@ export const Worlds = [
   'MagicStone',
   'Futuristic',
 ] as const;
-export type World = (typeof Worlds)[number];
-
-/** Physics/gameplay tuning that the placeholder scene needs. */
-export const PLAYER_SPEED_UNITS_PER_SEC = 260;
-export const PLAYER_DRAG = 1400;
+/*
+ * Deleted in T152, all three together, because they share a cause.
+ *
+ * `World` was a second name for the theme union that `levels/levelData.ts`
+ * declares from the generated tables, unused since those landed.
+ *
+ * `PLAYER_SPEED_UNITS_PER_SEC = 260` and `PLAYER_DRAG = 1400` were "physics
+ * tuning that the placeholder scene needs" — invented numbers with no AS3 line
+ * behind them, superseded by the ported movement in `player/tankMovement.ts`
+ * and read by nothing since. **These are the shape of the `TANK_RADIUS`
+ * hazard inverted**: there, a correct exported constant sat unused beside a
+ * wrong derived one in production. Here the unused pair is the invented half,
+ * so the fix is the opposite — delete, rather than wire. Both cases look
+ * identical in a knip report, which is why the report is a worklist and not a
+ * defect list.
+ */
