@@ -140,14 +140,33 @@ describe('GameplayScene hands the flag to the banker', () => {
 });
 
 describe('every dev entry point sets it', () => {
+  /**
+   * `MainMenuScreen` left this list in T164, and the removal is the point
+   * rather than an exemption: the menu's all-enemy dev button is **gone**, so
+   * there is no entry point there to guard. The counterpart below is what
+   * keeps that honest — if the menu ever starts a run again, it has to come
+   * back onto this list.
+   */
   const entries: [string, string][] = [
     ['src/ui/screens/EnemiesScreen.tsx', 'the per-type Test buttons'],
-    ['src/ui/screens/MainMenuScreen.tsx', 'the all-enemy dev level'],
     ['src/ui/screens/LevelSelectScreen.tsx', 'the dev level jump'],
   ];
 
   it.each(entries)('%s (%s) emits sandbox: true', (path) => {
     expect(readFileSync(path, 'utf8')).toContain('sandbox: true');
+  });
+
+  /**
+   * The menu starts exactly one run — the player's, from PLAY — and it must
+   * **not** be sandboxed, or a real game would never bank. Any *other*
+   * `ui:start-game` there would be a dev jump that this list no longer covers.
+   */
+  it('the menu starts one real run and no dev ones', () => {
+    const source = readFileSync('src/ui/screens/MainMenuScreen.tsx', 'utf8');
+    const starts = source.match(/ui:start-game/g) ?? [];
+
+    expect(starts).toHaveLength(1);
+    expect(source).not.toContain('sandbox: true');
   });
 
   it('the dev jump is behind the DEV guard', () => {
