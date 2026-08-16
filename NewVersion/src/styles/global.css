@@ -428,21 +428,7 @@ body {
   cursor: pointer;
 }
 
-.menu-play__face--hover,
-.menu-play__face--pressed {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-}
 
-.menu-play:hover .menu-play__face--hover,
-.menu-play:focus-visible .menu-play__face--hover {
-  opacity: 1;
-}
-
-.menu-play:active .menu-play__face--pressed {
-  opacity: 1;
-}
 
 /* The corner icons — `ScreenMenu` puts its small buttons bottom-left. */
 .menu-corner {
@@ -540,21 +526,7 @@ body {
   cursor: default;
 }
 
-.levels__play-face--hover,
-.levels__play-face--pressed {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-}
 
-.levels__play:not(:disabled):hover .levels__play-face--hover,
-.levels__play:not(:disabled):focus-visible .levels__play-face--hover {
-  opacity: 1;
-}
-
-.levels__play:not(:disabled):active .levels__play-face--pressed {
-  opacity: 1;
-}
 
 /* `:423`/`:425` — the small captions above each value, in the smaller of the
    two text formats the screen uses (`textFormat3`, 12px against 16px). */
@@ -1576,17 +1548,8 @@ code {
 
 /* Which one is set lives in the *frame* — `ButtonGameDifficulty:73` — so
    `--on` has nothing left to colour. It stays as the focus/selection hook the
-   tutorial hint animation and any future styling can reach for. */
-.difficulty__face--hover {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-}
-
-.difficulty__button:hover .difficulty__face--hover,
-.difficulty__button:focus-visible .difficulty__face--hover {
-  opacity: 1;
-}
+   tutorial hint animation and any future styling can reach for. The hover
+   face stacks through `.chrome-stack`. */
 
 /* `Main.hDifficultyChosen` still unset — the AS3 points a helper hand here.
    Gated on the tutorial, so it does not show until that lands. */
@@ -1987,16 +1950,7 @@ code {
   width: auto;
 }
 
-.audio-toggles__face--hover {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-}
 
-.audio-toggles__button:hover .audio-toggles__face--hover,
-.audio-toggles__button:focus-visible .audio-toggles__face--hover {
-  opacity: 1;
-}
 
 /* ── Volume sliders — SliderObject.as, one per channel ────────────────────
    A grid rather than flex so both readouts line up under each other however
@@ -2267,6 +2221,47 @@ code {
 }
 
 /*
+ * ── A stack of clip faces: rest, hover, pressed ────────────────────────────
+ *
+ * A button that swaps art between states draws every frame it can show and
+ * cross-fades them, so no React state is needed and `:focus-visible` gets the
+ * hover art free.
+ *
+ * **This lives here, and wins on specificity, because five copies of it lost
+ * on source order.** Each screen had written its own
+ * `.thing__face--hover { position: absolute }`, and `.chrome-art` above sets
+ * `position: relative` at the same specificity — so whether a stack worked
+ * depended entirely on whether that screen's block happened to be pasted
+ * before or after this one in the file. Four of the five were before it: their
+ * hover frames stayed in flow and rendered *underneath* the resting frame, so
+ * hovering appeared to grow a second button below the first.
+ *
+ * `.chrome-stack .chrome-art--face` is (0,2,0) against `.chrome-art`'s (0,1,0),
+ * so it wins wherever it sits and a sixth caller cannot reintroduce the bug by
+ * being declared in the wrong place.
+ */
+.chrome-stack {
+  position: relative;
+}
+
+.chrome-stack .chrome-art--face {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+/* `:not(:disabled)` so a disabled control does not light up: `:hover` still
+   matches a disabled button in several engines. */
+.chrome-stack:not(:disabled):hover .chrome-art--face--hover,
+.chrome-stack:not(:disabled):focus-visible .chrome-art--face--hover {
+  opacity: 1;
+}
+
+.chrome-stack:not(:disabled):active .chrome-art--face--pressed {
+  opacity: 1;
+}
+
+/*
  * ── The screen shell ───────────────────────────────────────────────────────
  *
  * Title bar at the top, navigation at the bottom, content between — the
@@ -2445,35 +2440,10 @@ code {
   cursor: default;
 }
 
-/*
- * Rest, hover and pressed are three stacked copies, cross-faded.
- *
- * The rest frame is in flow and sets the button's size; the other two are
- * absolute over it. That way a frame whose art is a different size cannot
- * change the button's width as it lights up.
- */
-.nav-button__face--hover,
-.nav-button__face--pressed {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-}
-
-.nav-button:hover .nav-button__face--hover,
-.nav-button:focus-visible .nav-button__face--hover {
-  opacity: 1;
-}
-
-.nav-button:active .nav-button__face--pressed {
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .nav-button__face--hover,
-  .nav-button__face--pressed {
-    transition: none;
-  }
-}
+/* Rest, hover and pressed stack through `.chrome-stack` — see it for why the
+   positioning cannot live here. The resting frame is in flow and sets the
+   button's size, so a state frame of a different size cannot change its
+   width as it lights up. */
 
 /*
  * ── The three chrome primitives ────────────────────────────────────────────

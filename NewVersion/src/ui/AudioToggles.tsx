@@ -41,7 +41,7 @@ function Toggle({
   return (
     <button
       type="button"
-      className="audio-toggles__button"
+      className="audio-toggles__button chrome-stack"
       aria-pressed={on}
       aria-label={label}
       title={label}
@@ -51,7 +51,7 @@ function Toggle({
       <ChromeArt
         clip={clip}
         frame={toggleHoverFrame(on)}
-        className="audio-toggles__face audio-toggles__face--hover"
+        className="audio-toggles__face chrome-art--face chrome-art--face--hover"
       />
     </button>
   );

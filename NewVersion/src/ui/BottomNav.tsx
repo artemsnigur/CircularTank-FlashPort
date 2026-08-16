@@ -58,7 +58,9 @@ function NavButton({
   onClick: () => void;
   wide?: boolean;
 }): React.ReactElement {
-  const className = wide ? 'nav-button nav-button--wide' : 'nav-button';
+  // `chrome-stack` is what makes the state frames overlay the resting one;
+  // see the primitive for why that cannot live in this screen's own rules.
+  const className = wide ? 'nav-button chrome-stack nav-button--wide' : 'nav-button chrome-stack';
 
   if (current) {
     // Still a button, and still focusable. `aria-current` is what says "you are
@@ -73,12 +75,12 @@ function NavButton({
 
   return (
     <button type="button" className={className} aria-label={label} onClick={onClick}>
-      <ChromeArt clip={clip} frame={frames.rest} className="nav-button__face nav-button__face--rest" />
-      <ChromeArt clip={clip} frame={frames.hover} className="nav-button__face nav-button__face--hover" />
+      <ChromeArt clip={clip} frame={frames.rest} className="nav-button__face" />
+      <ChromeArt clip={clip} frame={frames.hover} className="nav-button__face chrome-art--face chrome-art--face--hover" />
       <ChromeArt
         clip={clip}
         frame={frames.pressed}
-        className="nav-button__face nav-button__face--pressed"
+        className="nav-button__face chrome-art--face chrome-art--face--pressed"
       />
     </button>
   );

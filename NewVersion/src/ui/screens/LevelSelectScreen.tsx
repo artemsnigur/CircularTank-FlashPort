@@ -153,7 +153,7 @@ function DifficultyPicker(): React.ReactElement {
           <button
             key={option}
             type="button"
-            className={`difficulty__button${selected ? ' difficulty__button--on' : ''}`}
+            className={`difficulty__button chrome-stack${selected ? ' difficulty__button--on' : ''}`}
             aria-pressed={selected}
             aria-label={option}
             onClick={() => GameEvents.emit('ui:set-difficulty', { difficulty: option })}
@@ -171,7 +171,7 @@ function DifficultyPicker(): React.ReactElement {
             <ChromeArt
               clip={DIFFICULTY_CLIP[option]}
               frame={DIFFICULTY_FRAMES.hover}
-              className="difficulty__face difficulty__face--hover"
+              className="difficulty__face chrome-art--face chrome-art--face--hover"
             />
           </button>
         );
@@ -395,7 +395,7 @@ function LevelDetail({
 
       <button
         type="button"
-        className="levels__play"
+        className="levels__play chrome-stack"
         disabled={!entry || !entry.unlocked}
         aria-label={
           entry && entry.unlocked ? `Play level ${world}-${entry.level}` : 'No level selected'
@@ -405,8 +405,8 @@ function LevelDetail({
         }
       >
         <ChromeArt clip="ButtonPlayLevel" frame={1} className="levels__play-face" />
-        <ChromeArt clip="ButtonPlayLevel" frame={2} className="levels__play-face levels__play-face--hover" />
-        <ChromeArt clip="ButtonPlayLevel" frame={3} className="levels__play-face levels__play-face--pressed" />
+        <ChromeArt clip="ButtonPlayLevel" frame={2} className="levels__play-face chrome-art--face chrome-art--face--hover" />
+        <ChromeArt clip="ButtonPlayLevel" frame={3} className="levels__play-face chrome-art--face chrome-art--face--pressed" />
       </button>
 
       <DifficultyPicker />

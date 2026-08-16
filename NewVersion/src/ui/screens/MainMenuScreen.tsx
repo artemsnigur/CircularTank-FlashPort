@@ -73,7 +73,7 @@ export function MainMenuScreen(): React.ReactElement | null {
 
           <button
             type="button"
-            className="menu-play"
+            className="menu-play chrome-stack"
             aria-label={resume.level > 1 ? `Continue at level ${resume.level}` : 'Play'}
             onClick={() =>
               GameEvents.emit('ui:start-game', {
@@ -84,8 +84,8 @@ export function MainMenuScreen(): React.ReactElement | null {
             }
           >
             <ChromeArt clip="ButtonPlay" frame={1} className="menu-play__face" />
-            <ChromeArt clip="ButtonPlay" frame={2} className="menu-play__face menu-play__face--hover" />
-            <ChromeArt clip="ButtonPlay" frame={3} className="menu-play__face menu-play__face--pressed" />
+            <ChromeArt clip="ButtonPlay" frame={2} className="menu-play__face chrome-art--face chrome-art--face--hover" />
+            <ChromeArt clip="ButtonPlay" frame={3} className="menu-play__face chrome-art--face chrome-art--face--pressed" />
           </button>
 
           {/* Resolved by MainMenuScene from the same progress table LevelSelect
