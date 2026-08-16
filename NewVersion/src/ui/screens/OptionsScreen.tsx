@@ -24,6 +24,7 @@
  */
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
+import { ScreenShell } from '../ScreenShell';
 import { AudioToggles } from '../AudioToggles';
 import { VolumeSliders } from '../VolumeSliders';
 import type { GameplayOptions } from '../../game/options/gameplayOptions';
@@ -64,18 +65,7 @@ export function OptionsScreen(): React.ReactElement | null {
   if (activeScene !== 'Options') return null;
 
   return (
-    <div className="screen screen--options">
-      <header className="screen__header">
-        <button
-          type="button"
-          className="menu__button menu__button--ghost"
-          onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
-        >
-          ‹ Menu
-        </button>
-        <h2 className="screen__title">Options</h2>
-      </header>
-
+    <ScreenShell title="Options" titleClip="TitleOptions" nav="Options" className="screen--options">
       <ul className="options__list">
         {CONTROLS.map(({ key, label, hint }) => (
           <li key={key} className="options__row">
@@ -109,6 +99,6 @@ export function OptionsScreen(): React.ReactElement | null {
         */}
         <VolumeSliders />
       </section>
-    </div>
+    </ScreenShell>
   );
 }

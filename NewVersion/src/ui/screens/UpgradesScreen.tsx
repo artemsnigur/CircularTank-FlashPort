@@ -10,6 +10,7 @@
  */
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
+import { ScreenShell } from '../ScreenShell';
 import { formatNumber } from '../../game/core/Functions';
 import { useInfoText } from '../useInfoText';
 import { LevelGuideWidget } from '../LevelGuideWidget';
@@ -180,20 +181,27 @@ export function UpgradesScreen(): React.ReactElement | null {
   const rows = shop?.upgrades ?? [];
 
   return (
-    <div className="screen screen--shop">
-      <header className="screen__header">
-        <button
-          type="button"
-          className="menu__button menu__button--ghost"
-          onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
-        >
-          ‹ Menu
-        </button>
-        <h2 className="screen__title">Upgrades</h2>
-        <span className="shop__balance" aria-label="Coins">
-          ◉ {formatNumber(shop?.money ?? 0)}
-        </span>
-      </header>
+    <ScreenShell
+      title="Upgrades"
+      titleClip="TitleUpgrades"
+      nav="Upgrades"
+      className="screen--shop"
+      /*
+       * No `affordable` here, deliberately. `ButtonUpgrades`' 7 frames carry a
+       * "you can afford something" state (`makeIcon`), but frame 7 — you are
+       * here — is not shifted by it, so on *this* screen the flag can change
+       * nothing. It matters on the other four, whose tab points at a shop they
+       * cannot see the money for; the store's catalogue is published by
+       * `UpgradesScene` and is not populated elsewhere yet, so wiring it is
+       * T158's, where that data lives. `navTabs.ts` already implements the
+       * rule and is tested against the AS3.
+       */
+    >
+      {/* `ScreenUpgrades.as` puts the money readout top-right of the content,
+          not in the title bar — the bar is the title's. */}
+      <p className="shop__balance" aria-label="Coins">
+        ◉ {formatNumber(shop?.money ?? 0)}
+      </p>
 
       {/* `ScreenUpgrades.as:631-634` places the guide inside the shop's own
           content holder, below the rows. Ours sits under the header so it is
@@ -242,16 +250,9 @@ export function UpgradesScreen(): React.ReactElement | null {
         </button>
       )}
 
-      <div className="shop__exits">
-        <button
-          type="button"
-          className="menu__button menu__button--primary"
-          onClick={() => GameEvents.emit('ui:goto', { key: 'LevelSelect' })}
-        >
-          Level select ›
-        </button>
-      </div>
-
-    </div>
+      {/* The "Level select ›" exit is gone: the bottom bar carries that move
+          now, on the tab the original uses for it (`BottomBar.as:47`). Two
+          controls for one destination is how they drift. */}
+    </ScreenShell>
   );
 }

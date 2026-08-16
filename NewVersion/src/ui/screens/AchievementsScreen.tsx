@@ -25,7 +25,7 @@
  * mark and the difficulty vary.
  */
 import { useGameStore } from '../../state/gameStore';
-import { GameEvents } from '../../game/events/GameEvents';
+import { ScreenShell } from '../ScreenShell';
 import { useInfoText } from '../useInfoText';
 import { siteCorner } from '../../game/ui/infoTextSites';
 import { achievementTooltip } from '../../game/achievements/achievementTooltip';
@@ -96,26 +96,24 @@ export function AchievementsScreen(): React.ReactElement | null {
   const total = board?.total ?? 0;
 
   return (
-    <div className="screen screen--achievements">
-      <header className="screen__header">
-        <button
-          type="button"
-          className="menu__button menu__button--ghost"
-          onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
-        >
-          ‹ Menu
-        </button>
-        <h2 className="screen__title">Achievements</h2>
-        <span aria-label={`${earned} of ${total} earned`}>
-          {earned} / {total}
-        </span>
-      </header>
+    <ScreenShell
+      title="Achievements"
+      titleClip="TitleAchievements"
+      nav="Achievements"
+      className="screen--achievements"
+    >
+      {/* The count keeps its place at the top of the content, where the "‹ Menu"
+          button used to sit beside it. Menu now lives in the bottom bar, as it
+          does in the original — `BottomBar.as:63`. */}
+      <p className="screen__count" aria-label={`${earned} of ${total} earned`}>
+        {earned} / {total}
+      </p>
 
       <ul className="achievements__grid">
         {entries.map((entry) => (
           <AchievementCell key={entry.id} entry={entry} />
         ))}
       </ul>
-    </div>
+    </ScreenShell>
   );
 }

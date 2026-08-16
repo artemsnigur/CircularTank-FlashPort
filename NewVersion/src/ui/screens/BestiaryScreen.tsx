@@ -12,6 +12,7 @@
  */
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
+import { ScreenShell } from '../ScreenShell';
 import { ResistanceIcon } from '../ResistanceIcon';
 import { EnemyTile } from '../EnemyTile';
 import type { ResistanceBadge } from '../../game/enemies/resistanceIcons';
@@ -141,20 +142,19 @@ export function BestiaryScreen(): React.ReactElement | null {
   const total = bestiary?.total ?? 0;
 
   return (
-    <div className="screen screen--bestiary">
-      <header className="screen__header">
-        <button
-          type="button"
-          className="menu__button menu__button--ghost"
-          onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
-        >
-          ‹ Menu
-        </button>
-        <h2 className="screen__title">Bestiary</h2>
-        <span className="bestiary__count" aria-label={`${knownCount} of ${total} enemies known`}>
-          {knownCount} / {total}
-        </span>
-      </header>
+    <ScreenShell
+      title="Enemies"
+      titleClip="TitleEnemies"
+      nav="Enemies"
+      className="screen--bestiary"
+    >
+      {/* The title art says "ENEMIES" because that is what `TitleEnemies`
+          draws and what `ScreenEnemies.as` is called. The port's own name for
+          this screen stays "Bestiary" in the code, where it distinguishes the
+          player-facing view from `EnemiesScreen`, the development board. */}
+      <p className="screen__count" aria-label={`${knownCount} of ${total} enemies known`}>
+        {knownCount} / {total}
+      </p>
 
       {bestiary && <ViewControls view={bestiary.view} />}
 
@@ -212,6 +212,6 @@ export function BestiaryScreen(): React.ReactElement | null {
       <p className="screen__hint">
         Clearing a level reveals the enemies waiting in the next one.
       </p>
-    </div>
+    </ScreenShell>
   );
 }

@@ -12,6 +12,7 @@
 import { useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
+import { ScreenShell } from '../ScreenShell';
 import { LEVELS } from '../../game/levels/levelData';
 import { Difficulties as DIFFICULTIES, Worlds } from '../../game/config/constants';
 import { MAX_LEVEL_VALUE } from '../../game/levels/levelProgress';
@@ -321,15 +322,30 @@ export function LevelSelectScreen(): React.ReactElement | null {
   const medals = levels.reduce((sum, l) => sum + l.value, 0);
 
   return (
-    <div className="screen screen--levels">
-      <header className="screen__header">
+    <ScreenShell
+      title="Level select"
+      titleClip="TitleLevelSelect"
+      nav="LevelSelect"
+      className="screen--levels"
+    >
+      {/*
+        The world name and the way back out.
+
+        These stay in the content rather than moving into the title bar: the
+        bar carries `TitleLevelSelect`, which is fixed art, and the world is a
+        changing value. `ScreenLevelSelect.as:421` likewise draws `worldText`
+        below the title, not in it.
+
+        "Back" still means "up one level of this screen" — out to the world
+        picker from a grid, out to the menu from the picker — which is
+        `ButtonWorldSelect`'s job (`:692`, likewise hidden while the picker
+        shows). The bottom bar's Menu button is the other exit, and they do
+        different things.
+      */}
+      <div className="levels__heading">
         <button
           type="button"
-          className="menu__button menu__button--ghost"
-          // Back means "up one level of the screen": out to the world picker
-          // from a grid, out to the menu from the picker. `ButtonWorldSelect`
-          // is the AS3's equivalent and is likewise absent while the picker is
-          // showing (`:692`).
+          className="chrome-pill chrome-pill--dark"
           onClick={() =>
             showingPicker
               ? GameEvents.emit('ui:goto', { key: 'MainMenu' })
@@ -338,10 +354,10 @@ export function LevelSelectScreen(): React.ReactElement | null {
         >
           {showingPicker ? '‹ Back' : '‹ Worlds'}
         </button>
-        <h2 className="screen__title">
+        <h2 className="screen__subtitle">
           {showingPicker ? 'Choose a world' : (listing?.worldName ?? 'Loading…')}
         </h2>
-      </header>
+      </div>
 
       <DifficultyPicker />
 
@@ -376,6 +392,6 @@ export function LevelSelectScreen(): React.ReactElement | null {
       )}
 
       {import.meta.env.DEV && <DevLevelJump />}
-    </div>
+    </ScreenShell>
   );
 }

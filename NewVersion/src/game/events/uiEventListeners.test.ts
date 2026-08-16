@@ -176,11 +176,41 @@ describe('every scene offers a way out', () => {
 });
 
 describe('the shop', () => {
-  it('offers an exit that does not depend on scrolling', () => {
-    // The Back button existed but sat in a scrolling header, so it left the
-    // viewport once the 28-row catalogue was scrolled.
+  /**
+   * **The requirement outlived its mechanism, and this test had pinned the
+   * mechanism.**
+   *
+   * The original defect: the shop's Back button sat in a scrolling header, so
+   * it left the viewport once the 28-row catalogue was scrolled and there was
+   * no way out. The fix at the time was `position: sticky` on that header, and
+   * this test asserted exactly that CSS.
+   *
+   * T156 removed the header entirely — the exit moved into the bottom
+   * navigation bar, where `BottomBar.as` puts it. The guarantee is stronger
+   * than before: the bar is a **grid row**, outside the scrolling body, so it
+   * cannot leave the viewport rather than being pinned back into it. But the
+   * old assertion failed, and deleting it would have taken the guarantee with
+   * it.
+   *
+   * So it is restated against the new mechanism. Source-shape, and flagged as
+   * such: it proves the layout is *written* this way, not that anything is
+   * reachable on a real viewport.
+   */
+  it('keeps an exit outside the scrolling area', () => {
     const css = read('src/styles/global.css');
-    expect(css).toContain('.screen--shop .screen__header');
-    expect(css).toMatch(/\.screen--shop \.screen__header \{[^}]*position: sticky/);
+
+    // Three rows: title bar, body, navigation. Only the middle one flexes.
+    expect(css).toMatch(/\.screen-shell \{[^}]*grid-template-rows: auto 1fr auto/);
+    // ...and the scroller is the body, not the shell, so the bars sit outside it.
+    expect(css).toMatch(/\.screen-shell__body \{[^}]*overflow-y: auto/);
+
+    // The shop is one of the screens that uses it.
+    expect(read('src/ui/screens/UpgradesScreen.tsx')).toContain('<ScreenShell');
+  });
+
+  it('and the bar it moved into carries a route to the menu', () => {
+    // The counterpart: a layout that reserves a row for navigation proves
+    // nothing if the navigation has no way out of the shop.
+    expect(read('src/ui/BottomNav.tsx')).toContain("key: 'MainMenu'");
   });
 });

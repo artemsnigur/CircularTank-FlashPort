@@ -324,9 +324,9 @@ body {
   padding-bottom: 3rem;
 }
 
+/* The shell owns this screen's layout now — grid rows, background and scroll.
+   Only the blur is the screen's own, and it survives the move. */
 .screen--levels {
-  justify-content: flex-start;
-  /* Inherits the opaque background from `.screen` now. */
   backdrop-filter: blur(2px);
 }
 
@@ -1258,13 +1258,9 @@ code {
 /* The shop scrolls, and its header scrolls with it — with 28 upgrade rows the
    Back button left the viewport entirely and there was no way out. Pinned so
    an exit is always reachable. */
-.screen--shop .screen__header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 0.5rem 0;
-  background: var(--surface);
-}
+/* The sticky header this rule pinned is gone: T156 moved the exit into the
+   bottom bar, which is always on screen by construction, so there is nothing
+   left to pin. `.screen-shell__body` is the scroller now. */
 
 .shop__balance {
   margin-left: auto;
@@ -1708,14 +1704,8 @@ code {
    Locked rows stay in place rather than being hidden: the gaps are the point,
    and a list that grows in the middle reads as progress. Only the name and
    description are withheld, and they are withheld at the *scene*, not here. */
-.screen--bestiary { overflow-y: auto; }
-.screen--bestiary .screen__header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 0.5rem 0;
-  background: var(--surface);
-}
+/* No `overflow-y` here any more — `.screen-shell__body` is the scroller, and
+   two nested ones give a list that scrolls inside a page that also scrolls. */
 .bestiary__count { margin-left: auto; font-size: var(--text-xs); color: var(--text-dim); }
 .bestiary__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
 .bestiary-row {
@@ -1826,6 +1816,215 @@ code {
   /* Position and size come from the inline style; nothing here may override
      them, which is why there is no `inset` or `width: 100%` in this rule. */
   display: block;
+}
+
+/*
+ * ── The screen shell ───────────────────────────────────────────────────────
+ *
+ * Title bar at the top, navigation at the bottom, content between — the
+ * arrangement every menu screen in the original shares.
+ *
+ * **Grid rather than flex**, so the middle row is the only one that flexes and
+ * the two bars keep their intrinsic heights. A flex column with `flex: 1` on
+ * the body gives the same result until the body overflows, at which point the
+ * bars start shrinking; a shrinking navigation bar is a bug that only appears
+ * on a small screen with a long list, which is where nobody looks.
+ */
+.screen-shell {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  /* `flex: 1` and not `height: 100%`: the shell is a child of the flex-column
+     `.app__overlay`, and a percentage height there resolves against a box the
+     overlay's padding has already shrunk. */
+  flex: 1;
+  min-height: 0;
+  /*
+   * **`pointer-events: auto` is load-bearing, not tidiness.** `.app__overlay`
+   * is `pointer-events: none` so taps reach the canvas, and `.screen` — which
+   * these screens no longer carry — was what turned them back on. Without this
+   * line the whole shell is click-through: the bar, the tabs and every control
+   * inside would render perfectly and do nothing.
+   *
+   * The overlay does re-enable pointers on `button`, `a` and `[role=button]`,
+   * which is why a jsdom test would not notice: those selectors cover the
+   * controls, and nothing in a test tries to click a panel.
+   */
+  pointer-events: auto;
+  /* Opaque over the live arena, for the reason `.screen` states at length: a
+     transparent menu over a dark canvas leaves dim text unreadable. */
+  /* The sheen — `BackgroundSquareBig` (901), white at 25% over the ground.
+     A gradient rather than the shape, because it has to cover the viewport. */
+  background: var(--panel-sheen), var(--bg);
+}
+
+.screen-shell__bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  /* `BackgroundTitle` is one 20x20 tile stretched to 640x88 — a flat black
+     band. Reproduced as a colour so it spans any width; the art would need a
+     second rule to stretch and would look identical. */
+  background: var(--steel-900);
+  border-bottom: 2px solid var(--steel-700);
+}
+
+.screen-shell__shield {
+  width: 2.25rem;
+  flex: none;
+}
+
+/*
+ * The title is centred in the bar, not after the shield.
+ *
+ * `ScreenMenu.as:224` puts it at x 320 — the stage centre — with the shield
+ * and its neighbours drawn over the same bar. Centring absolutely reproduces
+ * that at any width, and keeps the title from sliding when the shield's
+ * frame changes size.
+ *
+ * `max-width` in `ch` units is deliberate: the widest title is
+ * `TitleAchievements` at 453 units against `TitleDefeat`'s 223, so a single
+ * fixed width would either crop one or waste half the bar for the other.
+ * Each keeps its own aspect ratio and takes what it needs up to the cap.
+ */
+.screen-shell__title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  height: 2rem;
+  max-width: calc(100% - 6rem);
+}
+
+.screen-shell__title .chrome-art__layer {
+  /* The title's single layer fills its box; with `height` driving the box,
+     width has to follow the aspect ratio rather than the inline percentage. */
+  height: 100%;
+  width: auto;
+}
+
+.screen-shell__body {
+  position: relative;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4);
+}
+
+/* A screen's own count or balance, at the top of its content — the readouts
+   the header used to hold before the title bar took that row. */
+.screen__count,
+.shop__balance {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+/* Level select's world name and its way back out, side by side under the
+   title bar — `ScreenLevelSelect.as:421` draws `worldText` below the title. */
+.levels__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.screen__subtitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+/*
+ * ── The bottom navigation ──────────────────────────────────────────────────
+ *
+ * `BottomBar.as` puts two 200-wide tabs at x 5 and 209 and then an icon row at
+ * a 45px pitch from 413, on a 640-wide stage. The proportions are kept and the
+ * absolute coordinates are not: the tabs take the space they need at the left,
+ * the icons sit at the right, and the gap between them absorbs the difference.
+ */
+.bottom-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  padding-bottom: calc(var(--space-2) + var(--safe-bottom));
+  background: var(--steel-900);
+  border-top: 2px solid var(--steel-700);
+}
+
+.bottom-nav__tabs,
+.bottom-nav__icons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.nav-button {
+  position: relative;
+  display: block;
+  flex: none;
+  /* The art carries the whole button; the element is a hit target and a
+     stacking context and nothing else. */
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  /* The icons are 40 units square in the SWF and the wide tabs 200x40, so one
+     height keeps the row aligned and each width follows its aspect ratio. */
+  height: 2.5rem;
+}
+
+.nav-button > .chrome-art {
+  height: 100%;
+  width: auto;
+}
+
+.nav-button--wide {
+  /* 200x40 — five times as wide as tall. Capped so two tabs plus four icons
+     still fit a narrow phone; below that the row wraps rather than clipping. */
+  max-width: 40vw;
+}
+
+.nav-button[aria-current='page'] {
+  cursor: default;
+}
+
+/*
+ * Rest, hover and pressed are three stacked copies, cross-faded.
+ *
+ * The rest frame is in flow and sets the button's size; the other two are
+ * absolute over it. That way a frame whose art is a different size cannot
+ * change the button's width as it lights up.
+ */
+.nav-button__face--hover,
+.nav-button__face--pressed {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.nav-button:hover .nav-button__face--hover,
+.nav-button:focus-visible .nav-button__face--hover {
+  opacity: 1;
+}
+
+.nav-button:active .nav-button__face--pressed {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-button__face--hover,
+  .nav-button__face--pressed {
+    transition: none;
+  }
 }
 
 /*
