@@ -13,9 +13,11 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 import { ScreenShell } from './ScreenShell';
 import { BottomNav } from './BottomNav';
 import { GameEvents } from '../game/events/GameEvents';
+import { useGameStore } from '../state/gameStore';
 
 afterEach(() => {
   GameEvents.removeAllListeners();
+  useGameStore.setState({ shopAffordable: false });
 });
 
 describe('ScreenShell', () => {
@@ -141,12 +143,27 @@ describe('BottomNav', () => {
     expect(art?.getAttribute('data-frame')).toBe('7');
   });
 
+  /**
+   * The affordance hint comes from the store now, not a prop — every screen
+   * that shows the bar publishes it as it opens, so the bar asks rather than
+   * being told and no screen can forget to forward it.
+   *
+   * Both states, on the same query: a bar wired to a constant passes either
+   * one alone.
+   */
   it('shifts the Upgrades tab to its affordable frames from another screen', () => {
-    const { container } = render(<BottomNav current="LevelSelect" affordable />);
-    const rest = container.querySelector(
-      '.bottom-nav__tabs button:first-child .chrome-art',
-    );
+    const firstTab = (container: HTMLElement): string | null | undefined =>
+      container
+        .querySelector('.bottom-nav__tabs button:first-child .chrome-art')
+        ?.getAttribute('data-frame');
+
+    useGameStore.setState({ shopAffordable: false });
+    const { container: plain } = render(<BottomNav current="LevelSelect" />);
+    expect(firstTab(plain)).toBe('1');
+
+    useGameStore.setState({ shopAffordable: true });
+    const { container: flush } = render(<BottomNav current="LevelSelect" />);
     // `:78` — `gotoAndStop(1 + extraFrames)` with `extraFrames = 3`.
-    expect(rest?.getAttribute('data-frame')).toBe('4');
+    expect(firstTab(flush)).toBe('4');
   });
 });

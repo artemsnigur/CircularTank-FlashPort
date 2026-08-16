@@ -1452,22 +1452,74 @@ code {
    bottom bar, which is always on screen by construction, so there is nothing
    left to pin. `.screen-shell__body` is the scroller now. */
 
-.shop__balance {
-  margin-left: auto;
-  font-family: var(--font-display);
-  font-variant-numeric: tabular-nums;
+/*
+ * The money and the two slots, on one line above the catalogue.
+ *
+ * Green, because that is the AS3's own colour for it: `addText(moneyText, …,
+ * 65280, …)` in `PartInterface` and the same in `ScreenUpgrades`. It is the
+ * one number on this screen the player is spending against, and it reads as
+ * the *resource* rather than as another stat.
+ */
+.shop__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
 }
 
+.shop__balance {
+  margin: 0 0 0 auto;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--ok);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+}
+
+.shop__slots {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.shop__slot {
+  padding: var(--space-1) var(--space-3);
+  border: 2px solid var(--steel-900);
+  border-radius: 4px;
+  background: var(--tab-inactive);
+  font-family: var(--font-display);
+  text-align: left;
+}
+
+.shop__slot dt {
+  font-size: var(--text-3xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.shop__slot dd {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--text);
+}
+
+/* Each category on its own silver plate — `PRIMARY WEAPONS`, `SPECIAL
+   WEAPONS`, `MISCELLANEOUS` are three separate panels in the original. */
 .shop-section {
-  margin: 0 0 1.25rem;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
 }
 
 .shop-section__title {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
   font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--text-dim);
+  /* On the metallic plate, so dark ink — the panel's own foreground rather
+     than the screen's. */
+  color: var(--panel-metal-ink);
 }
 
 .shop-list {
@@ -1478,17 +1530,22 @@ code {
   gap: 0.4rem;
 }
 
+/*
+ * One upgrade, as a dark well on the category's silver plate.
+ *
+ * The border is 2px and black rather than a hairline: the row now sits on a
+ * *light* surface, so the old reasoning — "a card on a near-black ground needs
+ * a hairline to exist" — has inverted along with the palette.
+ */
 .shop-row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 6px;
   background: var(--surface);
-  /* `--surface` sits only a few percent above `--bg`, which is the point of a
-     quiet palette — but it means a card needs a hairline to exist at all. On
-     the dark theme the fill alone was enough. */
-  border: 1px solid var(--border);
+  border: 2px solid var(--steel-900);
+  color: var(--text);
 }
 
 .shop-row__info {
@@ -2403,11 +2460,21 @@ code {
   top: 50%;
 }
 
+/*
+ * The shop tile — `ButtonWeapon`'s art, which is **round**.
+ *
+ * The plate inside the artwork is a disc, so the box around it gets a matching
+ * radius and a dark ring: on the silver category panel the tile's own dark
+ * edge is what separates it from the plate, and a square box around round art
+ * showed the panel through its corners.
+ */
 .upgrade-icon {
   position: relative;
   display: inline-block;
   flex: none;
   align-self: center;
+  border-radius: 50%;
+  background: var(--steel-900);
 }
 .upgrade-icon__layer {
   position: absolute;

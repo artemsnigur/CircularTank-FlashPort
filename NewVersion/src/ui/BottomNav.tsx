@@ -16,6 +16,7 @@
  * implementation would have had to remember to do.
  */
 import { GameEvents } from '../game/events/GameEvents';
+import { useGameStore } from '../state/gameStore';
 import { ChromeArt } from './ChromeArt';
 import type { ChromeClipName } from './ChromeArt';
 import { MENU_FRAMES, isNavigable, navFrames } from '../game/ui/navTabs';
@@ -85,13 +86,18 @@ function NavButton({
 
 export function BottomNav({
   current,
-  affordable = false,
 }: {
   /** The destination the player is on, so exactly one tab marks itself. */
   current: NavDestination | null;
-  /** `ButtonUpgrades`' `makeIcon` — anything affordable in the shop. */
-  affordable?: boolean;
 }): React.ReactElement {
+  /*
+   * Read here rather than passed in. Every screen that shows this bar
+   * publishes the flag as it opens (`publishAffordable`), so the bar can ask
+   * the store directly — and a screen cannot forget to forward a prop it never
+   * has to hold.
+   */
+  const affordable = useGameStore((s) => s.shopAffordable);
+
   const go = (destination: NavDestination) => () =>
     GameEvents.emit('ui:goto', { key: SCENE_FOR[destination] });
 

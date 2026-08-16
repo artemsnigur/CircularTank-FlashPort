@@ -30,7 +30,6 @@ export function ScreenShell({
   title,
   titleClip,
   nav,
-  affordable,
   className,
   children,
 }: {
@@ -39,7 +38,6 @@ export function ScreenShell({
   titleClip: ChromeClipName;
   /** Which nav item is current, or null for a screen outside the bar. */
   nav: NavDestination | null;
-  affordable?: boolean;
   className?: string;
   children: React.ReactNode;
 }): React.ReactElement {
@@ -55,7 +53,7 @@ export function ScreenShell({
 
       <div className="screen-shell__body">{children}</div>
 
-      {nav === null ? null : <BottomNav current={nav} affordable={affordable} />}
+      {nav === null ? null : <BottomNav current={nav} />}
     </div>
   );
 }

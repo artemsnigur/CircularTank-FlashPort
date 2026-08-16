@@ -28,6 +28,7 @@
  * The per-upgrade description text and the stat previews.
  */
 import Phaser from 'phaser';
+import { publishAffordable } from '../upgrades/affordability';
 import { SceneKeys } from '../config/constants';
 import { GameEvents } from '../events/GameEvents';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
@@ -139,6 +140,10 @@ export class UpgradesScene extends Phaser.Scene {
       GameEvents.emit('scene:shutdown', { key: SceneKeys.Upgrades });
     });
 
+    // The bottom bar's Upgrades tab shows a different frame when something is
+    // affordable — `ButtonUpgrades`' `makeIcon`. The AS3's button reads a
+    // global for this; here each screen that shows the bar publishes it.
+    publishAffordable(this);
     GameEvents.emit('scene:ready', { key: SceneKeys.Upgrades });
   }
 

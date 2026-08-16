@@ -466,6 +466,18 @@ export interface GameEventMap {
    */
   'ui:bestiary-view': BestiaryView;
 
+  /**
+   * `ButtonUpgrades`' `makeIcon` — is anything in the shop affordable.
+   *
+   * **Separate from `upgrades:listed`, and emitted from every menu scene**,
+   * because the bottom bar asks this on screens that never build a catalogue.
+   * In the AS3 the button computes it for itself in `added()` off
+   * `ScreenUpgrades`' statics, which are global; the port has no equivalent
+   * global for React, so each screen that shows the bar publishes the answer
+   * as it opens. One line per scene, over one shared rule.
+   */
+  'upgrades:affordable': { affordable: boolean };
+
   'upgrades:listed': {
     /** How many upgrades exist but are unported, so the shop can say so. */
     withheld?: number;

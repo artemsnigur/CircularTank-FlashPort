@@ -225,6 +225,8 @@ export interface GameState {
 
   /** The shop catalogue, published by UpgradesScene. */
   shop: ShopCatalogue | null;
+  /** `ButtonUpgrades`' `makeIcon` — anything in the shop within reach. */
+  shopAffordable: boolean;
   bestiary: BestiaryListing | null;
   /** The shop's level guide widget — `LevelGuide.as`. */
   levelGuide: GameEventMap['level-guide:changed'] | null;
@@ -302,6 +304,7 @@ export interface GameState {
   setSlotList: (slots: SlotSummary[]) => void;
   setSlotPickerOpen: (open: boolean) => void;
   setShop: (shop: ShopCatalogue) => void;
+  setShopAffordable: (affordable: boolean) => void;
   setBestiary: (bestiary: BestiaryListing) => void;
   setLevelGuide: (guide: GameEventMap['level-guide:changed']) => void;
   setResumePoint: (point: { world: number; level: number }) => void;
@@ -351,6 +354,7 @@ const initialRunState = {
   slotList: null as SlotSummary[] | null,
   slotPickerOpen: false,
   shop: null as ShopCatalogue | null,
+  shopAffordable: false,
   bestiary: null as BestiaryListing | null,
   levelGuide: null as GameEventMap['level-guide:changed'] | null,
   resumePoint: null as { world: number; level: number } | null,
@@ -435,6 +439,7 @@ export const useGameStore = create<GameState>()((set) => ({
   setSlotList: (slotList) => set({ slotList }),
   setSlotPickerOpen: (slotPickerOpen) => set({ slotPickerOpen }),
   setShop: (shop) => set({ shop }),
+  setShopAffordable: (shopAffordable) => set({ shopAffordable }),
   setBestiary: (bestiary) => set({ bestiary }),
   setLevelGuide: (levelGuide) => set({ levelGuide }),
   setResumePoint: (resumePoint) => set({ resumePoint }),

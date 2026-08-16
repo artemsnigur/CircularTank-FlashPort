@@ -6,8 +6,11 @@ import {
   PRIMARY_UPGRADES,
   SECONDARY_UPGRADES,
 } from './upgradeData';
+import type { UpgradeSpec } from './upgradeData';
+import type { UpgradeState } from './upgradeState';
 import {
   canAfford,
+  canAffordAnyUpgrade,
   countMaxedPrimary,
   countMaxedSecondary,
   countOwned,
@@ -326,5 +329,51 @@ describe('maxedUpgradeState (dev affordance)', () => {
     const state = maxedUpgradeState();
     expect(countMaxedPrimary(state)).toBe(PRIMARY_UPGRADES.length);
     expect(countMaxedSecondary(state)).toBe(SECONDARY_UPGRADES.length);
+  });
+});
+
+describe('the shop-wide affordance — ButtonUpgrades makeIcon', () => {
+  /**
+   * `ButtonUpgrades.as:126-197` asks the same question of three categories:
+   * is anything both un-maxed and within the player's money. The tab's frame
+   * — and its `IconEnough` badge — hang off the answer.
+   *
+   * Driven at the two boundaries around a single upgrade's price, because
+   * "some upgrade is cheap enough" is trivially true on a rich profile and
+   * trivially false on a broke one; the interesting case is the exact edge.
+   */
+  /**
+   * The cheapest *next* level from a given state — **not** `prices[0]`.
+   *
+   * Worth spelling out because the first version of this test used
+   * `prices[0]` and failed: some primaries start already owned, so their next
+   * cost is `prices[1]`, and the minimum over `prices[0]` was a price no
+   * upgrade was actually asking. The rule was right and the fixture was
+   * cheaper than reality.
+   */
+  const cheapestNext = (state: UpgradeState, specs: readonly UpgradeSpec[]): number =>
+    Math.min(...specs.map((spec) => nextLevelCost(state, spec) ?? Infinity));
+
+  it('is false with a coin less than the cheapest upgrade, and true with exactly enough', () => {
+    const specs = PRIMARY_UPGRADES;
+    const base = createInitialUpgradeState();
+    const price = cheapestNext(base, specs);
+
+    expect(canAffordAnyUpgrade({ ...base, money: price - 1 }, specs)).toBe(false);
+    // `canAfford` is `money >= cost`, so exact change buys.
+    expect(canAffordAnyUpgrade({ ...base, money: price }, specs)).toBe(true);
+  });
+
+  it('is false when everything is maxed, however much money there is', () => {
+    // The `level < maxLevel` half of the AS3's condition. Without it a maxed
+    // profile with money would light the tab up forever, pointing at a shop
+    // with nothing left to sell.
+    expect(canAffordAnyUpgrade(maxedUpgradeState(9_999_999), PRIMARY_UPGRADES)).toBe(false);
+    expect(canAffordAnyUpgrade(maxedUpgradeState(9_999_999), ALL_UPGRADES)).toBe(false);
+  });
+
+  it('is false for an empty catalogue, not true by vacuous default', () => {
+    const rich = { ...createInitialUpgradeState(), money: 9_999_999 };
+    expect(canAffordAnyUpgrade(rich, [])).toBe(false);
   });
 });

@@ -110,6 +110,26 @@ export function canAfford(state: UpgradeState, spec: UpgradeSpec): boolean {
   return cost !== null && state.money >= cost;
 }
 
+/**
+ * Is anything in the shop both un-maxed and within reach — `ButtonUpgrades`'
+ * `makeIcon`.
+ *
+ * The AS3 asks this in three near-identical loops, one per category
+ * (`checkWeapons`, `checkSecondaryWeapons`, `checkMisc`, `:126-197`), each
+ * testing `levelsArray[i] < levelsMaxArray[i] && money >= prices[level]`. That
+ * is `canAfford` above, three times over three arrays, and the answer decides
+ * whether the bottom bar's Upgrades tab shows its "you can spend something"
+ * frames and its `IconEnough` badge.
+ *
+ * **Built on `canAfford` rather than beside it.** KNIP.md records that helper
+ * as one of three tested rules whose callers reimplement them inline; this is
+ * the shape that fix takes — a second caller of the existing rule, not a
+ * fourth copy of the comparison.
+ */
+export function canAffordAnyUpgrade(state: UpgradeState, specs: readonly UpgradeSpec[]): boolean {
+  return specs.some((spec) => canAfford(state, spec));
+}
+
 export interface PurchaseResult {
   /** False when maxed or unaffordable; `state` is then returned unchanged. */
   purchased: boolean;

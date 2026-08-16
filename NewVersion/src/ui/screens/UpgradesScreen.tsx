@@ -92,6 +92,33 @@ function EquipControls({ row }: { row: ShopRow }): React.ReactElement | null {
   );
 }
 
+/**
+ * `SLOT 1 | SLOT 2` — the two primary slots and what is in them.
+ *
+ * `ScreenUpgrades` draws these as a pair of readouts beside the weapon grid,
+ * and they are the answer to "what am I actually taking into a level", which
+ * the per-row slot buttons can only give one row at a time.
+ *
+ * **A readout, not a control.** Equipping still happens on the row, where the
+ * weapon being equipped is named and pictured; a second place to change it
+ * would be a second rule about what an empty slot means. `ScreenGame.as`'s own
+ * `equippedWeapons` is likewise displayed here and set elsewhere.
+ */
+function SlotSummary({ rows }: { rows: ShopRow[] }): React.ReactElement {
+  const inSlot = (slot: 1 | 2): string => rows.find((r) => r.slot === slot)?.name ?? 'Empty';
+
+  return (
+    <dl className="shop__slots">
+      {([1, 2] as const).map((slot) => (
+        <div key={slot} className="shop__slot">
+          <dt>Slot {slot}</dt>
+          <dd>{inSlot(slot)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function UpgradeRow({ row }: { row: ShopRow }): React.ReactElement {
   const maxed = row.cost === null;
   const label = maxed ? 'MAX' : `${formatNumber(row.cost ?? 0)}`;
@@ -197,11 +224,21 @@ export function UpgradesScreen(): React.ReactElement | null {
        * rule and is tested against the AS3.
        */
     >
-      {/* `ScreenUpgrades.as` puts the money readout top-right of the content,
-          not in the title bar — the bar is the title's. */}
-      <p className="shop__balance" aria-label="Coins">
-        ◉ {formatNumber(shop?.money ?? 0)}
-      </p>
+      {/*
+        The money and the two slots, on one line above the catalogue.
+
+        `ScreenUpgrades` draws the balance top-right in green (`65280`, the
+        AS3's own `addText` colour) and the pair of slot readouts beside the
+        weapon grids. The port keeps both facts and puts them together, because
+        they answer one question — what you have, and what it is currently
+        loaded into.
+      */}
+      <div className="shop__status">
+        <SlotSummary rows={rows} />
+        <p className="shop__balance" aria-label={`${shop?.money ?? 0} coins`}>
+          ${formatNumber(shop?.money ?? 0)}
+        </p>
+      </div>
 
       {/* `ScreenUpgrades.as:631-634` places the guide inside the shop's own
           content holder, below the rows. Ours sits under the header so it is
@@ -215,7 +252,7 @@ export function UpgradesScreen(): React.ReactElement | null {
           const inCategory = rows.filter((r) => r.category === category);
           if (inCategory.length === 0) return null;
           return (
-            <section key={category} className="shop-section">
+            <section key={category} className="shop-section chrome-panel">
               <h3 className="shop-section__title">{CATEGORY_LABELS[category] ?? category}</h3>
               <ul className="shop-list">
                 {inCategory.map((row) => (

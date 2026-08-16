@@ -132,3 +132,57 @@ describe('the shop screen', () => {
     expect(icon?.getAttribute('title')).toBe('Cannon');
   });
 });
+
+describe('the slot summary and the balance — T158', () => {
+  beforeEach(() => {
+    attachStoreBridge();
+    enterShop();
+  });
+
+  afterEach(() => {
+    detachStoreBridge();
+    GameEvents.removeAllListeners();
+    useGameStore.setState({ shop: null });
+  });
+
+  it('names what is in each primary slot', () => {
+    publish([
+      row({ id: 'Cannon', name: 'Cannon', slot: 1 }),
+      row({ id: 'MiniGun', name: 'MiniGun', slot: 2, index: 1 }),
+    ]);
+
+    render(<UpgradesScreen />);
+
+    const slots = document.querySelector('.shop__slots');
+    expect(slots).toHaveTextContent('Slot 1');
+    expect(slots).toHaveTextContent('Cannon');
+    expect(slots).toHaveTextContent('Slot 2');
+    expect(slots).toHaveTextContent('MiniGun');
+  });
+
+  /**
+   * The empty case, on the same element. An "Empty" that never appears and a
+   * weapon name that never appears look identical from a test that only ever
+   * publishes one of them.
+   */
+  it('says Empty for a slot holding nothing', () => {
+    publish([row({ id: 'Cannon', name: 'Cannon', slot: 1 })]);
+
+    render(<UpgradesScreen />);
+
+    const slots = document.querySelector('.shop__slots');
+    expect(slots).toHaveTextContent('Cannon');
+    expect(slots).toHaveTextContent('Empty');
+  });
+
+  it('shows the balance as money, not as a bare number', () => {
+    publish([row()]);
+    render(<UpgradesScreen />);
+
+    // `$` and the accessible name, because the figure is read as a resource
+    // and the glyph alone says nothing to a screen reader.
+    const balance = document.querySelector('.shop__balance');
+    expect(balance).toHaveTextContent('$5,000');
+    expect(balance).toHaveAttribute('aria-label', '5000 coins');
+  });
+});

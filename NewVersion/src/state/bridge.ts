@@ -94,6 +94,10 @@ export function attachStoreBridge(): () => void {
     store.getState().setShop(catalogue);
   });
 
+  on('upgrades:affordable', ({ affordable }) => {
+    store.getState().setShopAffordable(affordable);
+  });
+
   on('level-guide:changed', (guide) => {
     store.getState().setLevelGuide(guide);
   });
