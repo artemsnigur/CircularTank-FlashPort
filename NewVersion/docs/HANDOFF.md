@@ -682,8 +682,21 @@ socket. `UpgradeIcon` centres its layers and is right to; copying that here
 would hang the default weapon's barrel out of its socket. Layout divergences are
 `A22`, and the weapon name kept as text under the art is `A21`.
 
-Still open from that audit: a credits line, two stale doc comments, and a knip
-triage of 467 unused exports.
+**That audit is now closed.** T151 took the last two cosmetic items — the menu
+credit (`ButtonCredit`, which never needed the Credits screen its row claimed to
+be waiting on) and the two stale comments, one of which turned out to be
+describing dead code rather than live code. T152 triaged knip: 545 findings
+sorted into four buckets by `scripts/knip-triage.mjs`, 114 exports made
+module-private, 10 dead symbols deleted, and the two categories where the
+obvious action is *wrong* left alone with the reason written down. Read
+`KNIP.md` before acting on that list — 407 of the remaining 421 are the
+baseline the configuration is designed to produce, not debt.
+
+What is genuinely open now is a decision list, not a gap list: the unwired
+category-1 features (`tutorialState`, the achievement evaluator,
+`enemyKnowledge`'s discovery half, `applyFreeze`), the three helpers whose
+callers reimplement them inline, and the touch/phone work that is deliberately
+queued behind the desktop port.
 
 ---
 
