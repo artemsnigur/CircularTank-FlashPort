@@ -325,6 +325,31 @@ body {
  * The shell owns the title bar; everything below it is the illustrated scene
  * with the panels laid over it.
  */
+/*
+ * ── The menu's proportions come off the original ───────────────────────────
+ *
+ * Measured from the reference capture rather than chosen: the black title band
+ * is ~19% of the frame's height with the wordmark ~10% of it, and the
+ * illustrated scene sits *inset* — about 5% in from the left, 3% from the
+ * right — so black frames it on three sides. The port had the scene full-bleed
+ * and the title in the same short bar every other screen uses, which is most of
+ * why it read as a different game.
+ */
+.screen--menu .screen-shell__bar {
+  justify-content: center;
+  /* The band, as a share of the viewport, floored so it survives a short
+     window and capped so it does not eat a tall one. */
+  min-height: clamp(4.5rem, 19vh, 9rem);
+  padding: var(--space-2) var(--space-4);
+}
+
+/* The wordmark is the loudest thing on the screen in the original, and was
+   the quietest here — 2rem in a bar that clipped it. */
+.screen--menu .screen-shell__title {
+  height: clamp(2.25rem, 10vh, 5rem);
+  max-width: calc(100% - 2rem);
+}
+
 .screen--menu .screen-shell__body {
   position: relative;
   /* The art is absolutely placed to fill this, so the body must not scroll it
@@ -357,9 +382,19 @@ body {
  * the ground edges loses nothing — the tank and the enemies sit in the middle
  * third.
  */
+/*
+ * The scene is inset, so the black frame the original draws around it survives
+ * — 5% at the left and 3% at the right, measured off the reference. The frame
+ * is what makes the picture read as a picture rather than as a wallpaper.
+ */
+:root {
+  --menu-frame-left: 5%;
+  --menu-frame-right: 3%;
+}
+
 .menu-scene {
   position: absolute;
-  inset: 0;
+  inset: 0 var(--menu-frame-right) 0 var(--menu-frame-left);
 }
 
 /* Both dimensions explicit, which is also what makes the inline
@@ -377,24 +412,90 @@ body {
 
 /* The panels sit over the scene, right-aligned as the original stacks its two
    save panels down the right of the picture. */
+/*
+ * The panels hang off the **scene's** right edge, not the viewport's, and run
+ * from its top edge downward — which is why this shares the scene's inset
+ * rather than padding the body.
+ */
 .menu-panels {
-  position: relative;
+  position: absolute;
+  inset: 0 var(--menu-frame-right) 0 auto;
+  /* An explicit share of the frame, because `auto` on the left made this box
+     shrink to its content — so the panel's own percentage width resolved
+     against a box that was already as narrow as the panel. */
+  width: min(26%, 22rem);
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: flex-end;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  height: 100%;
-  overflow-y: auto;
+  gap: 0.5%;
+  pointer-events: none;
 }
 
+.menu-panels > * {
+  pointer-events: auto;
+}
+
+/*
+ * `LOCAL SAVES` — a translucent column over the scene, full height.
+ *
+ * Translucent by design and not by taste: the reference shows the purple enemy
+ * through the panel, which is what stops the right third of the picture from
+ * being simply covered up. The header strip is near-opaque so its white text
+ * stays legible over whatever is behind it.
+ */
 .menu-saves {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  width: 100%;
+  /*
+   * Glass over a picture, not a plate on a ground — so this element does **not**
+   * wear `.chrome-panel--dark`. It did, and lost: that rule is declared later
+   * in this file and sets an opaque `--panel`, which flattened the panel to
+   * dark grey. Third time source order has decided a rule here today; the fix
+   * each time is to stop competing rather than to out-rank.
+   */
+  background: linear-gradient(
+    180deg,
+    rgb(58 104 140 / 55%),
+    rgb(30 62 88 / 62%)
+  );
+  border: 0;
+  border-radius: 0;
+}
+
+.menu-saves::before {
+  background: none;
+}
+
+/* The header strip — near-black, with the panel's name in white. */
+.menu-saves__title {
+  margin: 0;
+  padding: 0.85rem var(--space-3);
+  background: rgb(4 8 12 / 88%);
+  color: var(--steel-000);
+  font-family: var(--font-display);
+  font-size: clamp(var(--text-sm), 1.6vw, var(--text-lg));
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 70%);
+}
+
+/* Each block inside the panel is its own lighter pane, as the original stacks
+   SLOT 1 and the two NEW GAME rows. */
+.menu-saves__body {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
-  width: min(14rem, 100%);
+}
+
+.menu-saves__pane {
+  padding: var(--space-2) var(--space-3);
+  background: linear-gradient(180deg, rgb(255 255 255 / 14%), rgb(255 255 255 / 4%));
+  border-top: 1px solid rgb(255 255 255 / 18%);
 }
 
 .menu-saves__title {
@@ -406,18 +507,51 @@ body {
   color: var(--text-dim);
 }
 
-.menu-saves__resume {
+/* `SLOT 1` — big, light, with the dark outline the original gives it. */
+.menu-saves__slot-name {
   margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(var(--text-md), 1.7vw, var(--text-xl));
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--steel-200);
+  text-shadow: 0 2px 0 rgb(0 0 0 / 65%);
+}
+
+/* The resume line under it: where this save actually is. Not green any more —
+   the reference prints it as plain light text, and the green read as a status
+   badge rather than as a saved position. */
+.menu-saves__resume {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-body);
+  font-size: var(--text-2xs);
+  color: rgb(255 255 255 / 82%);
+}
+
+/* The panes are buttons as well as blocks, so the interactive one needs the
+   type reset a `<p>` did not. */
+button.menu-saves__pane {
+  border: 0;
+  border-top: 1px solid rgb(255 255 255 / 18%);
   font-family: var(--font-display);
   font-size: var(--text-2xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ok);
-  text-align: center;
+  color: var(--steel-200);
+  text-shadow: 0 2px 0 rgb(0 0 0 / 65%);
+  text-align: left;
+  cursor: pointer;
 }
 
-/* `ButtonPlay` — the original's art, three frames cross-faded like every other
-   extracted button on this screen. */
+button.menu-saves__pane:hover,
+button.menu-saves__pane:focus-visible {
+  color: var(--steel-000);
+  background: linear-gradient(180deg, rgb(255 255 255 / 22%), rgb(255 255 255 / 8%));
+}
+
+/* `ButtonPlay` — the original's art. It spans the panel in the reference and
+   is the one control the eye should land on, so it takes the full width of the
+   pane column rather than sitting inside a padded box. */
 .menu-play {
   position: relative;
   display: block;
@@ -430,11 +564,141 @@ body {
 
 
 
-/* The corner icons — `ScreenMenu` puts its small buttons bottom-left. */
+/*
+ * The audio toggles sit at the scene's **top-left**, inside the picture — the
+ * reference puts them there, over the sky, not in a corner of the frame. They
+ * were bottom-left and tiny; the original's are round buttons about 4% of the
+ * frame's width.
+ */
 .menu-corner {
   position: absolute;
-  left: var(--space-3);
-  bottom: var(--space-3);
+  left: calc(var(--menu-frame-left) + 1.5%);
+  top: 4%;
+}
+
+.menu-corner .audio-toggles {
+  gap: 0.6rem;
+}
+
+.menu-corner .audio-toggles__button {
+  height: clamp(1.75rem, 4vw, 3rem);
+}
+
+/*
+ * The secondary destinations.
+ *
+ * **The original's menu has none of these** — it offers PLAY, and everything
+ * else is reached from the in-game bottom bar. This port keeps them because a
+ * player who has not started a level would otherwise have no route to Options
+ * or Achievements at all, but they belong at the bottom of the frame as small
+ * controls rather than as a column of full-width pills competing with the
+ * wordmark. Recorded with the menu's other divergences under `A26`.
+ */
+.menu {
+  position: absolute;
+  left: calc(var(--menu-frame-left) + 1.5%);
+  bottom: 3%;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  width: min(42%, 30rem);
+  padding: var(--space-2);
+  border-radius: 8px;
+  /* A scrim, because these sit over the ground and the tank rather than over
+     a panel: without it the pills read as floating on the art. */
+  background: rgb(0 0 0 / 42%);
+}
+
+.menu .chrome-pill {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-3xs);
+}
+
+/*
+ * On the menu the hint sits with the secondary controls at the bottom of the
+ * frame rather than in flow at its top-left, where it overlapped the black
+ * border. Every other screen keeps it in flow.
+ *
+ * **Declared here, beside the media query that overrides it.** It lived in the
+ * generic `.screen__hint` area, several hundred lines *after* that query, and
+ * won on source order — so the phone layout flowed everything except this,
+ * which stayed pinned to the bottom and collided with the audio toggles. The
+ * fourth time source order decided a rule in this file today, and the fix is
+ * the same each time: put the two rules where they can be read together.
+ */
+.screen--menu .screen__hint {
+  position: absolute;
+  left: calc(var(--menu-frame-left) + 1.5%);
+  bottom: 0.75%;
+  max-width: min(46%, 34rem);
+  margin: 0;
+  font-size: var(--text-3xs);
+  color: rgb(255 255 255 / 55%);
+  text-align: left;
+}
+
+/*
+ * ── Narrow screens stack instead of overlaying ─────────────────────────────
+ *
+ * The layout above is the original's: a picture with panels and controls laid
+ * *over* it. That only works while there is picture to spare. On a phone the
+ * frame is taller than it is wide, so the panel, the toggles, the secondary
+ * row and the hint all landed on top of each other and on the tank.
+ *
+ * So below 40rem the same pieces stack: the scene becomes a banner at its own
+ * aspect, and everything that was floating over it becomes a row beneath it.
+ * Nothing is hidden — this is the same content in one column.
+ */
+@media (max-width: 40rem) {
+  .screen--menu .screen-shell__body {
+    overflow-y: auto;
+  }
+
+  .menu-scene {
+    position: relative;
+    inset: auto;
+    /* A banner rather than a backdrop, at **the art's own 4:3**. Forcing 16:9
+       here left a letterbox strip under it: the wide layout can crop because
+       it has height to spare, and this one does not. Its own ratio needs no
+       crop and shows the whole scene. */
+    aspect-ratio: 4 / 3;
+    margin: 0 var(--menu-frame-right) 0 var(--menu-frame-left);
+  }
+
+  .menu-panels {
+    position: relative;
+    inset: auto;
+    width: auto;
+    margin: var(--space-3) var(--menu-frame-right) 0 var(--menu-frame-left);
+  }
+
+  .menu-corner {
+    position: relative;
+    left: auto;
+    top: auto;
+    margin: var(--space-3) 0 0 var(--menu-frame-left);
+  }
+
+  .menu {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    width: auto;
+    margin: var(--space-3) var(--menu-frame-right) var(--space-3)
+      var(--menu-frame-left);
+    background: none;
+    padding: 0;
+  }
+
+  .screen--menu .screen__hint {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    max-width: none;
+    margin: 0 var(--menu-frame-right) var(--space-4) var(--menu-frame-left);
+  }
 }
 
 /* The shell owns this screen's layout now — grid rows, background and scroll.
@@ -617,13 +881,6 @@ code {
 }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
-
-.menu {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  width: min(22rem, 100%);
-}
 
 .menu__button {
   font-family: var(--font-display);

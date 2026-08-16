@@ -68,40 +68,54 @@ export function MainMenuScreen(): React.ReactElement | null {
           for Armor Games accounts; that surface is not ported, so there is one
           panel rather than two empty ones. Recorded as `A26`.
         */}
-        <section className="menu-saves chrome-panel chrome-panel--dark">
+        <section className="menu-saves">
           <h2 className="menu-saves__title">Local saves</h2>
 
-          <button
-            type="button"
-            className="menu-play chrome-stack"
-            aria-label={resume.level > 1 ? `Continue at level ${resume.level}` : 'Play'}
-            onClick={() =>
-              GameEvents.emit('ui:start-game', {
-                world: resume.world,
-                level: resume.level,
-                difficulty,
-              })
-            }
-          >
-            <ChromeArt clip="ButtonPlay" frame={1} className="menu-play__face" />
-            <ChromeArt clip="ButtonPlay" frame={2} className="menu-play__face chrome-art--face chrome-art--face--hover" />
-            <ChromeArt clip="ButtonPlay" frame={3} className="menu-play__face chrome-art--face chrome-art--face--pressed" />
-          </button>
+          <div className="menu-saves__body">
+            {/*
+              The slot pane — `ScreenMenu` gives each slot its own lighter block
+              inside the panel, headed by the slot's name with its world, level
+              and timestamp under it. Ours names the one save this port keeps
+              and where it resumes.
+            */}
+            <div className="menu-saves__pane menu-saves__slot">
+              <p className="menu-saves__slot-name">Slot 1</p>
+              {/* Resolved by MainMenuScene from the same progress table
+                  LevelSelect locks levels with — never computed here. */}
+              <p className="menu-saves__resume">
+                {resume.level > 1
+                  ? `World ${resume.world}  Level ${resume.level}`
+                  : 'New game'}
+              </p>
+            </div>
 
-          {/* Resolved by MainMenuScene from the same progress table LevelSelect
-              locks levels with — never computed here. */}
-          <p className="menu-saves__resume">
-            {resume.level > 1 ? `Level ${resume.world}-${resume.level}` : 'New game'}
-          </p>
+            <button
+              type="button"
+              className="menu-play chrome-stack"
+              aria-label={resume.level > 1 ? `Continue at level ${resume.level}` : 'Play'}
+              onClick={() =>
+                GameEvents.emit('ui:start-game', {
+                  world: resume.world,
+                  level: resume.level,
+                  difficulty,
+                })
+              }
+            >
+              <ChromeArt clip="ButtonPlay" frame={1} className="menu-play__face" />
+              <ChromeArt clip="ButtonPlay" frame={2} className="menu-play__face chrome-art--face chrome-art--face--hover" />
+              <ChromeArt clip="ButtonPlay" frame={3} className="menu-play__face chrome-art--face chrome-art--face--pressed" />
+            </button>
 
-          <button
-            type="button"
-            className="chrome-pill chrome-pill--red menu-saves__slots"
-            onClick={() => GameEvents.emit('ui:slot-picker', { open: true })}
-          >
-            Save slots
-          </button>
+            <button
+              type="button"
+              className="menu-saves__pane menu-saves__slots"
+              onClick={() => GameEvents.emit('ui:slot-picker', { open: true })}
+            >
+              Save slots
+            </button>
+          </div>
         </section>
+      </div>
 
       <nav className="menu" aria-label="Main menu">
         <button
@@ -179,7 +193,6 @@ export function MainMenuScreen(): React.ReactElement | null {
           Re-run audio self-test
         </button>
       </nav>
-      </div>
 
       {/*
         The corner icons — `ScreenMenu` fills its bottom-left with the sponsor,
