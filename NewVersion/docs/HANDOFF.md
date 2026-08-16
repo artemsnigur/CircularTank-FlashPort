@@ -233,7 +233,23 @@ needs to know before touching it:
 - **Colours came off the SVGs, not off the screenshots.** The reference images
   are 320px JPEGs; sampling them would have carried compression noise into the
   tokens. The ramp and the signal colours are in `:root` with their sources.
-- Divergences from the restyle are `A21`-`A26`.
+- **The main menu is the one screen that is no longer the extracted art.**
+  T164 made it a full-bleed wallpaper with floating controls (`A27`); T165
+  replaced the wordmark and PLAY with pure CSS — an `<h1>` in `SWFMainFont`
+  under a clipped metallic gradient, and a gradient pill (`A28`). Two things
+  to know before editing it:
+  - **The wordmark is two stacked copies of the same string on purpose.**
+    `background-clip: text` needs `color: transparent`, and a `text-shadow` on
+    transparent text paints *through* the glyphs, so the extrusion and the
+    metal cannot share an element. The upper copy is `aria-hidden` or the
+    heading announces itself twice.
+  - **The card sizes everything off one `--card-w`.** Padding, gaps, radii and
+    type are all fractions of it, chosen so the card at its 400px floor is
+    pixel-identical to the fixed version it replaced. Add a fixed `px` padding
+    inside it and a test fails — which is the point, because the symptom
+    otherwise is a large panel with cramped contents that nobody reads as a
+    bug.
+- Divergences from the restyle are `A21`-`A28`.
 
 **jsdom cannot see any of this.** Layout bugs here are found by measuring boxes
 in a real browser — see the trap below — and the visual judgement is the

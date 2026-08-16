@@ -8,9 +8,23 @@
  * fills the window and the controls float over it as a premium menu, rather
  * than the game sitting letterboxed inside a frame.
  *
- * The pieces are still the original's own art. The wordmark is `Title`, the
- * button is `ButtonPlay`, the toggles are `ButtonToggleSound` /
- * `ButtonToggleMusic` — so the identity survives the layout change.
+ * ── The wordmark and PLAY are CSS, the toggles are still art ──────────────
+ * T165 replaced two of the extracted clips with type and gradients: `Title`
+ * and `ButtonPlay` are no longer rendered here. Both were raster-free already,
+ * but a fixed-size SVG still has a fixed size, and the menu now runs from a
+ * phone to a 2K display. Text and gradients resolve at whatever the device
+ * gives them.
+ *
+ * The toggles are **deliberately** still `ChromeArt` — a speaker and a note
+ * are drawings, not type, and reproducing them in CSS would be tracing rather
+ * than styling. Recorded as `A28`.
+ *
+ * The wordmark is two stacked copies of the same text and that is not
+ * decoration: `background-clip: text` needs `color: transparent`, which makes
+ * a `text-shadow` on the same element show *through* the glyphs instead of
+ * behind them. So the lower copy carries the extrusion and the upper one
+ * carries the metal. The upper is `aria-hidden`, or the heading would announce
+ * itself twice.
  *
  * ── One thing here is not a style choice ──────────────────────────────────
  * The wallpaper is painted as a **background image**, not an `<img>` with
@@ -24,12 +38,17 @@
 import { useGameStore } from '../../state/gameStore';
 import { AudioToggles } from '../AudioToggles';
 import { GameEvents } from '../../game/events/GameEvents';
-import { ChromeArt } from '../ChromeArt';
 import { shapeUrl } from '../../assets/registry';
 import { CHROME_CLIPS } from '../../game/ui/chromeArt';
 
 /** The menu illustration's single shape — `BackgroundMainMenu` (1322). */
 const MENU_SCENE_SHAPE = CHROME_CLIPS.BackgroundMainMenu.frames[0].layers[0].shape;
+
+/**
+ * The game's name, as the original sets it — `ScreenMenu.as` draws `Title` in
+ * caps. One constant so the two stacked copies cannot drift apart.
+ */
+const WORDMARK = 'CIRCULAR TANK';
 
 /** One save slot, as a clean sub-box inside the floating card. */
 function SlotBox({
@@ -103,8 +122,19 @@ export function MainMenuScreen(): React.ReactElement | null {
         style={{ backgroundImage: `url(${shapeUrl(`${MENU_SCENE_SHAPE}.svg`)})` }}
       />
 
-      {/* The wordmark, floating over the sky with a drop shadow to lift it. */}
-      <ChromeArt clip="TitleMainMenu" label="Circular Tank" className="menu-logo" />
+      {/*
+        The wordmark, floating over the sky.
+
+        Two copies: the lower one is the extruded body and owns the accessible
+        name, the upper one is the metal and is hidden from the tree. See the
+        header — they cannot be one element.
+      */}
+      <h1 className="menu-title">
+        <span className="menu-title__solid">{WORDMARK}</span>
+        <span className="menu-title__gloss" aria-hidden="true">
+          {WORDMARK}
+        </span>
+      </h1>
 
       <div className="menu-toggles">
         <AudioToggles />
@@ -132,9 +162,14 @@ export function MainMenuScreen(): React.ReactElement | null {
           ))}
         </div>
 
+        {/*
+          PLAY, in CSS. The label is a child rather than bare text so it can
+          sit above the specular sweep, which is a pseudo-element on the
+          button itself.
+        */}
         <button
           type="button"
-          className="menu-play chrome-stack"
+          className="menu-play"
           aria-label={resume.level > 1 ? `Continue at level ${resume.level}` : 'Play'}
           onClick={() =>
             GameEvents.emit('ui:start-game', {
@@ -144,17 +179,7 @@ export function MainMenuScreen(): React.ReactElement | null {
             })
           }
         >
-          <ChromeArt clip="ButtonPlay" frame={1} className="menu-play__face" />
-          <ChromeArt
-            clip="ButtonPlay"
-            frame={2}
-            className="menu-play__face chrome-art--face chrome-art--face--hover"
-          />
-          <ChromeArt
-            clip="ButtonPlay"
-            frame={3}
-            className="menu-play__face chrome-art--face chrome-art--face--pressed"
-          />
+          <span className="menu-play__label">{resume.level > 1 ? 'Continue' : 'Play'}</span>
         </button>
       </section>
     </div>
