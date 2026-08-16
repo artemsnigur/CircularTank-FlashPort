@@ -685,7 +685,10 @@ would hang the default weapon's barrel out of its socket. Layout divergences are
 **That audit is now closed.** T151 took the last two cosmetic items — the menu
 credit (`ButtonCredit`, which never needed the Credits screen its row claimed to
 be waiting on) and the two stale comments, one of which turned out to be
-describing dead code rather than live code. T152 triaged knip: 545 findings
+describing dead code rather than live code. **The credit was then removed again
+in T153 by decision** — the port carries no attribution, `A23` records it, and
+its `infoTextSites.ts` row says "removed by decision" rather than sitting there
+looking like work owed. T152 triaged knip: 545 findings
 sorted into four buckets by `scripts/knip-triage.mjs`, 114 exports made
 module-private, 10 dead symbols deleted, and the two categories where the
 obvious action is *wrong* left alone with the reason written down. Read
