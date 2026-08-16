@@ -103,9 +103,11 @@ function ViewControls({ view }: { view: BestiaryView }): React.ReactElement {
           <button
             key={difficulty}
             type="button"
-            className={`bestiary-controls__button${
-              view.difficulty === difficulty ? ' bestiary-controls__button--on' : ''
-            }`}
+            /* The tab primitive, because that is what these are: a group
+               where exactly one is chosen. `aria-pressed` stays as the
+               semantic — these filter a list, they do not navigate — and
+               `.chrome-tab` styles that state as well as `aria-current`. */
+            className="chrome-tab bestiary-controls__button"
             aria-pressed={view.difficulty === difficulty}
             onClick={() => set({ difficulty })}
           >
@@ -118,9 +120,7 @@ function ViewControls({ view }: { view: BestiaryView }): React.ReactElement {
           <button
             key={tier}
             type="button"
-            className={`bestiary-controls__button${
-              view.tier === tier ? ' bestiary-controls__button--on' : ''
-            }`}
+            className="chrome-tab bestiary-controls__button"
             aria-pressed={view.tier === tier}
             onClick={() => set({ tier })}
           >
@@ -161,7 +161,9 @@ export function BestiaryScreen(): React.ReactElement | null {
       {entries.length === 0 ? (
         <p className="screen__hint">Loading…</p>
       ) : (
-        <ul className="bestiary__list">
+        /* The silver plate the roster sits on — `ScreenEnemies` draws its grid
+           over one, and this port's list takes the same ground. */
+        <ul className="bestiary__list chrome-panel">
           {entries.map((entry) => (
             <li
               key={entry.id}

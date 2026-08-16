@@ -1954,7 +1954,24 @@ code {
 /* No `overflow-y` here any more — `.screen-shell__body` is the scroller, and
    two nested ones give a list that scrolls inside a page that also scrolls. */
 .bestiary__count { margin-left: auto; font-size: var(--text-xs); color: var(--text-dim); }
-.bestiary__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+/* The roster's plate. `.chrome-panel` supplies the silver and the border; this
+   only has to say how the rows sit on it. */
+.bestiary__list {
+  list-style: none;
+  margin: 0;
+  display: grid;
+  gap: 0.3rem;
+  padding: var(--space-3);
+}
+
+/*
+ * One enemy, as a dark well on the plate.
+ *
+ * The green left edge stays: it is the only thing that says "met" at a glance
+ * when the row is scrolled past, and the locked variant below removes it. On
+ * the light plate it now reads as a tab rather than as a glow, which is if
+ * anything closer to the original's own tile states.
+ */
 .bestiary-row {
   display: flex;
   align-items: baseline;
@@ -1962,7 +1979,9 @@ code {
   padding: 0.45rem 0.6rem;
   border-radius: 6px;
   background: var(--surface);
-  border-left: 3px solid color-mix(in srgb, var(--ok) 70%, transparent);
+  border: 2px solid var(--steel-900);
+  border-left: 4px solid var(--ok);
+  color: var(--text);
 }
 .bestiary-row__name { min-width: 8rem; font-size: var(--text-sm); }
 .bestiary-row__text { font-size: var(--text-2xs); color: var(--text-dim); }
@@ -2005,20 +2024,11 @@ code {
   margin-bottom: 0.25rem;
 }
 .bestiary-controls__group { display: flex; gap: 0.25rem; }
+/* Everything else comes from `.chrome-tab`; these are just smaller than a
+   navigation tab, because six of them share a row with a heading. */
 .bestiary-controls__button {
-  padding: 0.2rem 0.6rem;
+  padding: var(--space-1) var(--space-2);
   font-size: var(--text-2xs);
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--text-dim);
-  background: var(--surface);
-  border: 1px solid var(--border);
-}
-.bestiary-controls__button:hover { color: var(--accent); }
-.bestiary-controls__button--on {
-  color: var(--accent);
-  border-color: var(--accent);
-  font-weight: 700;
 }
 
 /* The four stat lines. A grid rather than flow so the values line up down the
@@ -2430,9 +2440,28 @@ code {
   color: var(--text);
 }
 
-.chrome-tab[aria-current='page'] {
+/*
+ * Two ways of being the chosen one, because two kinds of control use this.
+ *
+ * `aria-current="page"` is navigation — the screen you are on. `aria-pressed`
+ * is a filter — the bestiary's difficulty and tier groups, which change what a
+ * list shows rather than where you are. Styling both here is what let those
+ * groups reuse this primitive instead of keeping their own near-copy; using
+ * the wrong attribute for either would misreport the control to a screen
+ * reader, which is why the selector accepts both rather than the markup
+ * settling on one.
+ *
+ * `cursor: default` is only for the navigation case: pressing an already-set
+ * filter is a no-op the user may reasonably try, where the current tab leads
+ * nowhere at all.
+ */
+.chrome-tab[aria-current='page'],
+.chrome-tab[aria-pressed='true'] {
   background: var(--tab-active);
   color: var(--text);
+}
+
+.chrome-tab[aria-current='page'] {
   cursor: default;
 }
 
@@ -2641,32 +2670,51 @@ code {
 .achievements__grid {
   position: relative;
   list-style: none;
-  margin: 1rem auto;
-  padding: 0;
+  margin: var(--space-4) auto;
+  /* Padding, not `0`: the cells are centred on their placement points, so the
+     ones at the extremes hang half outside the board's own box and would sit
+     on the plate's border without it. */
+  padding: var(--space-4);
   width: min(56rem, 94vw);
   /* Matches the AS3 board's 300x280 aspect, so the proportions hold. */
   aspect-ratio: 300 / 280;
 }
 
+/*
+ * One achievement, as a dark plaque on the silver board.
+ *
+ * ── Not a disc, and that is a decision ────────────────────────────────────
+ * The original's cells are **circular badges** carrying no text: the name and
+ * the goal live in the hover tooltip only. This port prints both on the cell,
+ * which the component header states as deliberate — "this screen names the
+ * target, that is what an achievements list is for" — and text does not fit a
+ * circle. So the plaques are rounded rectangles and the roundness lives in the
+ * corner radius rather than in the shape. Recorded as `A25`.
+ *
+ * Unearned is dimmer *ink*, not opacity: `opacity: 0.45` read as "dimmed" on a
+ * dark board and as "gone" on a light one, which is the same inversion that
+ * hid the disabled Buy buttons. A locked achievement still has to be readable
+ * — showing it is the whole point.
+ */
 .achievements__cell {
   position: absolute;
   transform: translate(-50%, -50%);
   width: 8.5rem;
   padding: 0.4rem 0.5rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  border-radius: 10px;
+  border: 2px solid var(--steel-900);
   background: var(--surface);
-  /* Unearned. `opacity: 0.45` read as "dimmed" on a dark board and as "gone" on
-     bone — the same inversion that hid the disabled Buy buttons. A locked
-     achievement still has to be readable; that is the whole point of showing it. */
   color: var(--text-faint);
   text-align: center;
 }
 
+/* Earned takes the gold rather than the accent red: three medal tiers already
+   mean bronze/silver/gold on this screen, and the top one is what an earned
+   achievement reads as. */
 .achievements__cell--earned {
   color: var(--text);
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: var(--medal-gold);
+  background: linear-gradient(180deg, var(--steel-700), var(--steel-900));
 }
 
 .achievements__title {

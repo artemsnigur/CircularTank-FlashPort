@@ -109,7 +109,11 @@ export function AchievementsScreen(): React.ReactElement | null {
         {earned} / {total}
       </p>
 
-      <ul className="achievements__grid">
+      {/* The board's plate. The 36 cells are placed on it proportionally from
+          `achievementPlacementArray`, so the panel is the ground rather than a
+          layout — it must not become a grid or the placements stop meaning
+          anything. */}
+      <ul className="achievements__grid chrome-panel">
         {entries.map((entry) => (
           <AchievementCell key={entry.id} entry={entry} />
         ))}

@@ -188,6 +188,27 @@ describe('the bestiary screen', () => {
     expect(screen.getByRole('button', { name: 'Boss' })).toHaveAttribute('aria-pressed', 'false');
   });
 
+  /**
+   * T159: the selectors reuse `.chrome-tab` rather than keeping a near-copy of
+   * it, and they keep `aria-pressed` while doing so.
+   *
+   * Both halves matter. The class alone would let a future edit swap the
+   * semantic to `aria-current` to "match the tabs" — which would tell a screen
+   * reader these navigate when they filter a list — and the attribute alone
+   * would let the shared styling be quietly forked back into a second set of
+   * rules. The primitive styles both states for exactly this reason.
+   */
+  it('styles its selectors with the shared tab primitive, still as toggles', () => {
+    enterBestiary();
+    publishSample();
+    render(<BestiaryScreen />);
+
+    const easy = screen.getByRole('button', { name: 'Easy' });
+    expect(easy.className).toContain('chrome-tab');
+    expect(easy).toHaveAttribute('aria-pressed');
+    expect(easy).not.toHaveAttribute('aria-current');
+  });
+
   it('hides the name and description of an unmet enemy', () => {
     enterBestiary();
     publishSample();
