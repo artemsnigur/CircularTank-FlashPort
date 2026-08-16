@@ -117,3 +117,34 @@ export const DIFFICULTY_FRAMES = Object.freeze({ rest: 1, hover: 2, selected: 3 
 export function difficultyFrame(selected: boolean): number {
   return selected ? DIFFICULTY_FRAMES.selected : DIFFICULTY_FRAMES.rest;
 }
+
+/* ── The audio toggles, whose four frames are a matrix ────────────────────── */
+
+/**
+ * `ButtonToggleSound` / `ButtonToggleMusic` — `ButtonToggleSound.as:55-83`.
+ *
+ * A **2x2 of state and hover**, not a rest/hover/pressed run:
+ *
+ *     on,  cursor out  -> 1        off, cursor out  -> 3
+ *     on,  cursor over -> 2        off, cursor over -> 4
+ *
+ * That is the third frame convention in this file, and the three disagree in
+ * ways that all look like off-by-ones: a nav button's 3 is *pressed*, a
+ * difficulty button's 3 is *selected*, and a toggle's 3 is *off*. Applying any
+ * one of them to another draws a plausible picture that says the wrong thing —
+ * which is precisely why they live together with their AS3 lines attached,
+ * rather than as a shared triplet with three call sites.
+ *
+ * The state lives in the frame, so a toggle needs no "off" styling of its own.
+ */
+export const TOGGLE_FRAMES = Object.freeze({ onRest: 1, onHover: 2, offRest: 3, offHover: 4 });
+
+/** The resting frame for an audio toggle. */
+export function toggleFrame(on: boolean): number {
+  return on ? TOGGLE_FRAMES.onRest : TOGGLE_FRAMES.offRest;
+}
+
+/** The frame it shows under the cursor, in whichever state it is in. */
+export function toggleHoverFrame(on: boolean): number {
+  return on ? TOGGLE_FRAMES.onHover : TOGGLE_FRAMES.offHover;
+}

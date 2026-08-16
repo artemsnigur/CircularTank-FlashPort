@@ -30,6 +30,7 @@ export function ScreenShell({
   title,
   titleClip,
   nav,
+  shield = true,
   className,
   children,
 }: {
@@ -38,16 +39,24 @@ export function ScreenShell({
   titleClip: ChromeClipName;
   /** Which nav item is current, or null for a screen outside the bar. */
   nav: NavDestination | null;
+  /**
+   * `IconShield` at the bar's left.
+   *
+   * True everywhere but the main menu, which the original heads with its own
+   * title bar and no crest — the shield belongs to the screens *inside* the
+   * game, and putting one on the menu would invent a badge the original does
+   * not draw there.
+   */
+  shield?: boolean;
   className?: string;
   children: React.ReactNode;
 }): React.ReactElement {
   return (
     <div className={className ? `screen-shell ${className}` : 'screen-shell'}>
       <header className="screen-shell__bar">
-        {/* `IconShield` sits at the bar's left in every screenshot. Frame 1 is
-            its resting state; the other two are the states `ScreenLevelSelect`
-            drives from world progress, which is T157's business. */}
-        <ChromeArt clip="IconShield" frame={1} className="screen-shell__shield" />
+        {/* Frame 1 is its resting state; the other two are the states
+            `ScreenLevelSelect` drives from world progress. */}
+        {shield && <ChromeArt clip="IconShield" frame={1} className="screen-shell__shield" />}
         <ChromeArt clip={titleClip} label={title} className="screen-shell__title" />
       </header>
 

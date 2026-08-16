@@ -234,6 +234,36 @@ export const CHROME_CLIPS: Readonly<Record<string, ChromeClip>> = Object.freeze(
       { frame: 1, layers: [{ shape: 971, x: 0, y: 0, width: 640, height: 352 }] },
     ],
   },
+  BackgroundMainMenu: {
+    symbol: 1322,
+    width: 640,
+    height: 480,
+    frames: [
+      { frame: 1, layers: [{ shape: 1321, x: 0, y: 0, width: 640, height: 480 }] },
+    ],
+  },
+  ButtonToggleSound: {
+    symbol: 44,
+    width: 30.01,
+    height: 30.01,
+    frames: [
+      { frame: 1, layers: [{ shape: 40, x: 0.01, y: 0.01, width: 30, height: 30 }, { shape: 41, x: 6.01, y: 5.21, width: 19, height: 19.6 }] },
+      { frame: 2, layers: [{ shape: 42, x: 0.01, y: 0.01, width: 30, height: 30 }, { shape: 41, x: 6.01, y: 5.21, width: 19, height: 19.6 }] },
+      { frame: 3, layers: [{ shape: 40, x: 0.01, y: 0.01, width: 30, height: 30 }, { shape: 41, x: 6.01, y: 5.21, width: 19, height: 19.6 }, { shape: 43, x: 0, y: 0, width: 30, height: 30 }] },
+      { frame: 4, layers: [{ shape: 42, x: 0.01, y: 0.01, width: 30, height: 30 }, { shape: 41, x: 6.01, y: 5.21, width: 19, height: 19.6 }, { shape: 43, x: 0, y: 0, width: 30, height: 30 }] },
+    ],
+  },
+  ButtonToggleMusic: {
+    symbol: 46,
+    width: 30.01,
+    height: 30.01,
+    frames: [
+      { frame: 1, layers: [{ shape: 40, x: 0.01, y: 0.01, width: 30, height: 30 }, { shape: 45, x: 5.01, y: 5.01, width: 20, height: 20 }] },
+      { frame: 2, layers: [{ shape: 42, x: 0.01, y: 0.01, width: 30, height: 30 }, { shape: 45, x: 5.01, y: 5.01, width: 20, height: 20 }] },
+      { frame: 3, layers: [{ shape: 40, x: 0.01, y: 0.01, width: 30, height: 30 }, { shape: 45, x: 5.01, y: 5.01, width: 20, height: 20 }, { shape: 43, x: 0, y: 0, width: 30, height: 30 }] },
+      { frame: 4, layers: [{ shape: 42, x: 0.01, y: 0.01, width: 30, height: 30 }, { shape: 45, x: 5.01, y: 5.01, width: 20, height: 20 }, { shape: 43, x: 0, y: 0, width: 30, height: 30 }] },
+    ],
+  },
   ButtonPlay: {
     symbol: 29,
     width: 138,
@@ -288,5 +318,5 @@ export const CHROME_CLIPS: Readonly<Record<string, ChromeClip>> = Object.freeze(
 
 /** Every shape the chrome draws — what the asset sync must have copied. */
 export const CHROME_SHAPE_IDS: readonly number[] = Object.freeze(
-  [23,24,26,27,28,167,187,377,379,383,385,387,389,391,393,438,439,441,442,443,445,446,448,449,450,451,452,453,454,455,457,458,460,461,463,464,466,467,540,541,543,544,546,548,549,550,551,552,561,563,564,573,575,577,580,581,591,593,594,847,856,900,904,971,976,977,978,979],
+  [23,24,26,27,28,40,41,42,43,45,167,187,377,379,383,385,387,389,391,393,438,439,441,442,443,445,446,448,449,450,451,452,453,454,455,457,458,460,461,463,464,466,467,540,541,543,544,546,548,549,550,551,552,561,563,564,573,575,577,580,581,591,593,594,847,856,900,904,971,976,977,978,979,1321],
 );

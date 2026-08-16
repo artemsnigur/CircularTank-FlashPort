@@ -80,6 +80,13 @@ export const CHROME_PANEL_SPRITE_IDS = Object.freeze({
   BackgroundWindow: 905,
   BackgroundWindowBar: 859,
   BackgroundUpgradeMenu: 973,
+  /**
+   * The menu's illustrated scene — a full 640x480 of vector art, 34 paths and
+   * 24 gradients: sky, sun, ground, a tank and two enemies. It is the menu's
+   * whole background in the original, and the one piece of chrome here that is
+   * a picture rather than furniture.
+   */
+  BackgroundMainMenu: 1322,
 });
 
 /**
@@ -90,6 +97,18 @@ export const CHROME_PANEL_SPRITE_IDS = Object.freeze({
  * *which clip* is lit rather than a frame on a shared clip.
  */
 export const CHROME_BUTTON_SPRITE_IDS = Object.freeze({
+  /**
+   * The audio toggles, whose four frames are a **2x2 matrix** rather than the
+   * rest/hover/pressed triplet every other button here uses:
+   * `ButtonToggleSound.as:55-83` gives 1 on-rest, 2 on-hover, 3 off-rest,
+   * 4 off-hover. The state is in the frame, so there is no separate "off"
+   * styling to apply.
+   *
+   * They share three of their four shapes (40, 42, 43) and differ only in the
+   * glyph — 41 a speaker, 45 a note.
+   */
+  ButtonToggleSound: 44,
+  ButtonToggleMusic: 46,
   ButtonPlay: 29,
   ButtonPlayLevel: 444,
   ButtonDifficultyEasy: 545,

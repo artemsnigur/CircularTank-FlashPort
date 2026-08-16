@@ -47,7 +47,7 @@ const CLASS_FOR: Readonly<Record<string, string>> = {
 describe('the chrome table', () => {
   it('points every clip at the symbol its AS3 class embeds', () => {
     const names = Object.keys(CHROME_CLIPS);
-    expect(names.length).toBe(26);
+    expect(names.length).toBe(29);
 
     for (const name of names) {
       expect(CHROME_CLIPS[name].symbol, name).toBe(embeddedSymbol(CLASS_FOR[name] ?? name));

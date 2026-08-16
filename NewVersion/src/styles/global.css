@@ -319,9 +319,119 @@ body {
 
 /* The menu sits low, but `flex-end` overflows upward for the same reason
    `center` overflowed both ways — `safe` keeps the top reachable. */
-.screen--menu {
-  justify-content: safe flex-end;
-  padding-bottom: 3rem;
+/*
+ * ── The main menu ──────────────────────────────────────────────────────────
+ *
+ * The shell owns the title bar; everything below it is the illustrated scene
+ * with the panels laid over it.
+ */
+.screen--menu .screen-shell__body {
+  position: relative;
+  /* The art is absolutely placed to fill this, so the body must not scroll it
+     — the menu fits by construction and a scrollbar over a cover picture reads
+     as a broken image. */
+  overflow: hidden;
+  padding: 0;
+}
+
+/*
+ * `BackgroundMainMenu` — the cover picture, filling the body behind the panels.
+ *
+ * `object-fit: cover` on the layer rather than `contain`: the art is a 4:3
+ * scene and the body is whatever the viewport gives it, so letterboxing it
+ * would put black bars inside a screen that has just been given a background.
+ * Cropping the sky and the ground edges loses nothing — the tank and the
+ * enemies sit in the middle third.
+ */
+.menu-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* The clip's own aspect ratio must not win here; the box is the body. */
+  aspect-ratio: auto;
+}
+
+.menu-scene .chrome-art__layer {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The panels sit over the scene, right-aligned as the original stacks its two
+   save panels down the right of the picture. */
+.menu-panels {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  height: 100%;
+  overflow-y: auto;
+}
+
+.menu-saves {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  width: min(14rem, 100%);
+}
+
+.menu-saves__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.menu-saves__resume {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ok);
+  text-align: center;
+}
+
+/* `ButtonPlay` — the original's art, three frames cross-faded like every other
+   extracted button on this screen. */
+.menu-play {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.menu-play__face--hover,
+.menu-play__face--pressed {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.menu-play:hover .menu-play__face--hover,
+.menu-play:focus-visible .menu-play__face--hover {
+  opacity: 1;
+}
+
+.menu-play:active .menu-play__face--pressed {
+  opacity: 1;
+}
+
+/* The corner icons — `ScreenMenu` puts its small buttons bottom-left. */
+.menu-corner {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
 }
 
 /* The shell owns this screen's layout now — grid rows, background and scroll.
@@ -1791,20 +1901,40 @@ code {
   gap: 0.35rem;
 }
 
+/*
+ * The toggles draw the original's clips, so the element is a hit target and
+ * nothing else.
+ *
+ * **No `--off` rule any more, and that is the point of the swap.** The state
+ * is frame 3 rather than frame 1 (`ButtonToggleSound.as:55-83`), so "muted"
+ * is a different picture rather than the same picture dimmed — which is what
+ * the old `opacity: 0.45` was approximating, and which read as "disabled"
+ * rather than as "off".
+ */
 .audio-toggles__button {
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: var(--text-xs);
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
   cursor: pointer;
+  height: 1.75rem;
 }
 
-.audio-toggles__button--off {
-  opacity: 0.45;
-  border-style: dashed;
+.audio-toggles__button > .chrome-art {
+  height: 100%;
+  width: auto;
+}
+
+.audio-toggles__face--hover {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.audio-toggles__button:hover .audio-toggles__face--hover,
+.audio-toggles__button:focus-visible .audio-toggles__face--hover {
+  opacity: 1;
 }
 
 /* ── Volume sliders — SliderObject.as, one per channel ────────────────────

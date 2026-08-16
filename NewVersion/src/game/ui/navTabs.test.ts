@@ -12,7 +12,10 @@ import {
   difficultyFrame,
   isNavigable,
   navFrames,
+  TOGGLE_FRAMES,
   restingFrame,
+  toggleFrame,
+  toggleHoverFrame,
   upgradesTabFrames,
 } from './navTabs';
 
@@ -120,5 +123,33 @@ describe('the difficulty buttons, whose third frame is not the pressed one', () 
   it('answers both ways for one button', () => {
     expect(difficultyFrame(true)).toBe(3);
     expect(difficultyFrame(false)).toBe(1);
+  });
+});
+
+describe('the audio toggles, whose four frames are a matrix', () => {
+  /**
+   * `ButtonToggleSound.as:55-83` — on/off crossed with hover, not a
+   * rest/hover/pressed run. Frame 3 is **off**, where a nav button's 3 is
+   * pressed and a difficulty button's 3 is selected.
+   *
+   * All three third frames asserted together, because that is the confusion
+   * worth guarding: each is a plausible reading of the others, and every one
+   * of them draws a picture rather than failing.
+   */
+  it('puts state and hover on separate axes', () => {
+    expect(TOGGLE_FRAMES).toEqual({ onRest: 1, onHover: 2, offRest: 3, offHover: 4 });
+
+    expect(toggleFrame(true)).toBe(1);
+    expect(toggleFrame(false)).toBe(3);
+    expect(toggleHoverFrame(true)).toBe(2);
+    expect(toggleHoverFrame(false)).toBe(4);
+  });
+
+  it('disagrees with the other two conventions on what frame 3 means', () => {
+    expect(TOGGLE_FRAMES.offRest).toBe(3);
+    expect(DIFFICULTY_FRAMES.selected).toBe(3);
+    expect(navFrames('LevelSelect').pressed).toBe(3);
+    // Three rules, one number, three meanings — off, selected, pressed.
+    // Nothing here should ever be refactored into a shared triplet.
   });
 });

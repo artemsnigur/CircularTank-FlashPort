@@ -113,10 +113,29 @@ describe('the screen container can always be scrolled to its content', () => {
   it('still centres, safely', () => {
     const base = pageContainers.find((r) => r.selector === '.screen')!;
     expect(declaration(base.body, 'justify-content')).toBe('safe center');
+  });
 
-    const menu = pageContainers.find((r) => r.selector === '.screen--menu');
-    expect(menu, '.screen--menu should still exist').toBeDefined();
-    expect(declaration(menu!.body, 'justify-content')).toBe('safe flex-end');
+  /**
+   * The `safe flex-end` case this used to name is gone, and the reason is
+   * worth keeping rather than just deleting the assertion.
+   *
+   * `.screen--menu` carried `justify-content: safe flex-end` because the menu
+   * sat low in a flex column, and `flex-end` overflows *upward* — the same
+   * unreachable-scroll-origin failure as `center`, in one direction. T160
+   * moved the menu into `ScreenShell`, whose body is a **grid row**: it cannot
+   * push content past its own start, so the hazard does not exist there and
+   * there is nothing to make safe.
+   *
+   * The rule above still governs every remaining page container, and the
+   * `.screen` assertion still stops it being satisfied by deleting them all.
+   */
+  it('has no flex page container left that ends its content', () => {
+    const ending = pageContainers.filter((r) => {
+      const value = declaration(r.body, 'justify-content');
+      return value === 'flex-end' || value === 'end';
+    });
+
+    expect(ending.map((r) => r.selector), 'these overflow upward').toEqual([]);
   });
 
   /**
