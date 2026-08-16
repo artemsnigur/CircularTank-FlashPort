@@ -83,7 +83,7 @@ const clips = Object.entries(MARKER_SPRITE_IDS).map(([name, symbol]) => {
     fail(`${name} repeats a shape across frames: ${shapes.join(', ')}.`);
   }
 
-  for (const [shape, scale] of Object.entries(sprite.scales ?? {})) {
+  for (const [shape, scale] of Object.entries(sprite.matrices ?? {})) {
     if (scale[0] !== 1 || scale[1] !== 1) {
       fail(`${name} places shape ${shape} at scale ${scale.join('x')}; identity is assumed.`);
     }

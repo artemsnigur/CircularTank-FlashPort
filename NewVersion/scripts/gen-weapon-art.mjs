@@ -108,7 +108,7 @@ if (timeline.length !== EXPECTED_FRAMES) {
 
 // Identity scale on every placement. The offsets below are translations only;
 // a scaled placement would silently draw a glyph at the wrong size.
-for (const [shape, scale] of Object.entries(sprite.scales ?? {})) {
+for (const [shape, scale] of Object.entries(sprite.matrices ?? {})) {
   if (scale[0] !== 1 || scale[1] !== 1) {
     fail(`WeaponInterface places shape ${shape} at scale ${scale.join('x')}; identity is assumed.`);
   }

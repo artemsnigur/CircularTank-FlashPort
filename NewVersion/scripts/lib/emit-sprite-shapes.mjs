@@ -23,16 +23,24 @@ export function renderSpriteShapes(sprites, shapeIds) {
   const round = (n) => Number(n.toFixed(6));
 
   const rows = ids.map((id) => {
-    const { frameCount, places, scales } = sprites.get(id);
+    const { frameCount, places, matrices } = sprites.get(id);
     // Placement order, duplicates collapsed — see the header note below.
     const unique = [...new Set(places)];
-    const scaleEntries = unique
-      .filter((shapeId) => scales.has(shapeId))
+    const matrixEntries = unique
+      .filter((shapeId) => matrices.has(shapeId))
       .map((shapeId) => {
-        const { scaleX, scaleY } = scales.get(shapeId);
-        return `${shapeId}: [${round(scaleX)}, ${round(scaleY)}]`;
+        const { scaleX, scaleY, tx, ty, rotate0, rotate1 } = matrices.get(shapeId);
+        // Six numbers, always, rather than a shorter form when the tail is
+        // zero: a consumer destructuring `[sx, sy, tx, ty]` off a
+        // two-element row would read `undefined` as an offset and place the
+        // layer at NaN, which renders as nothing at all.
+        return (
+          `${shapeId}: [${round(scaleX)}, ${round(scaleY)}, ${round(tx)}, ${round(ty)}, ` +
+          `${round(rotate0)}, ${round(rotate1)}]`
+        );
       });
-    const scaleField = scaleEntries.length > 0 ? `, scales: { ${scaleEntries.join(', ')} }` : '';
+    const scaleField =
+      matrixEntries.length > 0 ? `, matrices: { ${matrixEntries.join(', ')} }` : '';
 
     // The per-frame picture as a list of layers, emitted only when it varies.
     // A clip whose every frame draws the same thing is not an animation, and a
@@ -75,13 +83,25 @@ export function renderSpriteShapes(sprites, shapeIds) {
  */
 
 /**
- * \`scales\` is the **first** placement matrix seen for each shape, as
- * \`[scaleX, scaleY]\`. It is how the original tells apart clips that share a
- * shape: sprite 264 (Cannon) places shape 215 at 0.5 x 1.333 while 217
- * (MiniGun) places the same shape at 1 x 1. Absent when the placement carried
- * no matrix, which means identity.
+ * \`matrices\` is the **first** placement matrix seen for each shape, as
+ * \`[scaleX, scaleY, tx, ty, rotate0, rotate1]\`. Absent when the placement
+ * carried no matrix, which means identity.
  *
- * @type {Readonly<Record<number, { frameCount: number, places: number[], scales?: Record<number, [number, number]> }>>}
+ * **Scale** is how the original tells apart clips that share a shape: sprite
+ * 264 (Cannon) places shape 215 at 0.5 x 1.333 while 217 (MiniGun) places the
+ * same shape at 1 x 1.
+ *
+ * **Translation** is how a clip positions one layer against another, and it is
+ * why this row grew from two numbers to six in T154. \`ButtonUpgrades\` (456)
+ * places its plate at the origin and its label at \`(100, 20)\`; with only the
+ * scale half, the two stack concentrically and the button looks plausible and
+ * is wrong. 537 placements across 87 sprites carry one.
+ *
+ * **Rotation** is rare — 281 placements across 6 sprites — and is carried
+ * rather than asserted away, so a consumer that meets one can decide for
+ * itself instead of silently drawing it upright.
+ *
+ * @type {Readonly<Record<number, { frameCount: number, places: number[], matrices?: Record<number, [number, number, number, number, number, number]> }>>}
  */
 export const SPRITE_SHAPES = Object.freeze({
 ${rows.join('\n')}

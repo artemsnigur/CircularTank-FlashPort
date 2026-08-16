@@ -27,6 +27,7 @@ import { BESTIARY_SPRITE_IDS } from './lib/bestiary-sprites.mjs';
 import { UPGRADE_SPRITE_IDS } from './lib/upgrade-sprites.mjs';
 import { MARKER_SPRITE_IDS } from './lib/marker-sprites.mjs';
 import { WEAPON_PANEL_SPRITE_ID } from './lib/weapon-panel-sprites.mjs';
+import { CHROME_SPRITE_IDS } from './lib/chrome-sprites.mjs';
 import { achievementSymbols } from './lib/achievement-sprites.mjs';
 
 const projectRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
@@ -469,6 +470,18 @@ for (const id of shapeIdsForSprites(Object.values(MARKER_SPRITE_IDS))) {
  * the unused slot's preview from the same `WeaponInterface` clip.
  */
 for (const id of shapeIdsForSprites([WEAPON_PANEL_SPRITE_ID])) {
+  CURATED_SHAPES.add(`${id}.svg`);
+}
+
+/**
+ * The UI chrome — screen titles, the bottom navigation bar, panels and the
+ * action buttons.
+ *
+ * `shapeIdsForSprites` walks nested sprites for us, which matters here: the
+ * two wide nav tabs place their labels as *clips*, not shapes, so a list built
+ * from the top-level placements alone would miss them.
+ */
+for (const id of shapeIdsForSprites(Object.values(CHROME_SPRITE_IDS))) {
   CURATED_SHAPES.add(`${id}.svg`);
 }
 

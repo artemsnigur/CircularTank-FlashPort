@@ -96,8 +96,29 @@ describe('coverage — the partition, not any single button', () => {
    * dev-aid inventory: the value is the guarantee that nothing is outside the
    * set.
    */
+  /**
+   * Comments stripped first — **a component that *mentions* `<button>` in its
+   * docstring does not render one.**
+   *
+   * `ChromeArt` is the case that found this: its header explains that the art
+   * is `aria-hidden` when the caller is "a real `<button>` that carries its own
+   * accessible name", and that sentence put it on this list and failed the
+   * assertion below. The component has no control in it at all.
+   *
+   * Left as a scan over source rather than something cleverer, because the
+   * point of this list is that nothing is outside it; but a scan that reads
+   * prose as code produces a false *positive* here and could as easily produce
+   * a false negative, which is the direction that matters.
+   */
+  const withoutComments = (source: string): string =>
+    source
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter((line) => !/^\s*(\/\/|\*)/.test(line))
+      .join('\n');
+
   const componentsWithButtons = tsxFiles(UI_DIR)
-    .filter((file) => readFileSync(file, 'utf8').includes('<button'))
+    .filter((file) => withoutComments(readFileSync(file, 'utf8')).includes('<button'))
     .map((file) => file.split(/[\\/]/).pop()!.replace('.tsx', ''));
 
   it('finds the components that render controls', () => {

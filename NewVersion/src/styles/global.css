@@ -1730,6 +1730,25 @@ code {
 /* The shop tile — `ButtonWeapon` / `ButtonMisc`, three stacked shapes. Same
    construction as the two below; kept separate because the row lays it out as
    a flex item that must not shrink when the stat lines get long. */
+/* One piece of extracted UI chrome — a title, a nav tab, a panel.
+
+   Sized entirely from outside: the element carries the clip's `aspect-ratio`
+   and every layer is positioned in percentages, so a caller sets a width and
+   the assembly scales. `display: block` rather than inline-block because these
+   are laid out as blocks in a flex or grid, and an inline box would add a
+   baseline gap under the art. */
+.chrome-art {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.chrome-art__layer {
+  position: absolute;
+  /* Position and size come from the inline style; nothing here may override
+     them, which is why there is no `inset` or `width: 100%` in this rule. */
+  display: block;
+}
+
 /* The HUD's weapon icon — `WeaponInterface`, a socket with a glyph over it.
 
    Deliberately not merged with `.upgrade-icon` below, though both stack images

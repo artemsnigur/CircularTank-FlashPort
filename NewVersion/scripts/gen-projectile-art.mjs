@@ -145,7 +145,7 @@ for (const [className, spriteId] of Object.entries(PROJECTILE_SPRITES)) {
     continue;
   }
 
-  const [scaleX, scaleY] = sprite.scales?.[shapeId] ?? [1, 1];
+  const [scaleX, scaleY] = sprite.matrices?.[shapeId] ?? [1, 1];
   const key = `projectile-${shapeId}`;
 
   classes.push({
@@ -179,7 +179,7 @@ for (const [className, spriteId] of Object.entries(PROJECTILE_SPRITES)) {
         problems.push(`${className}: variant shape ${frameShape} has no readable svg`);
         continue;
       }
-      const [fx, fy] = sprite.scales?.[frameShape] ?? [1, 1];
+      const [fx, fy] = sprite.matrices?.[frameShape] ?? [1, 1];
       const frameKey = `projectile-${frameShape}`;
       frames.push({
         key: frameKey,
@@ -217,7 +217,7 @@ for (const [className, spriteId] of Object.entries(PROJECTILE_SPRITES)) {
         problems.push(`${className}: overlay shape ${overlayShape} has no readable svg`);
         continue;
       }
-      const [ox, oy] = sprite.scales?.[overlayShape] ?? [1, 1];
+      const [ox, oy] = sprite.matrices?.[overlayShape] ?? [1, 1];
       const overlayKey = `projectile-${overlayShape}`;
       frames.push({
         key: overlayKey,

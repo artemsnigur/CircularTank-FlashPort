@@ -80,7 +80,7 @@ const clips = Object.entries(UPGRADE_SPRITE_IDS).map(([id, symbol]) => {
     fail(`${id}: the not-owned row draws the owned glyph (${owned}) — it must not.`);
   }
 
-  for (const [shape, scale] of Object.entries(sprite.scales ?? {})) {
+  for (const [shape, scale] of Object.entries(sprite.matrices ?? {})) {
     if (scale[0] !== 1 || scale[1] !== 1) {
       fail(
         `${id} places shape ${shape} at scale ${scale.join('x')}; this table assumes ` +

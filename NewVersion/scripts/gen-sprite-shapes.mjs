@@ -132,7 +132,7 @@ function bitReader(buffer, offset) {
 }
 
 /**
- * The scale half of a MATRIX record.
+ * A whole MATRIX record — scale, rotate/skew and translate.
  *
  * **This is load-bearing, not decoration.** The four weapons that share shape
  * 215 are told apart *by this matrix and nothing else*: Cannon places it at
@@ -140,14 +140,30 @@ function bitReader(buffer, offset) {
  * matrix and three of the four become the same picture, which is a fidelity
  * loss the port would then have no way to express — its own sizing is uniform.
  *
- * Rotation and translation are read past but discarded: every projectile
- * placement measured has an identity rotation and a zero offset, and a bullet
- * is positioned by the game rather than by its clip.
+ * ── It used to read the translation and throw it away ─────────────────────
+ * The note here said "every projectile placement measured has an identity
+ * rotation and a zero offset". That was true of *projectiles*, which is all
+ * that consumed this table at the time, and it was quietly wrong about the
+ * file: **537 placements across 87 sprites carry a translation**, and 281
+ * across 6 carry a rotation. Measured, not assumed — the scan is in T154's
+ * report.
+ *
+ * The UI chrome is where that starts to matter and where it would have been
+ * silent. `ButtonUpgrades` (456) and `ButtonLevelSelect` (595) each place
+ * their label at `translate(100, 20)` over a plate placed at the origin, so a
+ * reader that only had the scale half would stack the two concentrically and
+ * the label would sit 100 units from where the original puts it — a plausible
+ * looking button, wrong in a way no test of *sizes* could see.
+ *
+ * Translation is in twips (1/20 px); the scale and rotate fields are fixed
+ * 16.16.
  */
-function readMatrixScale(buffer, offset) {
+function readMatrix(buffer, offset) {
   const bits = bitReader(buffer, offset);
   let scaleX = 1;
   let scaleY = 1;
+  let rotate0 = 0;
+  let rotate1 = 0;
 
   if (bits.unsigned(1)) {
     const n = bits.unsigned(5);
@@ -157,11 +173,19 @@ function readMatrixScale(buffer, offset) {
   }
   if (bits.unsigned(1)) {
     const n = bits.unsigned(5);
-    bits.signed(n);
-    bits.signed(n);
+    rotate0 = bits.signed(n) / 65536;
+    rotate1 = bits.signed(n) / 65536;
   }
+  const nTranslate = bits.unsigned(5);
 
-  return { scaleX, scaleY };
+  return {
+    scaleX,
+    scaleY,
+    rotate0,
+    rotate1,
+    tx: bits.signed(nTranslate) / 20,
+    ty: bits.signed(nTranslate) / 20,
+  };
 }
 
 /**
@@ -207,7 +231,7 @@ function walkTags(buffer, start, end, owner, sprites, shapeIds) {
     if (code === TAG_DEFINE_SPRITE) {
       const id = buffer.readUInt16LE(body);
       const frameCount = buffer.readUInt16LE(body + 2);
-      const entry = { frameCount, places: [], scales: new Map(), timeline: [] };
+      const entry = { frameCount, places: [], matrices: new Map(), timeline: [] };
       // Depth -> shape currently on it, so a ShowFrame can be resolved to what
       // is actually visible rather than to whatever was placed most recently.
       entry.stage = new Map();
@@ -224,7 +248,7 @@ function walkTags(buffer, start, end, owner, sprites, shapeIds) {
         const depth = buffer.readUInt16LE(body + 2);
         owner.places.push(id);
         owner.stage.set(depth, id);
-        owner.scales.set(id, readMatrixScale(buffer, body + 4));
+        owner.matrices.set(id, readMatrix(buffer, body + 4));
       } else if (code === TAG_PLACE_OBJECT_2 || code === TAG_PLACE_OBJECT_3) {
         const flags = buffer[body];
         // PlaceObject2: flags(1) + depth(2). PlaceObject3 adds a second flag
@@ -236,10 +260,10 @@ function walkTags(buffer, start, end, owner, sprites, shapeIds) {
           const id = buffer.readUInt16LE(idOffset);
           owner.places.push(id);
           owner.stage.set(depth, id);
-          // First placement wins for scale: a clip that re-places the same
-          // character later is animating it, and frame 1 is the reference.
-          if (flags & PLACE_HAS_MATRIX && !owner.scales.has(id)) {
-            owner.scales.set(id, readMatrixScale(buffer, idOffset + 2));
+          // First placement wins: a clip that re-places the same character
+          // later is animating it, and frame 1 is the reference.
+          if (flags & PLACE_HAS_MATRIX && !owner.matrices.has(id)) {
+            owner.matrices.set(id, readMatrix(buffer, idOffset + 2));
           }
         }
       } else if (code === TAG_REMOVE_OBJECT_2) {

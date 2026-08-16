@@ -130,7 +130,7 @@ const clips = expectedIds.map((id) => {
     fail(`${id} frame ${LOCKED_FRAME} draws its own glyph (${glyph}) — it must not.`);
   }
 
-  for (const [shape, scale] of Object.entries(sprite.scales ?? {})) {
+  for (const [shape, scale] of Object.entries(sprite.matrices ?? {})) {
     if (scale[0] !== 1 || scale[1] !== 1) {
       fail(
         `${id} places shape ${shape} at scale ${scale.join('x')}; this table assumes ` +
