@@ -24,44 +24,104 @@
  * `src/game` are world and effect colours tied to art, not UI chrome, and
  * theming them would change how the game reads rather than how the shell looks.
  *
- * The palette is warm-neutral and light. It replaced the previous dark values
- * by editing **this block and nothing else**, which is what moving them here
- * first bought.
+ * ── The palette is the original's, read off its own art ──────────────────
+ * T155 replaced a warm light neutral scheme with the Flash game's steel, by
+ * editing **this block and nothing else** — which is what moving the colours
+ * here first bought, and is the second time that has paid off.
+ *
+ * **Every value below is measured, not matched by eye.** The screenshots are
+ * 320px JPEGs and sampling them would carry compression noise into the tokens;
+ * the extracted SVGs carry the exact stops. The ramp is `#000 #222 #333 #666
+ * #999 #bfbfbf #fff`, and it comes from the chrome itself: the nav tab's
+ * resting plate is `#333 -> #666` (shape 445) against its hover `#666 -> #999`
+ * (449), the window panels are `#999` bodies with `#333` edges (902, 904), and
+ * the title letters are a `#fff -> #bfbfbf` fill inside a `#000` outline (393).
+ *
+ * The signal colours are the AS3's own `addText` arguments, which are decimal
+ * in the source: `16711680` red for health, `65280` green for money,
+ * `13369344` for the darker red the level note uses, `16777215` white.
  */
 :root {
-  /* Chrome — warm neutral, low contrast, quiet. */
-  --bg: #F0EEE6;
-  --surface: #FAF9F5;
-  --surface-sunken: #E8E4D9;
-  --panel: #FAF9F5;
-  --panel-border: #DDD8CC;
-  --border: #DDD8CC;
-  --text: #1F1E1D;
-  --text-dim: #6B6862;
-  --text-faint: #9A968D;
-  --text-on-accent: #FFFFFF;
+  /* ── The steel ramp ────────────────────────────────────────────────────
+     Named by lightness, not by role, so a rule can reach for a step directly
+     when the role tokens below do not fit. */
+  --steel-900: #000000;
+  --steel-800: #222222;
+  --steel-700: #333333;
+  --steel-500: #666666;
+  --steel-400: #999999;
+  --steel-300: #bfbfbf;
+  --steel-000: #ffffff;
+
+  /* Chrome — near-black ground under silver panels. */
+  --bg: #000000;
+  --surface: #333333;
+  --surface-sunken: #222222;
+  /*
+   * **`--panel` stays dark, and that is a decision, not an oversight.**
+   *
+   * The original has two kinds of plate and this port's CSS only had a name
+   * for one. The *dark* panel is the one that holds readings — the level
+   * select's mode and objective column, the upgrade info box — and it is what
+   * every existing `--panel` rule means: four of them pair it with
+   * `var(--text)`. Pointing this token at the silver would have put white text
+   * on `#999` at about 1.9:1, on screens no test looks at.
+   *
+   * The metallic plate gets its own token below, with its own ink.
+   */
+  --panel: #333333;
+  --panel-border: #000000;
+  /* The silver plate — `#999` is the fill of `BackgroundWindow` (904) and
+     `BackgroundSquare` (902). Dark ink, always: it is a light surface. */
+  --panel-metal: #999999;
+  --panel-metal-ink: #000000;
+  --border: #333333;
+  --text: #ffffff;
+  --text-dim: #bfbfbf;
+  --text-faint: #999999;
+  --text-on-accent: #ffffff;
   /* Content on a strongly-coloured or dark surface. The countdown panel and the
      reload bars sit over the arena, which stays dark in either theme. */
-  --on-strong: #FFFFFF;
+  --on-strong: #ffffff;
 
   /* Signal. The only saturated colour in the UI, and each carries meaning:
      nothing here is decoration. */
-  --accent: #CC785C;
-  --accent-ink: #FFFFFF;
-  --danger: #B4472E;
-  --danger-soft: #C97A66;
-  --danger-deep: #8F3A22;
-  --danger-ink: #FFFFFF;
-  --ok: #5C7F52;
-  --ok-ink: #FFFFFF;
-  --warn: #B8862F;
-  --warn-ink: #FFFFFF;
-  --info: #4A7C8C;
+  --accent: #cc0000;
+  --accent-ink: #ffffff;
+  --danger: #ff0000;
+  --danger-soft: #cc0000;
+  --danger-deep: #660000;
+  --danger-ink: #ffffff;
+  --ok: #00ff00;
+  --ok-ink: #000000;
+  --warn: #ffff00;
+  --warn-ink: #000000;
+  --info: #bfbfbf;
 
-  /* Medal tiers — distinguishable from each other above all else. */
-  --medal-bronze: #A9714B;
-  --medal-silver: #9A9A94;
-  --medal-gold: #C9A227;
+  /* Medal tiers — distinguishable from each other above all else, and now
+     against black rather than against parchment, so all three are brighter. */
+  --medal-bronze: #cd7f32;
+  --medal-silver: #c0c0c0;
+  --medal-gold: #ffd700;
+
+  /* ── Chrome surfaces ───────────────────────────────────────────────────
+     The gradients the original draws, as tokens, so a screen states which
+     surface it is rather than restating six hex values.
+
+     Vertical, all of them: Flash's plates run light at the top to dark at the
+     bottom, which is what makes them read as lit from above. */
+  --tab-inactive: linear-gradient(180deg, var(--steel-500), var(--steel-700));
+  --tab-active: linear-gradient(180deg, var(--steel-400), var(--steel-500));
+  --pill-red: linear-gradient(180deg, var(--accent), var(--danger-deep));
+  --pill-steel: linear-gradient(180deg, var(--steel-500), var(--steel-700));
+  --pill-dark: linear-gradient(180deg, var(--steel-700), var(--steel-900));
+  /* `BackgroundSquareBig` (901) is one rect under a **radial** gradient, white
+     at 25% in the middle — a sheen over the ground, not a fill of it. */
+  --panel-sheen: radial-gradient(
+    ellipse at 50% 45%,
+    rgba(255, 255, 255, 0.25),
+    rgba(255, 255, 255, 0) 70%
+  );
 
   /* ── Type scale ────────────────────────────────────────────────────────
      Replacing 20 locally-chosen sizes.
@@ -100,7 +160,9 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
 
-  color-scheme: light;
+  /* Dark, so the browser paints form controls, scrollbars and the overscroll
+     gutter to match rather than flashing a white one over black art. */
+  color-scheme: dark;
 }
 
 *,
@@ -117,7 +179,24 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-body);
+  /*
+   * `SWFMainFont` — the original's own face — is the default, not the
+   * fallback. `ScreenLevelSelect.as:65` sets nearly every label with
+   * `TextFormat("JG", 16, 0xFFFFFF, true)`, and "JG" *is* this file
+   * (`50_Main_font_JG.ttf`). Leaving the UI on `--font-body` meant the port
+   * rendered in the SWF's embedded **Arial** — the face the AS3 reserves for
+   * two small fields — which is why the shell never looked like the game.
+   *
+   * `--font-body` stays for genuinely arbitrary or long text: `SWFMainFont`
+   * carries 581 glyphs, so anything outside that set falls through the stack
+   * to Trebuchet. That degrades a glyph at a time rather than a screen.
+   *
+   * The AS3 asks for **bold** everywhere and only weight 400 is registered, so
+   * the browser synthesises it. Deliberately not "fixed" by declaring a
+   * 400-700 range on the face: that would tell the browser one weight covers
+   * both and give a lighter result than Flash's.
+   */
+  font-family: var(--font-display);
   /* Stop iOS from bouncing the page and from showing a grey tap flash on the
      canvas; both read as bugs in a full-screen game. */
   overscroll-behavior: none;
@@ -1747,6 +1826,168 @@ code {
   /* Position and size come from the inline style; nothing here may override
      them, which is why there is no `inset` or `width: 100%` in this rule. */
   display: block;
+}
+
+/*
+ * ── The three chrome primitives ────────────────────────────────────────────
+ *
+ * **These are for controls the port adds, not for controls the original drew.**
+ * Where the AS3 has real art — `ButtonPlayLevel`, the three difficulty
+ * buttons, the two nav tabs — the screens use `<ChromeArt>` and get the
+ * original pixels. But this port has controls the original never had (its
+ * one-click level rows, the bestiary list, the slot picker: divergences `A8`
+ * and `A16`, which are staying), and those need to look like they belong.
+ *
+ * So each primitive is built from the *same measured values* as the art beside
+ * it — the tab gradients are shapes 445 and 449, the red pill is 438's
+ * `#cc0000 -> #660000` — rather than from a guess at what looks Flash-like.
+ * A CSS control and an extracted one can then sit in the same row.
+ */
+
+/*
+ * A metallic panel — the silver plate the original puts content on.
+ *
+ * Thick dark border, because that is what carries the look: `BackgroundWindow`
+ * and `BackgroundSquare` are `#999` bodies with `#333` edges, and the edge is
+ * heavy enough to read at a glance on a phone.
+ */
+.chrome-panel {
+  position: relative;
+  border: 3px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel-metal);
+  color: var(--panel-metal-ink);
+}
+
+/* The sheen sits over the panel and under its content, so text stays crisp. */
+.chrome-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background: var(--panel-sheen);
+  pointer-events: none;
+}
+
+.chrome-panel > * {
+  position: relative;
+}
+
+/*
+ * The dark variant — the plate that holds *readings* rather than content.
+ *
+ * Both exist in the original and the distinction is load-bearing: the level
+ * select's mode and objective column is dark with white text, sitting beside a
+ * silver plate carrying the level grid. Getting them the wrong way round is
+ * how white text lands on `#999`, which is why `--panel` and `--panel-metal`
+ * are separate tokens rather than one with two uses.
+ */
+.chrome-panel--dark {
+  background: var(--panel);
+  color: var(--text);
+}
+.chrome-panel--dark::before {
+  background: none;
+}
+
+/*
+ * A glossy pill button.
+ *
+ * The gloss is a real half-height highlight rather than a border trick: Flash
+ * buttons are drawn with a lighter top half, and reproducing that with a
+ * `::before` keeps it independent of the button's own background so the
+ * variants below only have to state their colour.
+ */
+.chrome-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 2px solid var(--steel-900);
+  border-radius: 999px;
+  background: var(--pill-steel);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.chrome-pill::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 50% 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.chrome-pill:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+/* Pressed moves the label down a pixel and kills the gloss — the two together
+   read as "in", where either alone reads as a hover. */
+.chrome-pill:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.chrome-pill:active:not(:disabled)::before {
+  opacity: 0;
+}
+
+.chrome-pill:disabled {
+  filter: grayscale(0.6) brightness(0.6);
+  cursor: default;
+}
+
+.chrome-pill--red {
+  background: var(--pill-red);
+  color: var(--accent-ink);
+}
+.chrome-pill--dark {
+  background: var(--pill-dark);
+}
+
+/*
+ * A navigation tab — the two wide ones in the bottom bar, and anything that
+ * behaves like them.
+ *
+ * `aria-current` rather than a modifier class carries the active state: the
+ * tab a screen is *on* is a fact the markup already has to state for a screen
+ * reader, and hanging the styling off it means the two cannot disagree.
+ */
+.chrome-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2) var(--space-4);
+  border: 2px solid var(--steel-900);
+  border-radius: 4px;
+  background: var(--tab-inactive);
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+}
+
+.chrome-tab:hover {
+  background: var(--tab-active);
+  color: var(--text);
+}
+
+.chrome-tab[aria-current='page'] {
+  background: var(--tab-active);
+  color: var(--text);
+  cursor: default;
 }
 
 /* The HUD's weapon icon — `WeaponInterface`, a socket with a glyph over it.
