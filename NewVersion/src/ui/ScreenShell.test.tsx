@@ -144,8 +144,35 @@ describe('BottomNav', () => {
     expect(lit).toHaveLength(1);
 
     const levelSelect = screen.getByRole('button', { name: 'Level select' });
-    expect(levelSelect.className).toContain('gloss-pill');
     expect(levelSelect).not.toHaveAttribute('aria-current');
+  });
+
+  /*
+   * ── T184: six styles, and the six-ness is the assertion ─────────────────
+   *
+   * The bar is a live comparison — each button wears a different aesthetic so
+   * they can be judged in place (`A42`). This is **temporary**: one style
+   * survives the next pass and five CSS blocks get deleted.
+   *
+   * Pinned because the failure mode is silent. Two buttons sharing a style key
+   * still renders six buttons that all work, and the comparison is simply
+   * missing one option — nothing throws, nothing looks broken, and the
+   * screenshot the choice gets made from is wrong.
+   *
+   * **Delete this test when the winner is chosen**, along with the styles that
+   * lost. It describes an experiment, not a requirement.
+   */
+  it('gives all six tabs a different style, since that is the point of T184', () => {
+    const { container } = render(<BottomNav current="LevelSelect" />);
+
+    const looks = [...container.querySelectorAll('.nav-pill')].map(
+      (pill) =>
+        [...pill.classList].find((name) => name.startsWith('nav-style--')) ?? '(none)',
+    );
+
+    expect(looks).toHaveLength(6);
+    expect(new Set(looks).size, `duplicate or missing style: ${looks.join(', ')}`).toBe(6);
+    expect(looks).not.toContain('(none)');
   });
 
   it('never lights Main menu, because ButtonMenu has no fourth frame', () => {

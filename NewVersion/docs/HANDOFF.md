@@ -309,6 +309,15 @@ needs to know before touching it:
   `scrollHeight - clientHeight`, not just the body's.** And note the shape of
   the near miss: it was clean from 1366x768 up, so every viewport anyone
   develops on said the rule was right.
+- **The bottom bar is currently six different styles at once, on purpose.**
+  T184 is a live A/B/C/D/E/F comparison — soft, flat, neon, arcade, outline and
+  brutalist, one per button, assigned by *position in the row* rather than by
+  anything about the destination (`A42`). **Do not "fix" the inconsistency**:
+  one style wins, five CSS blocks and `NAV_STYLE` get deleted, and the
+  style-variety test in `ScreenShell.test.tsx` goes with them. Only the tab for
+  the screen you are on lights up, so comparing the active states means
+  visiting all five nav screens; the sixth (Main menu) has no reachable current
+  state at all, because `ButtonMenu` has no "you are here" frame.
 - **The bottom bar is pills, and `navTabs.ts` still decides two things.** The
   frame numbers are no longer drawn (`A41`) but they are not decoration:
   `frames.current === undefined` is what stops the Main menu pill ever lighting

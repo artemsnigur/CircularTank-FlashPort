@@ -8,13 +8,25 @@
  * port drops Premium with the rest of the monetisation surface, so the row
  * keeps its pitch and loses one icon.
  *
- * ── It is type on pills now, not the extracted art ────────────────────────
+ * ── It is type on buttons now, not the extracted art ──────────────────────
  * Every button was a `ButtonUpgrades`/`ButtonEnemies`/… clip: a picture that
  * *is* the whole button, background and glyph together. Those are 40-unit
  * exports, and this bar draws at whatever height the viewport gives it — the
- * same upscale problem `A40` found behind the shop's tiles, on art that also
- * no longer matched the five screens above it. T183 replaced them with
- * `.gloss-pill` and a label. `A41`.
+ * same upscale problem `A40` found behind the shop's tiles. T183 replaced them
+ * with type on CSS buttons. `A41`.
+ *
+ * ── **This bar is a live style comparison, and it is temporary** ───────────
+ * T184: the six buttons deliberately do **not** match each other. Each wears a
+ * different aesthetic so they can be compared in place rather than described —
+ * soft/neumorphic, flat, neon, arcade, outline and brutalist, in row order.
+ * `NAV_STYLE` below is the whole of the assignment.
+ *
+ * **Do not "fix" the inconsistency.** It is the deliverable for this pass, and
+ * exactly one of the six survives the next one, at which point `NAV_STYLE`
+ * collapses to a constant and five CSS blocks are deleted. `A42` records it,
+ * including the shortcut this takes: the styles are decided by *position in
+ * the row* rather than by anything about the destination, which is fine for a
+ * comparison and would be nonsense to keep.
  *
  * **The frame table did not go with them, and that is deliberate.**
  * `navTabs.ts` still says what the AS3 draws, and the two things it *decides*
@@ -53,6 +65,23 @@ const SCENE_FOR: Readonly<Record<NavDestination, SceneKey>> = {
 /** `BottomBar.as:51-68` — the icon row, in its own left-to-right order. */
 const ICONS: readonly NavDestination[] = ['Achievements', 'Enemies', 'Options'];
 
+/**
+ * Which look each button wears — **T184 only**, see the header.
+ *
+ * Keyed by destination because that is the stable handle; the *intent* is
+ * position in the row, and the two happen to agree because the row's order is
+ * fixed. `Menu` is not a `NavDestination`, so it is keyed separately rather
+ * than by widening the type for a temporary experiment.
+ */
+const NAV_STYLE: Readonly<Record<NavDestination | 'Menu', string>> = {
+  Upgrades: 'soft',
+  LevelSelect: 'flat',
+  Achievements: 'neon',
+  Enemies: 'arcade',
+  Options: 'outline',
+  Menu: 'brutalist',
+};
+
 function NavButton({
   label,
   frames,
@@ -60,6 +89,7 @@ function NavButton({
   onClick,
   wide,
   hint = false,
+  look,
 }: {
   label: string;
   /**
@@ -72,6 +102,8 @@ function NavButton({
   wide?: boolean;
   /** `ButtonUpgrades`' `makeIcon` — something in the shop is affordable. */
   hint?: boolean;
+  /** T184's style key — one of `NAV_STYLE`'s values. */
+  look: string;
 }): React.ReactElement {
   // A control with no fourth frame cannot be current, whatever the caller
   // says. `ButtonMenu` is the case, and encoding it here rather than at the
@@ -90,7 +122,7 @@ function NavButton({
    */
   const showHint = hint && !here;
 
-  const classes = ['gloss-pill', 'nav-pill'];
+  const classes = ['nav-pill', `nav-style--${look}`];
   if (wide === true) classes.push('nav-pill--wide');
   if (here) classes.push('nav-pill--on');
   if (showHint) classes.push('nav-pill--flush');
@@ -146,6 +178,7 @@ export function BottomNav({
       onClick={go(destination)}
       wide={wide}
       hint={showsAffordanceHint(destination, affordable)}
+      look={NAV_STYLE[destination]}
     />
   );
 
@@ -154,7 +187,7 @@ export function BottomNav({
       {/*
         One row, evenly spread. The AS3 splits it — two wide tabs pinned left,
         icons pinned right, a gap between — because those are pictures at fixed
-        stage coordinates. Six labelled pills read better spread across the
+        stage coordinates. Six labelled buttons read better spread across the
         dock than clustered at both ends, and the order is unchanged. `A41`.
       */}
       <div className="bottom-nav__row">
@@ -170,6 +203,7 @@ export function BottomNav({
           frames={MENU_FRAMES}
           current={false}
           onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
+          look={NAV_STYLE.Menu}
         />
       </div>
     </nav>
