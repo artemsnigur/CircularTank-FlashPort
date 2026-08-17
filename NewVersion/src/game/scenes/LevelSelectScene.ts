@@ -21,12 +21,10 @@ import {
   worldUnlockStates,
 } from '../levels/levelUnlock';
 import { chooseDifficulty, getDifficulty, publishDifficulty } from '../levels/difficultyService';
+import { entryWorld, guideLevelFor, PICKER } from '../levels/levelSelectEntry';
 import { Worlds } from '../config/constants';
 import { getSoundManager } from '../audio/soundService';
 import { pendingReveals, REVEAL_STEP_MS, stepReveal } from '../levels/progressReveal';
-
-/** `selectedWorld = 0` — the picker itself, not a world. See `selectWorld`. */
-const PICKER = 0;
 
 export class LevelSelectScene extends Phaser.Scene {
   private backdrop!: Phaser.GameObjects.TileSprite;
@@ -38,10 +36,17 @@ export class LevelSelectScene extends Phaser.Scene {
    * screen model: `changeToWorldsFunction` (`:678`) sets it to 0 and swaps the
    * level buttons for world buttons.
    *
-   * Scene state rather than a module constant now that there is something to
-   * pick. It resets to the picker on every entry, matching `removed()`
-   * (`:630`) — arriving from the menu should show where the player is in the
-   * game, not the last grid they happened to look at.
+   * **Entry opens a grid, never the picker.** `:41` declares it `= 1` and
+   * `:383` re-points it at `LevelGuide.selectedWorld` on every entry, so `:431`
+   * — `if (selectedWorld != 0) changeToLevelsFunction()` — always takes the
+   * levels branch. The picker is somewhere you *go*, via `ButtonWorldSelect`.
+   *
+   * This used to reset to `PICKER` here, justified as "matching `removed()`
+   * (`:630`)". That was a misreading: `removed()` sets it to 0 **only** inside
+   * `if (progressWorld != 0)` — the one case where a world was just finished
+   * and the next entry should show the unlock animation. A conditional read as
+   * unconditional turned the exception into the rule, and every visit landed
+   * on a world list the player had not asked for.
    */
   private selectedWorld = PICKER;
 
@@ -66,8 +71,9 @@ export class LevelSelectScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setAlpha(0.35);
 
-    this.selectedWorld = PICKER;
+    this.selectedWorld = this.entryWorld();
     this.publishWorlds();
+    this.publishLevels();
     publishDifficulty(this);
     this.startReveal();
 
@@ -159,6 +165,15 @@ export class LevelSelectScene extends Phaser.Scene {
   private selectWorld(world: number): void {
     if (world === PICKER) {
       this.selectedWorld = PICKER;
+      /*
+       * Pressing it stops the medal count-up. `ButtonWorldSelect.as:68` sets
+       * `progressTimerOn = false` in the same handler, and the reason is plain
+       * once you look: the reveal animates buttons that are about to be
+       * removed from the stage. Leaving the ticker running here left it
+       * stepping a grid nobody could see, and re-publishing rows behind the
+       * picker every 233ms.
+       */
+      this.stopReveal();
       this.publishWorlds();
       return;
     }
@@ -171,6 +186,30 @@ export class LevelSelectScene extends Phaser.Scene {
     this.selectedWorld = world;
     this.publishWorlds();
     this.publishLevels();
+  }
+
+  /**
+   * Which grid opens on entry — `:383`, `selectedWorld = LevelGuide.selectedWorld`.
+   *
+   * The level guide is the same object here as there: `PlayerProfile.levelGuide`
+   * resolves the `Upcoming`/`Previous`/`Last` rule against live progress, and
+   * the shop's arrows write back into it. So "where the player is in the game"
+   * has one definition and both screens read it.
+   *
+   * **Clamped to an unlocked world.** The guide derives from progress and
+   * should never point past it, but this is the one place a stale value would
+   * open a grid the player cannot play — so it falls back to the furthest world
+   * they have actually reached rather than trusting the invariant.
+   */
+  private entryWorld(): number {
+    const profile = getPlayerProfile(this);
+    return entryWorld(profile.progress, profile.levelGuide.selectedWorld);
+  }
+
+  /** Cancels the medal count-up — `progressTimerOn = false`. */
+  private stopReveal(): void {
+    this.revealTimer?.remove();
+    this.revealTimer = null;
   }
 
   /**
@@ -202,17 +241,28 @@ export class LevelSelectScene extends Phaser.Scene {
     const world = this.selectedWorld;
     if (world === PICKER) return;
 
+    // Gates from the earned table, medal counts from the visible one. The
+    // split is the divergence documented at `levelUnlockStates`.
+    const levels = levelUnlockStates(
+      profile.progress,
+      world,
+      getDifficulty(this),
+      profile.visibleProgress,
+    );
+
+    /*
+     * `selectFromLevelGuide` (`:583-595`) — the grid opens pointing at the
+     * level guide's level, but **only** when it is in this world and unlocked
+     * (`:587` tests both). Otherwise the AS3 leaves the selection alone, which
+     * is what `undefined` means to the screen.
+     */
+    const guideLevel = guideLevelFor(world, profile.levelGuide, levels);
+
     GameEvents.emit('levels:listed', {
       world,
       worldName: Worlds[world - 1] ?? `World ${world}`,
-      // Gates from the earned table, medal counts from the visible one. The
-      // split is the divergence documented at `levelUnlockStates`.
-      levels: levelUnlockStates(
-        profile.progress,
-        world,
-        getDifficulty(this),
-        profile.visibleProgress,
-      ),
+      guideLevel,
+      levels,
     });
   }
 

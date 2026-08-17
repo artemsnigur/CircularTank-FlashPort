@@ -329,6 +329,16 @@ export interface GameEventMap {
   'levels:listed': {
     world: number;
     worldName: string;
+    /**
+     * The level guide's level, when it falls in this world and is unlocked —
+     * `ScreenLevelSelect.selectFromLevelGuide` (`:583-595`).
+     *
+     * `undefined` when it points at another world or a locked level, which is
+     * the AS3's own condition rather than a missing value: `:587` tests both
+     * before assigning `selectedLevel`, and leaves the selection alone if
+     * either fails.
+     */
+    guideLevel?: number;
     levels: Array<{
       level: number;
       mode: string;

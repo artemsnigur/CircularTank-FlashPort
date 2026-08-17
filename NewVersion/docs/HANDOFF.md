@@ -287,6 +287,11 @@ needs to know before touching it:
   **0px** tall, so every reading was of a screen that does not ship. The shop's
   harness had the same flaw and got away with it because its DEV affordance is
   one 60px button.
+- **Level select opens on a grid, never the world picker.** `selectedWorld` is
+  re-pointed at the level guide's world on entry (`:383`) and `:431` always
+  takes the levels branch; the picker is somewhere you go via `SELECT WORLD`.
+  The rules live in `levels/levelSelectEntry.ts` because a scene cannot be
+  constructed in a test — that is why the original defect was invisible.
 - Divergences from the restyle are `A21`-`A33`.
 
 **jsdom cannot see any of this.** Layout bugs here are found by measuring boxes

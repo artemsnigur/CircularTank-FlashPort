@@ -109,6 +109,8 @@ interface WorldListing {
 export interface LevelListing {
   world: number;
   worldName: string;
+  /** The level guide's level if it is in this world and open — `:583-595`. */
+  guideLevel?: number;
   levels: Array<{
     level: number;
     mode: string;

@@ -450,17 +450,24 @@ export function LevelSelectScreen(): React.ReactElement | null {
   const medals = levels.reduce((sum, l) => sum + l.value, 0);
 
   /**
-   * The level the detail panel falls back to when nothing is hovered: the
-   * furthest one open, which is the one the player is here to play.
+   * The level the detail panel falls back to when nothing is hovered.
    *
-   * The AS3 has the same idea under a different name — `autoSelect` points the
-   * level guide at the upcoming level (`ButtonLevelGuideAutoSelect.as:60`) —
-   * but this is not that option and does not read it: nothing is being
-   * *selected*, and no press is being redirected. It only decides what an
-   * otherwise empty panel describes.
+   * **The level guide's, not the furthest open one** —
+   * `selectFromLevelGuide` (`:583-595`) is what the AS3 runs after opening a
+   * grid, and the scene has already applied its two conditions (same world,
+   * unlocked) before publishing `guideLevel`.
+   *
+   * They agree in the common case, which is why the old "furthest unlocked"
+   * fallback looked right: the guide defaults to `Upcoming`, and the upcoming
+   * level *is* the frontier. They diverge the moment the player moves the
+   * guide in the shop — pressing `Previous` there and walking to level select
+   * should land on that level, and used to land on the frontier instead.
+   *
+   * The frontier stays as the second fallback, for a world the guide is not
+   * pointing into.
    */
   const frontier = levels.filter((l) => l.unlocked).at(-1)?.level ?? null;
-  const shown = focused ?? frontier;
+  const shown = focused ?? listing?.guideLevel ?? frontier;
 
   return (
     <ScreenShell

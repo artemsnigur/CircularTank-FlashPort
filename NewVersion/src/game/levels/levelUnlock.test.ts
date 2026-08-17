@@ -421,13 +421,34 @@ describe('the picker and the grid are one screen', () => {
 
   it('the scene owns which view is showing', () => {
     expect(scene).toContain('private selectedWorld = PICKER;');
-    expect(scene).toContain('const PICKER = 0;');
+    // `PICKER` moved into `levelSelectEntry.ts` with the rules that use it.
+    expect(scene).toContain("from '../levels/levelSelectEntry'");
   });
 
-  it('entering the screen shows the picker', () => {
-    // `removed()` (:630) resets to the picker, so arriving shows where the
-    // player is in the game rather than the last grid they looked at.
-    expect(scene).toMatch(/this\.selectedWorld = PICKER;\s*\r?\n\s*this\.publishWorlds\(\);/);
+  /**
+   * **This test used to assert the defect.**
+   *
+   * It read "entering the screen shows the picker", cited `removed()` (`:630`)
+   * as its authority, and stayed green for exactly as long as the bug existed
+   * — the shape `CLAUDE.md` calls pinning a gap as a specification. `:630`
+   * sets `selectedWorld = 0` only inside `if (progressWorld != 0)`, the single
+   * case where a world was just finished; `:383` re-points it at the level
+   * guide on every entry and `:431` always takes the levels branch.
+   *
+   * Replaced rather than deleted, so the corrected rule is what is on record.
+   * The rule itself is driven in `levelSelectEntry.test.ts`; this only holds
+   * that the scene reaches for it.
+   */
+  it('entering the screen opens a grid, not the picker', () => {
+    expect(scene).toContain('this.selectedWorld = this.entryWorld();');
+    expect(scene).toContain('entryWorld(profile.progress, profile.levelGuide.selectedWorld)');
+    // And the rows go with it, or the grid renders empty.
+    expect(scene).toMatch(/this\.publishWorlds\(\);\s*\r?\n\s*this\.publishLevels\(\);/);
+  });
+
+  /** `ButtonWorldSelect.as:68` — the same handler stops the medal count-up. */
+  it('SELECT WORLD stops the reveal as well as changing the view', () => {
+    expect(scene).toMatch(/if \(world === PICKER\) \{[\s\S]*?this\.stopReveal\(\);/);
   });
 
   it('refuses a locked world, silently, as the AS3 does', () => {

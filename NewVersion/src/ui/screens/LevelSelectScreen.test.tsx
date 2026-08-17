@@ -90,6 +90,38 @@ describe('the detail column', () => {
     expect(panel).toHaveTextContent(/Flag mode/i);
   });
 
+  /**
+   * **The guide's level wins over the frontier** —
+   * `selectFromLevelGuide` (`:583-595`). The scene applies the AS3's two
+   * conditions and publishes `guideLevel`; the screen honours it.
+   *
+   * The two agree whenever the guide is on `Upcoming`, which is why the old
+   * frontier-only fallback looked correct. They diverge the moment the player
+   * moves the guide in the shop, so the fixture puts it somewhere the frontier
+   * is not — otherwise this passes on a screen that ignores it entirely.
+   */
+  it('opens on the level guide`s level, not the furthest open one', () => {
+    useGameStore.setState({ levelList: { ...LISTING, guideLevel: 1 } });
+
+    render(<LevelSelectScreen />);
+    const panel = screen.getByRole('complementary', { name: 'Level detail' });
+
+    expect(panel).toHaveTextContent('Level 1');
+    // The frontier is 3, and it must not be what is shown.
+    expect(panel).not.toHaveTextContent('Level 3');
+  });
+
+  it('falls back to the frontier when the guide points elsewhere', () => {
+    // The counterpart: `guideLevel` absent is the AS3 declining to move the
+    // selection, and the panel must still describe something.
+    useGameStore.setState({ levelList: { ...LISTING, guideLevel: undefined } });
+
+    render(<LevelSelectScreen />);
+    const panel = screen.getByRole('complementary', { name: 'Level detail' });
+
+    expect(panel).toHaveTextContent('Level 3');
+  });
+
   it('follows the pointer to another level', () => {
     render(<LevelSelectScreen />);
     const panel = screen.getByRole('complementary', { name: 'Level detail' });
