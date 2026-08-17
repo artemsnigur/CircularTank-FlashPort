@@ -3857,74 +3857,313 @@ code {
   opacity: 0.75;
 }
 
-/* Achievements — `ScreenAchievements.as`. Proportional board, not a grid. */
-.achievements__grid {
-  position: relative;
-  list-style: none;
-  margin: var(--space-4) auto;
-  /* Padding, not `0`: the cells are centred on their placement points, so the
-     ones at the extremes hang half outside the board's own box and would sit
-     on the plate's border without it. */
-  padding: var(--space-4);
-  width: min(56rem, 94vw);
-  /* Matches the AS3 board's 300x280 aspect, so the proportions hold. */
-  aspect-ratio: 300 / 280;
+/*
+ * ══ Achievements — ScreenAchievements ═══════════════════════════════════════
+ *
+ * Board left, totals window right — `bgWindow` sits at the stage's right edge
+ * here as it does on level select and the shop. Built to the same three rules
+ * those arrived at: no scroll, container units rather than viewport units, and
+ * no `max-width` cap (`A32`).
+ */
+.screen--achievements .screen-shell__body {
+  /* Two classes, so this beats `.screen-shell__body`'s `overflow-y: auto`
+     rather than depending on source order. */
+  overflow: hidden;
+  min-height: 0;
+  padding: clamp(0.4rem, 1.2vh, 0.9rem);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  container-type: size;
+}
+
+.achievements {
+  --panel: clamp(13rem, 26cqw, 26rem);
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--panel);
+  gap: clamp(0.4rem, 1.2cqw, 1.1rem);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
 /*
- * One achievement, as a dark plaque on the silver board.
+ * The board's plate, and the container the discs measure.
  *
- * ── Not a disc, and that is a decision ────────────────────────────────────
- * The original's cells are **circular badges** carrying no text: the name and
- * the goal live in the hover tooltip only. This port prints both on the cell,
- * which the component header states as deliberate — "this screen names the
- * target, that is what an achievements list is for" — and text does not fit a
- * circle. So the plaques are rounded rectangles and the roundness lives in the
- * corner radius rather than in the shape. Recorded as `A25`.
+ * Its height is the row's, so the badges can size themselves from the space
+ * they actually have — the same construction as the level grid's plate.
+ */
+.achievements__board {
+  min-height: 0;
+  min-width: 0;
+  padding: clamp(0.4rem, 2cqh, 1.2rem);
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: clamp(0.4rem, 1cqh, 0.9rem);
+  background: rgb(0 0 0 / 38%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 12%),
+    0 4px 14px rgb(0 0 0 / 45%);
+  container-type: size;
+}
+
+/*
+ * **A proportional board, not a grid**, and that is load-bearing.
  *
- * Unearned is dimmer *ink*, not opacity: `opacity: 0.45` read as "dimmed" on a
- * dark board and as "gone" on a light one, which is the same inversion that
- * hid the disabled Buy buttons. A locked achievement still has to be readable
- * — showing it is the whole point.
+ * Each cell's `left`/`top` is its `achievementPlacementArray` coordinate as a
+ * percentage of the board's extent. The placements are irregular —
+ * `MaxedPrimary1` sits 16 units off the row step — so turning this into
+ * `grid-template-columns: repeat(6, ...)` would round two entries into one
+ * cell and lose one, which `achievementListing.test.ts` caught once already.
+ *
+ * `--disc` is the badge size: six across and six down with gaps, taking the
+ * smaller of the two shares so the binding dimension wins.
+ */
+.achievements__grid {
+  --disc: min(13cqh, 13cqw);
+
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * One badge — a dark disc, as `Achievement`'s art is.
+ *
+ * Placed by its centre: the percentage is the coordinate, and the translate
+ * pulls the disc back over it. Without that every cell hangs down-right of its
+ * true position and the last column leaves the plate.
  */
 .achievements__cell {
   position: absolute;
+  /*
+   * **Inset by half a disc at each edge.** The placement is a 0..1 fraction of
+   * the board's extent, and a disc centred on the raw fraction hangs half off
+   * the plate at 0 and at 1 — measured as 31-167px of overflow and every badge
+   * intersecting a neighbour or the panel. Spreading the centres over
+   * `100% - disc` keeps the whole board inside its ground.
+   */
+  left: calc(var(--disc) / 2 + (100% - var(--disc)) * var(--fx));
+  top: calc(var(--disc) / 2 + (100% - var(--disc)) * var(--fy));
   transform: translate(-50%, -50%);
-  width: 8.5rem;
-  padding: 0.4rem 0.5rem;
-  border-radius: 10px;
-  border: 2px solid var(--steel-900);
-  background: var(--surface);
-  color: var(--text-faint);
+  display: grid;
+  place-items: center;
+  width: var(--disc);
+  height: var(--disc);
+  /*
+   * **A percentage here is what broke the board, and it is worth the words.**
+   *
+   * It was `padding: 6%`, read as "6% of the disc". Percentage padding
+   * resolves against the *containing block's* inline size — the whole grid —
+   * so at 1920x1080 it was 6% of 1425px, or 85.5px a side. That is 171px of
+   * padding inside a 105px disc: the content box floors at zero and the border
+   * box grows to fit the padding, which is exactly the 173px badge measured on
+   * a `--disc` of 104.83px. Six of those overlapped their neighbours
+   * vertically and the last row hung 45px off the plate.
+   *
+   * The tell was that `left` — `calc(var(--disc) / 2 + ...)` — computed to
+   * 52.4px, precisely half the disc. `--disc` was never the problem, and a
+   * first pass that assumed it was changed the stylesheet without moving a
+   * single measured number. **Numbers that do not move under a fix mean the
+   * fix missed**; that is what sent this back for a second diagnosis.
+   *
+   * So every length on this cell is a share of `--disc` and none is a
+   * percentage.
+   */
+  padding: calc(var(--disc) * 0.08);
+  border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / 10%);
+  overflow: hidden;
   text-align: center;
+  /* The parts size in `em` off this, so the title scales with the disc
+     without another container to resolve against. */
+  font-size: calc(var(--disc) * 0.17);
+  /* Lit from above and sunk into the plate — the locked state is the default,
+     because 36 of these are locked far longer than they are earned. */
+  background-image: radial-gradient(
+    circle at 50% 22%,
+    rgb(255 255 255 / 12%),
+    rgb(18 20 24 / 96%) 62%,
+    rgb(6 7 9 / 98%) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 14%),
+    inset 0 -6px 12px rgb(0 0 0 / 70%),
+    0 2px 6px rgb(0 0 0 / 55%);
+  cursor: help;
+  transition:
+    filter 120ms ease,
+    box-shadow 120ms ease,
+    border-color 120ms ease;
 }
 
-/* Earned takes the gold rather than the accent red: three medal tiers already
-   mean bronze/silver/gold on this screen, and the top one is what an earned
-   achievement reads as. */
+.achievements__cell:hover {
+  /* No `transform` change — the cell is *positioned* by transform, so
+     animating it would move the badge off its placement. Light only, which is
+     the rule the rest of this UI follows anyway. */
+  filter: brightness(1.3);
+  border-color: rgb(255 255 255 / 32%);
+}
+
+/* Earned — lit, gold-rimmed and glowing, against 35 dark neighbours. */
 .achievements__cell--earned {
-  color: var(--text);
-  border-color: var(--medal-gold);
-  background: linear-gradient(180deg, var(--steel-700), var(--steel-900));
+  border-color: rgb(255 210 90 / 75%);
+  background-image: radial-gradient(
+    circle at 50% 20%,
+    rgb(255 236 170 / 34%),
+    rgb(120 84 20 / 70%) 55%,
+    rgb(46 30 6 / 92%) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 45%),
+    inset 0 -6px 14px rgb(0 0 0 / 45%),
+    0 0 0.7em rgb(255 190 60 / 45%),
+    0 2px 8px rgb(0 0 0 / 55%);
 }
 
 .achievements__title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.03em;
+  font-size: 1em;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: rgb(255 255 255 / 62%);
+  text-shadow: 0 1px 0 rgb(0 0 0 / 90%);
 }
 
-.achievements__goal {
-  margin: 0.15rem 0 0;
-  font-size: var(--text-3xs);
-  opacity: 0.75;
+.achievements__cell--earned .achievements__title {
+  color: #fff6dd;
+  text-shadow:
+    0 1px 0 rgb(0 0 0 / 85%),
+    0 0 0.5em rgb(255 200 80 / 60%);
 }
 
+/*
+ * The goal and the difficulty note stay in the DOM and out of the disc.
+ *
+ * They are the accessible name and the hover panel's content; a 90px circle
+ * has room for a title and nothing else. `clip` rather than `display: none`,
+ * so a screen reader still reaches them.
+ */
+.achievements__goal,
 .achievements__difficulty {
-  margin: 0.15rem 0 0;
-  font-size: var(--text-3xs);
-  color: var(--accent);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── The totals window — `:725-780` ───────────────────────────────────────── */
+.achievements__panel {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--panel) * 0.03);
+  padding: calc(var(--panel) * 0.06);
+  border: 2px solid rgb(255 255 255 / 10%);
+  border-radius: calc(var(--panel) * 0.055);
+  background: rgb(20 20 20 / 82%);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 55%);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* `:725`/`:726` — `Kills: N` and `Money Earned: $N`, at the window's top. */
+.achievements__stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(var(--panel) * 0.04);
+  margin: 0;
+  font-family: var(--font-display);
+}
+
+.achievements__stat-label {
+  font-size: calc(var(--panel) * 0.055);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.achievements__stat-value {
+  font-size: calc(var(--panel) * 0.085);
+  font-variant-numeric: tabular-nums;
+  color: var(--steel-000);
+  text-shadow:
+    0 2px 3px rgb(0 0 0 / 85%),
+    0 0 0.4em rgb(150 200 255 / 20%);
+}
+
+/*
+ * The 5x3 matrix. Five rows of one mode at three tiers — `:729`/`:735`/`:741`
+ * place bronze, silver and gold at the same y and step the mode by 32.
+ */
+.achievements__medals {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--panel) * 0.02);
+  margin-top: calc(var(--panel) * 0.04);
+  padding-top: calc(var(--panel) * 0.04);
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  min-height: 0;
+}
+
+.achievements__medal-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--panel) * 0.02);
+}
+
+.achievements__medal {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--panel) * 0.025);
+  font-family: var(--font-display);
+  font-size: calc(var(--panel) * 0.06);
+  font-variant-numeric: tabular-nums;
+  color: var(--steel-000);
+}
+
+/*
+ * The same five shapes the level tiles and the world tallies draw, tinted by
+ * `currentColor` — one definition of what a flag or a skull looks like across
+ * the whole game.
+ */
+.achievements__medal-icon {
+  width: calc(var(--panel) * 0.09);
+  height: calc(var(--panel) * 0.09);
+  flex: none;
+}
+
+.achievements__medal--bronze .achievements__medal-icon {
+  color: #d98e33;
+  filter: drop-shadow(0 0 0.25em rgb(215 130 40 / 45%));
+}
+
+.achievements__medal--silver .achievements__medal-icon {
+  color: #dfe8f0;
+  filter: drop-shadow(0 0 0.25em rgb(220 235 250 / 45%));
+}
+
+.achievements__medal--gold .achievements__medal-icon {
+  color: #ffd23f;
+  filter: drop-shadow(0 0 0.25em rgb(255 200 50 / 50%));
+}
+
+/* The port's own line — the original has no earned counter. */
+.achievements__tally {
+  margin: auto 0 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: calc(var(--panel) * 0.055);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 
 /*

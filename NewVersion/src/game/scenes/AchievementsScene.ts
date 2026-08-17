@@ -12,6 +12,7 @@ import { GameEvents } from '../events/GameEvents';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import { getPlayerProfile } from '../player/playerProfile';
 import { buildAchievementListing } from '../achievements/achievementListing';
+import { buildAchievementStats } from '../achievements/achievementStats';
 
 export class AchievementsScene extends Phaser.Scene {
   private backdrop!: Phaser.GameObjects.TileSprite;
@@ -62,9 +63,15 @@ export class AchievementsScene extends Phaser.Scene {
   private publishAchievements(): void {
     // A pure projection, so the counting and the earned rule are testable
     // without a scene — see `achievementListing.test.ts`.
+    const profile = getPlayerProfile(this);
     GameEvents.emit(
       'achievements:listed',
-      buildAchievementListing(getPlayerProfile(this).slot.achievements.states),
+      buildAchievementListing(
+        profile.slot.achievements.states,
+        // The right-hand window's totals — `:725-780`. Read here because the
+        // profile lives in the Phaser registry; the projection itself is pure.
+        buildAchievementStats(profile.progress, profile.slot.achievements.totals),
+      ),
     );
   }
 }

@@ -53,6 +53,13 @@ import { execFileSync } from 'node:child_process';
  * Ice Grenade landed, which was the first thing in the port to deal Ice damage.
  * The canary marked the exact commit where a documented gap closed.
  * `createQuitFlags` replaces it.
+ *
+ * `getTotalValues` was the fifth, and it fired the moment the achievements
+ * screen grew its medal matrix — `ScreenAchievements.as:727` onward reads the
+ * per-mode, per-tier totals, which is the first consumer the function has ever
+ * had outside the achievement value sources. `isWeakTo` replaces it: the
+ * strengths/weaknesses arrays are ported and tested, and nothing on a screen
+ * asks them anything yet.
  */
 const CANARIES = [
   'countOwned',
@@ -60,7 +67,7 @@ const CANARIES = [
   'createQuitFlags',
   'isEnemyKnown',
   'hintsCompleted',
-  'getTotalValues',
+  'isWeakTo',
 ];
 
 /** One knip run shared by every assertion — it takes a few seconds. */

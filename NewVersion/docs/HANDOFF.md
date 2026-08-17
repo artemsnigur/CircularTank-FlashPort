@@ -266,6 +266,19 @@ needs to know before touching it:
   shop header). Both carry the surface and no size, so a consumer that only
   sets dimensions cannot collide with them; one that *overrides* them needs two
   classes, because both are (0,1,0).
+- **The achievements board is a proportional plate, not a grid, and its badges
+  carry no percentage lengths.** T178 restored the AS3's circular badges
+  (reversing `A25`) and ported the totals window at `:725-780` — two running
+  totals and a 5x3 medal matrix drawn with the same `LevelModeIcon` shapes the
+  level tiles use, tinted through `currentColor`. Two things to know:
+  - **`achievementPlacementArray` is irregular.** Turning the plate into a CSS
+    grid rounds two entries into one cell and loses one. Each badge is placed
+    by its coordinate as a fraction of the board's extent, inset by half a
+    disc so the edge columns stay on the plate.
+  - **A medal row is one mode at three tiers**, the opposite of a level tile,
+    and bronze is the *Easy* tally while gold is the *Hard* one. That reads
+    backwards next to the `[hard, medium, easy]` values triple and is pinned in
+    both directions in `achievementStats.test.ts`.
 - **Size the shop's tiles in `cqh`, never `vh`.** The bar and nav take a much
   larger fraction of a short window than a tall one, so a viewport share
   overshoots at 480px and undershoots at 1440. This is measured, not
@@ -509,6 +522,30 @@ decisive, wrong result and was believed.*
     boss spawned". A boss's *species* on 1-9 **is** `Basic` — what makes it a
     boss is `enemyLevel === 'B'`. The instrument was right and the reading was
     wrong.
+
+17. **A fix that moves no number did not touch the cause.** The achievements
+    board overflowed its plate and every badge overlapped a neighbour. The
+    first diagnosis blamed a container-unit cycle in `--disc`, removed the
+    cell's `container-type`, rebuilt, and re-measured: **all six viewports came
+    back byte-identical** — same card size, same overhang, same overlap count.
+    That was reported as "still failing" and nearly re-theorised, when it was
+    already the answer. A stylesheet edit that changes nothing measurable is
+    not a partial fix; it is evidence the cause is elsewhere.
+
+    The actual cause was `padding: 6%` on the badge, read as a share of the
+    disc. **Percentage padding resolves against the containing block's inline
+    size**, so it was 6% of the 1425px grid — 85.5px a side inside a 105px
+    disc. The border box grew to fit the padding and measured 173px.
+
+    Two things generalise:
+
+    - **Ask the browser which operand is wrong before theorising how the value
+      was computed.** One `getComputedStyle` call settled it: `left` was
+      `52.4px`, exactly half a perfectly valid `104.83px` `--disc`. The
+      variable was never the problem, and thirty minutes went into it.
+    - **A percentage is a question about a box you did not name.** Padding and
+      margin percentages resolve against the containing block's *width* — even
+      vertically. On anything sized by a variable, use a share of that variable.
 
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should

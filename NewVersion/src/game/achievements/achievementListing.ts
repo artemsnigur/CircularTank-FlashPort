@@ -22,6 +22,7 @@
 import { ACHIEVEMENTS } from './achievementData';
 import type { AchievementSpec } from './achievementData';
 import type { AchievementStates } from './achievementState';
+import type { AchievementStats } from './achievementStats';
 
 export interface AchievementEntry {
   id: string;
@@ -44,6 +45,12 @@ export interface AchievementListing {
   entries: readonly AchievementEntry[];
   earnedCount: number;
   total: number;
+  /**
+   * The right-hand window — `:725-780`. Optional because the listing is also
+   * built from states alone in tests and on the results screen, where there is
+   * no progress table to total.
+   */
+  stats?: AchievementStats;
 }
 
 function toEntry(spec: AchievementSpec, state: number | undefined): AchievementEntry {
@@ -64,11 +71,15 @@ function toEntry(spec: AchievementSpec, state: number | undefined): AchievementE
   };
 }
 
-export function buildAchievementListing(states: AchievementStates): AchievementListing {
+export function buildAchievementListing(
+  states: AchievementStates,
+  stats?: AchievementStats,
+): AchievementListing {
   const entries = ACHIEVEMENTS.map((spec) => toEntry(spec, states[spec.id]));
   return {
     entries,
     earnedCount: entries.filter((entry) => entry.earned).length,
     total: entries.length,
+    stats,
   };
 }
