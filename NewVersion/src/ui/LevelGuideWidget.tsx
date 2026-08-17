@@ -12,8 +12,23 @@
  * `A11`, a design decision. The tooltip is five lines here, six there.
  *
  * The name suggests a level *picker*, and it is not one: pressing these buttons
- * never starts anything. It moves a pointer that level select later reads
- * (pass (e)).
+ * never starts anything. It moves a pointer that level select later reads.
+ *
+ * ── T168: the chrome is CSS, and so are the controls ──────────────────────
+ * Every button here used to draw an extracted clip — `Arrow`, the three
+ * presets, the auto-select toggle and the info icon, each a stack of SVG
+ * shapes in a fixed 18-22px box. At the sizes this screen now runs at, a 20px
+ * control on a 2K display is not small on purpose, it is just small.
+ *
+ * So the art is gone and the controls are type and borders: chevrons drawn
+ * with a rotated border, presets and the toggle as labelled pills. They scale
+ * with `--aside` like everything else in that column.
+ *
+ * **`levelGuideArt.ts` is still generated and still checked** by
+ * `data:check` — it is simply no longer rendered. Left in place rather than
+ * deleted because it is a pipeline, not a file: regenerating it costs nothing
+ * and the day someone wants the original's iconography back, the alternative
+ * is re-deriving eight frame numbers from the SWF. Recorded as `A31`.
  *
  * ── Rendered from the scene's numbers, never recomputed ───────────────────
  * Bounds, per-arrow enablement and per-preset match all arrive on
@@ -24,47 +39,18 @@
  */
 import { useGameStore } from '../state/gameStore';
 import { GameEvents } from '../game/events/GameEvents';
-import { shapeUrl } from '../assets/registry';
-import { LEVEL_GUIDE_CLIPS } from '../game/levels/levelGuideArt';
 import { siteCorner } from '../game/ui/infoTextSites';
 import { previewForLevel } from '../game/levels/levelPreview';
 import { useInfoText } from './useInfoText';
-import type { LevelGuideClip } from '../game/levels/levelGuideArt';
-
-/** Draws one clip frame as its stack of shapes. */
-function Clip({
-  clip,
-  frame,
-  size,
-}: {
-  clip: LevelGuideClip;
-  frame: number;
-  size: number;
-}): React.ReactElement {
-  const layers = clip.frames[frame - 1] ?? clip.frames[0];
-  return (
-    <span className="guide-clip" style={{ width: size, height: size }}>
-      {layers.map((shape) => (
-        <img key={shape} src={shapeUrl(`${shape}.svg`)} alt="" aria-hidden="true" />
-      ))}
-    </span>
-  );
-}
 
 /**
- * `ButtonLevelGuideArrow.setIdleImage` (`:240-248`).
+ * One step control.
  *
- * `gotoAndStop(1 + valueToAdd)` when disabled and `2 + valueToAdd` when live,
- * where `valueToAdd` is 0 for Left and 4 for Right — so the eight frames are
- * four states per direction, and the two directions are *different artwork*,
- * not one sprite flipped.
+ * The chevron is a bordered square rotated 45 degrees — two borders of a box,
+ * so it stays a crisp hairline at any size, where a glyph would be at the
+ * mercy of the font and a background image would need its own asset.
  */
-function arrowFrame(direction: 'Left' | 'Right', enabled: boolean): number {
-  const valueToAdd = direction === 'Right' ? 4 : 0;
-  return (enabled ? 2 : 1) + valueToAdd;
-}
-
-function Arrow({
+function Step({
   axis,
   direction,
   enabled,
@@ -76,12 +62,12 @@ function Arrow({
   return (
     <button
       type="button"
-      className="guide-arrow"
+      className={`guide-step guide-step--${direction.toLowerCase()}`}
       disabled={!enabled}
       aria-label={`${direction === 'Left' ? 'Previous' : 'Next'} ${axis.toLowerCase()}`}
       onClick={() => GameEvents.emit('ui:level-guide-step', { axis, direction })}
     >
-      <Clip clip={LEVEL_GUIDE_CLIPS.Arrow} frame={arrowFrame(direction, enabled)} size={18} />
+      <span className="guide-step__chevron" aria-hidden="true" />
     </button>
   );
 }
@@ -93,6 +79,13 @@ const PRESET_TOOLTIP: Record<'Previous' | 'Upcoming' | 'Last', string> = {
     'Select Upcoming Level\n\nThe level after the level you played previously. ' +
     "If you didn't win the previous level, the level guide assumes you are going to play it again.",
   Last: 'Select Last Level\n\nThe last selectable level in the last selectable world.',
+};
+
+/** Short enough for a three-across row; the tooltip carries the full sentence. */
+const PRESET_LABEL: Record<'Previous' | 'Upcoming' | 'Last', string> = {
+  Previous: 'Prev',
+  Upcoming: 'Next',
+  Last: 'Last',
 };
 
 function Preset({
@@ -115,9 +108,32 @@ function Preset({
       onClick={() => GameEvents.emit('ui:level-guide-preset', { type })}
       {...hover}
     >
-      {/* `:156-166` — frame 2 is the hover art and frame 3 the pressed state. */}
-      <Clip clip={LEVEL_GUIDE_CLIPS[type]} frame={active ? 3 : 1} size={22} />
+      {PRESET_LABEL[type]}
     </button>
+  );
+}
+
+/** One stepper row — a chevron, a labelled figure, a chevron. */
+function Row({
+  axis,
+  value,
+  canLeft,
+  canRight,
+}: {
+  axis: 'World' | 'Level';
+  value: number;
+  canLeft: boolean;
+  canRight: boolean;
+}): React.ReactElement {
+  return (
+    <div className="guide-row">
+      <Step axis={axis} direction="Left" enabled={canLeft} />
+      <span className="guide-readout">
+        <span className="guide-readout__label">{axis}</span>
+        <span className="guide-readout__value">{value}</span>
+      </span>
+      <Step axis={axis} direction="Right" enabled={canRight} />
+    </div>
   );
 }
 
@@ -151,63 +167,44 @@ export function LevelGuideWidget(): React.ReactElement | null {
 
   return (
     <section className="level-guide" aria-label="Level guide">
-      {/*
-        ── The panel chrome is the design system's, not the extracted art ──
-        `BackgroundLevelGuide` (symbol 1434) is a 148x84 plate plus two 67.5x8.6
-        strips backing the two text rows. It is synced and pinned in
-        `levelGuideArt.ts`, and deliberately not drawn here, for two reasons:
+      <h3 className="level-guide__title">Level guide</h3>
 
-        1. This widget sits on a screen the T92-T96 redesign moved wholesale to
-           the design-system palette. Dropping one panel of Flash chrome into
-           the middle of it would look like an unported patch.
-        2. The two strips are positioned by `PlaceObject` matrices, and
-           `gen-sprite-shapes.mjs` discards translation — it keeps scale only,
-           because that is what told four weapon clips apart. Their offsets were
-           measured for the projectile and badge clips and are zero; these have
-           **not** been measured, so drawing them centred would be a guess.
-
-        The buttons keep their extracted art: arrows, presets, the auto-select
-        toggle and the info icon are iconography with no design-system
-        equivalent, and their frames carry real state.
-      */}
       <div className="level-guide__rows">
-        <div className="level-guide__row">
-          <Arrow axis="World" direction="Left" enabled={guide.canStep.worldLeft} />
-          <span className="level-guide__value">World {guide.selectedWorld}</span>
-          <Arrow axis="World" direction="Right" enabled={guide.canStep.worldRight} />
-        </div>
-        <div className="level-guide__row">
-          <Arrow axis="Level" direction="Left" enabled={guide.canStep.levelLeft} />
-          <span className="level-guide__value">Level {guide.selectedLevel}</span>
-          <Arrow axis="Level" direction="Right" enabled={guide.canStep.levelRight} />
-        </div>
+        <Row
+          axis="World"
+          value={guide.selectedWorld}
+          canLeft={guide.canStep.worldLeft}
+          canRight={guide.canStep.worldRight}
+        />
+        <Row
+          axis="Level"
+          value={guide.selectedLevel}
+          canLeft={guide.canStep.levelLeft}
+          canRight={guide.canStep.levelRight}
+        />
       </div>
 
-      <div className="level-guide__buttons">
+      <div className="level-guide__presets">
         {(['Previous', 'Upcoming', 'Last'] as const).map((type) => (
           <Preset key={type} type={type} active={guide.presetActive[type]} />
         ))}
+      </div>
 
+      <div className="level-guide__foot">
         <button
           type="button"
           className={`guide-auto${guide.autoSelect ? ' guide-auto--on' : ''}`}
           aria-pressed={guide.autoSelect}
           aria-label="Auto-select level"
-          onClick={() =>
-            GameEvents.emit('ui:level-guide-autoselect', { on: !guide.autoSelect })
-          }
+          onClick={() => GameEvents.emit('ui:level-guide-autoselect', { on: !guide.autoSelect })}
           {...autoHover}
         >
-          {/* `:75-92` — frames 3/4 are the enabled pair, 1/2 the disabled pair. */}
-          <Clip
-            clip={LEVEL_GUIDE_CLIPS.AutoSelect}
-            frame={guide.autoSelect ? 3 : 1}
-            size={22}
-          />
+          <span className="guide-auto__dot" aria-hidden="true" />
+          Auto
         </button>
 
-        <span className="guide-info" {...infoHover}>
-          <Clip clip={LEVEL_GUIDE_CLIPS.Info} frame={1} size={20} />
+        <span className="guide-info" aria-hidden="true" {...infoHover}>
+          ?
         </span>
       </div>
     </section>

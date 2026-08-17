@@ -161,12 +161,15 @@ function EquipControls({ row }: { row: ShopRow }): React.ReactElement | null {
  * `SLOT 1 | SLOT 2` — the two primary slots and what is in them.
  *
  * `ScreenUpgrades` draws these as `weaponSlotImage1` and `weaponSlotImage2` at
- * (284, 178) and (340, 178), with `bWeaponSwitch` between them at 312
- * (`:570-579`) — so: two labelled wells holding the equipped weapon's own art,
- * with a small marker centred between the pair. The port draws that marker as
- * a red diamond and does not wire it: `bWeaponSwitch` swaps the two slots, and
- * nothing in `ShopCatalogue` carries a swap. Noted at the element rather than
- * in a report, which is where someone will be standing when it matters.
+ * (284, 178) and (340, 178) (`:570-577`) — two labelled wells holding the
+ * equipped weapon's own art.
+ *
+ * **`bWeaponSwitch` is not drawn.** The original puts it between the pair at
+ * x 312 (`:578`), and T167 reproduced it as a red diamond — which was wrong
+ * twice over: nothing in `ShopCatalogue` carries a swap, so it was a control
+ * that did nothing, and a decorative marker earns no space. Removed in T168 at
+ * the maintainer's direction. Wiring the real thing needs a swap on the event,
+ * and the marker should come back with it rather than before it.
  *
  * **A readout, not a control.** Equipping happens in the detail window, where
  * the weapon being equipped is named; a second place to change it would be a
@@ -181,9 +184,8 @@ function SlotSummary({ rows }: { rows: ShopRow[] }): React.ReactElement {
 
   return (
     <dl className="shop__slots">
-      {([1, 2] as const).map((slot, i) => (
+      {([1, 2] as const).map((slot) => (
         <Fragment key={slot}>
-          {i === 1 && <span className="shop__slots-mark" aria-hidden="true" />}
           <div className="shop__slot">
             <dt>Slot {slot}</dt>
             <dd>

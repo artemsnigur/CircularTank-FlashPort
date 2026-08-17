@@ -188,13 +188,19 @@ describe('the slot summary and the balance — T158', () => {
     expect(document.querySelectorAll('.shop__slot-empty')).toHaveLength(1);
   });
 
-  it('marks the pair with the switch marker between them', () => {
-    // `bWeaponSwitch` sits at x 312, between the wells at 284 and 340
-    // (`:570-579`). Decorative here — nothing carries a swap.
+  /**
+   * T167 drew `bWeaponSwitch` between the wells as a red diamond; T168 took it
+   * out. It was a control that did nothing — nothing in `ShopCatalogue`
+   * carries a slot swap — and a decorative marker earns no space.
+   *
+   * Asserted as an absence rather than deleted, so it comes back *with* its
+   * wiring rather than as a shape somebody liked.
+   */
+  it('draws no switch marker while nothing can swap the slots', () => {
     publish([row({ slot: 1 })]);
     render(<UpgradesScreen />);
 
-    expect(document.querySelectorAll('.shop__slots-mark')).toHaveLength(1);
+    expect(document.querySelectorAll('.shop__slots-mark')).toHaveLength(0);
   });
 
   /**
@@ -496,11 +502,21 @@ describe('the shop is built not to scroll', () => {
   it('caps the layout width so the columns cannot fly apart', () => {
     const shop = block('.shop');
 
-    expect(shop).toMatch(/max-width:\s*1600px/);
+    /*
+     * A range, not the literal, because the cap is a tuning value with a
+     * constraint at each end and only the constraint is a rule: wide enough
+     * that the grid track is not the binding dimension — at 1600 the tiles
+     * capped at 112px and got *smaller* at 3840 than at 2560 — and narrow
+     * enough to close the void it exists for. 1800 sits between them.
+     */
+    const cap = /max-width:\s*(\d+)px/.exec(shop);
+    expect(cap, 'the layout must be capped').not.toBeNull();
+    expect(Number(cap![1])).toBeGreaterThanOrEqual(1700);
+    expect(Number(cap![1])).toBeLessThanOrEqual(2000);
     expect(shop).toMatch(/margin-inline:\s*auto/);
-    // And the tiles centre in their column, so the slack sits on both sides
-    // rather than pooling into one gap beside the aside.
-    expect(block('.shop-grid')).toMatch(/justify-content:\s*center/);
+    // The grid packs left, under its left-aligned heading. It was centred in
+    // T167 and read as a mistake against the headings above it.
+    expect(block('.shop-grid')).toMatch(/justify-content:\s*start/);
   });
 
   /**
@@ -509,21 +525,55 @@ describe('the shop is built not to scroll', () => {
    * 2560x1440 for a widget wanting ~350 — the empty ground should give way,
    * not the widget.
    */
-  it('lets the slot aside keep its width', () => {
+  /**
+   * **The overlap fix, and it is two rules that have to hold together.**
+   *
+   * T167 sized the two columns against each other — the grids took their
+   * content width and the aside took the remainder — so a grid wider than its
+   * share drew straight over the slot widget. Both halves are needed: an
+   * explicit `--aside` track the grid cannot eat, and a grid that gives way
+   * rather than overflowing when `--tile` exceeds a sixth of its column.
+   */
+  it('gives the aside a track the grid cannot take', () => {
     expect(block('.shop__catalogue')).toMatch(
-      /grid-template-columns:\s*minmax\(0, 1fr\) auto/,
+      /grid-template-columns:\s*minmax\(0, 1fr\) var\(--aside\)/,
     );
-    // And it sizes to its own content rather than stretching to the column.
-    expect(block('.shop__slots')).toMatch(/align-self:\s*center/);
+    expect(block('.shop')).toMatch(/--aside:\s*clamp\(/);
   });
 
-  it('derives the tile`s parts from it rather than from fixed lengths', () => {
-    const shop = block('.shop');
-    expect(shop).toMatch(/--tile-icon:\s*calc\(var\(--tile\)/);
-    expect(shop).toMatch(/--tile-gap:\s*calc\(var\(--tile\)/);
+  it('shrinks the tiles rather than overflowing the column', () => {
+    // `repeat(6, var(--tile))` overflows silently; the tracks must be able to
+    // give. This is the half that stopped the tiles landing on the widget.
+    expect(block('.shop-grid')).toMatch(
+      /grid-template-columns:\s*repeat\(6, minmax\(0, var\(--tile\)\)\)/,
+    );
+    // Which only works if the tile itself can be narrower than `--tile`.
+    const tile = block('.shop-tile');
+    expect(tile).toMatch(/max-width:\s*var\(--tile\)/);
+    expect(tile).toMatch(/aspect-ratio:\s*1/);
+    // A fixed height would keep the tile square at `--tile` while its track
+    // shrank — which is the overflow, just rotated.
+    expect(tile).not.toMatch(/height:\s*var\(--tile\)/);
+  });
 
-    // And the icon actually receives it — the component takes a CSS length
-    // precisely so this can be handed over, and an inline `38` would win.
+  /**
+   * The tile's parts measure the tile, not the variable.
+   *
+   * Once a track can shrink, anything computed from `--tile` overstates the
+   * box it lands in — a 115px icon inside a 120px tile. `container-type` on
+   * the tile makes `cqw` the real width.
+   */
+  it('sizes the tile`s parts from the tile itself', () => {
+    expect(block('.shop-tile')).toMatch(/container-type:\s*inline-size/);
+    expect(block('.shop-tile__level')).toMatch(/font-size:\s*\d+cqw/);
+    expect(block('.shop')).toMatch(/--tile-icon:\s*74%/);
+  });
+
+  it('hands the icon its size rather than letting the default win', () => {
+    expect(block('.shop')).toMatch(/--tile-gap:\s*calc\(var\(--tile\)/);
+    // `UpgradeIcon` sets its box inline, so a stylesheet cannot override it —
+    // the size has to be passed in, and an omitted prop silently falls back to
+    // the AS3's fixed 38px.
     expect(readFileSync('src/ui/screens/UpgradesScreen.tsx', 'utf8')).toContain(
       'size="var(--tile-icon)"',
     );
@@ -557,7 +607,7 @@ describe('the shop is built not to scroll', () => {
 
   it('lays the tiles six across, as the original does', () => {
     // `ScreenUpgrades.as:440-467` places them at `36 * 1` through `36 * 6`.
-    expect(block('.shop-grid')).toMatch(/grid-template-columns:\s*repeat\(6, var\(--tile\)\)/);
+    expect(block('.shop-grid')).toMatch(/repeat\(6, minmax\(0, var\(--tile\)\)\)/);
   });
 
   /**

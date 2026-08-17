@@ -1522,12 +1522,27 @@ code {
    * off width and overflowing the column it was trying to fill.
    */
   --tile: clamp(2rem, min(13cqh, 9cqw), 11rem);
-  --tile-icon: calc(var(--tile) * 0.74);
+  /*
+   * A share of the tile, not a multiple of `--tile`. The grid tracks can
+   * shrink below `--tile` (see `.shop-grid`), so anything computed from the
+   * variable overstates the box it actually lands in — which is how a 115px
+   * icon ended up inside a 120px tile.
+   */
+  --tile-icon: 74%;
+  /*
+   * The aside column — slot wells and level guide. Explicit, because the two
+   * columns were previously sized against each other: the grids took
+   * `max-content` and the aside took the remainder, so a grid wider than its
+   * share pushed the widget out from under itself and the two drew on top of
+   * one another.
+   */
+  --aside: clamp(9rem, 17vw, 21rem);
+  --slot-well: calc(var(--aside) * 0.34);
   --tile-gap: calc(var(--tile) * 0.14);
   /* The detail window, and the one lever its insides scale from — the same
      construction as the menu card's `--card-w`. */
   --pane: clamp(14rem, 24vw, 26rem);
-  --slot-icon: calc(var(--tile) * 0.72);
+  --slot-icon: 72%;
 
   display: grid;
   /* ~65 / 35, expressed as "everything else, then the window" so the window
@@ -1544,7 +1559,15 @@ code {
    * them, where it reads as margin rather than as a hole.
    */
   width: 100%;
-  max-width: 1600px;
+  /*
+   * 1800, not 1600. The ceiling has to leave the grid track enough width or it
+   * becomes the binding constraint instead of the height: at 1600 the tiles
+   * capped at 112px on a 2560 display and — the tell — got *smaller* at 3840
+   * than at 2560, because only the width was still moving. 1800 puts them at
+   * ~148px and keeps roughly 380px of margin a side at 2K, which reads as
+   * margin rather than as the void this cap exists to close.
+   */
+  max-width: 1800px;
   margin-inline: auto;
 }
 
@@ -1555,12 +1578,15 @@ code {
 .shop__catalogue {
   display: grid;
   /*
-   * The grids flex, the aside takes what it needs. The other way round —
-   * `max-content minmax(0, 1fr)` — gave the grids their full width and left
-   * the aside whatever remained, which at 2560 was 143px for a widget wanting
-   * ~350: the slot wells were squeezed rather than the empty ground.
+   * **Both tracks are explicit, and that is what stops the overlap.**
+   *
+   * Sized against each other — either `max-content auto` or its reverse — one
+   * column's content decided the other's width, so a grid wider than its share
+   * simply drew over the widget beside it. A `minmax(0, 1fr)` that the grid
+   * cannot overflow (see `.shop-grid`) beside a clamped `--aside` gives each
+   * one a width neither can take from the other.
    */
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) var(--aside);
   gap: clamp(0.5rem, 1.5vw, 1.75rem);
   align-items: start;
   min-height: 0;
@@ -1600,12 +1626,18 @@ code {
   padding: 0;
   display: grid;
   /* Six across — `ScreenUpgrades.as:440-467` places them at `36 * 1..6`. */
-  grid-template-columns: repeat(6, var(--tile));
+  /*
+   * **`minmax(0, ...)`, so six tiles can never be wider than the track.**
+   * With a flat `repeat(6, var(--tile))` the grid overflowed its column
+   * whenever `--tile` came out larger than a sixth of it, and the overflow
+   * landed on top of the slot widget. Now the tracks give way instead: the
+   * tiles get smaller and the layout stays intact.
+   */
+  grid-template-columns: repeat(6, minmax(0, var(--tile)));
   gap: var(--tile-gap);
-  /* The tiles are a fixed size, so the column will usually be wider than they
-     are. Centring puts that slack on both sides instead of pooling it into
-     one gap between the grid and the aside. */
-  justify-content: center;
+  /* Left, not centred — the headings are left-aligned and a centred grid
+     under a left-aligned heading reads as a mistake. */
+  justify-content: start;
 }
 
 .shop-grid__cell {
@@ -1619,11 +1651,21 @@ code {
   position: relative;
   display: grid;
   place-items: center;
-  width: var(--tile);
-  height: var(--tile);
+  /*
+   * The track sets the width and the square is kept by ratio. Fixing both
+   * dimensions to `--tile` is what let a shrunk track hold an unshrunk tile.
+   *
+   * `container-type: inline-size` then lets the level badge size itself from
+   * the box it is actually in, rather than from a variable describing the box
+   * it hoped for.
+   */
+  width: 100%;
+  max-width: var(--tile);
+  aspect-ratio: 1;
+  container-type: inline-size;
   padding: 0;
   border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: calc(var(--tile) * 0.26);
+  border-radius: 26%;
   cursor: pointer;
   background-image: linear-gradient(
     180deg,
@@ -1687,7 +1729,7 @@ code {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 55%),
     0 0 0 2px rgb(255 255 255 / 85%),
-    0 0 calc(var(--tile) * 0.3) rgb(255 255 255 / 35%),
+    0 0 12cqw rgb(255 255 255 / 35%),
     0 3px 8px rgb(0 0 0 / 55%);
 }
 
@@ -1700,10 +1742,11 @@ code {
    corner (`:592`, a 20x20 field at `x + 1, y + 2`). */
 .shop-tile__level {
   position: absolute;
-  left: calc(var(--tile) * 0.06);
-  bottom: calc(var(--tile) * 0.04);
+  left: 6cqw;
+  bottom: 4cqw;
   font-family: var(--font-display);
-  font-size: calc(var(--tile) * 0.26);
+  /* `cqw` of the tile itself — see the container note above. */
+  font-size: 26cqw;
   line-height: 1;
   color: var(--steel-000);
   text-shadow:
@@ -1733,16 +1776,13 @@ code {
 .shop__slots {
   display: flex;
   align-items: stretch;
-  /* The footer is a flex column, so without this the box stretches to the
-     column's width — which the level guide sets — and two small wells sit
-     marooned in a 351px panel. `center` sizes it to its own content. */
-  align-self: center;
+  align-self: stretch;
   justify-content: center;
-  gap: calc(var(--tile) * 0.08);
+  gap: calc(var(--aside) * 0.05);
   margin: 0;
-  padding: calc(var(--tile) * 0.14);
+  padding: calc(var(--aside) * 0.06);
   border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: calc(var(--tile) * 0.2);
+  border-radius: calc(var(--aside) * 0.08);
   background: rgb(0 0 0 / 42%);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 14%),
@@ -1754,12 +1794,12 @@ code {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(var(--tile) * 0.06);
+  gap: calc(var(--aside) * 0.03);
   font-family: var(--font-display);
 }
 
 .shop__slot dt {
-  font-size: calc(var(--tile) * 0.2);
+  font-size: calc(var(--aside) * 0.07);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--steel-000);
@@ -1767,12 +1807,17 @@ code {
   white-space: nowrap;
 }
 
+/*
+ * The well. Sized from `--aside` rather than from `--tile`: it lives in the
+ * aside column, and the tiles can be shrunk by their own track without this
+ * having any reason to follow.
+ */
 .shop__slot dd {
   display: grid;
   place-items: center;
   margin: 0;
-  width: var(--tile);
-  height: var(--tile);
+  width: var(--slot-well);
+  height: var(--slot-well);
   border: 1px solid rgb(255 255 255 / 10%);
   border-radius: 50%;
   background-image: radial-gradient(
@@ -1789,24 +1834,6 @@ code {
   height: 40%;
   border-radius: 50%;
   border: 1px dashed rgb(255 255 255 / 22%);
-}
-
-/*
- * `bWeaponSwitch`, as a red diamond between the pair.
- *
- * **Decorative here.** The original's button swaps the two slots; nothing in
- * `ShopCatalogue` carries a swap, so this is the marker without the action —
- * recorded at `SlotSummary` in the screen, where someone will be standing.
- */
-.shop__slots-mark {
-  align-self: center;
-  width: calc(var(--tile) * 0.2);
-  height: calc(var(--tile) * 0.2);
-  flex: none;
-  transform: rotate(45deg);
-  background: linear-gradient(135deg, #ff6b6b, var(--accent));
-  border: 1px solid rgb(0 0 0 / 45%);
-  box-shadow: 0 0 calc(var(--tile) * 0.12) color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 /* ── Right: the detail window ─────────────────────────────────────────────
@@ -3177,51 +3204,228 @@ code {
   color: var(--accent);
 }
 
-/* The level guide — LevelGuide.as, on the shop screen.
-   Panel chrome from the design system; button art from the extraction. See
-   LevelGuideWidget.tsx for why the two are mixed. */
+/*
+ * ══ The level guide — LevelGuide.as ═════════════════════════════════════════
+ *
+ * Rebuilt in CSS in T168. Every control here used to be a stack of extracted
+ * SVG shapes in a fixed 18-22px box, which on a 2K display is not small on
+ * purpose — it is just small, and no amount of layout fixes a control that
+ * cannot grow.
+ *
+ * Sized off `--aside`, the column it shares with the slot wells, so the two
+ * read as one stack rather than as a widget with a footnote under it.
+ */
 .level-guide {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  align-self: center;
-  padding: var(--space-2) var(--space-4);
-  border-radius: 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  flex-direction: column;
+  gap: calc(var(--aside) * 0.045);
+  padding: calc(var(--aside) * 0.07);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: calc(var(--aside) * 0.08);
+  background: rgb(0 0 0 / 42%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 14%),
+    0 4px 12px rgb(0 0 0 / 45%);
+  backdrop-filter: blur(6px);
 }
-.level-guide__rows { display: flex; flex-direction: column; gap: 2px; }
-.level-guide__row { display: flex; align-items: center; gap: 0.35rem; }
-.level-guide__value {
-  min-width: 5.2rem;
+
+.level-guide__title {
+  margin: 0;
   text-align: center;
-  font-size: var(--text-2xs);
-  font-variant-numeric: tabular-nums;
+  font-family: var(--font-display);
+  font-size: calc(var(--aside) * 0.065);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
-.level-guide__buttons { display: flex; align-items: center; gap: 0.35rem; }
 
-/* One clip frame: layers stacked in a fixed box, so layout does not wait on
-   image load — the same reason the enemy rows size their art in CSS. */
-.guide-clip { position: relative; display: inline-block; flex: none; }
-.guide-clip img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.level-guide__rows {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--aside) * 0.03);
+}
 
-.guide-arrow,
+/* Chevron, figure, chevron — the figure takes the slack so the two arrows sit
+   at the panel's edges however wide the number gets. */
+.guide-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: calc(var(--aside) * 0.03);
+}
+
+.guide-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+  font-family: var(--font-display);
+}
+
+.guide-readout__label {
+  font-size: calc(var(--aside) * 0.055);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.guide-readout__value {
+  font-size: calc(var(--aside) * 0.13);
+  font-variant-numeric: tabular-nums;
+  color: var(--steel-000);
+  text-shadow:
+    0 1px 0 rgb(0 0 0 / 90%),
+    0 0 0.4em rgb(150 200 255 / 25%);
+}
+
+/* ── The step buttons ─────────────────────────────────────────────────────
+   The chevron is two borders of a rotated square: a hairline at any size,
+   where a glyph is at the font's mercy and an image needs its own asset. */
+.guide-step {
+  display: grid;
+  place-items: center;
+  width: calc(var(--aside) * 0.15);
+  height: calc(var(--aside) * 0.15);
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 50%;
+  cursor: pointer;
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 14%), rgb(0 0 0 / 35%));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 22%),
+    0 2px 5px rgb(0 0 0 / 45%);
+  transition:
+    transform 110ms ease,
+    filter 110ms ease,
+    border-color 110ms ease;
+}
+
+.guide-step:hover:not(:disabled) {
+  border-color: rgb(255 255 255 / 34%);
+  filter: brightness(1.25);
+  transform: translateY(-1px);
+}
+
+.guide-step:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.9);
+}
+
+.guide-step:disabled {
+  cursor: default;
+  opacity: 0.32;
+}
+
+.guide-step__chevron {
+  width: 30%;
+  height: 30%;
+  border-style: solid;
+  border-color: var(--steel-000);
+  border-width: 0.14em 0.14em 0 0;
+  /* Font-size drives the border width, so the stroke scales with the button. */
+  font-size: calc(var(--aside) * 0.15);
+}
+
+.guide-step--right .guide-step__chevron {
+  transform: translateX(-18%) rotate(45deg);
+}
+
+.guide-step--left .guide-step__chevron {
+  transform: translateX(18%) rotate(-135deg);
+}
+
+/* ── Presets and the auto toggle ──────────────────────────────────────────
+   Labelled pills. The original uses three icons whose meaning is carried
+   entirely by the tooltip; a word is the same information without the hover. */
+.level-guide__presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--aside) * 0.025);
+}
+
 .guide-preset,
 .guide-auto {
   display: inline-flex;
-  padding: 2px;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  padding: calc(var(--aside) * 0.028) calc(var(--aside) * 0.03);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 999px;
   cursor: pointer;
+  font-family: var(--font-display);
+  font-size: calc(var(--aside) * 0.055);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--steel-100);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 12%), rgb(0 0 0 / 30%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
+  transition:
+    filter 110ms ease,
+    border-color 110ms ease;
 }
-.guide-arrow:disabled { cursor: default; opacity: 0.45; }
-.guide-preset:hover:not(:disabled),
-.guide-auto:hover,
-.guide-arrow:hover:not(:disabled) { border-color: var(--border); }
-.guide-preset--on,
-.guide-auto--on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.guide-info { display: inline-flex; padding: 2px; }
+
+.guide-preset:hover,
+.guide-auto:hover {
+  border-color: rgb(255 255 255 / 32%);
+  filter: brightness(1.25);
+}
+
+.guide-preset--on {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  color: #ffdede;
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 55%, transparent),
+    color-mix(in srgb, var(--accent) 22%, transparent)
+  );
+}
+
+.level-guide__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--aside) * 0.03);
+}
+
+.guide-auto {
+  flex: 1;
+}
+
+/* A lamp rather than a tick: the toggle reads at a glance from across the
+   panel, which a checkbox at this size does not. */
+.guide-auto__dot {
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 22%);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 45%);
+}
+
+.guide-auto--on {
+  border-color: color-mix(in srgb, var(--ok) 55%, transparent);
+  color: #dfffe4;
+}
+
+.guide-auto--on .guide-auto__dot {
+  background: var(--ok);
+  box-shadow: 0 0 0.5em color-mix(in srgb, var(--ok) 70%, transparent);
+}
+
+.guide-info {
+  display: grid;
+  place-items: center;
+  width: calc(var(--aside) * 0.115);
+  height: calc(var(--aside) * 0.115);
+  flex: none;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: calc(var(--aside) * 0.06);
+  color: var(--steel-100);
+  background: rgb(255 255 255 / 8%);
+  cursor: help;
+}
 
 /* The achievement reveal page's icon — ScreenStatus.as:1000-1004 places the
    clip at (480, 374); here it sits in the page flow under the title. */

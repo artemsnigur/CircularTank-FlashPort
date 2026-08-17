@@ -270,7 +270,12 @@ needs to know before touching it:
   larger fraction of a short window than a tall one, so a viewport share
   overshoots at 480px and undershoots at 1440. This is measured, not
   theoretical: `11.5vh` overflowed five of eight viewports.
-- Divergences from the restyle are `A21`-`A30`.
+- **A fit harness that only measures the container misses overlaps.** The shop
+  shipped with the slot widget drawn over the tiles while `scrollWidth` and
+  `scrollHeight` were both clean: a grid overflowing its *grid column* does not
+  overflow a body that has margin to spare. Test rectangle intersection between
+  siblings as well as container overflow.
+- Divergences from the restyle are `A21`-`A31`.
 
 **jsdom cannot see any of this.** Layout bugs here are found by measuring boxes
 in a real browser — see the trap below — and the visual judgement is the
