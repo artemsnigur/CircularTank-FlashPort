@@ -393,12 +393,7 @@ body {
   min-height: 0;
 }
 
-.levels--picker {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  overflow-y: auto;
-}
+
 
 /* ── Left: the world's plate ──────────────────────────────────────────────
    Heading, grid, and the way out to the world picker — the vertical order
@@ -1880,80 +1875,244 @@ code {
 /* The equip controls moved into the shop block below, where they size off
    the detail window rather than off the row that no longer exists. */
 
-/* World picker — ButtonWorld. Three per row, as the AS3 lays them out
-   (ScreenLevelSelect.as:1510 wraps every third button). */
+/*
+ * ══ The world picker — ButtonWorld ══════════════════════════════════════════
+ *
+ * Three per row, as `:1510` lays them out — it steps `xPos` by 135 and wraps
+ * every third button. The AS3 shows six at a time behind a `More Worlds`
+ * upsell; this shows all nine, because there is no sponsor page to sell.
+ *
+ * Sized from the plate it sits on, exactly like the level grid: `container-type`
+ * is on `.levels--picker`, and every measurement below is a share of it. A
+ * viewport share would overshoot on a short window for the reason `A32`
+ * records — the bar and the nav take a far larger fraction of one.
+ */
+.levels--picker {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.3rem, 1cqh, 0.9rem);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  container-type: size;
+}
+
+.levels__world--picker {
+  /* No world texture on this header — there is no world selected yet. */
+  background-color: #23282e;
+  background-image: linear-gradient(180deg, #3a424c 0%, #23282e 55%, #14171b 100%);
+}
+
 .world-grid {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.6rem;
+  /* Three rows for nine worlds, each taking an equal share of what is left —
+     so the grid fills the plate exactly and can never need a scrollbar. */
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.35rem, 1.4cqh, 1.1rem);
   padding: 0;
-  margin: 0 0 0.75rem;
+  margin: 0;
   list-style: none;
 }
 
+.world-grid__slot {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+/*
+ * One world, as a glass card.
+ *
+ * `container-type: inline-size` so the parts inside measure the card rather
+ * than the screen — the same reason the level tiles carry it. Nine cards
+ * across a 4K display and a 1024 laptop are very different objects.
+ */
 .world-grid__cell {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
   width: 100%;
-  min-height: 5.5rem;
-  padding: 0.55rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: clamp(0.4rem, 2.5cqw, 1rem);
   cursor: pointer;
-  align-items: center;
-  justify-content: center;
+  color: var(--steel-000);
+  font-family: var(--font-display);
+  text-align: left;
+  background-image: linear-gradient(
+    180deg,
+    rgb(148 166 186 / 26%) 0%,
+    rgb(70 84 102 / 22%) 45%,
+    rgb(0 0 0 / 42%) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 30%),
+    inset 0 -1px 0 rgb(255 255 255 / 8%),
+    0 3px 10px rgb(0 0 0 / 50%);
+  container-type: inline-size;
+  /* No `transform` — the same reasoning as the level tiles and SELECT WORLD:
+     a card that lifts as the pointer reaches it reads as a twitch. */
+  transition:
+    filter 110ms ease,
+    box-shadow 110ms ease,
+    border-color 110ms ease;
 }
 
-.world-grid__cell--locked {
-  border-style: dashed;
-  border-color: var(--border);
-  background: var(--surface);
-  color: var(--text-dim);
-  cursor: default;
+.world-grid__cell:hover:not(:disabled) {
+  border-color: rgb(255 255 255 / 46%);
+  filter: brightness(1.22);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 46%),
+    0 5px 14px rgb(0 0 0 / 58%);
 }
 
+.world-grid__cell:active:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.world-grid__cell:focus-visible {
+  outline: 2px solid rgb(150 200 255 / 90%);
+  outline-offset: 2px;
+}
+
+/*
+ * The terrain strip — the world's own texture, and the same shape the level
+ * grid's header band carries for it. Repeated over a dark base rather than
+ * stretched: it is a 410x32 strip standing in for a much taller thumbnail.
+ */
+.world-grid__scene {
+  position: relative;
+  display: block;
+  height: 42%;
+  background-color: #2b231a;
+  background-repeat: repeat;
+  background-size: auto 100%;
+  background-position: center;
+  box-shadow:
+    inset 0 -1px 0 rgb(0 0 0 / 55%),
+    inset 0 0 0 100vmax rgb(0 0 0 / 18%);
+}
+
+/* `:1541` — the number, top-left over the terrain. */
 .world-grid__number {
-  font-size: var(--text-lg);
-  font-weight: 600;
+  position: absolute;
+  top: 4cqw;
+  left: 5cqw;
+  /*
+   * Clamped, not a bare `cqw`. The grid fills the width, so at 3840 a card is
+   * 1259px across — measured — and 15cqw of that is a 189px numeral. The
+   * container share is right for how these scale and wrong past a point, which
+   * is what a ceiling is for.
+   */
+  font-size: clamp(1rem, 15cqw, 3.5rem);
+  line-height: 1;
+  text-shadow:
+    0 1px 0 rgb(0 0 0 / 90%),
+    0 0 0.4em rgb(0 0 0 / 70%);
 }
 
-.world-grid__name {
-  font-size: var(--text-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-}
-
+/* `:1570` — `Level N/45`, top-right over the terrain. */
 .world-grid__progress {
-  font-size: var(--text-3xs);
-  color: var(--text-dim);
+  position: absolute;
+  top: 6cqw;
+  right: 5cqw;
+  font-size: clamp(0.55rem, 8cqw, 1.6rem);
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 90%);
 }
 
-.world-grid__tiers {
+/* The world's name — the port's addition; the original labels only by number. */
+.world-grid__name {
+  padding: 3cqw 5cqw 1cqw;
+  font-size: clamp(0.55rem, 8cqw, 1.5rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(255 235 200 / 82%);
+  text-shadow: 0 1px 0 rgb(0 0 0 / 85%);
+}
+
+/* `:1571-1573` — the three tier tallies, gold first. */
+.world-grid__tallies {
   display: flex;
-  gap: 0.3rem;
-  align-items: baseline;
-  font-size: var(--text-3xs);
+  flex-direction: column;
+  gap: 1cqw;
+  padding: 0 5cqw 4cqw;
 }
 
-.world-grid__tier--bronze {
-  color: var(--medal-bronze);
+.world-tally {
+  display: flex;
+  align-items: center;
+  gap: 2cqw;
+  font-size: clamp(0.5rem, 7.5cqw, 1.4rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
-.world-grid__tier--silver {
-  color: var(--medal-silver);
+.world-tally__icons {
+  display: flex;
+  gap: 0.8cqw;
 }
 
-.world-grid__tier--gold {
-  color: var(--accent);
+.world-tally__icon {
+  width: clamp(0.5rem, 7cqw, 1.5rem);
+  height: clamp(0.5rem, 7cqw, 1.5rem);
 }
 
-.world-grid__tier-total {
-  color: var(--text-dim);
+.world-tally--gold {
+  color: #ffd23f;
+}
+
+.world-tally--silver {
+  color: #dfe8f0;
+}
+
+.world-tally--bronze {
+  color: #d98e33;
+}
+
+.world-tally__count {
+  margin-left: auto;
+  color: var(--steel-000);
+}
+
+/*
+ * Locked — `:1521-1524` blanks the number, the progress line and all three
+ * tallies, leaving the padlock. Inert rather than hidden, so the shape of the
+ * campaign is still legible.
+ */
+.world-grid__cell--locked {
+  cursor: not-allowed;
+  border-color: rgb(255 255 255 / 7%);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 5%), rgb(0 0 0 / 45%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+
+.world-grid__cell .world-grid__lock {
+  position: absolute;
+  inset: 34% 42% 30%;
+  border-radius: 40% 40% 18% 18%;
+  background: rgb(0 0 0 / 45%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
+}
+
+.world-grid__cell .world-grid__lock::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -40%;
+  width: 62%;
+  height: 60%;
+  transform: translateX(-50%);
+  border: 4cqw solid rgb(0 0 0 / 45%);
+  border-bottom: 0;
+  border-radius: 999px 999px 0 0;
 }
 
 /* `Main.hDifficultyChosen` still unset — the AS3 points a helper hand here.

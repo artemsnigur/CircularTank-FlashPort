@@ -319,7 +319,7 @@ needs to know before touching it:
   is `container-type: size`, which contains layout and so becomes the
   containing block for fixed children *and* clips them), and movement by
   `style.transform` through a ref rather than React state.
-- Divergences from the restyle are `A21`-`A34`.
+- Divergences from the restyle are `A21`-`A35`.
 
 **jsdom cannot see any of this.** Layout bugs here are found by measuring boxes
 in a real browser — see the trap below — and the visual judgement is the

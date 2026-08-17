@@ -130,12 +130,55 @@ function Medals({
 }
 
 /**
- * The world picker — `ButtonWorld`, `ScreenLevelSelect.as:1504-1576`.
+ * One tier's tally on a world tile — `iconBronzeValue` and its two siblings,
+ * each an `IconValue` frame beside a `N/135` count (`:1571-1573`).
+ *
+ * The glyphs are the five level modes in that tier's colour. The original
+ * draws a single composite `IconValue`; this spells it out with the shapes
+ * `LevelModeIcon` already owns, which reads as "medals of every kind" at any
+ * size and needs no sixth extracted clip. `A35`.
+ */
+function WorldTally({
+  tier,
+  earned,
+  total,
+}: {
+  tier: MedalTier;
+  earned: number;
+  total: number;
+}): React.ReactElement {
+  return (
+    <span className={`world-tally world-tally--${tier}`}>
+      <span className="world-tally__icons" aria-hidden="true">
+        {(['Normal', 'Flag', 'Tower', 'Defense', 'Boss'] as const).map((mode) => (
+          <LevelModeIcon key={mode} mode={mode} className="world-tally__icon" />
+        ))}
+      </span>
+      <span className="world-tally__count">
+        {earned}/{total}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * The world picker — `ButtonWorld`, `ScreenLevelSelect.as:1488-1576`.
  *
  * A locked world shows nothing at all in the original: the number, the progress
  * line and all three tallies are blanked (`:1520-1524`), and tapping it does
  * nothing. Both kept — the button is disabled, so a locked world is inert here
  * for the same reason it is there.
+ *
+ * ── The tile's parts, and where each comes from ───────────────────────────
+ * `:1541` puts the world number top-left, `:1570` the `Level N/45` line
+ * top-right, and `:1571-1573` the three tier tallies down the bottom half.
+ * Between them sits the world's own terrain — the same texture the level
+ * grid's header band carries, which is why `worldBand` serves both.
+ *
+ * **No difficulty buttons here.** They used to render above this grid, and
+ * they do not belong: the tallies show all three tiers at once, so a
+ * difficulty is neither read nor displayed on this view. It is chosen where it
+ * matters, beside the level being played.
  */
 function WorldPicker(): React.ReactElement {
   const listing = useGameStore((s) => s.worldList);
@@ -146,7 +189,7 @@ function WorldPicker(): React.ReactElement {
   return (
     <ul className="world-grid">
       {worlds.map((entry) => (
-        <li key={entry.world}>
+        <li key={entry.world} className="world-grid__slot">
           <button
             type="button"
             className={`world-grid__cell${entry.unlocked ? '' : ' world-grid__cell--locked'}`}
@@ -156,31 +199,49 @@ function WorldPicker(): React.ReactElement {
                 ? `World ${entry.world}, ${entry.name}, level ${entry.frontier} of ${entry.totalLevels}`
                 : `World ${entry.world}, locked`
             }
-            title={
-              entry.unlocked
-                ? `${entry.name} — ${entry.levelsCompleted}/${entry.totalLevels} cleared`
-                : 'Finish the previous world first'
-            }
             onClick={() => GameEvents.emit('ui:select-world', { world: entry.world })}
           >
             {entry.unlocked ? (
               <>
-                <span className="world-grid__number">{entry.world}</span>
-                <span className="world-grid__name">{entry.name}</span>
-                <span className="world-grid__progress">
-                  Level {entry.frontier}/{entry.totalLevels}
+                {/* The world's terrain, as its own texture — the same shape the
+                    level grid's header band uses for this world. */}
+                <span
+                  className="world-grid__scene"
+                  style={{ backgroundImage: worldBand(entry.world) }}
+                  aria-hidden="true"
+                >
+                  <span className="world-grid__number">{entry.world}</span>
+                  <span className="world-grid__progress">
+                    Level {entry.frontier}/{entry.totalLevels}
+                  </span>
                 </span>
-                {/* Three tiers at once, as the world button shows them — the
+
+                <span className="world-grid__name">{entry.name}</span>
+
+                {/* Three tiers at once, as `ButtonWorld` shows them — the level
                     grid's per-difficulty count is a different question. */}
-                <span className="world-grid__tiers">
-                  <span className="world-grid__tier world-grid__tier--bronze">{entry.bronze}</span>
-                  <span className="world-grid__tier world-grid__tier--silver">{entry.silver}</span>
-                  <span className="world-grid__tier world-grid__tier--gold">{entry.gold}</span>
-                  <span className="world-grid__tier-total">/{entry.totalLevels * MAX_LEVEL_VALUE}</span>
+                <span className="world-grid__tallies">
+                  <WorldTally
+                    tier="gold"
+                    earned={entry.gold}
+                    total={entry.totalLevels * MAX_LEVEL_VALUE}
+                  />
+                  <WorldTally
+                    tier="silver"
+                    earned={entry.silver}
+                    total={entry.totalLevels * MAX_LEVEL_VALUE}
+                  />
+                  <WorldTally
+                    tier="bronze"
+                    earned={entry.bronze}
+                    total={entry.totalLevels * MAX_LEVEL_VALUE}
+                  />
                 </span>
               </>
             ) : (
-              <span className="world-grid__number">🔒</span>
+              /* `:1521-1524` blanks every field on a locked world; the padlock
+                 is all that is left. */
+              <span className="world-grid__lock" aria-hidden="true" />
             )}
           </button>
         </li>
@@ -465,20 +526,28 @@ export function LevelSelectScreen(): React.ReactElement | null {
       {showingPicker ? (
         <div className="levels levels--picker">
           {/*
-            No way back out of the picker, which is the original's own shape:
+            `SELECT WORLD` on its own band, the way the grid view heads itself
+            with the world name — one shape for both states of this screen.
+
+            No way back out of here, which is the original's own arrangement:
             `ScreenLevelSelect` has `bWorldSelect` for going *up* from a grid
-            and nothing for leaving the world list — the bottom bar carries
-            that. A second exit beside the bar's Menu button was the port's
-            addition and is gone.
+            and nothing for leaving the world list, because the bottom bar
+            carries that.
+
+            **And no difficulty buttons.** They used to sit here and did not
+            belong: the tiles show all three tiers at once, so a difficulty is
+            neither read nor shown on this view. It is chosen where it matters,
+            beside the level about to be played.
           */}
-          <h2 className="screen__subtitle">Choose a world</h2>
-          <DifficultyPicker />
+          <header className="levels__world levels__world--picker">
+            <h2 className="levels__world-name">Select world</h2>
+            <p className="levels__tally">
+              {worldList?.worlds.filter((w) => w.unlocked).length ?? 0} of{' '}
+              {worldList?.worlds.length ?? 0} open
+            </p>
+          </header>
+
           <WorldPicker />
-          <p className="screen__hint">
-            {worldList?.worlds.filter((w) => w.unlocked).length ?? 0} of{' '}
-            {worldList?.worlds.length ?? 0} worlds open. Finish a world&apos;s last level to
-            open the next.
-          </p>
         </div>
       ) : levels.length === 0 ? (
         <p className="screen__hint">No levels available.</p>

@@ -728,3 +728,177 @@ describe('the tile hover', () => {
     expect(hover).not.toMatch(/border-width:|border:\s*\d/);
   });
 });
+
+/**
+ * ── The world picker — T177 ────────────────────────────────────────────────
+ *
+ * Layout measured in a browser across six viewports from 1024x480 to
+ * 3840x2160: nine cards, `scrollHeight === clientHeight`, no horizontal
+ * overflow, zero card/card and card/header intersections, and zero difficulty
+ * pickers. Cards run 333x90 to 1259x601. Numbers in the commit.
+ */
+describe('the world picker', () => {
+  const WORLDS = [
+    {
+      world: 1,
+      name: 'Desert',
+      unlocked: true,
+      frontier: 3,
+      totalLevels: 45,
+      levelsCompleted: 2,
+      bronze: 6,
+      silver: 0,
+      gold: 0,
+    },
+    {
+      world: 2,
+      name: 'Forest',
+      unlocked: false,
+      frontier: 1,
+      totalLevels: 45,
+      levelsCompleted: 0,
+      bronze: 0,
+      silver: 0,
+      gold: 0,
+    },
+  ];
+
+  beforeEach(() => {
+    useGameStore.setState({ worldList: { selected: 0, worlds: WORLDS } });
+  });
+
+  /**
+   * **The request, and the reason it is right.** The tiles show all three
+   * medal tiers at once, so no difficulty is read or displayed on this view —
+   * a picker here offered a choice that changed nothing on screen.
+   */
+  it('shows no difficulty buttons', () => {
+    const { container } = render(<LevelSelectScreen />);
+
+    expect(container.querySelector('.difficulty')).toBeNull();
+    for (const name of ['Easy', 'Medium', 'Hard']) {
+      expect(screen.queryByRole('button', { name }), name).toBeNull();
+    }
+  });
+
+  it('still offers them on the grid, where they mean something', () => {
+    // The counterpart: hiding them everywhere would also pass the test above.
+    useGameStore.setState({ worldList: { selected: 1, worlds: WORLDS } });
+    render(<LevelSelectScreen />);
+
+    expect(screen.getAllByRole('button', { name: 'Hard' }).length).toBeGreaterThan(0);
+  });
+
+  it('lists every world, locked and open', () => {
+    render(<LevelSelectScreen />);
+
+    expect(screen.getByRole('button', { name: /World 1, Desert/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /World 2, locked/ })).toBeInTheDocument();
+  });
+
+  /**
+   * `:1541` puts the number top-left and `:1570` the `Level N/45` line
+   * top-right, both over the world's own terrain.
+   */
+  it('gives an open world its number, progress and texture', () => {
+    const { container } = render(<LevelSelectScreen />);
+    const card = container.querySelector('.world-grid__cell:not([disabled])')!;
+
+    expect(card.querySelector('.world-grid__number')).toHaveTextContent('1');
+    expect(card.querySelector('.world-grid__progress')).toHaveTextContent('Level 3/45');
+    expect(
+      card.querySelector<HTMLElement>('.world-grid__scene')?.style.backgroundImage,
+    ).toContain('url(');
+  });
+
+  /**
+   * `:1571-1573` — three tallies, each `earned/total` against 45 levels x 3
+   * medals. All three tiers at once is the whole point: it is what makes a
+   * difficulty selector redundant here.
+   */
+  it('tallies all three tiers against the world total', () => {
+    const { container } = render(<LevelSelectScreen />);
+    const card = container.querySelector('.world-grid__cell:not([disabled])')!;
+    const counts = [...card.querySelectorAll('.world-tally__count')].map((n) => n.textContent);
+
+    expect(counts).toEqual(['0/135', '0/135', '6/135']);
+    expect(card.querySelector('.world-tally--gold')).not.toBeNull();
+    expect(card.querySelector('.world-tally--silver')).not.toBeNull();
+    expect(card.querySelector('.world-tally--bronze')).not.toBeNull();
+  });
+
+  /**
+   * `:1521-1524` blanks the number, the progress line and every tally on a
+   * locked world. Asserted as absence, because "shows a padlock" is also true
+   * of a card that leaked its contents behind one.
+   */
+  it('blanks a locked world entirely', () => {
+    const { container } = render(<LevelSelectScreen />);
+    const locked = container.querySelector('.world-grid__cell--locked')!;
+
+    expect(locked.querySelector('.world-grid__number')).toBeNull();
+    expect(locked.querySelector('.world-grid__progress')).toBeNull();
+    expect(locked.querySelector('.world-tally')).toBeNull();
+    expect(locked.querySelector('.world-grid__lock')).not.toBeNull();
+  });
+
+  it('opens a world on click, and a locked one not at all', () => {
+    const picked: unknown[] = [];
+    GameEvents.subscribe('ui:select-world', (p) => picked.push(p));
+
+    render(<LevelSelectScreen />);
+    act(() => {
+      screen.getByRole('button', { name: /World 1, Desert/ }).click();
+    });
+    act(() => {
+      screen.getByRole('button', { name: /World 2, locked/ }).click();
+    });
+
+    expect(picked).toEqual([{ world: 1 }]);
+  });
+});
+
+describe('the world grid`s layout rules', () => {
+  const css = readFileSync('src/styles/global.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const block = (selector: string): string => {
+    const literal = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const found = new RegExp(`${literal}\\s*\\{([^}]*)\\}`).exec(css);
+    expect(found, `${selector} is missing`).not.toBeNull();
+    return found![1];
+  };
+
+  /**
+   * Nine worlds in a fixed 3x3 that shares out the plate, so the grid fills it
+   * exactly and can never need a scrollbar. `:1510` steps `xPos` by 135 and
+   * wraps every third button.
+   */
+  it('is three across and shares the height between three rows', () => {
+    const grid = block('.world-grid');
+    expect(grid).toMatch(/grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+    expect(grid).toMatch(/grid-template-rows:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+  });
+
+  it('measures the plate, not the window', () => {
+    // Same rule as the level grid: the bar and nav take a far larger share of a
+    // short viewport, so a `vh` measurement overshoots there.
+    expect(block('.levels--picker')).toMatch(/container-type:\s*size/);
+    expect(block('.world-grid__cell')).toMatch(/container-type:\s*inline-size/);
+  });
+
+  /**
+   * The card's parts are shares of the card, and every one is capped. At 3840
+   * a card measures 1259px across, where a bare `15cqw` numeral is 189px.
+   */
+  it('caps the type so a huge card does not give a huge numeral', () => {
+    expect(block('.world-grid__number')).toMatch(/font-size:\s*clamp\([^;]*cqw[^;]*\)/);
+    expect(block('.world-tally')).toMatch(/font-size:\s*clamp\([^;]*cqw[^;]*\)/);
+  });
+
+  it('does not lift a card on hover', () => {
+    // Consistent with the level tiles and SELECT WORLD — nothing on this screen
+    // moves under the pointer.
+    const hover = block('.world-grid__cell:hover:not(:disabled)');
+    expect(hover).not.toMatch(/transform:/);
+    expect(hover).toMatch(/filter:\s*brightness/);
+  });
+});
