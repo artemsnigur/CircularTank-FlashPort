@@ -61,15 +61,31 @@ export interface AchievementTooltipText {
   noteLength: number;
 }
 
-/** `:60-81`. Every case yields a note — see `COMPLETED_ON` above. */
-export function achievementTooltip(
-  input: AchievementTooltipInput,
-): AchievementTooltipText {
+/**
+ * The trailing note alone — `:62-78`, without the leading blank line.
+ *
+ * Split out because the board's cursor tooltip lays the three parts out as
+ * separate elements while `PartInfoText` styles them as character ranges of
+ * one string. **Both must say the same thing**, and the way to guarantee that
+ * is for the branch to exist once; two copies of a five-way branch is exactly
+ * the "one rule, two copies" shape this project keeps finding.
+ */
+export function achievementNote(input: AchievementTooltipInput): string {
   const note = !input.difficultyMatters
     ? DIFFICULTY_IRRELEVANT
     : !input.earned || input.difficulty === null
       ? DIFFICULTY_MATTERS
       : COMPLETED_ON[input.difficulty] ?? DIFFICULTY_MATTERS;
+  return note.trimStart();
+}
+
+/** `:60-81`. Every case yields a note — see `COMPLETED_ON` above. */
+export function achievementTooltip(
+  input: AchievementTooltipInput,
+): AchievementTooltipText {
+  // The AS3's own string keeps the blank line between the goal and the note;
+  // `achievementNote` returns the note without it, so it is restored here.
+  const note = `\n\n${achievementNote(input)}`;
 
   return {
     text: `${input.title}\n${input.description}${note}`,

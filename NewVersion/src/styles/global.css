@@ -523,6 +523,39 @@ body {
 }
 
 /*
+ * The badge card, which is prose rather than a roster.
+ *
+ * Narrower than the level card because it has no strip of enemy pictures to
+ * hold, and `normal` case because a goal is a sentence -- `Kill 1,000
+ * enemies.` in small caps is markedly harder to read than the level
+ * objectives, which are two or three words.
+ */
+.cursor-tip--badge {
+  max-width: min(18rem, 55vw);
+}
+
+.cursor-tip--badge .cursor-tip__objective {
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: var(--steel-100);
+}
+
+/*
+ * `Achievement.as:62-78` -- the note is always present and says one of three
+ * things, so it is styled as an aside rather than as a value. Composed by
+ * `achievementNote`, the same branch `PartInfoText` styles as a character
+ * range on the results screen.
+ */
+.cursor-tip__note {
+  margin: 0.4rem 0 0;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+/*
  * The roster — share, picture, tier — laid out across rather than down, so a
  * five-enemy level stays a glanceable strip instead of a list to read.
  */
@@ -3880,7 +3913,20 @@ code {
   --panel: clamp(13rem, 26cqw, 26rem);
 
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--panel);
+  /*
+   * **The board track is `auto`, and the pair is centred.**
+   *
+   * It was `minmax(0, 1fr)`, which handed the board every pixel the panel did
+   * not want: at 1920 the plate was 1461 wide holding a lattice that needs
+   * about 850, so the columns stood 267px apart carrying 125px badges. The
+   * badges were the right size and the plate was twice the width of its own
+   * contents, which reads as "the discs are too small".
+   *
+   * The plate now takes its width from its height (below) and the two columns
+   * sit centred in whatever is left.
+   */
+  grid-template-columns: auto var(--panel);
+  justify-content: center;
   gap: clamp(0.4rem, 1.2cqw, 1.1rem);
   width: 100%;
   height: 100%;
@@ -3894,6 +3940,21 @@ code {
  * they actually have — the same construction as the level grid's plate.
  */
 .achievements__board {
+  /*
+   * **The ratio is the lattice's, and it is derived.**
+   *
+   * `achievementPlacementArray` is a regular 6x6 lattice stepping 60 in x and
+   * 56 in y, so the plate wants to be very slightly wider than it is tall.
+   * With the badge at `d` and the height at `H`, the row pitch is `(H - d)/5`
+   * and the column pitch is that times 60/56, so
+   *
+   *     W = d + (H - d) * 60/56 = 0.155H + 0.845H * 1.0714 = 1.06H
+   *
+   * at the `--disc` below. A ratio rather than a `calc` because
+   * `aspect-ratio` needs no knowledge of `--disc`, which is declared inside.
+   */
+  aspect-ratio: 1.06;
+  height: 100%;
   min-height: 0;
   min-width: 0;
   padding: clamp(0.4rem, 2cqh, 1.2rem);
@@ -3910,16 +3971,30 @@ code {
  * **A proportional board, not a grid**, and that is load-bearing.
  *
  * Each cell's `left`/`top` is its `achievementPlacementArray` coordinate as a
- * percentage of the board's extent. The placements are irregular —
- * `MaxedPrimary1` sits 16 units off the row step — so turning this into
- * `grid-template-columns: repeat(6, ...)` would round two entries into one
- * cell and lose one, which `achievementListing.test.ts` caught once already.
+ * fraction of the board's extent. The lattice is regular -- x every 60, y
+ * every 56, all 36 points filled -- so a CSS grid could express it, but only
+ * by re-deriving a row and column from each coordinate. The first screen that
+ * tried divided y by 40 when the step is 56, rounded two entries into one cell
+ * and lost one. Reading the coordinate directly cannot make that mistake, and
+ * it is also what lets the board scale to a viewport the original never had.
  *
- * `--disc` is the badge size: six across and six down with gaps, taking the
- * smaller of the two shares so the binding dimension wins.
+ * (An earlier version of this comment said the placements were *irregular* and
+ * that `MaxedPrimary1` sat 16 units off the row step. Both are false --
+ * measured, it is at (55, 176), exactly on the lattice. The claim came from a
+ * test that asserted irregularity using the wrong step, and from there into
+ * three docstrings and this stylesheet.)
  */
 .achievements__grid {
-  --disc: min(13cqh, 13cqw);
+  /*
+   * **How big the badge can be, computed rather than chosen.**
+   *
+   * Six rows over the height with centres inset by half a badge, so the row
+   * pitch is `(H - d)/5` and neighbours touch at `d = H/6 = 16.67cqh`. That is
+   * the ceiling at every viewport measured, and height is always what binds --
+   * the plate is only 1.06 times as wide as it is tall. 15.5 leaves about 7%
+   * of the pitch as a gap: at 1920x1080, a 125px badge with 11px between rows.
+   */
+  --disc: min(15.5cqh, 15.5cqw);
 
   position: relative;
   list-style: none;
@@ -3948,37 +4023,31 @@ code {
   left: calc(var(--disc) / 2 + (100% - var(--disc)) * var(--fx));
   top: calc(var(--disc) / 2 + (100% - var(--disc)) * var(--fy));
   transform: translate(-50%, -50%);
-  display: grid;
-  place-items: center;
   width: var(--disc);
   height: var(--disc);
-  /*
-   * **A percentage here is what broke the board, and it is worth the words.**
-   *
-   * It was `padding: 6%`, read as "6% of the disc". Percentage padding
-   * resolves against the *containing block's* inline size — the whole grid —
-   * so at 1920x1080 it was 6% of 1425px, or 85.5px a side. That is 171px of
-   * padding inside a 105px disc: the content box floors at zero and the border
-   * box grows to fit the padding, which is exactly the 173px badge measured on
-   * a `--disc` of 104.83px. Six of those overlapped their neighbours
-   * vertically and the last row hung 45px off the plate.
-   *
-   * The tell was that `left` — `calc(var(--disc) / 2 + ...)` — computed to
-   * 52.4px, precisely half the disc. `--disc` was never the problem, and a
-   * first pass that assumed it was changed the stylesheet without moving a
-   * single measured number. **Numbers that do not move under a fix mean the
-   * fix missed**; that is what sent this back for a second diagnosis.
-   *
-   * So every length on this cell is a share of `--disc` and none is a
-   * percentage.
-   */
-  padding: calc(var(--disc) * 0.08);
   border-radius: 50%;
   border: 1px solid rgb(255 255 255 / 10%);
   overflow: hidden;
-  text-align: center;
-  /* The parts size in `em` off this, so the title scales with the disc
-     without another container to resolve against. */
+  /*
+   * **No `padding`, and that is the second half of a lesson.**
+   *
+   * It was `padding: 6%`, meant as "6% of the disc". Percentage padding
+   * resolves against the *containing block's* inline size -- the whole grid --
+   * so at 1920x1080 it was 6% of 1425px, or 85.5px a side, inside a 105px
+   * disc. The content box floors at zero and the border box grows to fit the
+   * padding: the badge measured 173px, rows overlapped and the last one hung
+   * 45px off the plate.
+   *
+   * The tell was that `left` -- `calc(var(--disc) / 2 + ...)` -- computed to
+   * 52.4px, precisely half a perfectly valid `--disc`. A first pass blamed the
+   * variable, changed the stylesheet and moved not one measured number, which
+   * is itself the signal that a fix missed.
+   *
+   * It is gone rather than corrected because the art is `inset: 0` on the
+   * padding box and so spans the badge edge to edge either way -- a padding
+   * here would have been dead CSS with a test pinning it.
+   */
+  /* `--earned`'s bloom is in `em`, so the badge's glow scales with it. */
   font-size: calc(var(--disc) * 0.17);
   /* Lit from above and sunk into the plate — the locked state is the default,
      because 36 of these are locked far longer than they are earned. */
@@ -4023,30 +4092,54 @@ code {
     0 2px 8px rgb(0 0 0 / 55%);
 }
 
-.achievements__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1em;
-  line-height: 1.05;
-  letter-spacing: 0.02em;
-  color: rgb(255 255 255 / 62%);
-  text-shadow: 0 1px 0 rgb(0 0 0 / 90%);
+/*
+ * The clip's own layers, each at its true scale.
+ *
+ * `--sw`/`--sh` are the layer's size over the badge's, set inline from
+ * `ACHIEVEMENT_SHAPE_BOX`. **Not `width: 100%` on every layer**, which is what
+ * the results-screen toast does: a 26-unit icon over a 52-unit disc would be
+ * drawn at twice its size, and the badge would be one shapeless blob.
+ */
+.achievements__art {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
 }
 
-.achievements__cell--earned .achievements__title {
-  color: #fff6dd;
-  text-shadow:
-    0 1px 0 rgb(0 0 0 / 85%),
-    0 0 0.5em rgb(255 200 80 / 60%);
+.achievements__art img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(100% * var(--sw));
+  height: calc(100% * var(--sh));
+  transform: translate(-50%, -50%);
 }
 
 /*
- * The goal and the difficulty note stay in the DOM and out of the disc.
- *
- * They are the accessible name and the hover panel's content; a 90px circle
- * has room for a title and nothing else. `clip` rather than `display: none`,
- * so a screen reader still reaches them.
+ * **A locked badge draws the *earned* picture, desaturated.** The AS3's frame
+ * 1 is a grey disc with the icon at 10% opacity, which at 36 badges on one
+ * board is 36 empty circles -- the state a fresh profile is in, and what this
+ * screen was reported for. `A36` records it. The grey keeps locked and earned
+ * as different at a glance as the original's two frames did.
  */
+.achievements__cell--locked .achievements__art {
+  filter: grayscale(1) brightness(0.62) contrast(0.92);
+  opacity: 0.8;
+}
+
+.achievements__cell--earned .achievements__art {
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 55%));
+}
+
+/*
+ * The title, the goal and the note stay in the DOM and out of the disc.
+ *
+ * The badge is a picture now, as `Achievement`'s own is, and all three are the
+ * accessible name and the cursor tooltip's content. `clip` rather than
+ * `display: none`, so a screen reader still reaches them.
+ */
+.achievements__title,
 .achievements__goal,
 .achievements__difficulty {
   position: absolute;

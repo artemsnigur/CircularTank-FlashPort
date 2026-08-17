@@ -61,13 +61,29 @@ if (typeof window !== 'undefined') {
   );
 }
 
-export function CursorTooltip({
-  preview,
-  title,
+/**
+ * The mechanism, with no opinion about what it shows.
+ *
+ * **Two screens use this and there is one copy of it**, which is the point:
+ * the corner flash, the hit-test loop and the reflow-per-hover were three
+ * separate defects and each was fixed here. A second implementation for the
+ * achievements board would have started from the broken version of all three.
+ *
+ * `contentKey` is what tells it the body changed — it re-places on a new key,
+ * because the card's size changes with its content and the flip decision above
+ * is measured from that size.
+ */
+export function CursorTip({
+  open,
+  contentKey,
+  className,
+  children,
 }: {
-  /** What to describe, or `null` to show nothing. */
-  preview: LevelPreview | null;
-  title: string;
+  open: boolean;
+  contentKey: string | null;
+  /** An extra class on the card, for a screen that needs its own width. */
+  className?: string;
+  children: React.ReactNode;
 }): React.ReactElement | null {
   const box = useRef<HTMLDivElement>(null);
 
@@ -86,7 +102,7 @@ export function CursorTooltip({
    * programmatic focus produces.
    */
   useLayoutEffect(() => {
-    if (preview === null) return;
+    if (!open) return;
 
     const place = (x: number, y: number): void => {
       const el = box.current;
@@ -94,7 +110,7 @@ export function CursorTooltip({
 
       /*
        * Flip before the edge rather than after it. Measured from the element
-       * itself, so a long roster flips at the right moment instead of at a
+       * itself, so a long body flips at the right moment instead of at a
        * guessed width — and read inside the listener because the box changes
        * size with its content.
        */
@@ -122,14 +138,14 @@ export function CursorTooltip({
     // browser skip waiting on it before it scrolls.
     window.addEventListener('mousemove', move, { passive: true });
     return () => window.removeEventListener('mousemove', move);
-  }, [preview]);
+  }, [open, contentKey]);
 
-  if (preview === null) return null;
+  if (!open) return null;
 
   /*
    * **Portalled to `<body>`, and that is not tidiness.**
    *
-   * Two things in the level-select subtree would break a `position: fixed`
+   * Two things in either screen's subtree would break a `position: fixed`
    * child: `.screen-shell__body` sets `overflow: hidden`, and it sets
    * `container-type: size` — which implies `contain: layout`, and a
    * layout-contained element becomes the containing block for its *fixed*
@@ -137,16 +153,38 @@ export function CursorTooltip({
    * that box and clipped by it, losing a corner near every screen edge.
    *
    * It also has to be out of the grid's flow entirely. Rendered inline it is a
-   * grid item of `.levels`, appearing and vanishing on every hover — which is
-   * a full reflow of the two columns each time the pointer crosses a tile.
+   * grid item of the screen's layout, appearing and vanishing on every hover —
+   * a full reflow of both columns each time the pointer crosses a tile, which
+   * is the "everything twitches" this was reported as.
+   *
+   * `aria-hidden`: whatever it describes already carries the same facts in its
+   * accessible name, and a live region that moved with the mouse would
+   * interrupt a screen reader continuously.
    */
   return createPortal(
-    /*
-      `aria-hidden`: the tile it describes already carries the same facts in its
-      accessible name, and a live region that moved with the mouse would
-      interrupt a screen reader continuously.
-    */
-    <div className="cursor-tip" ref={box} aria-hidden="true">
+    <div
+      className={`cursor-tip${className === undefined ? '' : ` ${className}`}`}
+      ref={box}
+      aria-hidden="true"
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+export function CursorTooltip({
+  preview,
+  title,
+}: {
+  /** What to describe, or `null` to show nothing. */
+  preview: LevelPreview | null;
+  title: string;
+}): React.ReactElement | null {
+  if (preview === null) return null;
+
+  return (
+    <CursorTip open contentKey={title}>
       <p className="cursor-tip__title">{title}</p>
       <p className="cursor-tip__mode">{preview.mode} mode</p>
       <p className="cursor-tip__objective">{preview.objective}</p>
@@ -170,7 +208,6 @@ export function CursorTooltip({
           ))}
         </ul>
       )}
-    </div>,
-    document.body,
+    </CursorTip>
   );
 }

@@ -12,7 +12,7 @@
  * two CSS mechanisms the measurement depends on.
  */
 import { readFileSync } from 'node:fs';
-import { act, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AchievementsScreen } from './AchievementsScreen';
@@ -20,7 +20,13 @@ import { GameEvents } from '../../game/events/GameEvents';
 import { attachStoreBridge, detachStoreBridge } from '../../state/bridge';
 import { useGameStore } from '../../state/gameStore';
 import { buildAchievementListing } from '../../game/achievements/achievementListing';
+import {
+  ACHIEVEMENT_BADGE_SIZE,
+  ACHIEVEMENT_CLIPS,
+  ACHIEVEMENT_SHAPE_BOX,
+} from '../../game/achievements/achievementArt';
 import { buildAchievementStats } from '../../game/achievements/achievementStats';
+import { achievementNote } from '../../game/achievements/achievementTooltip';
 import { createEmptyProgress } from '../../game/levels/levelProgress';
 
 const CSS = readFileSync('src/styles/global.css', 'utf8');
@@ -64,9 +70,9 @@ afterEach(() => {
 
 describe('the board', () => {
   it('draws every placement — none collide into one cell', () => {
-    // The count is the point. An earlier version bucketed x/y into a regular
-    // grid and lost `MaxedPrimary1`, which sits 16 units off the row step, so
-    // 36 rendering as 35 is the failure this catches.
+    // The count is the point. An earlier version derived a row index by
+    // dividing y by 40 when the lattice steps 56, so two entries rounded into
+    // one cell: 36 rendering as 35 is the failure this catches.
     const container = mount();
     expect(container.querySelectorAll('.achievements__cell')).toHaveLength(36);
   });
@@ -101,7 +107,7 @@ describe('the board', () => {
   });
 
   /*
-   * ── No percentage lengths on the disc ────────────────────────────────────
+   * ── No percentage lengths on the badge ───────────────────────────────────
    *
    * The defect this replaces: `padding: 6%` on the cell, read as a share of
    * the disc. Percentage padding resolves against the **containing block's**
@@ -111,35 +117,193 @@ describe('the board', () => {
    *
    * Measured in a browser, not here: jsdom resolves no percentages. What this
    * holds is the shape of the rule that made the measurement come out right,
-   * so the number cannot quietly come back as a percentage.
+   * so a length whose meaning depends on the parent cannot come back.
    */
-  it('sizes the disc only in shares of --disc, never in percentages', () => {
+  it('sizes the badge only in shares of --disc, never in percentages', () => {
     const cell = block('.achievements__cell');
-    expect(cell).toMatch(/padding:\s*calc\(var\(--disc\)\s*\*/);
-    // `border-radius: 50%` is a percentage of the element's own box and is the
-    // one that is *meant* to be — asserted here so the rule above is read as
-    // "no percentage that resolves against the parent", not "no `%` at all".
-    expect(cell).toMatch(/border-radius:\s*50%/);
-    expect(cell).not.toMatch(/padding:\s*\d/);
     expect(cell).toMatch(/width:\s*var\(--disc\)/);
     expect(cell).toMatch(/height:\s*var\(--disc\)/);
+    expect(cell).toMatch(/font-size:\s*calc\(var\(--disc\)\s*\*/);
+    // The declaration is gone entirely — the art spans the padding box either
+    // way, so a corrected padding would have been dead CSS pinned by a test.
+    expect(cell).not.toMatch(/padding/);
+    // `border-radius: 50%` is a percentage of the element's *own* box and is
+    // the one that is meant to be, so the rule above reads as "no percentage
+    // that resolves against the parent" rather than "no `%` at all".
+    expect(cell).toMatch(/border-radius:\s*50%/);
   });
 
-  it('resolves --disc against the board, and sizes the parts in em', () => {
+  it('resolves --disc against the board, and stays under the lattice ceiling', () => {
     // The board is the query container the `cq` units measure; the cell is
-    // deliberately not one, so the parts scale off the cell's font-size
-    // instead. Asserting only the cell half would pass on a stylesheet with no
-    // containers at all, which is why the board's line sits beside it.
+    // deliberately not one. Asserting only the cell half would pass on a
+    // stylesheet with no containers at all, which is why the board's line
+    // sits beside it.
     expect(block('.achievements__board')).toMatch(/container-type:\s*size/);
-    expect(block('.achievements__grid')).toMatch(/--disc:\s*min\(\s*13cqh\s*,\s*13cqw\s*\)/);
-    expect(block('.achievements__cell')).toMatch(/font-size:\s*calc\(var\(--disc\)\s*\*/);
-    expect(block('.achievements__title')).toMatch(/font-size:\s*1em/);
-    expect(block('.achievements__title')).not.toMatch(/cq[wh]/);
+
+    /*
+     * The ceiling is arithmetic, not taste. Six rows with centres inset by
+     * half a badge put the row pitch at `(H - d) / 5`, so neighbours touch at
+     * `d = H / 6`, or 16.67cqh. The expected value comes from the lattice —
+     * `ys.length` rows — rather than from the stylesheet, so raising `--disc`
+     * past the point where badges collide fails here instead of in a browser.
+     */
+    const rows = 6;
+    const ceiling = 100 / rows;
+    const declared = /--disc:\s*min\(\s*([\d.]+)cqh\s*,\s*([\d.]+)cqw\s*\)/.exec(
+      block('.achievements__grid'),
+    );
+    expect(declared, '--disc is not a min() of two cq shares').not.toBeNull();
+    expect(Number(declared![1])).toBe(Number(declared![2]));
+    expect(Number(declared![1])).toBeLessThan(ceiling);
+    // And large enough to be worth the plate. The badge was at 13, or 78% of
+    // the ceiling, and was reported as too small; this holds the gain.
+    expect(Number(declared![1])).toBeGreaterThan(ceiling * 0.85);
+  });
+
+  it('hugs the lattice rather than taking every spare pixel', () => {
+    // The plate was `minmax(0, 1fr)`: 1461px wide at 1920 around a lattice
+    // needing ~850, so the columns stood 267px apart. The ratio is the
+    // lattice's own 60:56 step, worked through the placement inset.
+    expect(block('.achievements')).toMatch(/grid-template-columns:\s*auto var\(--panel\)/);
+    expect(block('.achievements')).toMatch(/justify-content:\s*center/);
+    expect(block('.achievements__board')).toMatch(/aspect-ratio:\s*1\.06/);
+  });
+
+  /*
+   * ── The badge is a picture, and the layers are not one size ──────────────
+   *
+   * `Achievement<id>` composes a 52-unit backing disc, a 48-unit difficulty
+   * ring and an icon at its own size — 26x26 for `Bosses1`, 33.3x12.5 for
+   * `BossOnlySpecial`. The results toast stretches every layer to fill its
+   * box, which is survivable on one 64px icon and turns a badge into a blob at
+   * 36 of them, so each layer carries its true share here.
+   */
+  it('draws each clip layer at its own size, not stretched to the disc', () => {
+    const container = mount();
+    const imgs = [...container.querySelectorAll<HTMLElement>('.achievements__art img')];
+    expect(imgs.length).toBeGreaterThan(36);
+
+    let scaled = 0;
+    for (const img of imgs) {
+      const shape = Number(/(\d+)\.svg/.exec(img.getAttribute('src') ?? '')?.[1]);
+      const box = ACHIEVEMENT_SHAPE_BOX[shape];
+      expect(box, `shape ${shape} has no recorded size`).toBeDefined();
+      expect(Number(img.style.getPropertyValue('--sw'))).toBeCloseTo(
+        box[0] / ACHIEVEMENT_BADGE_SIZE,
+        6,
+      );
+      expect(Number(img.style.getPropertyValue('--sh'))).toBeCloseTo(
+        box[1] / ACHIEVEMENT_BADGE_SIZE,
+        6,
+      );
+      if (box[0] < ACHIEVEMENT_BADGE_SIZE) scaled += 1;
+    }
+    // The counterpart: if every layer were the full 52 units, the scale would
+    // be 1 everywhere and this test would pass while proving nothing.
+    expect(scaled).toBeGreaterThan(0);
+    expect(block('.achievements__art img')).toMatch(/width:\s*calc\(100%\s*\*\s*var\(--sw\)\)/);
+  });
+
+  it('draws the earned picture on a locked badge, desaturated', () => {
+    // A divergence, and a deliberate one — `A36`. Frame 1 is a grey disc with
+    // the icon at 10% opacity, which is 36 empty circles on a fresh profile.
+    // Every badge here is locked, so frame 2's shapes are what must appear.
+    const container = mount();
+    const cells = [...container.querySelectorAll('.achievements__cell')];
+    expect(cells.every((c) => c.classList.contains('achievements__cell--locked'))).toBe(true);
+
+    const first = ACHIEVEMENT_CLIPS.Kills1;
+    const drawn = [...cells[0].querySelectorAll('img')].map((img) =>
+      Number(/(\d+)\.svg/.exec(img.getAttribute('src') ?? '')?.[1]),
+    );
+    expect(drawn).toEqual([...first.frames[1]]);
+    // Pinned against its counterpart: frame 1 is a *different* shape, so this
+    // would fail if the view fell back to the AS3's locked art.
+    expect(drawn).not.toEqual([...first.frames[0]]);
+    expect(block('.achievements__cell--locked .achievements__art')).toMatch(/grayscale\(1\)/);
+  });
+
+  it('carries no text on the badge — it is a picture', () => {
+    // The AS3's own arrangement, and what makes room for the art. All three
+    // stay in the DOM for the accessible name and the tooltip.
+    const container = mount();
+    for (const selector of ['.achievements__title', '.achievements__goal']) {
+      expect(container.querySelector(selector)).not.toBeNull();
+    }
+    // The three share one clipped rule; `block` keys on the last selector,
+    // and the group membership is what makes the title part of it.
+    expect(cssCode).toMatch(
+      /\.achievements__title,\s*\.achievements__goal,\s*\.achievements__difficulty \{/,
+    );
+    expect(block('.achievements__difficulty')).toMatch(/clip-path:\s*inset\(50%\)/);
   });
 
   it('spans the body rather than sitting in pillars', () => {
     // `A32` — the same rule level select and the shop landed on.
     expect(block('.achievements')).not.toMatch(/max-width/);
+  });
+});
+
+/*
+ * ── The hover readout ────────────────────────────────────────────────────
+ *
+ * The same pointer-following card level select uses, and *the same component*
+ * — `CursorTip`. Three defects were fixed in it (the corner flash, the
+ * hit-test loop, the reflow-per-hover) and a second copy for this screen would
+ * have started from the broken version of all three.
+ *
+ * jsdom has no pointer, so what these hold is the wiring: that a hover mounts
+ * a card carrying the three parts, and that leaving takes it away again.
+ */
+describe('the hover card', () => {
+  it('shows nothing until a badge is hovered', () => {
+    mount();
+    expect(document.querySelector('.cursor-tip')).toBeNull();
+  });
+
+  it('names the badge, its goal and its difficulty note', () => {
+    const container = mount();
+    const cell = container.querySelectorAll('.achievements__cell')[0];
+    act(() => {
+      fireEvent.mouseEnter(cell);
+    });
+
+    // Portalled to `<body>`, so it is deliberately not in `container`.
+    const tip = document.querySelector('.cursor-tip');
+    expect(tip).not.toBeNull();
+    expect(tip!.querySelector('.cursor-tip__title')?.textContent).toBe('GRAVEYARD');
+    expect(tip!.querySelector('.cursor-tip__objective')?.textContent).toBe('Kill 100 enemies.');
+    expect(tip!.querySelector('.cursor-tip__note')?.textContent).toBe(
+      achievementNote({
+        title: 'GRAVEYARD',
+        description: 'Kill 100 enemies.',
+        difficultyMatters: false,
+        difficulty: null,
+        earned: false,
+      }),
+    );
+  });
+
+  it('takes the card away on leave', () => {
+    const container = mount();
+    const cell = container.querySelectorAll('.achievements__cell')[0];
+    act(() => {
+      fireEvent.mouseEnter(cell);
+    });
+    expect(document.querySelector('.cursor-tip')).not.toBeNull();
+    act(() => {
+      fireEvent.mouseLeave(cell);
+    });
+    expect(document.querySelector('.cursor-tip')).toBeNull();
+  });
+
+  it('stays hidden until it has been placed', () => {
+    // The corner-flash guard. `visibility: hidden` until `--placed`, which the
+    // layout effect adds once it has a pointer position — so a card that never
+    // gets one is invisible rather than parked at the origin.
+    expect(block('.cursor-tip')).toMatch(/visibility:\s*hidden/);
+    expect(block('.cursor-tip--placed')).toMatch(/visibility:\s*visible/);
+    expect(block('.cursor-tip')).toMatch(/pointer-events:\s*none/);
   });
 });
 

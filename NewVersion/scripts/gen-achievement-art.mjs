@@ -77,6 +77,48 @@ const clips = ids.map((id) => {
 
 const shapeIds = [...new Set(clips.flatMap((c) => c.frames.flat()))].sort((a, b) => a - b);
 
+/**
+ * A shape's own size in SWF units, off the exported SVG's `width`/`height`.
+ *
+ * **Needed because the layers are not all the same size and are not meant to
+ * be.** A four-frame clip is a 52-unit backing disc, a 48-unit difficulty ring
+ * and an icon at whatever size it happens to be — `Bosses1`'s is 26x26 and
+ * `BossOnlySpecial`'s is 33.3x12.5. The results-screen toast stretches every
+ * layer to fill its box (`.achievement-icon img`), which is survivable on one
+ * icon at 64px and is visibly wrong at 36 badges: a 26-unit icon drawn over
+ * the whole disc is twice the size it should be.
+ *
+ * So the size travels with the shape and the view scales each layer by
+ * `size / ACHIEVEMENT_BADGE_SIZE`.
+ */
+function shapeBox(shapeId) {
+  const file = join(sourceRoot, 'shapes', `${shapeId}.svg`);
+  if (!existsSync(file)) {
+    console.error(`Shape ${shapeId}.svg is missing from ${sourceRoot}/shapes.`);
+    process.exit(1);
+  }
+  const svg = readFileSync(file, 'utf8');
+  const width = /\bwidth="([\d.]+)px"/.exec(svg);
+  const height = /\bheight="([\d.]+)px"/.exec(svg);
+  if (!width || !height) {
+    console.error(`Shape ${shapeId}.svg has no px width/height to read.`);
+    process.exit(1);
+  }
+  return [Number(width[1]), Number(height[1])];
+}
+
+const boxes = new Map(shapeIds.map((id) => [id, shapeBox(id)]));
+
+/*
+ * The badge's own extent — the largest layer, which is the backing disc.
+ *
+ * **Derived rather than written as 52.** A hand-typed 52 would be a claim
+ * about generated data with nothing keeping the two in step, and every layer's
+ * scale is a fraction of it, so a wrong value would misplace all 36 badges at
+ * once while looking entirely plausible.
+ */
+const badgeSize = Math.max(...[...boxes.values()].flat());
+
 const content = `/**
  * GENERATED FILE — do not edit by hand.
  * Regenerate with: npm run achievement-art:data
@@ -112,6 +154,21 @@ ${c.frames.map((layers) => `      [${layers.join(', ')}],`).join('\n')}
 export const ACHIEVEMENT_SHAPE_IDS: readonly number[] = Object.freeze(
   ${JSON.stringify(shapeIds)},
 );
+
+/**
+ * The badge's own extent in SWF units — the largest layer, the backing disc.
+ *
+ * Every layer below is drawn at \`its size / this\` of the rendered badge, which
+ * is the only way a 26-unit icon lands at half the disc rather than filling it.
+ */
+export const ACHIEVEMENT_BADGE_SIZE = ${badgeSize};
+
+/** Each layer's own \`width, height\` in SWF units, from the exported SVG. */
+export const ACHIEVEMENT_SHAPE_BOX: Readonly<
+  Record<number, readonly [number, number]>
+> = Object.freeze({
+${shapeIds.map((id) => `  ${id}: [${boxes.get(id).join(', ')}],`).join('\n')}
+});
 `;
 
 const outPath = join(projectRoot, 'src/game/achievements/achievementArt.ts');

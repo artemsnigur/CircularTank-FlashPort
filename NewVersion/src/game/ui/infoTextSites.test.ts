@@ -142,8 +142,11 @@ describe('the table covers the source', () => {
       'ButtonLevelGuideSelect.as:81',
       'ButtonLevelGuideAutoSelect.as:38',
       'ButtonLevelGuideAutoSelect.as:104',
+      // `Achievement.as:99` was here until T178, when the board moved to the
+      // cursor tooltip (`A36`). Its sibling `:103` — the results page icon —
+      // still uses the corner panel, and keeping the pair split is the point:
+      // one screen diverging does not carry the other with it.
       'Achievement.as:103',
-      'Achievement.as:99',
     ]);
     // Every unwired row must carry a reason — a blank note is the "documented
     // in a commit message" failure this table replaces.

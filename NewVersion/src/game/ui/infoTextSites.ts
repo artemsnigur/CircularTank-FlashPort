@@ -117,8 +117,14 @@ export const INFO_TEXT_SITES: readonly InfoTextSite[] = Object.freeze([
     showLeft: true,
     showTop: false,
     special: 'Achievement',
-    status: 'wired',
-    note: 'Achievement cells — AchievementsScreen.tsx. Three styled runs.',
+    // Was `wired` until T178. The board's 36 badges now raise the same
+    // pointer-following card level select uses, for the same reason: a panel
+    // pinned to a corner means looking away from the badge under the cursor.
+    // The *text* is unchanged — the card renders `achievementNote`, which
+    // `achievementTooltip` also composes, so this row's `:103` sibling on the
+    // results screen and the board cannot disagree.
+    status: 'no-consumer',
+    note: 'Achievement cells — replaced by the cursor tooltip in T178, divergence A36. The three runs it styles are laid out as elements instead; `:103` still uses this corner.',
   },
 
   // ── Faithful, but the port already shows the text on the control ────────

@@ -7,28 +7,37 @@
  * There is no paging to port — the AS3 places all 36 at once — so a paged list
  * would look reasonable and lose the layout entirely.
  *
- * **The grid is not regular, and assuming it was would have collided entries.**
- * The first version of this divided x by 60 and y by 40 to get columns and
- * rows; `achievementListing.test.ts` caught it — `MaxedPrimary1` sits 16 units
- * off the row step, so two achievements would have rounded into one cell and
- * one would have vanished. The placements are irregular by design.
+ * **The grid is a regular 6x6 lattice — x every 60, y every 56, all 36 points
+ * filled.** An earlier version of this header said it was irregular and that
+ * `MaxedPrimary1` sat 16 units off the row step; measured, it does not. The
+ * real defect was the *assumed* step: the first screen divided y by 40, and
+ * 176 is not a multiple of 40, so two entries rounded into one cell and one
+ * vanished. The data was regular the whole time and the arithmetic was wrong,
+ * which is a different bug with a different fix.
  *
- * So they are used as **proportional positions**: each `x`/`y` is expressed as
- * a fraction of the board's own extent and applied as a percentage. The layout
- * is the AS3's exactly, and it scales with a viewport the original never had —
- * transcribing the raw pixels would pin the board to a 640x480 stage and clip
- * it on anything narrower.
+ * The placements are still used as **proportional positions** rather than
+ * derived indices, and now for the honest reason: each `x`/`y` is a fraction of
+ * the board's extent, so the layout is the AS3's exactly and scales with a
+ * viewport the original never had. Transcribing the raw pixels would pin the
+ * board to a 640x480 stage and clip it on anything narrower.
  *
  * ── Unearned entries still show their goal ────────────────────────────────
  * Unlike the bestiary, which withholds what an unmet enemy is, this screen
  * names the target — that is what an achievements list is for. Only the earned
  * mark and the difficulty vary.
  */
+import { useState } from 'react';
+
 import { useGameStore } from '../../state/gameStore';
 import { ScreenShell } from '../ScreenShell';
-import { useInfoText } from '../useInfoText';
-import { siteCorner } from '../../game/ui/infoTextSites';
-import { achievementTooltip } from '../../game/achievements/achievementTooltip';
+import { CursorTip } from '../CursorTooltip';
+import { achievementNote, achievementFrame } from '../../game/achievements/achievementTooltip';
+import {
+  ACHIEVEMENT_BADGE_SIZE,
+  ACHIEVEMENT_CLIPS,
+  ACHIEVEMENT_SHAPE_BOX,
+} from '../../game/achievements/achievementArt';
+import { shapeUrl } from '../../assets/registry';
 import { LevelModeIcon } from '../LevelModeIcon';
 import { formatNumber } from '../../game/core/Functions';
 import { MEDAL_TIERS } from '../../game/achievements/achievementStats';
@@ -53,50 +62,105 @@ const fraction = (value: number, min: number, max: number): number =>
 const DIFFICULTY_LABEL: Record<number, string> = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
 
 /**
- * One achievement, with the hover panel `Achievement.as:92-105` gives it.
+ * The badge's own picture — the clip's layers, each at its true scale.
  *
- * `:81` composes the tooltip as `title + "
-" + description + difficultyText`,
- * and `:99` passes the two lengths so the panel can style the first and last
- * runs — the title in the display face, the difficulty note smaller. That is
- * the whole of the "Achievement" special type (`PartInfoText.as:195-205`); it
- * styles sub-ranges rather than drawing anything structured.
+ * ── Why the layers are not all one size ───────────────────────────────────
+ * `Achievement<id>` composes a 52-unit backing disc, a 48-unit difficulty ring
+ * and an icon at whatever size the icon is: `Bosses1`'s is 26x26,
+ * `BossOnlySpecial`'s is 33.3x12.5. The results-screen toast stretches every
+ * layer to fill its box, which passes at 64px on one icon and is plainly wrong
+ * at 36 badges — a 26-unit icon drawn over the whole disc is twice its size.
  *
- * `showLeft` is `true` here and `false` on the results screen (`:103`, gated on
- * `onStatusScreen`) — a fixed corner per context, not a computed one.
+ * So each layer is drawn at `its own size / ACHIEVEMENT_BADGE_SIZE` of the
+ * badge, both numbers generated from the SVGs rather than typed here.
+ *
+ * ── The one thing assumed, said plainly ───────────────────────────────────
+ * **That every layer is centred on the badge.** The SWF's PlaceObject
+ * translation is not in `SPRITE_SHAPES`, so the generator cannot see where a
+ * layer sits, only how big it is. Centring is right for the backing disc and
+ * the ring by construction — they are concentric — and matches every icon
+ * checked by eye. An off-centre icon in the original would render centred here
+ * and nothing would flag it; recovering the offsets means extending
+ * `gen-sprite-shapes.mjs` to keep the translation half of the matrix.
  */
-function AchievementCell({ entry }: { entry: AchievementEntry }): React.ReactElement {
-  // Composed by `achievementTooltip` — `Achievement.as:60-81` — which the
-  // status screen's icon also uses. One source, because the panel styles by
-  // character offset and two compositions could agree on the text and disagree
-  // on the ranges.
-  const tip = achievementTooltip(entry);
+function AchievementArt({ entry }: { entry: AchievementEntry }): React.ReactElement | null {
+  const clip = ACHIEVEMENT_CLIPS[entry.id];
+  if (clip === undefined) return null;
 
-  // `Achievement.as:99` — the board branch. `:103` is the same cell on the
-  // level-complete status screen, opening the other way horizontally.
-  const hover = useInfoText({
-    text: tip.text,
-    ...siteCorner('Achievement.as:99'),
-    titleLength: tip.titleLength,
-    noteLength: tip.noteLength,
-  });
+  /*
+   * **A locked badge shows the earned picture, dimmed — a divergence.**
+   *
+   * Frame 1 is the AS3's locked art: a grey disc with the icon at 10% opacity
+   * (`1282.svg` and its 35 siblings). At 36 badges on one board that reads as
+   * 36 empty circles, which is the state a fresh profile is in and the reason
+   * the board was reported as missing its artwork. Frame 2 is the same badge
+   * lit, so it is what is drawn, and `--locked` desaturates it in CSS.
+   *
+   * An earned badge still uses its true frame, so the difficulty ring is the
+   * one the achievement was actually won on — `achievementFrame` is the AS3's
+   * own `thisState` mapping and is not second-guessed here.
+   */
+  const frame = entry.earned ? Math.min(achievementFrame(entry), clip.frames.length) : 2;
+  const layers = clip.frames[frame - 1] ?? [];
 
   return (
+    <span className="achievements__art" aria-hidden="true">
+      {layers.map((shape) => {
+        const [w, h] = ACHIEVEMENT_SHAPE_BOX[shape] ?? [
+          ACHIEVEMENT_BADGE_SIZE,
+          ACHIEVEMENT_BADGE_SIZE,
+        ];
+        return (
+          <img
+            key={shape}
+            src={shapeUrl(`${shape}.svg`)}
+            alt=""
+            style={
+              {
+                '--sw': w / ACHIEVEMENT_BADGE_SIZE,
+                '--sh': h / ACHIEVEMENT_BADGE_SIZE,
+              } as React.CSSProperties
+            }
+          />
+        );
+      })}
+    </span>
+  );
+}
+
+/**
+ * One achievement, as a badge.
+ *
+ * ── The hover readout is a cursor tooltip, not `PartInfoText` ─────────────
+ * `Achievement.as:99` opens the AS3's corner panel. This board uses the same
+ * pointer-following card level select uses, for the same reason: a corner
+ * panel means looking away from the badge you are pointing at, and this is a
+ * 36-cell grid. Recorded as a divergence in `A36`.
+ *
+ * The badge carries no text at all now — the AS3's own arrangement, and what
+ * makes room for the picture. Title, goal and note live in the card, and stay
+ * in the DOM as clipped text so the accessible name is unchanged.
+ */
+function AchievementCell({
+  entry,
+  onHover,
+}: {
+  entry: AchievementEntry;
+  onHover: (entry: AchievementEntry | null) => void;
+}): React.ReactElement {
+  return (
     <li
-      className={`achievements__cell${entry.earned ? ' achievements__cell--earned' : ''}`}
+      className={`achievements__cell${entry.earned ? ' achievements__cell--earned' : ' achievements__cell--locked'}`}
       style={
         {
           '--fx': fraction(entry.x, BOARD.minX, BOARD.maxX),
           '--fy': fraction(entry.y, BOARD.minY, BOARD.maxY),
         } as React.CSSProperties
       }
-      {...hover}
+      onMouseEnter={() => onHover(entry)}
+      onMouseLeave={() => onHover(null)}
     >
-      {/*
-        A disc, as `Achievement`'s own art is — the badge is the shape and the
-        title is what is written on it. The goal stays in the DOM for the
-        accessible name and the hover panel; the disc has no room for it.
-      */}
+      <AchievementArt entry={entry} />
       <h3 className="achievements__title">{entry.title}</h3>
       <p className="achievements__goal">{entry.description}</p>
       {entry.earned && entry.difficultyMatters && entry.difficulty !== null && (
@@ -106,9 +170,39 @@ function AchievementCell({ entry }: { entry: AchievementEntry }): React.ReactEle
   );
 }
 
+/**
+ * The hover card — title, goal and the note, laid out rather than styled by
+ * character range.
+ *
+ * The note comes from `achievementNote`, which `achievementTooltip` also uses,
+ * so this and the results screen's panel cannot end up saying different things
+ * about the same achievement.
+ */
+function AchievementTip({ entry }: { entry: AchievementEntry | null }): React.ReactElement {
+  return (
+    <CursorTip open={entry !== null} contentKey={entry?.id ?? null} className="cursor-tip--badge">
+      {entry !== null && (
+        <>
+          <p className="cursor-tip__title">{entry.title}</p>
+          <p className="cursor-tip__objective">{entry.description}</p>
+          <p className="cursor-tip__note">{achievementNote(entry)}</p>
+        </>
+      )}
+    </CursorTip>
+  );
+}
+
 export function AchievementsScreen(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
   const board = useGameStore((s) => s.achievementBoard);
+  /*
+   * The hovered badge, and **only** the hovered badge, is React state. The
+   * card's *position* never is — that is written to `style.transform` inside
+   * `CursorTip`. So a pointer sweep across the board re-renders once per badge
+   * crossed rather than once per pixel, which is the rule level select landed
+   * on after the same screen measured 8 fps.
+   */
+  const [hovered, setHovered] = useState<AchievementEntry | null>(null);
   if (activeScene !== 'Achievements') return null;
 
   const entries = board?.entries ?? [];
@@ -137,7 +231,7 @@ export function AchievementsScreen(): React.ReactElement | null {
         <div className="achievements__board">
           <ul className="achievements__grid">
             {entries.map((entry) => (
-              <AchievementCell key={entry.id} entry={entry} />
+              <AchievementCell key={entry.id} entry={entry} onHover={setHovered} />
             ))}
           </ul>
         </div>
@@ -190,6 +284,10 @@ export function AchievementsScreen(): React.ReactElement | null {
           </p>
         </aside>
       </div>
+
+      {/* Mounted once, outside the board, and portalled to `<body>` from
+          there — a card rendered per cell would be 36 of them. */}
+      <AchievementTip entry={hovered} />
     </ScreenShell>
   );
 }

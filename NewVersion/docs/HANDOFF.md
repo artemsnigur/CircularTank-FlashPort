@@ -271,10 +271,22 @@ needs to know before touching it:
   (reversing `A25`) and ported the totals window at `:725-780` — two running
   totals and a 5x3 medal matrix drawn with the same `LevelModeIcon` shapes the
   level tiles use, tinted through `currentColor`. Two things to know:
-  - **`achievementPlacementArray` is irregular.** Turning the plate into a CSS
-    grid rounds two entries into one cell and loses one. Each badge is placed
-    by its coordinate as a fraction of the board's extent, inset by half a
-    disc so the edge columns stay on the plate.
+  - **`achievementPlacementArray` is a regular 6x6 lattice** — x every 60, y
+    every 56, all 36 points filled. A test and three docstrings claimed it was
+    *irregular* and that `MaxedPrimary1` sat 16 units off the row step; both
+    are false, and the claim survived because the test's expected value (a
+    40-unit step) came from the buggy code rather than from the data. Badges
+    are still placed by coordinate-as-fraction, inset by half a disc, because
+    that cannot re-derive a wrong row index.
+  - **The badge is a picture and its layers are not one size.** A 52-unit
+    backing disc, a 48-unit tier ring and an icon at its own size. Each is
+    drawn at `size / ACHIEVEMENT_BADGE_SIZE` of the badge, both generated from
+    the SVGs. Stretching them all to 100% — which the results toast does — is
+    survivable on one icon and turns a badge into a blob at 36.
+  - **The badge can be at most `boardHeight / 6`** (16.67cqh), where
+    neighbours touch. It sits at 15.5, and the plate's `aspect-ratio: 1.06` is
+    the lattice's own 60:56 step, so the columns are not spread across a plate
+    twice their width.
   - **A medal row is one mode at three tiers**, the opposite of a level tile,
     and bronze is the *Easy* tally while gold is the *Hard* one. That reads
     backwards next to the `[hard, medium, easy]` values triple and is pinned in
