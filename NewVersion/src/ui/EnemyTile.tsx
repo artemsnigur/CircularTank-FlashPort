@@ -21,17 +21,27 @@ const SIZE = 38;
 export function EnemyTile({
   layers,
   label,
+  size = SIZE,
 }: {
   layers: readonly number[];
   /** What a screen reader should call it — "Basic" or "Not yet encountered". */
   label: string;
+  /**
+   * The box, as a CSS length. A number is px — the AS3's own size.
+   *
+   * Same parameter and same reason as `UpgradeIcon`'s: the box is set inline
+   * because it is a measurement the caller owns, and an inline style cannot be
+   * overridden from a stylesheet. The cursor tooltip draws these much smaller
+   * than the detail panel does.
+   */
+  size?: number | string;
 }): React.ReactElement | null {
   if (layers.length === 0) return null;
 
   return (
     <span
       className="enemy-tile"
-      style={{ width: SIZE, height: SIZE }}
+      style={{ width: size, height: size }}
       // The tile is a picture of the enemy with no text in it, so the
       // accessible name has to come from outside the art — the same reasoning
       // as `ResistanceIcon`'s.

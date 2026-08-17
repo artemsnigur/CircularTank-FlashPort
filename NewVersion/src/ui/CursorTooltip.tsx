@@ -25,9 +25,10 @@
  * `transform` specifically, not `left`/`top`: it is composited, so a move
  * costs no layout and no paint.
  */
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
+import { EnemyTile } from './EnemyTile';
 import type { LevelPreview } from '../game/levels/levelPreview';
 
 /** Clear of the cursor, and offset down-right so the arrow never covers it. */
@@ -47,13 +48,14 @@ const OFFSET_Y = 20;
  * trigger carrying the coordinate through the state that mounts this, which is
  * the per-pixel React update the whole design exists to avoid.
  */
-const pointer = { x: 0, y: 0 };
+const pointer = { x: 0, y: 0, seen: false };
 if (typeof window !== 'undefined') {
   window.addEventListener(
     'mousemove',
     (event) => {
       pointer.x = event.clientX;
       pointer.y = event.clientY;
+      pointer.seen = true;
     },
     { passive: true },
   );
@@ -69,7 +71,21 @@ export function CursorTooltip({
 }): React.ReactElement | null {
   const box = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  /*
+   * **`useLayoutEffect`, and this is the fix for the corner flash.**
+   *
+   * `useEffect` runs *after* the browser paints, so the card was painted once
+   * with no `transform` — one frame at (0, 0) in the top-left — before the
+   * effect moved it. A layout effect runs before that paint, so the first
+   * frame the user sees is already in the right place.
+   *
+   * Belt and braces with the `--placed` class below: if no pointer position
+   * has ever been recorded, the card stays invisible rather than appearing in
+   * the corner. That is the case a layout effect alone does not cover — a
+   * hover raised without any prior `mousemove`, which is what a touch tap or a
+   * programmatic focus produces.
+   */
+  useLayoutEffect(() => {
     if (preview === null) return;
 
     const place = (x: number, y: number): void => {
@@ -89,10 +105,18 @@ export function CursorTooltip({
       el.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`;
     };
 
-    // Place it where the pointer already is, before waiting for it to move.
-    place(pointer.x, pointer.y);
+    // Place it where the pointer already is, before waiting for it to move —
+    // the `mousemove` that summoned this is over by the time it exists.
+    if (pointer.seen) {
+      place(pointer.x, pointer.y);
+      box.current?.classList.add('cursor-tip--placed');
+    }
 
-    const move = (event: MouseEvent): void => place(event.clientX, event.clientY);
+    const move = (event: MouseEvent): void => {
+      place(event.clientX, event.clientY);
+      // Reveals on the first real move if there was no position on mount.
+      box.current?.classList.add('cursor-tip--placed');
+    };
 
     // `passive`: this never calls `preventDefault`, and saying so lets the
     // browser skip waiting on it before it scrolls.
@@ -127,12 +151,20 @@ export function CursorTooltip({
       <p className="cursor-tip__mode">{preview.mode} mode</p>
       <p className="cursor-tip__objective">{preview.objective}</p>
 
+      {/*
+        The roster, as pictures — `addEnemyImages` (`:1112-1160`) draws the
+        level's enemies with their share above and their tier below, and this
+        is the same readout at tooltip scale. A name alone told you nothing you
+        could recognise mid-hover.
+      */}
       {preview.rows.length > 0 && (
         <ul className="cursor-tip__enemies">
           {preview.rows.map((row, i) => (
-            <li key={`${row.type}-${i}`}>
-              <span className="cursor-tip__enemy">{row.type}</span>
+            <li key={`${row.type}-${i}`} className="cursor-tip__enemy">
               <span className="cursor-tip__amount">{row.amountLabel}</span>
+              {row.shape !== undefined && (
+                <EnemyTile layers={[row.shape]} label={row.type} size="var(--tip-enemy)" />
+              )}
               <span className="cursor-tip__tier">{row.levelLabel}</span>
             </li>
           ))}

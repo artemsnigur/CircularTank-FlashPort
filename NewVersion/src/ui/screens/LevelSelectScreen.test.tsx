@@ -553,6 +553,69 @@ describe('the cursor tooltip', () => {
    * the tooltip unmounts, the pointer is over the tile again — a loop as fast
    * as the browser can dispatch, which reads as violent twitching.
    */
+  /**
+   * The roster, as pictures — `addEnemyImages` (`:1112-1160`). A name alone
+   * told you nothing recognisable mid-hover, which is what this replaced.
+   */
+  it('shows the level`s enemies with their art', () => {
+    render(<LevelSelectScreen />);
+
+    act(() => {
+      fireEvent.mouseEnter(screen.getByRole('button', { name: /Level 2, Normal/ }));
+    });
+
+    const tip = document.querySelector('.cursor-tip')!;
+    expect(tip.querySelectorAll('.cursor-tip__enemy').length).toBeGreaterThan(0);
+    // The picture, not just the row — an empty card would pass the line above.
+    expect(tip.querySelectorAll('.enemy-tile__layer').length).toBeGreaterThan(0);
+  });
+
+  it('gives each enemy its share and its tier', () => {
+    render(<LevelSelectScreen />);
+
+    act(() => {
+      fireEvent.mouseEnter(screen.getByRole('button', { name: /Level 2, Normal/ }));
+    });
+
+    const card = document.querySelector('.cursor-tip__enemy')!;
+    expect(card.querySelector('.cursor-tip__amount')?.textContent).toBeTruthy();
+    expect(card.querySelector('.cursor-tip__tier')?.textContent).toBeTruthy();
+  });
+
+  /**
+   * **The corner flash, as a rule.**
+   *
+   * The card mounts before any `mousemove` reaches it, so a plain `useEffect`
+   * — which runs *after* paint — left one painted frame at (0, 0). The fix is
+   * two-part and both halves are asserted: a layout effect places it before
+   * that paint, and it stays `visibility: hidden` until placed, for the case a
+   * layout effect cannot cover (a hover with no pointer position on record).
+   *
+   * Driven in a browser across 76 sampled frames: zero visible at the origin,
+   * and the first visible frame already carried a real `translate3d`.
+   */
+  it('stays hidden until it has been placed', () => {
+    expect(css).toMatch(/\.cursor-tip \{[^}]*visibility:\s*hidden/);
+    expect(css).toMatch(/\.cursor-tip--placed \{[^}]*visibility:\s*visible/);
+
+    const source = readFileSync('src/ui/CursorTooltip.tsx', 'utf8');
+    // Before paint, not after — this is the half that stops the flash in the
+    // ordinary case, and `useEffect` here is the bug.
+    expect(source).toContain('useLayoutEffect');
+    expect(source).not.toMatch(/[^a-zA-Z]useEffect\(/);
+    expect(source).toContain("classList.add('cursor-tip--placed')");
+  });
+
+  /**
+   * `visibility`, not `display`. The component measures its own box to decide
+   * which side of the cursor to sit on, and a `display: none` box has no
+   * dimensions to measure — it would flip on every first hover.
+   */
+  it('hides in a way that still has a measurable box', () => {
+    const tip = /\.cursor-tip \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(tip).not.toMatch(/display:\s*none/);
+  });
+
   it('cannot take the hit test from the tile beneath it', () => {
     expect(css).toMatch(/\.cursor-tip \{[^}]*pointer-events:\s*none/);
   });

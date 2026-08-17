@@ -463,11 +463,26 @@ body {
  * subtree cannot host it.
  */
 .cursor-tip {
+  --tip-enemy: 1.9rem;
+
   position: fixed;
   top: 0;
   left: 0;
   z-index: 2000;
   pointer-events: none;
+  /*
+   * **Invisible until it has been placed.** The card mounts before any
+   * `mousemove` reaches it, so without this it paints once at (0, 0) — a flash
+   * in the top-left corner before it jumps to the pointer.
+   *
+   * `useLayoutEffect` positions it before that first paint and adds
+   * `--placed`; this is the guard for the case a layout effect cannot cover,
+   * where no pointer position has ever been recorded at all. `visibility`
+   * rather than `display`, because the component measures its own box to
+   * decide which side of the cursor to sit on, and a `display: none` box has
+   * no dimensions to measure.
+   */
+  visibility: hidden;
   /* Promoted once, so the compositor keeps it on its own layer instead of
      re-rasterising the card on every move. */
   will-change: transform;
@@ -482,6 +497,10 @@ body {
     0 10px 30px rgb(0 0 0 / 65%);
   font-family: var(--font-display);
   color: var(--steel-000);
+}
+
+.cursor-tip--placed {
+  visibility: visible;
 }
 
 .cursor-tip__title {
@@ -508,31 +527,31 @@ body {
   color: #ff6b60;
 }
 
+/*
+ * The roster — share, picture, tier — laid out across rather than down, so a
+ * five-enemy level stays a glanceable strip instead of a list to read.
+ */
 .cursor-tip__enemies {
   list-style: none;
-  margin: 0.5rem 0 0;
-  padding: 0.5rem 0 0;
-  border-top: 1px solid rgb(255 255 255 / 10%);
+  margin: 0.55rem 0 0;
+  padding: 0.55rem 0 0;
+  border-top: 1px solid rgb(255 255 255 / 12%);
   display: flex;
-  flex-direction: column;
-  gap: 0.18rem;
-}
-
-.cursor-tip__enemies li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: baseline;
-  gap: 0.6rem;
-  font-size: var(--text-2xs);
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 .cursor-tip__enemy {
-  color: var(--steel-100);
-  /* A long roster must not widen the card past its cap and start wrapping the
-     figures beside it. */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.28rem 0.35rem;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 0.4rem;
+  background: rgb(255 255 255 / 6%);
+  font-size: var(--text-3xs);
+  line-height: 1.1;
 }
 
 .cursor-tip__amount {
