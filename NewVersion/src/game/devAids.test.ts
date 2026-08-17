@@ -76,16 +76,13 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     'drop an enemy at a world point, for --boss-collision',
   ],
   'src/game/levels/devLevels.ts': ['QA levels for enemy behaviour'],
-  'src/game/scenes/UpgradesScene.ts': ['money top-up'],
   // T100: a fresh profile knows only `Basic`, which has no resistances, so the
   // bestiary's 16 typed badges cannot be photographed without one.
   'src/game/scenes/BestiaryScene.ts': ['reveal the whole bestiary via ?known=all'],
   // `LevelSelectScreen.tsx` left this list in T172. The dev level jump is
   // gone — it took the whole body at short viewports and pushed SELECT
   // WORLD off the screen. The enemies screen still reaches every level.
-  'src/ui/screens/UpgradesScreen.tsx': ['catalogue top-up'],
   'src/ui/DiagnosticsPanel.tsx': ['pipeline diagnostics panel'],
-  'src/game/events/GameEvents.ts': ['dev money event'],
   'src/game/audio/queueHistory.ts': ['sound queue history'],
   'src/game/audio/SoundManager.ts': [
     'queue history record',
@@ -162,6 +159,11 @@ describe('dev aids are enumerable', () => {
     // run, which no amount of reading the scene had managed.
     // 36 since T172 — the level jump went with the screen's dev section.
     // It was 37 from T148, when the off-screen markers added their counts.
-    expect(total).toBe(36);
+    // 33 since T182, which removed the money top-up: the button, the scene's
+    // `grantMoney` and the `ui:dev-grant-money` event, three tags in three
+    // files. Taken out at the maintainer's request rather than because it was
+    // broken — a dev affordance that ships behind `import.meta.env.DEV` still
+    // shows up in every development session, which is where it was unwanted.
+    expect(total).toBe(33);
   });
 });

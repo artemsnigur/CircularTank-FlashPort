@@ -2219,11 +2219,12 @@ code {
   /*
    * **A grid, because `.shop` is not the body's only child.**
    *
-   * The withheld-upgrades notice and the DEV grant button are siblings of it.
-   * With `.shop` at `height: 100%` and the button in normal flow, the body's
-   * content was its full height *plus* the button — measured as exactly 60px
-   * of overflow at every viewport size, which is the tell: a number that does
-   * not move when the tiles scale is not coming from the tiles.
+   * The withheld-upgrades notice is a sibling of it. The DEV grant button was
+   * another until T182 removed it, and it is what found this: with `.shop` at
+   * `height: 100%` and the button in normal flow, the body's content was its
+   * full height *plus* the button — exactly 60px of overflow at every viewport
+   * size, which is the tell, because a number that does not move when the
+   * tiles scale is not coming from the tiles.
    *
    * `minmax(0, 1fr)` gives `.shop` what is left rather than all of it. The
    * `0` floor matters — a bare `1fr` is `minmax(auto, 1fr)` and refuses to
@@ -2304,19 +2305,32 @@ code {
   height: 100%;
   min-height: 0;
   /*
-   * **The ceiling that closes the void.** Without it the two columns are
-   * pinned to opposite edges of the viewport: measured at 2560x1440, that put
-   * 1635px of bare ground between a 76px grid and the window. A `max-width`
-   * with auto margins keeps the pair together and moves the slack outside
-   * them, where it reads as margin rather than as a hole.
-   */
-  /*
-   * **No cap.** T167 added `max-width: 1800px` to close a void between two
-   * edge-pinned columns; T169 solves the same problem by spreading three
-   * columns instead, which uses the width rather than refusing it. Keeping
-   * both would only reintroduce the pillars a cap creates on a 2K display.
+   * ── The cap, third time of asking, and now with a number behind it ───────
+   *
+   * T167 added `max-width: 1800px` to close a void between two edge-pinned
+   * columns. T169 removed it because the cap itself was the next complaint --
+   * black pillars on a 2K display -- and spread three columns instead. T182
+   * puts one back, because spreading three columns does not close the void on
+   * a really wide screen: it *relocates* it. At 2560x1440 the three columns
+   * come to about 1900px of content in 2531px of room, so `space-between`
+   * pours 630px into the two interior gaps, and the grid and the window end up
+   * at opposite edges with a hole between them.
+   *
+   * **1900px is not a taste value.** It is the natural width of the three
+   * columns at full size, so below it nothing changes at all, and above it the
+   * slack moves from *between* the columns to *outside* them. Capping at the
+   * 1200-1400 that was suggested would also shrink the catalogue -- the grid
+   * track would lose about 500px, taking the tiles from 155px to roughly 95 --
+   * which solves the spacing by making the thing being spaced smaller.
+   *
+   * The cost is side margins on a 4K display, which is the pillars T169
+   * removed. That is the trade the maintainer asked for, and this comment is
+   * here so the next person round the loop can see both ends of it rather than
+   * re-deriving one.
    */
   width: 100%;
+  max-width: 1900px;
+  margin-inline: auto;
 }
 
 /* ── Left: the catalogue ──────────────────────────────────────────────────
@@ -2838,39 +2852,73 @@ code {
   justify-content: center;
 }
 
-.shop-row__slot {
+/*
+ * EQUIP / SLOT 1 / SLOT 2 -- on the shared pill since T182.
+ *
+ * They were a flat 7%-white rectangle, which read as a form control beside a
+ * screen of glass and metal. `.gloss-pill` carries the surface; this carries
+ * **only size**, which is the split that keeps the two order-independent.
+ * Anything here that did have to override the pill uses two classes -- see the
+ * `--on` rule below.
+ */
+.gloss-pill.shop-row__slot {
   flex: 1;
-  padding: calc(var(--pane) * 0.022) calc(var(--pane) * 0.03);
-  border: 1px solid rgb(255 255 255 / 14%);
-  border-radius: calc(var(--pane) * 0.03);
-  background: rgb(255 255 255 / 7%);
-  color: var(--steel-100);
+  min-width: 0;
+  padding: calc(var(--pane) * 0.028) calc(var(--pane) * 0.03);
   font-family: var(--font-display);
   font-size: calc(var(--pane) * 0.046);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  cursor: pointer;
+  color: var(--steel-000);
 }
 
-.shop-row__slot:hover:not(:disabled) {
-  border-color: rgb(255 255 255 / 30%);
-  background: rgb(255 255 255 / 12%);
+.shop-row__slot-label {
+  /* Above `.gloss-pill::before`'s highlight, which is absolutely positioned
+     and would otherwise paint over unpositioned text. */
+  position: relative;
+  white-space: nowrap;
 }
 
-.shop-row__slot--on {
-  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  color: #ffd7d7;
-  /* Inert, not dimmed: it marks where the weapon is. */
+/*
+ * Equipped -- red, because the *tile* says equipped in red.
+ *
+ * `.shop-tile--equipped` is the AS3's own red ring rendered in CSS (`A32`), so
+ * a green or gold button here would give one state two colours on one screen.
+ * Lit rather than merely tinted: a crimson gloss over the pill's shape, a ring,
+ * and an outward bloom -- the same three moves the equipped tile makes.
+ *
+ * **Two classes**, so this beats `.gloss-pill`'s own `background-image` by
+ * specificity rather than by sitting later in the file.
+ */
+.gloss-pill.shop-row__slot--on {
+  background-image: linear-gradient(
+    180deg,
+    #ff9a9a 0%,
+    #e8433f 8%,
+    #a81f1c 34%,
+    #6b1110 62%,
+    #40090a 82%,
+    #7a1615 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 62%),
+    inset 0 0 0 1px rgb(255 120 120 / 30%),
+    inset 0 -0.14em 0.28em -0.12em rgb(0 0 0 / 85%),
+    0 0 0 1px rgb(255 51 51 / 70%),
+    0 0 0.85em rgb(255 60 60 / 55%),
+    0 0.08em 0.12em rgb(0 0 0 / 55%);
+  color: #fff2f2;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 70%);
+  /* Inert, not dimmed: it marks where the weapon is, so it must stay legible
+     rather than reading as unavailable. */
   cursor: default;
   opacity: 1;
 }
 
-/* Dev-only grant button; never rendered in a production build. */
-.shop__dev-grant {
-  margin: 0.5rem 0;
-  opacity: 0.7;
-  font-size: var(--text-xs);
+/* The pill lifts on hover; an equipped one is not a target, so it does not. */
+.gloss-pill.shop-row__slot--on:hover {
+  transform: none;
+  filter: none;
 }
 
 .level-outcome__actions .hud__button--primary {
@@ -4042,6 +4090,33 @@ code {
   border-radius: 50%;
   background: var(--steel-900);
 }
+/*
+ * The tile's backing disc, in CSS rather than as shape 596 -- `A40`.
+ *
+ * **The stops are the SVG's own, not a guess.** `596.svg` fills its one path
+ * with a linear gradient whose matrix rotates it to run bottom-to-top:
+ * `#000000` at offset 0.380, `#333333` at 0.694, `#666666` at 1.0, padded
+ * black below 0.380. Read from the bottom up that is black for the lower 38%,
+ * greying to `#666` at the top -- which is why a flat linear ramp on a circle
+ * reads as a lit sphere, and why this is not a radial gradient.
+ *
+ * Offsets are inverted here because CSS's `180deg` runs top-to-bottom while
+ * the SVG's axis runs bottom-to-top: 1.0 becomes 0%, 0.694 becomes 30.6%,
+ * 0.380 becomes 62%.
+ */
+.upgrade-icon__plate {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-image: linear-gradient(
+    180deg,
+    #666 0%,
+    #333 30.6%,
+    #000 62%,
+    #000 100%
+  );
+}
+
 .upgrade-icon__layer {
   position: absolute;
   inset: 0;

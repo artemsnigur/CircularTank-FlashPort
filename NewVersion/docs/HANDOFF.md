@@ -309,6 +309,27 @@ needs to know before touching it:
   `scrollHeight - clientHeight`, not just the body's.** And note the shape of
   the near miss: it was clean from 1366x768 up, so every viewport anyone
   develops on said the rule was right.
+- **An extracted shape has a size it was drawn at, and this port scales past
+  it.** The shop's backing disc is a 30x30 export drawn at up to 176px — a
+  six-times upscale whose antialiased edge goes ragged, and *worse* on a
+  high-DPI screen because the glyph beside it gets sharper. It is CSS now
+  (`A40`), from the SVG's own gradient stops. **Before scaling any extracted
+  art past about 2x, check what it was exported at**; a flat shape (a disc, a
+  ring, a plate) is usually cheaper and better in CSS, and a glyph usually is
+  not.
+- **When dropping layers from extracted art, derive the rule positionally and
+  check it against the art.** The shop's plate is "layer 0 of a drawn frame",
+  not a list of ids — two clips (`EnemyAbsorb`, GummyBear) use their own plate
+  shapes, so a hand-written list would have left a pixelated disc on exactly
+  those two. The assumption that layer 0 is never content is *driven*:
+  `tileHighlight.test.ts` requires every derived plate to be a single-path
+  30x30 disc in the export.
+- **`.shop`'s `max-width` has been added, removed and added again — read the
+  comment before touching it.** 1800px (T167) closed a void; removing it
+  (T169) fixed the pillars it caused; 1900px (T182) closed the void again on
+  2K+, where three spread columns *relocate* it rather than closing it. **1900
+  is the measured natural width of the three columns**, so it changes nothing
+  below that; a tighter cap shrinks the catalogue instead of the gap.
 - **Which screens get the cursor card, and why the shop does not.** Two
   failure modes, not one. A *corner* panel fails on any grid — it is nowhere
   near the thing under the pointer (`A36`). A *cursor card* fails on a *dense

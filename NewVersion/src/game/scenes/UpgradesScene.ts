@@ -95,9 +95,6 @@ export class UpgradesScene extends Phaser.Scene {
     const offEquipSecondary = GameEvents.subscribe('ui:equip-secondary', ({ id }) =>
       this.equip(id, null),
     );
-    const offGrant = GameEvents.subscribe('ui:dev-grant-money', ({ amount }) =>
-      this.grantMoney(amount),
-    );
     const offGoto = GameEvents.subscribe('ui:goto', ({ key }) => {
       if (key !== SceneKeys.Upgrades) this.scene.start(key);
     });
@@ -131,7 +128,6 @@ export class UpgradesScene extends Phaser.Scene {
       offBuy();
       offEquipPrimary();
       offEquipSecondary();
-      offGrant();
       offGoto();
       offStep();
       offPreset();
@@ -238,26 +234,6 @@ export class UpgradesScene extends Phaser.Scene {
       }),
       withheld: withheldUpgrades().length,
     });
-  }
-
-  /**
-   * DEV-AID: adds money and persists it straight away.
-   *
-   * Deliberately bypasses the "takings bank only when a level finishes" rule.
-   * That rule exists so quitting mid-level forfeits its earnings; a dev grant
-   * has no level to finish, so routing it through the same path would mean
-   * playing one to keep it. Gated on `import.meta.env.DEV`, and the button
-   * that emits this is too.
-   */
-  private grantMoney(amount: number): void {
-    if (!import.meta.env.DEV) return;
-
-    const profile = getPlayerProfile(this);
-    profile.setUpgrades({ ...profile.upgrades, money: profile.upgrades.money + amount });
-    profile.save();
-
-    console.info(`[UpgradesScene] Dev: +${amount} coins, saved.`);
-    this.publishCatalogue();
   }
 
   /**

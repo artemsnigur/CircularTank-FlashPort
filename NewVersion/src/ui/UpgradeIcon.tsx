@@ -1,9 +1,14 @@
 /**
  * One shop tile — `ButtonWeapon` / `ButtonMisc`.
  *
- * Three stacked shapes in a square box, the same construction as `EnemyTile`
- * and `ResistanceIcon`: the generator checked every placement matrix across the
- * 28 clips as identity scale, so centring each layer reproduces the tile.
+ * Stacked shapes in a square box, the same construction as `EnemyTile` and
+ * `ResistanceIcon`: the generator checked every placement matrix across the 28
+ * clips as identity scale, so centring each layer reproduces the tile.
+ *
+ * **The backing disc is not one of them any more.** It was a 30x30 shape being
+ * drawn at up to 176px; T182 replaced it with `.upgrade-icon__plate`, a CSS
+ * circle carrying the same gradient stops. `tileGlyphLayers` is what removes it
+ * from the layer list, so the two halves cannot both draw one. `A40`.
  *
  * ── Which frame is not this component's decision ──────────────────────────
  * `UpgradesScene` resolves it through `upgradeTileFrame` and sends the layers.
@@ -52,6 +57,19 @@ export function UpgradeIcon({
       title={label}
       aria-hidden="true"
     >
+      {/*
+        The backing disc, in CSS — `A40`.
+
+        `ButtonWeapon`'s plate is a **30x30 shape** and this box runs up to
+        176px on a 4K display, so the extracted disc arrived at six times its
+        drawn size with a ragged antialiased edge behind a crisp glyph.
+        `tileGlyphLayers` drops it from the layer list and this draws it, from
+        the SVG's own gradient stops rather than from taste.
+
+        First in the DOM, so it sits behind every layer without needing a
+        `z-index` that the layers would then have to answer.
+      */}
+      <span className="upgrade-icon__plate" />
       {layers.map((shape, i) => (
         <img
           key={`${shape}-${i}`}

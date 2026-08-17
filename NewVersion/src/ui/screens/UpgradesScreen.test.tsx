@@ -156,7 +156,12 @@ describe('the shop screen', () => {
     publish([row({ tile: [596, 597, 598] })]);
     render(<UpgradesScreen />);
 
-    expect(layerSources()).toHaveLength(3);
+    // Two, not three: `596` is the backing plate and T182 draws that in CSS
+    // (`A40`), because a 30x30 shape stretched to a 176px tile has a visibly
+    // ragged edge. The glyph layers are untouched.
+    expect(layerSources()).toHaveLength(2);
+    expect(draws(596), 'the plate is no longer an image').toBe(false);
+    expect(document.querySelector('.upgrade-icon__plate'), 'the CSS plate').not.toBeNull();
     expect(draws(597), 'the Cannon glyph').toBe(true);
   });
 
@@ -175,11 +180,12 @@ describe('the shop screen', () => {
     // The unowned glyph, which is a different picture rather than a dimmed one.
     expect(draws(605)).toBe(true);
     /*
-     * Five, not seven: the equipped row's `601` and `602` are the red disc and
-     * ring, and T169 stopped drawing them — the tile carries that state in CSS
-     * now. So Cannon contributes 2, the equipped MiniGun 1, Big Cannon 2.
+     * Three, not seven. Two rounds of layers moved into CSS:
+     *   T169 — the equipped row's `601`/`602`, the red disc and ring (`A32`).
+     *   T182 — every row's backing plate, `596` here (`A40`).
+     * So each of the three rows contributes its glyph and nothing else.
      */
-    expect(layerSources()).toHaveLength(5);
+    expect(layerSources()).toHaveLength(3);
     expect(draws(601), 'the extracted red disc').toBe(false);
     expect(draws(602), 'the extracted red ring').toBe(false);
   });
@@ -577,23 +583,30 @@ describe('the shop is built not to scroll', () => {
   });
 
   /**
-   * The void. Without a ceiling the two columns pin to opposite edges of the
-   * viewport — measured at 2560x1440 as 1635px of bare ground between a 76px
-   * grid and the window.
+   * The void, and the cap that has now been argued three ways.
+   *
+   * T167 capped at 1800px to close a gap between two edge-pinned columns.
+   * T169 removed the cap — it was the next complaint, as black pillars on a 2K
+   * display — and spread three columns instead. T182 puts a cap back, because
+   * spreading three columns *relocates* the void on a really wide screen
+   * rather than closing it: at 2560x1440 the columns come to about 1900px of
+   * content in 2531px of room, so `space-between` pours 630px into the two
+   * interior gaps.
+   *
+   * **1900px is the measured natural width**, so it changes nothing below that
+   * and only moves slack from between the columns to outside them. A tighter
+   * cap would also shrink the catalogue, which solves the spacing by making
+   * the thing being spaced smaller.
    */
   it('caps the layout width so the columns cannot fly apart', () => {
     const shop = block('.shop');
 
-    /*
-     * **No cap, and that is the fix rather than an omission.**
-     *
-     * T167 capped the layout at 1800px to close a void between two columns
-     * pinned to opposite edges. On a 2K display the cap is itself the problem:
-     * it leaves black pillars down both sides with everything clustered in the
-     * middle. T169 spreads three columns instead — catalogue left, detail
-     * right, aside between — so the width is used rather than refused.
-     */
-    expect(shop).not.toMatch(/max-width:\s*\d+px/);
+    expect(shop).toMatch(/max-width:\s*1900px/);
+    expect(shop).toMatch(/margin-inline:\s*auto/);
+    // Both halves are needed and they are not the same claim: the cap keeps
+    // the columns together, and `space-between` is still what arranges them
+    // *within* it. Dropping either brings the void back, from a different
+    // direction each time.
     expect(shop).toMatch(/justify-content:\s*space-between/);
     // The grid packs left, under its left-aligned heading. It was centred in
     // T167 and read as a mistake against the headings above it.

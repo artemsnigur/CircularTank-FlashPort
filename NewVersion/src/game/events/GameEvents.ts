@@ -381,9 +381,6 @@ export interface GameEventMap {
    * install time, where it already has the manager.
    */
   'ui:sound': { name: string };
-
-  /** DEV-AID: top up the balance and persist it immediately. */
-  'ui:dev-grant-money': { amount: number };
   /**
    * The shop catalogue, published by UpgradesScene after reading the profile.
    *

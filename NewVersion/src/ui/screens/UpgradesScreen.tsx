@@ -54,7 +54,7 @@ import { LevelGuideWidget } from '../LevelGuideWidget';
 import { UpgradeIcon } from '../UpgradeIcon';
 import { UPGRADE_DESCRIPTIONS } from '../../game/upgrades/upgradeDescriptionData';
 import { damageTypeLabel } from '../../game/upgrades/damageTypeLabel';
-import { withoutEquippedHighlight } from '../../game/upgrades/tileHighlight';
+import { tileGlyphLayers } from '../../game/upgrades/tileHighlight';
 
 /**
  * The original's own headings — `ScreenUpgrades` labels the three plates
@@ -71,9 +71,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 /** Display order — weapons first, since they are what money is usually for. */
 const CATEGORY_ORDER = ['primary', 'secondary', 'misc'];
-
-/** DEV-AID: top-up, so the 28-upgrade catalogue can be exercised. */
-const DEV_GRANT = 200_000;
 
 type ShopRow = NonNullable<ReturnType<typeof useShop>>['upgrades'][number];
 
@@ -118,13 +115,25 @@ function EquipControls({ row }: { row: ShopRow }): React.ReactElement | null {
       <div className="shop-row__equip">
         <button
           type="button"
-          className={`shop-row__slot${row.equipped ? ' shop-row__slot--on' : ''}`}
+          /*
+            `gloss-pill` is the shared surface, as the menu's PLAY and the
+            shop's Buy use it. Overriding any of it needs **two** classes —
+            both are (0,1,0), so a lone `.shop-row__slot` would be settled by
+            source order, which this project has shipped five bugs from.
+          */
+          className={`gloss-pill shop-row__slot${
+            row.equipped ? ' shop-row__slot--on' : ''
+          }`}
           disabled={row.equipped}
           aria-pressed={row.equipped}
           aria-label={row.equipped ? `${row.name} equipped` : `Equip ${row.name}`}
           onClick={() => GameEvents.emit('ui:equip-secondary', { id: row.id })}
         >
-          {row.equipped ? 'Equipped' : 'Equip'}
+          {/* Positioned, so it sits above `.gloss-pill::before`'s highlight —
+              the same reason `.menu-play__label` is. */}
+          <span className="shop-row__slot-label">
+            {row.equipped ? 'Equipped' : 'Equip'}
+          </span>
         </button>
       </div>
     );
@@ -140,7 +149,7 @@ function EquipControls({ row }: { row: ShopRow }): React.ReactElement | null {
           <button
             key={slot}
             type="button"
-            className={`shop-row__slot${here ? ' shop-row__slot--on' : ''}`}
+            className={`gloss-pill shop-row__slot${here ? ' shop-row__slot--on' : ''}`}
             disabled={here}
             aria-pressed={here}
             aria-label={
@@ -148,7 +157,9 @@ function EquipControls({ row }: { row: ShopRow }): React.ReactElement | null {
             }
             onClick={() => GameEvents.emit('ui:equip-primary', { slot, id: row.id })}
           >
-            Slot {slot}
+            <span className="shop-row__slot-label">
+              {here ? `Slot ${slot} ✓` : `Slot ${slot}`}
+            </span>
           </button>
         );
       })}
@@ -196,7 +207,7 @@ function SlotSummary({ rows }: { rows: ShopRow[] }): React.ReactElement {
               ) : (
                 <>
                   <UpgradeIcon
-                    layers={withoutEquippedHighlight(inSlot(slot)!.tile)}
+                    layers={tileGlyphLayers(inSlot(slot)!.tile)}
                     label={inSlot(slot)!.name}
                     size="var(--slot-icon)"
                   />
@@ -260,7 +271,7 @@ function UpgradeTile({
   // selection the way a single detail window does.
   if (row.affordable && row.cost !== null) classes.push('shop-tile--affordable');
   /*
-   * Equipped is a CSS state now, not a picture. `withoutEquippedHighlight`
+   * Equipped is a CSS state now, not a picture. `tileGlyphLayers`
    * drops the red disc and ring the AS3's frame 4 draws; the glow below
    * replaces them. The frame itself is unchanged — see `tileHighlight.ts` for
    * why the divergence lives in the view. `A32`.
@@ -281,7 +292,7 @@ function UpgradeTile({
         onClick={onSelect}
       >
         <UpgradeIcon
-          layers={withoutEquippedHighlight(row.tile)}
+          layers={tileGlyphLayers(row.tile)}
           label={row.name}
           size="var(--tile-icon)"
         />
@@ -481,16 +492,6 @@ export function UpgradesScreen(): React.ReactElement | null {
           {shop!.withheld} more upgrades exist in the original but are not sold yet — their
           effects are unported, so buying one would take your coins and change nothing.
         </p>
-      )}
-
-      {import.meta.env.DEV && (
-        <button
-          type="button"
-          className="menu__button menu__button--ghost shop__dev-grant"
-          onClick={() => GameEvents.emit('ui:dev-grant-money', { amount: DEV_GRANT })}
-        >
-          Dev: +{formatNumber(DEV_GRANT)} coins
-        </button>
       )}
 
       {/* The "Level select ›" exit is gone: the bottom bar carries that move
