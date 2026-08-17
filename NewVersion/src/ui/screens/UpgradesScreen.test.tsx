@@ -113,7 +113,14 @@ describe('the shop screen', () => {
     expect(draws(597)).toBe(true);
     // The unowned glyph, which is a different picture rather than a dimmed one.
     expect(draws(605)).toBe(true);
-    expect(layerSources()).toHaveLength(7);
+    /*
+     * Five, not seven: the equipped row's `601` and `602` are the red disc and
+     * ring, and T169 stopped drawing them — the tile carries that state in CSS
+     * now. So Cannon contributes 2, the equipped MiniGun 1, Big Cannon 2.
+     */
+    expect(layerSources()).toHaveLength(5);
+    expect(draws(601), 'the extracted red disc').toBe(false);
+    expect(draws(602), 'the extracted red ring').toBe(false);
   });
 
   it('leaves a gap rather than a wrong picture when a row has no tile', () => {
@@ -182,7 +189,8 @@ describe('the slot summary and the balance — T158', () => {
     publish([row({ id: 'MiniGun', name: 'MiniGun', slot: 1, index: 1, tile: [601, 597, 602] })]);
     render(<UpgradesScreen />);
 
-    expect(draws(601, '.shop__slots')).toBe(true);
+    // 597, not 601: `601` is the equipped highlight and is no longer drawn.
+    expect(draws(597, '.shop__slots')).toBe(true);
     // And the empty slot draws no art at all rather than repeating slot 1's.
     expect(document.querySelectorAll('.shop__slots .upgrade-icon')).toHaveLength(1);
     expect(document.querySelectorAll('.shop__slot-empty')).toHaveLength(1);
@@ -435,7 +443,20 @@ describe('the headings and the category order', () => {
  * `height: 100%` of a body it did not solely occupy.
  */
 describe('the shop is built not to scroll', () => {
-  const css = readFileSync('src/styles/global.css', 'utf8');
+  /**
+   * **Comments stripped, and this is the third time in this repo.**
+   *
+   * T154 fixed `buttonSounds.test.ts`, which counted a component because its
+   * docstring mentioned `<button`. T161 fixed `chromeStack.test.tsx`, which
+   * found a selector that existed only inside the comment explaining its
+   * removal. This one asserted there was no `max-width` on `.shop` and failed
+   * against the sentence *"T167 added `max-width: 1800px`"* in the comment
+   * saying why there is none.
+   *
+   * A scan that reads prose as code gives a false positive here and would as
+   * easily give a false negative, which is the direction that matters.
+   */
+  const css = readFileSync('src/styles/global.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
   const block = (selector: string): string => {
     const literal = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -503,17 +524,16 @@ describe('the shop is built not to scroll', () => {
     const shop = block('.shop');
 
     /*
-     * A range, not the literal, because the cap is a tuning value with a
-     * constraint at each end and only the constraint is a rule: wide enough
-     * that the grid track is not the binding dimension — at 1600 the tiles
-     * capped at 112px and got *smaller* at 3840 than at 2560 — and narrow
-     * enough to close the void it exists for. 1800 sits between them.
+     * **No cap, and that is the fix rather than an omission.**
+     *
+     * T167 capped the layout at 1800px to close a void between two columns
+     * pinned to opposite edges. On a 2K display the cap is itself the problem:
+     * it leaves black pillars down both sides with everything clustered in the
+     * middle. T169 spreads three columns instead — catalogue left, detail
+     * right, aside between — so the width is used rather than refused.
      */
-    const cap = /max-width:\s*(\d+)px/.exec(shop);
-    expect(cap, 'the layout must be capped').not.toBeNull();
-    expect(Number(cap![1])).toBeGreaterThanOrEqual(1700);
-    expect(Number(cap![1])).toBeLessThanOrEqual(2000);
-    expect(shop).toMatch(/margin-inline:\s*auto/);
+    expect(shop).not.toMatch(/max-width:\s*\d+px/);
+    expect(shop).toMatch(/justify-content:\s*space-between/);
     // The grid packs left, under its left-aligned heading. It was centred in
     // T167 and read as a mistake against the headings above it.
     expect(block('.shop-grid')).toMatch(/justify-content:\s*start/);
@@ -535,10 +555,14 @@ describe('the shop is built not to scroll', () => {
    * rather than overflowing when `--tile` exceeds a sixth of its column.
    */
   it('gives the aside a track the grid cannot take', () => {
-    expect(block('.shop__catalogue')).toMatch(
-      /grid-template-columns:\s*minmax\(0, 1fr\) var\(--aside\)/,
+    // Three columns since T169 — catalogue, aside, detail window. The first
+    // two are `minmax(0, max-content)` so a grid wider than its share shrinks
+    // rather than drawing over its neighbour, which was T168's overlap.
+    expect(block('.shop')).toMatch(
+      /grid-template-columns:\s*minmax\(0, max-content\) minmax\(0, max-content\) var\(--pane\)/,
     );
     expect(block('.shop')).toMatch(/--aside:\s*clamp\(/);
+    expect(block('.shop__footer')).toMatch(/width:\s*var\(--aside\)/);
   });
 
   it('shrinks the tiles rather than overflowing the column', () => {
@@ -583,7 +607,8 @@ describe('the shop is built not to scroll', () => {
     const shop = block('.shop');
 
     expect(shop).toMatch(/--pane:\s*clamp\(/);
-    expect(shop).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) var\(--pane\)/);
+    // The detail window is the last of the three columns, so it anchors right.
+    expect(shop).toMatch(/grid-template-columns:[^;]*var\(--pane\)\s*;/);
 
     // Same rule as the menu card: no fixed padding, gap or type inside the
     // window, or it stays put while the panel grows on a large display.
@@ -623,7 +648,11 @@ describe('the shop is built not to scroll', () => {
     expect(css).toContain('.shop-tile--on.shop-tile--locked');
     // The ring itself. Anchored on the last selector in the group, so the
     // assertion does not depend on how the three are wrapped across lines.
-    expect(css).toMatch(/\.shop-tile--on\.shop-tile--locked \{[^}]*border-color:\s*#fff/);
+    // Anchored on the last selector in the group, so the assertion does not
+    // depend on how the list is wrapped across lines.
+    expect(css).toMatch(/\.shop-tile--on\.shop-tile--equipped \{[^}]*border-color:\s*#fff/);
+    // Equipped is a CSS state now, not two extracted shapes. `A32`.
+    expect(css).toMatch(/\.shop-tile--equipped \{[^}]*box-shadow:[^}]*rgb\(255 0 0/);
   });
 
   /**

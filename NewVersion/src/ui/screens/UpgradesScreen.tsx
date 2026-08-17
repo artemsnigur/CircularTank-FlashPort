@@ -56,6 +56,7 @@ import { UpgradeIcon } from '../UpgradeIcon';
 import { siteCorner } from '../../game/ui/infoTextSites';
 import { UPGRADE_DESCRIPTIONS } from '../../game/upgrades/upgradeDescriptionData';
 import { damageTypeLabel } from '../../game/upgrades/damageTypeLabel';
+import { withoutEquippedHighlight } from '../../game/upgrades/tileHighlight';
 
 /**
  * The original's own headings — `ScreenUpgrades` labels the three plates
@@ -197,7 +198,7 @@ function SlotSummary({ rows }: { rows: ShopRow[] }): React.ReactElement {
               ) : (
                 <>
                   <UpgradeIcon
-                    layers={inSlot(slot)!.tile}
+                    layers={withoutEquippedHighlight(inSlot(slot)!.tile)}
                     label={inSlot(slot)!.name}
                     size="var(--slot-icon)"
                   />
@@ -250,6 +251,13 @@ function UpgradeTile({
   // showed 28 prices at once either — but nor did it hide them behind a
   // selection the way a single detail window does.
   if (row.affordable && row.cost !== null) classes.push('shop-tile--affordable');
+  /*
+   * Equipped is a CSS state now, not a picture. `withoutEquippedHighlight`
+   * drops the red disc and ring the AS3's frame 4 draws; the glow below
+   * replaces them. The frame itself is unchanged — see `tileHighlight.ts` for
+   * why the divergence lives in the view. `A32`.
+   */
+  if (row.slot !== null || row.equipped) classes.push('shop-tile--equipped');
 
   return (
     <li className="shop-grid__cell">
@@ -265,7 +273,11 @@ function UpgradeTile({
         onClick={onSelect}
         {...hover}
       >
-        <UpgradeIcon layers={row.tile} label={row.name} size="var(--tile-icon)" />
+        <UpgradeIcon
+          layers={withoutEquippedHighlight(row.tile)}
+          label={row.name}
+          size="var(--tile-icon)"
+        />
         <span className="shop-tile__level" aria-hidden="true">
           {row.owned ? row.level : '–'}
         </span>
@@ -408,8 +420,7 @@ export function UpgradesScreen(): React.ReactElement | null {
        */
     >
       <div className="shop">
-        <div className="shop__catalogue">
-          <div className="shop__groups">
+        <div className="shop__groups">
             {rows.length === 0 ? (
               <p className="screen__hint">Loading…</p>
             ) : (
@@ -433,16 +444,17 @@ export function UpgradesScreen(): React.ReactElement | null {
                 );
               })
             )}
-          </div>
+        </div>
 
-          <div className="shop__footer">
-            <SlotSummary rows={rows} />
-
-            {/* `ScreenUpgrades.as:631-634` places the guide inside the shop's
-                own content holder, below the tiles — which is where this sits
-                too, now that the catalogue is tiles rather than a long list. */}
-            <LevelGuideWidget />
-          </div>
+        {/*
+          The slot wells and the level guide, as their own column between the
+          catalogue and the detail window — the arrangement the original has
+          (`weaponSlotImage1` at x 284, `LevelGuide` at 258, both to the right
+          of a tile grid that ends around 230).
+        */}
+        <div className="shop__footer">
+          <SlotSummary rows={rows} />
+          <LevelGuideWidget />
         </div>
 
         <DetailWindow row={selected} money={shop?.money ?? 0} />

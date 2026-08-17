@@ -1545,9 +1545,22 @@ code {
   --slot-icon: 72%;
 
   display: grid;
-  /* ~65 / 35, expressed as "everything else, then the window" so the window
-     keeps its readable width and the catalogue takes the slack. */
-  grid-template-columns: minmax(0, 1fr) var(--pane);
+  /*
+   * **Three columns, content-sized, spread across the full width.**
+   *
+   * The catalogue anchors left, the detail window anchors right, and the slot
+   * wells and level guide sit between them. `justify-content: space-between`
+   * puts the free space *between* the blocks rather than pooling it outside,
+   * which is what a centred max-width did — on a 2K display that read as black
+   * pillars down both edges with everything clustered in the middle.
+   *
+   * `minmax(0, max-content)` on the first two, not bare `max-content`: the
+   * tracks have to be able to give way, or a grid wider than its share draws
+   * over its neighbour again. That was T168's overlap, and the harness tests
+   * rectangle intersection for it now.
+   */
+  grid-template-columns: minmax(0, max-content) minmax(0, max-content) var(--pane);
+  justify-content: space-between;
   gap: clamp(0.5rem, 1.6vw, 1.5rem);
   height: 100%;
   min-height: 0;
@@ -1558,45 +1571,25 @@ code {
    * with auto margins keeps the pair together and moves the slack outside
    * them, where it reads as margin rather than as a hole.
    */
-  width: 100%;
   /*
-   * 1800, not 1600. The ceiling has to leave the grid track enough width or it
-   * becomes the binding constraint instead of the height: at 1600 the tiles
-   * capped at 112px on a 2560 display and — the tell — got *smaller* at 3840
-   * than at 2560, because only the width was still moving. 1800 puts them at
-   * ~148px and keeps roughly 380px of margin a side at 2K, which reads as
-   * margin rather than as the void this cap exists to close.
+   * **No cap.** T167 added `max-width: 1800px` to close a void between two
+   * edge-pinned columns; T169 solves the same problem by spreading three
+   * columns instead, which uses the width rather than refusing it. Keeping
+   * both would only reintroduce the pillars a cap creates on a 2K display.
    */
-  max-width: 1800px;
-  margin-inline: auto;
+  width: 100%;
 }
 
 /* ── Left: the catalogue ──────────────────────────────────────────────────
    Two sub-columns, because the original has two: the grids sit left and the
    slot readouts and level guide sit beside them (`weaponSlotImage1` at x 284,
    `LevelGuide` at 258 — both to the right of a grid that ends around 230). */
-.shop__catalogue {
-  display: grid;
-  /*
-   * **Both tracks are explicit, and that is what stops the overlap.**
-   *
-   * Sized against each other — either `max-content auto` or its reverse — one
-   * column's content decided the other's width, so a grid wider than its share
-   * simply drew over the widget beside it. A `minmax(0, 1fr)` that the grid
-   * cannot overflow (see `.shop-grid`) beside a clamped `--aside` gives each
-   * one a width neither can take from the other.
-   */
-  grid-template-columns: minmax(0, 1fr) var(--aside);
-  gap: clamp(0.5rem, 1.5vw, 1.75rem);
-  align-items: start;
-  min-height: 0;
-}
-
 .shop__groups {
   display: flex;
   flex-direction: column;
   gap: clamp(0.4rem, 1.5vh, 1.1rem);
   min-height: 0;
+  min-width: 0;
 }
 
 .shop-group {
@@ -1714,11 +1707,35 @@ code {
     0 2px 5px rgb(0 0 0 / 45%);
 }
 
+/*
+ * Equipped — the red ring, in CSS.
+ *
+ * `ButtonWeapon`'s frame 4 draws this as two extracted shapes: a red disc
+ * behind the weapon and a ring over it. Blown up to a 150px tile those are a
+ * SWF drawing well past the size it was made for, with the weapon art
+ * overhanging the ring. `withoutEquippedHighlight` stops rendering them and
+ * this takes over — a ring plus an outward bloom plus a faint inner wash, so
+ * the tile reads as lit rather than as outlined. `A32`.
+ */
+.shop-tile--equipped {
+  border-color: #ff4d4d;
+  background-image:
+    radial-gradient(circle at 50% 50%, rgb(255 60 60 / 22%), rgb(255 60 60 / 0%) 70%),
+    linear-gradient(180deg, rgb(255 255 255 / 16%) 0%, rgb(255 255 255 / 4%) 38%, rgb(0 0 0 / 28%) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 26%),
+    inset 0 0 8cqw rgb(255 60 60 / 30%),
+    0 0 0 2px rgb(255 51 51 / 85%),
+    0 0 14cqw rgb(255 0 0 / 55%),
+    0 2px 6px rgb(0 0 0 / 50%);
+}
+
 /* Selected — a bright white ring, as in the original. Last, so it wins over
-   both states above without needing a second class. */
+   the states above without needing a second class. */
 .shop-tile--on,
 .shop-tile--on.shop-tile--affordable,
-.shop-tile--on.shop-tile--locked {
+.shop-tile--on.shop-tile--locked,
+.shop-tile--on.shop-tile--equipped {
   border-color: #fff;
   background-image: linear-gradient(
     180deg,
@@ -1757,11 +1774,13 @@ code {
 
 /* The slot readouts at the top of the aside, the level guide at the bottom —
    the arrangement in the reference capture. */
+/* The middle column — slot wells over the level guide, both at `--aside`. */
 .shop__footer {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: start;
   gap: clamp(0.5rem, 2vh, 1.5rem);
+  width: var(--aside);
   min-height: 0;
 }
 

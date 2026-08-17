@@ -275,7 +275,13 @@ needs to know before touching it:
   `scrollHeight` were both clean: a grid overflowing its *grid column* does not
   overflow a body that has margin to spare. Test rectangle intersection between
   siblings as well as container overflow.
-- Divergences from the restyle are `A21`-`A31`.
+- **A CSS scan must strip comments first — this has now bitten three times.**
+  `buttonSounds.test.ts` counted a component whose docstring mentioned
+  `<button`; `chromeStack.test.tsx` found a selector that existed only in the
+  comment explaining its removal; `UpgradesScreen.test.tsx` asserted `.shop`
+  had no `max-width` and failed against the sentence *"T167 added
+  `max-width: 1800px`"* in the comment saying why it has none.
+- Divergences from the restyle are `A21`-`A32`.
 
 **jsdom cannot see any of this.** Layout bugs here are found by measuring boxes
 in a real browser — see the trap below — and the visual judgement is the
