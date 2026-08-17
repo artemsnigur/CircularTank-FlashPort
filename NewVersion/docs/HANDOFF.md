@@ -309,6 +309,20 @@ needs to know before touching it:
   `scrollHeight - clientHeight`, not just the body's.** And note the shape of
   the near miss: it was clean from 1366x768 up, so every viewport anyone
   develops on said the rule was right.
+- **The three glass tiles are one recipe written three times, and a test now
+  holds them together.** `.shop-tile`, `.bestiary-tile` and
+  `.world-grid__cell` had drifted to 26/20/42, 24/20/42 and 26/22/42 on the
+  same steel ramp, because no screen shows two of them at once. All three are
+  the bestiary's values now and `glassSurfaces.test.ts` compares the
+  declarations. **Extracting a `.glass-tile` primitive the way `.gloss-pill`
+  was extracted is the right end state** — it was not done in T180 only
+  because it touches three signed-off screens.
+- **No tile in this game moves on hover.** The shop's was the last
+  `translateY(-1px)` and it went in T180; it also nudged the level badge off
+  the art it labels. The test checks two things, and the second is the one
+  that lasts: no `transform` in the hover rule, *and* no `transform` left in
+  the transition list — leaving it there is how the property comes back,
+  easing in and looking deliberate.
 - **The bestiary is a roster and a window, and it shows all twenty enemies.**
   The original's 5x3 grid with a `More Enemies` button under it is the state of
   a build that has not been paid for — `hideAmount = 5` and the button share

@@ -50,10 +50,9 @@ import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 import { ScreenShell } from '../ScreenShell';
 import { formatNumber } from '../../game/core/Functions';
-import { useInfoText } from '../useInfoText';
+import { CursorTip } from '../CursorTooltip';
 import { LevelGuideWidget } from '../LevelGuideWidget';
 import { UpgradeIcon } from '../UpgradeIcon';
-import { siteCorner } from '../../game/ui/infoTextSites';
 import { UPGRADE_DESCRIPTIONS } from '../../game/upgrades/upgradeDescriptionData';
 import { damageTypeLabel } from '../../game/upgrades/damageTypeLabel';
 import { withoutEquippedHighlight } from '../../game/upgrades/tileHighlight';
@@ -214,6 +213,22 @@ function SlotSummary({ rows }: { rows: ShopRow[] }): React.ReactElement {
 }
 
 /**
+ * The AS3's own blurb for a row — `ButtonUpgradeInfo`'s text.
+ *
+ * `UPGRADE_DESCRIPTIONS` is keyed by category and a **1-based** index, which is
+ * why the `+ 1`: the shop row's `index` is the position in its category list
+ * and the table's is the AS3's `weaponInfo1..12` numbering. Falls back to the
+ * name rather than to an empty card, so a row the table does not cover still
+ * says what it is.
+ */
+function descriptionFor(row: ShopRow): string {
+  const info = UPGRADE_DESCRIPTIONS.find(
+    (d) => d.category === row.category && d.index === row.index + 1,
+  );
+  return info?.text ?? row.name;
+}
+
+/**
  * One upgrade, as an icon button — `ButtonWeapon` / `ButtonMisc`.
  *
  * The level number sits over the art's top-left corner because that is where
@@ -224,25 +239,13 @@ function UpgradeTile({
   row,
   selected,
   onSelect,
+  onHover,
 }: {
   row: ShopRow;
   selected: boolean;
   onSelect: () => void;
+  onHover: (row: ShopRow | null) => void;
 }): React.ReactElement {
-  // The corner comes from `infoTextSites.ts`, which pins it against
-  // `ButtonUpgradeInfo.as:163` rather than restating it here. The first wiring
-  // did restate it — `showTop: false`, cited to `:56`, a description string
-  // rather than the call — and the panel opened upward over the row above the
-  // one it described. Two booleans four lines from their text is exactly the
-  // constant a test cannot check while the code is its own source.
-  const info = UPGRADE_DESCRIPTIONS.find(
-    (d) => d.category === row.category && d.index === row.index + 1,
-  );
-  const hover = useInfoText({
-    text: info?.text ?? row.name,
-    ...siteCorner('ButtonUpgradeInfo.as:163'),
-  });
-
   const classes = ['shop-tile'];
   if (selected) classes.push('shop-tile--on');
   if (!row.owned) classes.push('shop-tile--locked');
@@ -271,7 +274,8 @@ function UpgradeTile({
             : `${row.name}, not owned`
         }
         onClick={onSelect}
-        {...hover}
+        onMouseEnter={() => onHover(row)}
+        onMouseLeave={() => onHover(null)}
       >
         <UpgradeIcon
           layers={withoutEquippedHighlight(row.tile)}
@@ -392,6 +396,13 @@ export function UpgradesScreen(): React.ReactElement | null {
   // Before the early return — a hook order that depends on the active scene is
   // a crash the first time the shop opens.
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /*
+   * The hovered tile, and *only* which tile — the card's position is written
+   * straight to `style.transform` inside `CursorTip`. So sweeping the
+   * catalogue re-renders once per tile crossed rather than once per pixel,
+   * which is the rule level select landed on after that screen measured 8 fps.
+   */
+  const [hovered, setHovered] = useState<ShopRow | null>(null);
 
   if (activeScene !== 'Upgrades') return null;
 
@@ -437,6 +448,7 @@ export function UpgradesScreen(): React.ReactElement | null {
                           row={row}
                           selected={selected?.id === row.id}
                           onSelect={() => setSelectedId(row.id)}
+                          onHover={setHovered}
                         />
                       ))}
                     </ul>
@@ -482,6 +494,41 @@ export function UpgradesScreen(): React.ReactElement | null {
           Dev: +{formatNumber(DEV_GRANT)} coins
         </button>
       )}
+
+      {/*
+        The hover card, mounted once outside the catalogue and portalled to
+        `<body>` from there — one per tile would be twenty-eight of them.
+
+        **This replaces `PartInfoText` on these tiles**, which opened in a
+        fixed corner (`ButtonUpgradeInfo.as:163`). The corner is the AS3's own
+        choice and was ported faithfully; across a 28-tile grid it means
+        reading a panel that is nowhere near the thing under the pointer, which
+        is the argument level select settled. `A38`.
+
+        The *text* is unchanged in kind: the description still comes from
+        `UPGRADE_DESCRIPTIONS`, which is generated from the AS3 strings.
+      */}
+      <CursorTip
+        open={hovered !== null}
+        contentKey={hovered?.id ?? null}
+        className="cursor-tip--upgrade"
+      >
+        {hovered !== null && (
+          <>
+            <p className="cursor-tip__title">{hovered.name}</p>
+            <p className="cursor-tip__mode">
+              {hovered.owned ? `Level ${hovered.level} / ${hovered.maxLevel}` : 'Not owned'}
+            </p>
+            {/* `cost === null` is the AS3's maxed state — `:110`'s
+                `levelsArray[selectedWeapon - 1] != 0` gate, which is what
+                decides whether a price exists at all. */}
+            <p className="cursor-tip__price">
+              {hovered.cost === null ? 'Fully upgraded' : `$${formatNumber(hovered.cost)}`}
+            </p>
+            <p className="cursor-tip__objective">{descriptionFor(hovered)}</p>
+          </>
+        )}
+      </CursorTip>
 
       {/* The "Level select ›" exit is gone: the bottom bar carries that move
           now, on the tab the original uses for it (`BottomBar.as:47`). Two

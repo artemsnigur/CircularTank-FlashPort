@@ -105,8 +105,10 @@ describe('every recorded corner matches its AS3 line', () => {
   it('records more than one corner', () => {
     const corners = new Set(INFO_TEXT_SITES.map((s) => `${s.showLeft}/${s.showTop}`));
     expect(corners.size).toBeGreaterThan(1);
-    // The two wired sites specifically disagree on both axes — which is what
-    // made the shop's wrong `showTop` survive a screenshot of the other screen.
+    // These two specifically disagree on both axes — which is what let the
+    // shop's wrong `showTop` survive a screenshot of the other screen. Both
+    // are `no-consumer` now (their screens use the cursor card), and the check
+    // stays because the *table* is still the record of what the AS3 asks for.
     expect(siteCorner('ButtonUpgradeInfo.as:163')).toEqual({ showLeft: false, showTop: true });
     expect(siteCorner('Achievement.as:99')).toEqual({ showLeft: true, showTop: false });
   });
@@ -135,7 +137,10 @@ describe('the table covers the source', () => {
   it('has the wired sites recorded, and says what the rest wait on', () => {
     const wired = INFO_TEXT_SITES.filter((s) => s.status === 'wired');
     expect(wired.map((s) => s.source)).toEqual([
-      'ButtonUpgradeInfo.as:163',
+      // `ButtonUpgradeInfo.as:163` was here until T180, when the shop's tiles
+      // moved to the cursor card (`A38`) — the same move `Achievement.as:99`
+      // made in T178. Both are the corner panel losing to a grid; neither
+      // takes the *other* sites with it, which is why this list is explicit.
       'IconStrongWeak.as:48',
       'ButtonNextLevel.as:208',
       'ButtonLevelGuideInfo.as:64',

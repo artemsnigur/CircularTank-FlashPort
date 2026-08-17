@@ -13,7 +13,7 @@
  * only one of them is a component.
  */
 import { readFileSync } from 'node:fs';
-import { act, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { UpgradesScreen } from './UpgradesScreen';
@@ -88,6 +88,91 @@ describe('the shop screen', () => {
     publish([row()]);
     const { container } = render(<UpgradesScreen />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  /*
+   * ── Hover raises the card; only a click moves the window ─────────────────
+   *
+   * The rule level select was reversed onto in T173 (`A8`), and the shop was
+   * the last grid still opening a *fixed-corner* `PartInfoText` panel on
+   * hover — faithful to `ButtonUpgradeInfo.as:163`, and unreadable across 28
+   * tiles, because the panel is nowhere near the tile under the pointer.
+   *
+   * Driven as a pair on the same tile: "hover does not change the window" is
+   * satisfied by a screen where clicking does not either.
+   */
+  it('changes the window on click and not on hover', () => {
+    enterShop();
+    publish([
+      row({ id: 'Cannon', name: 'Cannon', index: 0 }),
+      row({ id: 'Flame', name: 'Flame Thrower', index: 1, cost: 250 }),
+    ]);
+
+    render(<UpgradesScreen />);
+
+    const tiles = [...document.querySelectorAll<HTMLButtonElement>('.shop-tile')];
+    expect(tiles).toHaveLength(2);
+
+    act(() => {
+      fireEvent.mouseEnter(tiles[1]);
+    });
+    expect(document.querySelector('.shop-detail__name')?.textContent).toBe('Cannon');
+
+    act(() => {
+      tiles[1].click();
+    });
+    expect(document.querySelector('.shop-detail__name')?.textContent).toBe('Flame Thrower');
+  });
+
+  it('shows the name, level and price in the hover card', () => {
+    enterShop();
+    enterShop();
+    publish([row({ id: 'Cannon', name: 'Cannon', level: 3, maxLevel: 10, cost: 100 })]);
+
+    render(<UpgradesScreen />);
+
+    const tile = document.querySelector<HTMLButtonElement>('.shop-tile')!;
+    expect(document.querySelector('.cursor-tip')).toBeNull();
+
+    act(() => {
+      fireEvent.mouseEnter(tile);
+    });
+
+    // Portalled to `<body>`, so deliberately not inside the render container.
+    const tip = document.querySelector('.cursor-tip')!;
+    expect(tip.querySelector('.cursor-tip__title')?.textContent).toBe('Cannon');
+    expect(tip.querySelector('.cursor-tip__mode')?.textContent).toBe('Level 3 / 10');
+    expect(tip.querySelector('.cursor-tip__price')?.textContent).toBe('$100');
+
+    act(() => {
+      fireEvent.mouseLeave(tile);
+    });
+    expect(document.querySelector('.cursor-tip')).toBeNull();
+  });
+
+  it('says fully upgraded rather than printing a null price', () => {
+    // `cost === null` is the AS3's maxed state (`:110`'s `levelsArray[...] != 0`
+    // gate). Pinned beside the priced case above, because a card that renders
+    // `$null` still passes a "the price line exists" check.
+    enterShop();
+    enterShop();
+    publish([row({ id: 'Cannon', name: 'Cannon', cost: null })]);
+    render(<UpgradesScreen />);
+    act(() => {
+      fireEvent.mouseEnter(document.querySelector('.shop-tile')!);
+    });
+    expect(document.querySelector('.cursor-tip__price')?.textContent).toBe('Fully upgraded');
+  });
+
+  it('names an unowned upgrade as not owned rather than level 0', () => {
+    enterShop();
+    enterShop();
+    publish([row({ id: 'Flame', name: 'Flame Thrower', owned: false, level: 0 })]);
+    render(<UpgradesScreen />);
+    act(() => {
+      fireEvent.mouseEnter(document.querySelector('.shop-tile')!);
+    });
+    expect(document.querySelector('.cursor-tip__mode')?.textContent).toBe('Not owned');
   });
 
   it('draws every layer of a row`s tile', () => {

@@ -15,20 +15,28 @@
  * against the source lines; a screen that opens the wrong way now needs two
  * edits that disagree, not one that drifts.
  *
- * ── The reachable surface is 9 of 20, and nothing is deferred ─────────────
+ * ── The reachable surface is 7 of 20, and nothing is deferred ─────────────
  * Step 1 was scoped as "14 core + 2 rich text". That count is right about the
- * AS3 and was never right about this port. As of T153 the table is settled:
+ * AS3 and was never right about this port. The table was settled at 9 wired in
+ * T153; **two rows have since left, and not because anything broke**:
  *
- *   **9 wired** — shop rows, bestiary badges, next-level preview, the Level
- *     Guide's four, and both `Achievement` branches.
+ *   **7 wired** — bestiary badges, next-level preview, the Level Guide's four,
+ *     and the `Achievement` results-screen branch.
  *   **4 redundant** — icon buttons whose tooltip is the button's own name,
  *     which this port renders as a visible label.
- *   **7 no-consumer** — the menu credit is dropped by decision (`A23`); Armor
+ *   **9 no-consumer** — the menu credit is dropped by decision (`A23`); Armor
  *     Games online saves are not ported; `ImageEnemy` x2 need per-enemy tiles
  *     in a *selected-level* panel, and this port has no selection step
- *     (divergence `A8`).
+ *     (divergence `A8`). **Plus the two grids**: `Achievement.as:99` (T178,
+ *     `A36`) and `ButtonUpgradeInfo.as:163` (T180, `A38`) both moved to the
+ *     pointer-following card, because a panel pinned to a fixed corner is
+ *     unreadable across a grid of 28 or 36 cells. Their *strings* still render.
  *   **0 deferred** — nothing is waiting on unbuilt work any more. What is left
  *     is waiting on decisions already made.
+ *
+ * A row leaving `wired` for a **view** decision is a different thing from one
+ * that was never built, and the notes say which. Do not read the count as
+ * coverage falling.
  *
  * **One caution the `ButtonCredit` row leaves behind, worth keeping even though
  * that row is now closed.** It sat under "no consumer" for six weeks because
@@ -76,8 +84,14 @@ export const INFO_TEXT_SITES: readonly InfoTextSite[] = Object.freeze([
     // `right = false; bottom = true` at `:34-35`, restated at `:39-40`.
     showLeft: false,
     showTop: true,
-    status: 'wired',
-    note: 'Shop rows — UpgradesScreen.tsx. Text from ButtonUpgradeInfo.as, 28 strings.',
+    // Was `wired` until T180. The 28 tiles now raise the pointer-following
+    // card the rest of this UI uses; a panel pinned to a fixed corner across a
+    // 28-tile grid means reading something nowhere near the tile under the
+    // cursor, which is the argument level select settled. The *strings* are
+    // unchanged — the card still shows `UPGRADE_DESCRIPTIONS`, generated from
+    // this same AS3 source.
+    status: 'no-consumer',
+    note: 'Shop rows — replaced by the cursor tooltip in T180, divergence A38. The 28 strings still render, laid out in the card rather than styled in a corner panel.',
   },
   {
     source: 'IconStrongWeak.as:48',
