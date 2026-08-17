@@ -300,6 +300,23 @@ needs to know before touching it:
   `scrollHeight` were both clean: a grid overflowing its *grid column* does not
   overflow a body that has margin to spare. Test rectangle intersection between
   siblings as well as container overflow.
+- **And it misses a panel clipping its own contents.** Same family, third
+  instance. The bestiary's window was sized `clamp(14rem, 30cqw, 30rem)` —
+  width only — while everything inside it is a multiple of that, so its content
+  runs ~1.28x taller than the value. At 1024x480 it needed 389px inside a 315px
+  box and `overflow: hidden` swallowed the difference: no scrollbar, no body
+  overflow, nothing the page-level check could see. **Measure each box's own
+  `scrollHeight - clientHeight`, not just the body's.** And note the shape of
+  the near miss: it was clean from 1366x768 up, so every viewport anyone
+  develops on said the rule was right.
+- **The bestiary is a roster and a window, and it shows all twenty enemies.**
+  The original's 5x3 grid with a `More Enemies` button under it is the state of
+  a build that has not been paid for — `hideAmount = 5` and the button share
+  one `if(!Main.extraStuff)`, and `extraStuff` is an Armor Games/Kongregate
+  purchase check. 5x4 with no button is the *other branch of the same source*,
+  not a divergence (`A37`). A locked tile draws no art at all now, which is a
+  stronger form of this screen's withholding rule than sending the right frame
+  was.
 - **A CSS scan must strip comments first — this has now bitten three times.**
   `buttonSounds.test.ts` counted a component whose docstring mentioned
   `<button`; `chromeStack.test.tsx` found a selector that existed only in the

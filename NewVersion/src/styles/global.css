@@ -3132,110 +3132,366 @@ code {
   opacity: 0.7;
 }
 
-/* ── Bestiary — the player-facing enemy list ──────────────────────────────
-   Locked rows stay in place rather than being hidden: the gaps are the point,
-   and a list that grows in the middle reads as progress. Only the name and
-   description are withheld, and they are withheld at the *scene*, not here. */
-/* No `overflow-y` here any more — `.screen-shell__body` is the scroller, and
-   two nested ones give a list that scrolls inside a page that also scrolls. */
-.bestiary__count { margin-left: auto; font-size: var(--text-xs); color: var(--text-dim); }
-/* The roster's plate. `.chrome-panel` supplies the silver and the border; this
-   only has to say how the rows sit on it. */
-.bestiary__list {
-  list-style: none;
-  margin: 0;
+/*
+ * == Bestiary -- ScreenEnemies ==============================================
+ *
+ * Roster left, window right. `addEnemyButtons` (`:277-303`) lays the tiles out
+ * **five to a row** on a 41px pitch and `bgWindow` (`:235`) is pinned to the
+ * stage's right edge; T179 rebuilt this port to that arrangement, from a
+ * vertical list that had every enemy's stats inline.
+ *
+ * Same three rules the shop, level select and the achievements board landed
+ * on: no scroll, container units rather than viewport units, and no `max-width`
+ * cap (`A32`).
+ */
+.screen--bestiary .screen-shell__body {
+  /* Two classes, so this beats `.screen-shell__body`'s `overflow-y: auto`
+     rather than depending on source order. */
+  overflow: hidden;
+  min-height: 0;
+  padding: clamp(0.4rem, 1.2vh, 0.9rem);
   display: grid;
-  gap: 0.3rem;
-  padding: var(--space-3);
+  grid-template-rows: minmax(0, 1fr) auto;
+  container-type: size;
+}
+
+.bestiary {
+  /*
+   * **Capped by the height as well as the width, and that is not belt-and-
+   * braces.** Everything in the window is a multiple of `--pane`, so its
+   * content height is about 1.28 times it; a width-only clamp gave a 303px
+   * pane needing 389px of height inside a 315px window at 1024x480, and
+   * `overflow: hidden` meant that clipped silently rather than scrolling.
+   * Measured: 74px over at 1024x480 and 69px at 1280x600, and nothing at all
+   * from 1366x768 up, which is why a width-only rule looked correct.
+   *
+   * 70cqh leaves about 10% on the binding case and does not bind at all above
+   * 1366x768, where the 30rem cap is already what wins.
+   */
+  --pane: min(clamp(14rem, 30cqw, 30rem), 70cqh);
+
+  display: grid;
+  /* The board takes its width from its height (below), so the track is `auto`
+     and the pair is spread rather than stretched -- the same correction the
+     achievements board needed when a `1fr` plate stood twice as wide as the
+     lattice it held. */
+  grid-template-columns: auto var(--pane);
+  justify-content: space-between;
+  gap: clamp(0.4rem, 1.2cqw, 1.1rem);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
 /*
- * One enemy, as a dark well on the plate.
+ * The roster's plate.
  *
- * The green left edge stays: it is the only thing that says "met" at a glance
- * when the row is scrolled past, and the locked variant below removes it. On
- * the light plate it now reads as a tab rather than as a glow, which is if
- * anything closer to the original's own tile states.
+ * **The ratio is the grid's, and it is derived.** Twenty enemies five across is
+ * four rows, so with a tile `t` and a gap `g = 0.1t` the content is `5t + 4g`
+ * wide by `4t + 3g` tall -- 5.4 by 4.3, or 1.256. It is set slightly *under*
+ * that at 1.24, which is the safe direction: a narrower plate makes the columns
+ * narrower, so the four rows finish above the bottom rather than past it, and
+ * `align-content: center` takes up the slack.
  */
-.bestiary-row {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  padding: 0.45rem 0.6rem;
-  border-radius: 6px;
-  background: var(--surface);
-  border: 2px solid var(--steel-900);
-  border-left: 4px solid var(--ok);
-  color: var(--text);
+.bestiary__board {
+  aspect-ratio: 1.24;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  padding: clamp(0.4rem, 2cqh, 1.2rem);
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: clamp(0.4rem, 1cqh, 0.9rem);
+  background: rgb(0 0 0 / 38%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 12%),
+    0 4px 14px rgb(0 0 0 / 45%);
+  container-type: size;
 }
-.bestiary-row__name { min-width: 8rem; font-size: var(--text-sm); }
-.bestiary-row__text { font-size: var(--text-2xs); color: var(--text-dim); }
 
-/* Resistance badges — ScreenEnemies.as' two icon rows. */
-.bestiary-row__resist {
+/*
+ * Five columns, as `:298`'s `3 + 41 * (i - 5 * ii)` is five columns.
+ *
+ * Rows are `auto` and the tiles carry `aspect-ratio: 1`, so a cell is square by
+ * construction rather than by a ratio that has to be kept in step with the
+ * column count. `align-content: center` because the rows are content-sized and
+ * will not fill a plate whose ratio errs narrow on purpose.
+ */
+.bestiary__grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-content: center;
+  gap: 4cqh;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* The rows are centred rather than stretched, so a mis-set ratio shows up as
+     slack. This is the guard against it showing up as a spill instead. */
+  overflow: hidden;
+}
+
+.bestiary__slot {
+  display: flex;
+  min-width: 0;
+}
+
+/*
+ * One enemy, as a glass tile.
+ *
+ * `aspect-ratio: 1` on a grid item with a definite width is what makes it
+ * square -- the same construction the level tiles use, and for the same reason
+ * T173 needed: the ratio is a *preference* that loses to content needing more
+ * room, so the contents are placed rather than flowed.
+ */
+.bestiary-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 18%;
+  overflow: hidden;
+  cursor: pointer;
+  color: var(--steel-000);
+  font-family: var(--font-display);
+  background-image: linear-gradient(
+    180deg,
+    rgb(148 166 186 / 24%) 0%,
+    rgb(70 84 102 / 20%) 45%,
+    rgb(0 0 0 / 42%) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    inset 0 -1px 0 rgb(255 255 255 / 8%),
+    0 3px 10px rgb(0 0 0 / 50%);
+  /* No `transform` on hover -- the same rule the level tiles, the world cards
+     and SELECT WORLD all settled on: a tile that lifts as the pointer reaches
+     it reads as a twitch across a grid this dense. */
+  transition:
+    filter 110ms ease,
+    box-shadow 110ms ease,
+    border-color 110ms ease;
+}
+
+.bestiary-tile:hover {
+  border-color: rgb(255 255 255 / 44%);
+  filter: brightness(1.22);
+}
+
+.bestiary-tile:active {
+  filter: brightness(0.94);
+}
+
+.bestiary-tile:focus-visible {
+  outline: 2px solid rgb(150 200 255 / 90%);
+  outline-offset: 2px;
+}
+
+/*
+ * The selected tile -- lit, not merely outlined.
+ *
+ * Clicking selects and hovering does not (`A8`), so this has to be legible
+ * from across the grid while a hover highlight sits somewhere else at the same
+ * time. Hence a ring *and* a bloom, where hover gets brightness alone.
+ */
+.bestiary-tile--on {
+  border-color: rgb(150 200 255 / 85%);
+  background-image: linear-gradient(
+    180deg,
+    rgb(150 200 255 / 34%) 0%,
+    rgb(60 100 150 / 26%) 45%,
+    rgb(0 0 0 / 38%) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 55%),
+    0 0 0.9em rgb(120 190 255 / 55%),
+    0 3px 12px rgb(0 0 0 / 55%);
+}
+
+/*
+ * Unmet -- a CSS question mark, and no enemy art in the DOM at all.
+ *
+ * The AS3's frame 4 is plate + overlay + a "?" glyph, and the plate and the
+ * overlay are exactly what this tile already draws. Setting the mark in type
+ * avoids a picture of a tile inside a tile, and has the better property that
+ * an unmet enemy contributes no shape id to the document.
+ */
+.bestiary-tile--locked {
+  border-color: rgb(255 255 255 / 8%);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 5%), rgb(0 0 0 / 45%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+
+.bestiary-tile__unknown {
+  font-size: 9cqh;
+  line-height: 1;
+  color: rgb(255 255 255 / 26%);
+  text-shadow: 0 2px 3px rgb(0 0 0 / 80%);
+}
+
+/* ---- The window -- `:235`, `:544-611` ---------------------------------- */
+.bestiary__panel {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  /* The row is `align-items: baseline`, which would hang the badges off the
-     text baseline and let them spill into the row below. Centred and pushed
-     right instead — the AS3 puts them at x 434 on a 640 stage, i.e. the right
-     third, so this is the same reading of the layout without the frozen
-     coordinate (rule 7). */
-  margin-left: auto;
-  align-self: center;
-}
-.resistance-row {
-  display: flex;
-  align-items: center;
-  /* `:378` places these at a 38px pitch on a 30px badge, so the gap is 8. */
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.resistance-row__label {
-  font-size: var(--text-3xs);
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  /* Fixed so the two rows' badges line up under each other. */
-  min-width: 4.5rem;
-}
-/* The difficulty / tier selectors — one pair for the screen, as the AS3's two
-   statics are. Sits under the header so it reads as governing the whole list. */
-.bestiary-controls {
-  display: flex;
-  gap: 1.25rem;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-bottom: 0.25rem;
-}
-.bestiary-controls__group { display: flex; gap: 0.25rem; }
-/* Everything else comes from `.chrome-tab`; these are just smaller than a
-   navigation tab, because six of them share a row with a heading. */
-.bestiary-controls__button {
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-2xs);
+  gap: calc(var(--pane) * 0.022);
+  padding: calc(var(--pane) * 0.055);
+  border: 2px solid rgb(255 255 255 / 10%);
+  border-radius: calc(var(--pane) * 0.05);
+  background: rgb(20 20 20 / 82%);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 55%);
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* The four stat lines. A grid rather than flow so the values line up down the
-   column — the AS3 got that free from a fixed-width font on a fixed stage. */
-.bestiary-stats {
-  display: grid;
-  grid-template-columns: repeat(2, auto);
-  gap: 0.1rem 0.75rem;
+/* `:541` -- the name, at the window's top. */
+.bestiary__name {
   margin: 0;
-  align-self: center;
-}
-.bestiary-stats__item { display: flex; gap: 0.3rem; align-items: baseline; }
-.bestiary-stats dt {
-  font-size: var(--text-3xs);
-  color: var(--text-faint);
+  font-family: var(--font-display);
+  font-size: calc(var(--pane) * 0.085);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--steel-000);
+  text-shadow:
+    0 2px 3px rgb(0 0 0 / 85%),
+    0 0 0.4em rgb(150 200 255 / 22%);
 }
+
+/* `:270` -- the description, under the name. */
+.bestiary__desc {
+  margin: 0;
+  font-size: calc(var(--pane) * 0.05);
+  line-height: 1.3;
+  color: var(--steel-100);
+}
+
+.bestiary__label {
+  margin: calc(var(--pane) * 0.015) 0 0;
+  font-family: var(--font-display);
+  font-size: calc(var(--pane) * 0.042);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* Four tiers, so not `.difficulty` -- which is three columns. Same pill. */
+.bestiary__tiers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: calc(var(--pane) * 0.02);
+}
+
+/*
+ * The numbers left, the badges right -- `:265-272` puts the four stat lines at
+ * `bgWindow.x + 4` and the two badge captions at `+ 206`, which is these two
+ * columns on a 208-wide window.
+ */
+.bestiary__readout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: calc(var(--pane) * 0.03);
+  margin-top: calc(var(--pane) * 0.03);
+  padding-top: calc(var(--pane) * 0.03);
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  min-height: 0;
+}
+
+.bestiary-stats {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pane) * 0.012);
+  margin: 0;
+}
+
+.bestiary-stats__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(var(--pane) * 0.03);
+}
+
+.bestiary-stats dt {
+  font-family: var(--font-display);
+  font-size: calc(var(--pane) * 0.042);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
 .bestiary-stats dd {
   margin: 0;
-  font-size: var(--text-2xs);
+  font-family: var(--font-display);
+  font-size: calc(var(--pane) * 0.055);
   font-variant-numeric: tabular-nums;
+  color: var(--steel-000);
+  text-shadow: 0 2px 3px rgb(0 0 0 / 85%);
+}
+
+.bestiary__resists {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pane) * 0.02);
+  min-width: 0;
+}
+
+.bestiary__resist {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pane) * 0.012);
+  min-width: 0;
+}
+
+.bestiary__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--pane) * 0.015);
+}
+
+/*
+ * Unmet: a dark disc rather than a badge.
+ *
+ * Distinct from the frame-1 "none" placeholder the listing sends for an enemy
+ * with no strengths -- that arrives as a real badge and draws as one. An empty
+ * array means *unknown*, and the two must not look the same.
+ */
+.bestiary__badge-none {
+  display: grid;
+  place-items: center;
+  width: calc(var(--pane) * 0.11);
+  height: calc(var(--pane) * 0.11);
+  border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / 12%);
+  background: rgb(0 0 0 / 45%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
+  font-family: var(--font-display);
+  font-size: calc(var(--pane) * 0.045);
+  color: var(--text-faint);
+}
+
+/* The port's own line -- the original has no met/total counter. */
+.bestiary__count {
+  margin: auto 0 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: calc(var(--pane) * 0.042);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* The hover card -- the enemy is a picture and a sentence, not a roster. */
+.cursor-tip--enemy {
+  max-width: min(17rem, 55vw);
+}
+
+.cursor-tip--enemy .cursor-tip__objective {
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: var(--steel-100);
 }
 
 /* The shop tile — `ButtonWeapon` / `ButtonMisc`, three stacked shapes. Same
@@ -3789,17 +4045,6 @@ code {
   pointer-events: none;
 }
 
-.bestiary-row--locked {
-  border-left-color: var(--border);
-  background: var(--surface);
-}
-/* The silhouette: dim the whole row and blank the name to "???". Deliberately
-   not `filter: blur()` on real text — the string is simply never sent. */
-.bestiary-row--locked .bestiary-row__name {
-  color: var(--text-dim);
-  letter-spacing: 0.15em;
-}
-.bestiary-row--locked .bestiary-row__text { font-style: italic; opacity: 0.75; }
 
 /* Save-slot picker — three rows over the menu. */
 .screen--slots { gap: 1rem; }
