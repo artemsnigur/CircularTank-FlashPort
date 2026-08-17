@@ -8,19 +8,37 @@
  * port drops Premium with the rest of the monetisation surface, so the row
  * keeps its pitch and loses one icon.
  *
+ * ── It is type on pills now, not the extracted art ────────────────────────
+ * Every button was a `ButtonUpgrades`/`ButtonEnemies`/… clip: a picture that
+ * *is* the whole button, background and glyph together. Those are 40-unit
+ * exports, and this bar draws at whatever height the viewport gives it — the
+ * same upscale problem `A40` found behind the shop's tiles, on art that also
+ * no longer matched the five screens above it. T183 replaced them with
+ * `.gloss-pill` and a label. `A41`.
+ *
+ * **The frame table did not go with them, and that is deliberate.**
+ * `navTabs.ts` still says what the AS3 draws, and the two things it *decides*
+ * are still read from it rather than restated here:
+ *
+ *   - **Whether a button has a "you are here" state at all.** `ButtonMenu` has
+ *     three frames and no fourth (`MENU_FRAMES`), because Menu leads out of
+ *     the bar rather than across it. `frames.current === undefined` is that
+ *     fact, and it is what stops the Menu pill ever lighting up.
+ *   - **Whether affordability changes this button.** `ButtonUpgrades` has 7
+ *     frames because `makeIcon` shifts its triplet by 3 when something in the
+ *     shop is within reach. `showsAffordanceHint` derives that from the table,
+ *     so the hint follows the frame data rather than a hard-coded "Upgrades".
+ *
+ * So the numbers are no longer *drawn*, and they are still *load-bearing*.
+ *
  * ── Hover and press are CSS, not state ────────────────────────────────────
- * Each button stacks its rest, hover and pressed frames and cross-fades them
- * with `:hover` / `:active`. Three images instead of one, and in exchange
- * there is no React state, no re-render on pointer move, and the keyboard's
- * `:focus-visible` gets the hover art for free — which a `useState`
- * implementation would have had to remember to do.
+ * As before, and now more simply: no React state, no re-render on pointer
+ * move, and `:focus-visible` gets the hover treatment for free.
  */
 import { GameEvents } from '../game/events/GameEvents';
 import { useGameStore } from '../state/gameStore';
-import { ChromeArt } from './ChromeArt';
-import type { ChromeClipName } from './ChromeArt';
-import { MENU_FRAMES, isNavigable, navFrames } from '../game/ui/navTabs';
-import type { NavDestination } from '../game/ui/navTabs';
+import { MENU_FRAMES, isNavigable, navFrames, showsAffordanceHint } from '../game/ui/navTabs';
+import type { NavDestination, NavFrames } from '../game/ui/navTabs';
 import type { SceneKey } from '../game/config/constants';
 
 /** Which scene each destination opens. */
@@ -32,56 +50,72 @@ const SCENE_FOR: Readonly<Record<NavDestination, SceneKey>> = {
   Options: 'Options',
 };
 
-const CLIP_FOR: Readonly<Record<NavDestination, ChromeClipName>> = {
-  Upgrades: 'ButtonUpgrades',
-  LevelSelect: 'ButtonLevelSelect',
-  Achievements: 'ButtonAchievements',
-  Enemies: 'ButtonEnemies',
-  Options: 'ButtonOptions',
-};
-
 /** `BottomBar.as:51-68` — the icon row, in its own left-to-right order. */
 const ICONS: readonly NavDestination[] = ['Achievements', 'Enemies', 'Options'];
 
 function NavButton({
-  clip,
   label,
   frames,
   current,
   onClick,
   wide,
+  hint = false,
 }: {
-  clip: ChromeClipName;
   label: string;
-  frames: { rest: number; hover: number; pressed: number; current?: number };
+  /**
+   * The AS3 frames for this button. **Read for what they imply, not drawn** —
+   * see the header. `current === undefined` means "no you-are-here state".
+   */
+  frames: NavFrames;
   current: boolean;
   onClick: () => void;
   wide?: boolean;
+  /** `ButtonUpgrades`' `makeIcon` — something in the shop is affordable. */
+  hint?: boolean;
 }): React.ReactElement {
-  // `chrome-stack` is what makes the state frames overlay the resting one;
-  // see the primitive for why that cannot live in this screen's own rules.
-  const className = wide ? 'nav-button chrome-stack nav-button--wide' : 'nav-button chrome-stack';
+  // A control with no fourth frame cannot be current, whatever the caller
+  // says. `ButtonMenu` is the case, and encoding it here rather than at the
+  // call site means the rule travels with the frame data.
+  const here = current && frames.current !== undefined;
 
-  if (current) {
-    // Still a button, and still focusable. `aria-current` is what says "you are
-    // here"; making it `disabled` would take it out of the tab order and hide
-    // the fact that this row has a current item at all.
-    return (
-      <button type="button" className={className} aria-current="page" aria-label={label}>
-        <ChromeArt clip={clip} frame={frames.current ?? frames.rest} />
-      </button>
-    );
-  }
+  /*
+   * **The hint does not show on the tab you are on**, and that is the AS3's
+   * rule rather than a tidy-up: `ButtonUpgrades.as:88` sends frame 7 for "you
+   * are here" *without* `extraFrames`, while 1/2/3 shift to 4/5/6. The
+   * affordance hint is pointless on the screen that would spend the money.
+   *
+   * It is applied here rather than by the caller because `here` is decided
+   * here — a caller passing `hint` would have to re-derive the same condition
+   * to know whether to.
+   */
+  const showHint = hint && !here;
+
+  const classes = ['gloss-pill', 'nav-pill'];
+  if (wide === true) classes.push('nav-pill--wide');
+  if (here) classes.push('nav-pill--on');
+  if (showHint) classes.push('nav-pill--flush');
 
   return (
-    <button type="button" className={className} aria-label={label} onClick={onClick}>
-      <ChromeArt clip={clip} frame={frames.rest} className="nav-button__face" />
-      <ChromeArt clip={clip} frame={frames.hover} className="nav-button__face chrome-art--face chrome-art--face--hover" />
-      <ChromeArt
-        clip={clip}
-        frame={frames.pressed}
-        className="nav-button__face chrome-art--face chrome-art--face--pressed"
-      />
+    <button
+      type="button"
+      className={classes.join(' ')}
+      // Still a button, and still focusable. `aria-current` is what says "you
+      // are here"; `disabled` would take it out of the tab order and hide the
+      // fact that this row has a current item at all.
+      {...(here ? { 'aria-current': 'page' as const } : { onClick })}
+      aria-label={label}
+    >
+      {/* Positioned, so it sits above `.gloss-pill::before`'s highlight — the
+          same reason `.menu-play__label` is. */}
+      <span className="nav-pill__label">{label}</span>
+      {showHint && (
+        /*
+          `IconEnough` — `ButtonUpgrades.as` pins a badge over the tab when
+          something is affordable, on top of shifting the frames. A dot rather
+          than the extracted icon, for the same reason the tab is a pill.
+        */
+        <span className="nav-pill__dot" aria-hidden="true" />
+      )}
     </button>
   );
 }
@@ -106,29 +140,32 @@ export function BottomNav({
   const tab = (destination: NavDestination, label: string, wide = false) => (
     <NavButton
       key={destination}
-      clip={CLIP_FOR[destination]}
       label={label}
       frames={navFrames(destination, affordable)}
       current={!isNavigable(destination, current)}
       onClick={go(destination)}
       wide={wide}
+      hint={showsAffordanceHint(destination, affordable)}
     />
   );
 
   return (
     <nav className="bottom-nav" aria-label="Screens">
-      <div className="bottom-nav__tabs">
+      {/*
+        One row, evenly spread. The AS3 splits it — two wide tabs pinned left,
+        icons pinned right, a gap between — because those are pictures at fixed
+        stage coordinates. Six labelled pills read better spread across the
+        dock than clustered at both ends, and the order is unchanged. `A41`.
+      */}
+      <div className="bottom-nav__row">
         {tab('Upgrades', 'Upgrades', true)}
         {tab('LevelSelect', 'Level select', true)}
-      </div>
-
-      <div className="bottom-nav__icons">
         {ICONS.map((destination) => tab(destination, destination))}
         {/* Menu is last in the port and third-from-last in the AS3, where
             Premium sat between. It leads out of the bar rather than across it,
-            so it has no current state to draw — `ButtonMenu` has 3 frames. */}
+            so it has no current state to draw — `ButtonMenu` has 3 frames, and
+            `NavButton` reads that off `MENU_FRAMES` rather than being told. */}
         <NavButton
-          clip="ButtonMenu"
           label="Main menu"
           frames={MENU_FRAMES}
           current={false}

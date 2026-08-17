@@ -3809,65 +3809,174 @@ code {
 }
 
 /*
- * ── The bottom navigation ──────────────────────────────────────────────────
+ * == The bottom navigation dock -- BottomBar.as =============================
  *
  * `BottomBar.as` puts two 200-wide tabs at x 5 and 209 and then an icon row at
- * a 45px pitch from 413, on a 640-wide stage. The proportions are kept and the
- * absolute coordinates are not: the tabs take the space they need at the left,
- * the icons sit at the right, and the gap between them absorbs the difference.
+ * a 45px pitch from 413, on a 640-wide stage. Those are *pictures at fixed
+ * stage coordinates*; this is six labelled pills on a dock, spread evenly
+ * (`A41`). The order is the AS3's and the coordinates are not, for the same
+ * reason every other screen dropped its coordinates: they were the screen.
+ *
+ * The dock itself is glass over the wallpaper -- a lit top rim, a dark ramp,
+ * and a shadow above it so the bar reads as sitting in front of the screen
+ * rather than as a strip of a different colour welded to the bottom.
  */
 .bottom-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-2) var(--space-3);
-  padding-bottom: calc(var(--space-2) + var(--safe-bottom));
-  background: var(--steel-900);
-  border-top: 2px solid var(--steel-700);
-}
-
-.bottom-nav__tabs,
-.bottom-nav__icons {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.nav-button {
-  position: relative;
-  display: block;
   flex: none;
-  /* The art carries the whole button; the element is a hit target and a
-     stacking context and nothing else. */
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  /* The icons are 40 units square in the SWF and the wide tabs 200x40, so one
-     height keeps the row aligned and each width follows its aspect ratio. */
-  height: 2.5rem;
+  padding: clamp(0.35rem, 1.1vh, 0.7rem) clamp(0.4rem, 1.4vw, 1rem);
+  padding-bottom: calc(clamp(0.35rem, 1.1vh, 0.7rem) + var(--safe-bottom));
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  background-image: linear-gradient(
+    180deg,
+    rgb(148 166 186 / 12%) 0%,
+    rgb(20 24 30 / 92%) 34%,
+    rgb(8 10 13 / 96%) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 22%),
+    0 -6px 18px rgb(0 0 0 / 45%);
+  /*
+   * **No `backdrop-filter`.** `D-FPS` measured a 52 fps loss from one over the
+   * live Phaser canvas, and this bar sits over it on every in-game screen.
+   * The ramp above is opaque enough that a blur would cost the frames for no
+   * visible pixels -- which is exactly the finding.
+   */
 }
 
-.nav-button > .chrome-art {
-  height: 100%;
-  width: auto;
+/*
+ * One row, wrapping.
+ *
+ * `space-evenly` rather than `space-between`: with six pills of unequal width
+ * the between form pins the first and last to the edges and pools the slack in
+ * the middle, which is the void the shop spent three tasks on. Evenly puts the
+ * same slack outside them too, so the row reads as centred at any width.
+ */
+.bottom-nav__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-evenly;
+  gap: clamp(0.25rem, 0.8vw, 0.7rem);
 }
 
-.nav-button--wide {
-  /* 200x40 — five times as wide as tall. Capped so two tabs plus four icons
-     still fit a narrow phone; below that the row wraps rather than clipping. */
-  max-width: 40vw;
+/*
+ * One tab.
+ *
+ * `.gloss-pill` carries the surface; this carries **only size**, which is what
+ * keeps the two order-independent -- see the `.gloss-pill` header. Anything
+ * that does override it below uses two classes.
+ *
+ * The label is what sets the width, with a floor so a short word ("Enemies")
+ * does not make a visibly smaller button than a long one. `flex-shrink` lets
+ * six of them give way together on a narrow window instead of the row
+ * overflowing; `flex-wrap` above is the second line of defence when even that
+ * is not enough.
+ */
+.gloss-pill.nav-pill {
+  flex: 0 1 auto;
+  min-width: clamp(4.5rem, 11vw, 9rem);
+  min-height: clamp(1.9rem, 4.4vh, 2.6rem);
+  padding: 0 clamp(0.5rem, 1.1vw, 1rem);
+  font-family: var(--font-display);
+  font-size: clamp(0.62rem, 1.05vw, 0.9rem);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--steel-000);
 }
 
-.nav-button[aria-current='page'] {
+/*
+ * The two wide tabs -- `BottomBar.as` gives them 200 units against the icons'
+ * 45, so they keep a larger share here without keeping the ratio: five times
+ * the width of a labelled pill would be a banner, not a tab.
+ */
+.gloss-pill.nav-pill--wide {
+  min-width: clamp(6rem, 15vw, 12rem);
+}
+
+.nav-pill__label {
+  /* Above `.gloss-pill::before`'s highlight, which is absolutely positioned
+     and would otherwise paint over unpositioned text. */
+  position: relative;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 80%);
+}
+
+/*
+ * **Brighten, do not lift.** `.gloss-pill:hover` raises the pill, which is
+ * right for a single call-to-action on a menu card and wrong for a row of six:
+ * a bar whose buttons rise one after another as the pointer crosses it reads
+ * as a twitch, which is the rule every grid in this game settled on.
+ *
+ * Two classes, so this beats `.gloss-pill:hover` by specificity rather than by
+ * sitting later in the file. The press dip stays -- that is a response to an
+ * action, not to the pointer merely arriving.
+ */
+.gloss-pill.nav-pill:hover {
+  transform: none;
+  filter: brightness(1.28);
+}
+
+.gloss-pill.nav-pill:active {
+  transform: translateY(1px);
+  filter: brightness(0.92);
+}
+
+/*
+ * You are here.
+ *
+ * A lit rim and an outward bloom, the same treatment the selected weapon tile
+ * and the selected enemy tile carry -- one visual language for "this is the
+ * one you have chosen" across the whole game. Blue for the same reason: it is
+ * the selection colour, distinct from the red that means equipped and the
+ * green that means affordable.
+ *
+ * Inert, and looking it: no hover response, and the pointer stays default.
+ */
+.gloss-pill.nav-pill--on {
+  background-image: linear-gradient(
+    180deg,
+    #cfe6ff 0%,
+    #7fb2e8 8%,
+    #3f6f9e 34%,
+    #1b3350 62%,
+    #10202f 82%,
+    #24425c 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 70%),
+    inset 0 0 0 1px rgb(180 220 255 / 35%),
+    inset 0 -0.14em 0.28em -0.12em rgb(0 0 0 / 80%),
+    0 0 0 1px rgb(150 200 255 / 75%),
+    0 0 0.9em rgb(120 190 255 / 55%),
+    0 0.08em 0.12em rgb(0 0 0 / 55%);
+  color: #f2f8ff;
   cursor: default;
 }
 
-/* Rest, hover and pressed stack through `.chrome-stack` — see it for why the
-   positioning cannot live here. The resting frame is in flow and sets the
-   button's size, so a state frame of a different size cannot change its
-   width as it lights up. */
+.gloss-pill.nav-pill--on:hover {
+  transform: none;
+  filter: none;
+}
+
+/*
+ * `IconEnough` -- `ButtonUpgrades` pins a badge over the tab when something in
+ * the shop is affordable, on top of shifting its frames. A green dot carries
+ * the same message at pill scale, in the colour this UI already uses for
+ * "you can pay for this" (the shop's prices and stat values).
+ */
+.nav-pill__dot {
+  position: absolute;
+  top: 14%;
+  right: 8%;
+  width: 0.42em;
+  height: 0.42em;
+  border-radius: 50%;
+  background: #7dff8a;
+  box-shadow:
+    0 0 0.4em rgb(0 255 90 / 75%),
+    inset 0 1px 0 rgb(255 255 255 / 60%);
+  pointer-events: none;
+}
 
 /*
  * ── The three chrome primitives ────────────────────────────────────────────

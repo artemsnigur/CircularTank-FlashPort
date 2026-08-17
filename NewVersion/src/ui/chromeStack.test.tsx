@@ -79,11 +79,23 @@ describe('the stacking primitive', () => {
 });
 
 describe('the controls that use it', () => {
-  it('classes every extra face in the bottom bar', () => {
+  /*
+   * ── The bottom bar left this primitive in T183 ───────────────────────────
+   *
+   * It was the largest consumer: six buttons, three stacked faces each. The
+   * bar is `.gloss-pill` and a label now (`A41`), so what is pinned here is
+   * that it draws **no** chrome at all — a half-migrated bar with one stray
+   * `<ChromeArt>` would look almost right and would be the thing nobody spots.
+   *
+   * The primitive itself is unchanged and still has a consumer; the audio
+   * toggles below are it, and they are what keeps this file meaningful.
+   */
+  it('no longer stacks anything in the bottom bar', () => {
     const { container } = render(<BottomNav current="LevelSelect" />);
-    expect(unstackedFaces(container)).toEqual([]);
-    // And the stacks are actually there — an empty tree would pass the above.
-    expect(container.querySelectorAll('.chrome-stack').length).toBeGreaterThan(3);
+    expect(container.querySelectorAll('.chrome-stack')).toHaveLength(0);
+    expect(container.querySelectorAll('.chrome-art')).toHaveLength(0);
+    // The counterpart: the bar did render, so "no chrome" is not "no bar".
+    expect(container.querySelectorAll('.nav-pill').length).toBe(6);
   });
 
   it('classes every extra face on the audio toggles', () => {

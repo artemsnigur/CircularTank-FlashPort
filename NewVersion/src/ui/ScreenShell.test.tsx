@@ -121,49 +121,80 @@ describe('BottomNav', () => {
     expect(go).not.toHaveBeenCalled();
   });
 
-  /**
-   * The clickable tabs stack three frames so hover and press are CSS; the
-   * current tab draws one. That difference is the whole reason the row needs
-   * no pointer state, so it is worth pinning rather than leaving implicit.
+  /*
+   * ── The bar is type on pills since T183, not the extracted art ───────────
+   *
+   * The three tests below used to read `data-frame` off `<ChromeArt>`. There
+   * is no art in this bar now (`A41`), so they read the states the frames
+   * *decide* instead — which is what they were always about, since a frame
+   * number nobody can see is not a behaviour.
    */
-  it('stacks hover and pressed faces on a clickable tab, and one face on the current one', () => {
-    const { container } = render(<BottomNav current="Upgrades" />);
+  it('lights the current tab and leaves the rest as ordinary pills', () => {
+    render(<BottomNav current="Upgrades" />);
 
-    const upgrades = container.querySelector('button[aria-current="page"]');
-    expect(upgrades?.querySelectorAll('.chrome-art')).toHaveLength(1);
+    const upgrades = screen.getByRole('button', { name: 'Upgrades' });
+    expect(upgrades.className).toContain('nav-pill--on');
+    expect(upgrades).toHaveAttribute('aria-current', 'page');
+
+    // The counterpart on the same render: every other tab must *not* be lit,
+    // or "the current one glows" is satisfied by a bar where all six do.
+    const lit = screen
+      .getAllByRole('button')
+      .filter((b) => b.className.includes('nav-pill--on'));
+    expect(lit).toHaveLength(1);
 
     const levelSelect = screen.getByRole('button', { name: 'Level select' });
-    expect(levelSelect.querySelectorAll('.chrome-art')).toHaveLength(3);
+    expect(levelSelect.className).toContain('gloss-pill');
+    expect(levelSelect).not.toHaveAttribute('aria-current');
   });
 
-  it('draws the Upgrades tab at its you-are-here frame on the shop', () => {
-    const { container } = render(<BottomNav current="Upgrades" />);
-    const art = container.querySelector('button[aria-current="page"] .chrome-art');
-    // `ButtonUpgrades.as:88` — frame 7, and not shifted by affordability.
-    expect(art?.getAttribute('data-frame')).toBe('7');
+  it('never lights Main menu, because ButtonMenu has no fourth frame', () => {
+    // `MENU_FRAMES` is three frames — Menu leads *out* of the bar, so there is
+    // no "you are here" for it to be in. `NavButton` reads that off the frame
+    // data rather than being told, so this holds even from the main menu.
+    render(<BottomNav current={null} />);
+    const menu = screen.getByRole('button', { name: 'Main menu' });
+    expect(menu.className).not.toContain('nav-pill--on');
+    expect(menu).not.toHaveAttribute('aria-current');
   });
 
   /**
-   * The affordance hint comes from the store now, not a prop — every screen
-   * that shows the bar publishes it as it opens, so the bar asks rather than
-   * being told and no screen can forget to forward it.
+   * The affordance hint comes from the store, not a prop — every screen that
+   * shows the bar publishes it as it opens, so the bar asks rather than being
+   * told and no screen can forget to forward it.
    *
-   * Both states, on the same query: a bar wired to a constant passes either
-   * one alone.
+   * Both states on the same query: a bar wired to a constant passes either one
+   * alone.
    */
-  it('shifts the Upgrades tab to its affordable frames from another screen', () => {
-    const firstTab = (container: HTMLElement): string | null | undefined =>
-      container
-        .querySelector('.bottom-nav__tabs button:first-child .chrome-art')
-        ?.getAttribute('data-frame');
+  it('badges the Upgrades tab when the shop has something affordable', () => {
+    const dot = (container: HTMLElement): Element | null =>
+      container.querySelector('.nav-pill--flush .nav-pill__dot');
 
     useGameStore.setState({ shopAffordable: false });
     const { container: plain } = render(<BottomNav current="LevelSelect" />);
-    expect(firstTab(plain)).toBe('1');
+    expect(dot(plain)).toBeNull();
 
     useGameStore.setState({ shopAffordable: true });
     const { container: flush } = render(<BottomNav current="LevelSelect" />);
-    // `:78` — `gotoAndStop(1 + extraFrames)` with `extraFrames = 3`.
-    expect(firstTab(flush)).toBe('4');
+    expect(dot(flush)).not.toBeNull();
+    // On the Upgrades tab and nowhere else — the shift is a property of
+    // `ButtonUpgrades`' 7 frames, not of the bar.
+    expect(
+      flush.querySelector('.nav-pill--flush')?.getAttribute('aria-label'),
+    ).toBe('Upgrades');
+  });
+
+  it('drops the hint on the shop itself, as ButtonUpgrades.as:88 does', () => {
+    /*
+     * Frame 7 is "you are here" and is **not** shifted by `extraFrames`, while
+     * 1/2/3 shift to 4/5/6 — the hint is pointless on the screen that would
+     * spend the money. This was a real defect on the first pass of T183: the
+     * badge was passed independently of `current`, so the shop's own tab wore
+     * it. Driven against the case above, which is the same store state on a
+     * different screen.
+     */
+    useGameStore.setState({ shopAffordable: true });
+    const { container } = render(<BottomNav current="Upgrades" />);
+    expect(container.querySelector('.nav-pill__dot')).toBeNull();
   });
 });

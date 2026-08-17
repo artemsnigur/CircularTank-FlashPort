@@ -309,6 +309,24 @@ needs to know before touching it:
   `scrollHeight - clientHeight`, not just the body's.** And note the shape of
   the near miss: it was clean from 1366x768 up, so every viewport anyone
   develops on said the rule was right.
+- **The bottom bar is pills, and `navTabs.ts` still decides two things.** The
+  frame numbers are no longer drawn (`A41`) but they are not decoration:
+  `frames.current === undefined` is what stops the Main menu pill ever lighting
+  (`ButtonMenu` has three frames, no "you are here"), and
+  `showsAffordanceHint` derives the shop badge by asking whether the rest frame
+  *moves* rather than testing for `'Upgrades'`. **Do not simplify either into a
+  literal** — the frame table is where the AS3's answer lives.
+- **`ButtonUpgrades` frame 7 is not shifted by affordability**, so the shop's
+  own tab must not wear the "you can afford something" badge (`:88`). This
+  shipped wrong on the first pass of T183 and was caught only because the test
+  around it had to be rewritten for the new rendering. **A test rewritten for a
+  new rendering is a chance to check the rule survived** — re-point it at what
+  the old assertion *meant*, not at the nearest new selector.
+- **Changing the bottom bar's height changes every screen.** It is the `auto`
+  track under each screen's `1fr` body, so a taller dock silently shortens five
+  layouts that were measured against the old one. Re-run the shop, bestiary,
+  achievements and level-select harnesses after touching it — T183's dock runs
+  43–65px against the old fixed 2.5rem.
 - **An extracted shape has a size it was drawn at, and this port scales past
   it.** The shop's backing disc is a 30x30 export drawn at up to 176px — a
   six-times upscale whose antialiased edge goes ragged, and *worse* on a
