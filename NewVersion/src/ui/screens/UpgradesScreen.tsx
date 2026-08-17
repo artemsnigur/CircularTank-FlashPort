@@ -50,7 +50,6 @@ import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 import { ScreenShell } from '../ScreenShell';
 import { formatNumber } from '../../game/core/Functions';
-import { CursorTip } from '../CursorTooltip';
 import { LevelGuideWidget } from '../LevelGuideWidget';
 import { UpgradeIcon } from '../UpgradeIcon';
 import { UPGRADE_DESCRIPTIONS } from '../../game/upgrades/upgradeDescriptionData';
@@ -218,8 +217,16 @@ function SlotSummary({ rows }: { rows: ShopRow[] }): React.ReactElement {
  * `UPGRADE_DESCRIPTIONS` is keyed by category and a **1-based** index, which is
  * why the `+ 1`: the shop row's `index` is the position in its category list
  * and the table's is the AS3's `weaponInfo1..12` numbering. Falls back to the
- * name rather than to an empty card, so a row the table does not cover still
- * says what it is.
+ * name rather than to nothing, so a row the table does not cover still says
+ * what it is.
+ *
+ * **Rendered in the window, not in a tooltip.** The AS3 shows this on hover in
+ * a corner panel and T180 moved it to a cursor card; T181 removed that card —
+ * a floating panel over a 28-tile grid covers the grid, which is the one thing
+ * this screen is for. The strings had nowhere else to go, and dropping them
+ * would have left 28 ported, generated, tested strings rendering nowhere. So
+ * the window carries them, which is where a description belongs once there is
+ * a window addressing a selection. `A39`.
  */
 function descriptionFor(row: ShopRow): string {
   const info = UPGRADE_DESCRIPTIONS.find(
@@ -239,12 +246,10 @@ function UpgradeTile({
   row,
   selected,
   onSelect,
-  onHover,
 }: {
   row: ShopRow;
   selected: boolean;
   onSelect: () => void;
-  onHover: (row: ShopRow | null) => void;
 }): React.ReactElement {
   const classes = ['shop-tile'];
   if (selected) classes.push('shop-tile--on');
@@ -274,8 +279,6 @@ function UpgradeTile({
             : `${row.name}, not owned`
         }
         onClick={onSelect}
-        onMouseEnter={() => onHover(row)}
-        onMouseLeave={() => onHover(null)}
       >
         <UpgradeIcon
           layers={withoutEquippedHighlight(row.tile)}
@@ -321,6 +324,9 @@ function DetailWindow({ row, money }: { row: ShopRow | null; money: number }): R
           <p className="shop-detail__level">
             {row.owned ? `Level ${row.level} / ${row.maxLevel}` : 'Not owned'}
           </p>
+
+          {/* `ButtonUpgradeInfo`'s text — see `descriptionFor`. */}
+          <p className="shop-detail__blurb">{descriptionFor(row)}</p>
 
           {/*
             `damageTypeText` — `:584` draws it in red (`16711680`) under the
@@ -396,13 +402,6 @@ export function UpgradesScreen(): React.ReactElement | null {
   // Before the early return — a hook order that depends on the active scene is
   // a crash the first time the shop opens.
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  /*
-   * The hovered tile, and *only* which tile — the card's position is written
-   * straight to `style.transform` inside `CursorTip`. So sweeping the
-   * catalogue re-renders once per tile crossed rather than once per pixel,
-   * which is the rule level select landed on after that screen measured 8 fps.
-   */
-  const [hovered, setHovered] = useState<ShopRow | null>(null);
 
   if (activeScene !== 'Upgrades') return null;
 
@@ -448,7 +447,6 @@ export function UpgradesScreen(): React.ReactElement | null {
                           row={row}
                           selected={selected?.id === row.id}
                           onSelect={() => setSelectedId(row.id)}
-                          onHover={setHovered}
                         />
                       ))}
                     </ul>
@@ -494,41 +492,6 @@ export function UpgradesScreen(): React.ReactElement | null {
           Dev: +{formatNumber(DEV_GRANT)} coins
         </button>
       )}
-
-      {/*
-        The hover card, mounted once outside the catalogue and portalled to
-        `<body>` from there — one per tile would be twenty-eight of them.
-
-        **This replaces `PartInfoText` on these tiles**, which opened in a
-        fixed corner (`ButtonUpgradeInfo.as:163`). The corner is the AS3's own
-        choice and was ported faithfully; across a 28-tile grid it means
-        reading a panel that is nowhere near the thing under the pointer, which
-        is the argument level select settled. `A38`.
-
-        The *text* is unchanged in kind: the description still comes from
-        `UPGRADE_DESCRIPTIONS`, which is generated from the AS3 strings.
-      */}
-      <CursorTip
-        open={hovered !== null}
-        contentKey={hovered?.id ?? null}
-        className="cursor-tip--upgrade"
-      >
-        {hovered !== null && (
-          <>
-            <p className="cursor-tip__title">{hovered.name}</p>
-            <p className="cursor-tip__mode">
-              {hovered.owned ? `Level ${hovered.level} / ${hovered.maxLevel}` : 'Not owned'}
-            </p>
-            {/* `cost === null` is the AS3's maxed state — `:110`'s
-                `levelsArray[selectedWeapon - 1] != 0` gate, which is what
-                decides whether a price exists at all. */}
-            <p className="cursor-tip__price">
-              {hovered.cost === null ? 'Fully upgraded' : `$${formatNumber(hovered.cost)}`}
-            </p>
-            <p className="cursor-tip__objective">{descriptionFor(hovered)}</p>
-          </>
-        )}
-      </CursorTip>
 
       {/* The "Level select ›" exit is gone: the bottom bar carries that move
           now, on the tab the original uses for it (`BottomBar.as:47`). Two

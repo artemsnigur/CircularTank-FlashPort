@@ -309,6 +309,19 @@ needs to know before touching it:
   `scrollHeight - clientHeight`, not just the body's.** And note the shape of
   the near miss: it was clean from 1366x768 up, so every viewport anyone
   develops on said the rule was right.
+- **Which screens get the cursor card, and why the shop does not.** Two
+  failure modes, not one. A *corner* panel fails on any grid — it is nowhere
+  near the thing under the pointer (`A36`). A *cursor card* fails on a *dense
+  comparison* grid — it covers the neighbours, which are the whole point of
+  sweeping one. Level select, the bestiary and the achievements board keep
+  theirs; the shop's 28 tiles in three labelled groups do not, and its blurb
+  lives in the detail window instead (`A39`). **The test is what the grid is
+  for, not how many cells it has.**
+- **Before deleting a hover panel, find out what was rendering through it.**
+  The shop's was the only consumer of `UPGRADE_DESCRIPTIONS` — 28 generated,
+  tested strings. Removing it without rehousing them would have produced the
+  "ported but not wired" state by deletion, which is the hardest kind to
+  notice because nothing fails.
 - **The three glass tiles are one recipe written three times, and a test now
   holds them together.** `.shop-tile`, `.bestiary-tile` and
   `.world-grid__cell` had drifted to 26/20/42, 24/20/42 and 26/22/42 on the

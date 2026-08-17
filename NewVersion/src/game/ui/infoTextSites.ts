@@ -27,10 +27,13 @@
  *   **9 no-consumer** — the menu credit is dropped by decision (`A23`); Armor
  *     Games online saves are not ported; `ImageEnemy` x2 need per-enemy tiles
  *     in a *selected-level* panel, and this port has no selection step
- *     (divergence `A8`). **Plus the two grids**: `Achievement.as:99` (T178,
- *     `A36`) and `ButtonUpgradeInfo.as:163` (T180, `A38`) both moved to the
- *     pointer-following card, because a panel pinned to a fixed corner is
- *     unreadable across a grid of 28 or 36 cells. Their *strings* still render.
+ *     (divergence `A8`). **Plus the two grids**, which went different ways
+ *     for the same underlying reason — a panel pinned to a fixed corner is
+ *     unreadable across a grid of 28 or 36 cells. `Achievement.as:99` (T178,
+ *     `A36`) moved to the pointer-following card. `ButtonUpgradeInfo.as:163`
+ *     tried that in T180 and dropped it in T181 (`A39`): a card that follows
+ *     the pointer *covers* a dense grid, so the shop's text moved into its
+ *     detail window instead. Both sets of strings still render.
  *   **0 deferred** — nothing is waiting on unbuilt work any more. What is left
  *     is waiting on decisions already made.
  *
@@ -84,14 +87,19 @@ export const INFO_TEXT_SITES: readonly InfoTextSite[] = Object.freeze([
     // `right = false; bottom = true` at `:34-35`, restated at `:39-40`.
     showLeft: false,
     showTop: true,
-    // Was `wired` until T180. The 28 tiles now raise the pointer-following
-    // card the rest of this UI uses; a panel pinned to a fixed corner across a
-    // 28-tile grid means reading something nowhere near the tile under the
-    // cursor, which is the argument level select settled. The *strings* are
-    // unchanged — the card still shows `UPGRADE_DESCRIPTIONS`, generated from
-    // this same AS3 source.
+    // Was `wired` until T180, and the reason changed again in T181.
+    //
+    //   T180 — the fixed corner is unreadable across a 28-tile grid, so the
+    //          text moved to the pointer-following card.
+    //   T181 — the card went too: it *follows* the pointer, so on a dense grid
+    //          it covers the very tiles being compared. There is no hover
+    //          panel on this screen at all now.
+    //
+    // The 28 strings are not lost — `.shop-detail__blurb` renders them in the
+    // window, which is where a description belongs once a window addresses a
+    // selection. So this row is unconsumed as a *tooltip*, not unported.
     status: 'no-consumer',
-    note: 'Shop rows — replaced by the cursor tooltip in T180, divergence A38. The 28 strings still render, laid out in the card rather than styled in a corner panel.',
+    note: 'Shop rows — no hover panel since T181 (A39); the 28 strings render in the detail window instead, so the text is ported and visible, just not as a tooltip.',
   },
   {
     source: 'IconStrongWeak.as:48',

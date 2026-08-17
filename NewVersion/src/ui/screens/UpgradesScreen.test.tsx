@@ -91,15 +91,22 @@ describe('the shop screen', () => {
   });
 
   /*
-   * ── Hover raises the card; only a click moves the window ─────────────────
+   * ── Hover does nothing at all; only a click moves the window ─────────────
    *
-   * The rule level select was reversed onto in T173 (`A8`), and the shop was
-   * the last grid still opening a *fixed-corner* `PartInfoText` panel on
-   * hover — faithful to `ButtonUpgradeInfo.as:163`, and unreadable across 28
-   * tiles, because the panel is nowhere near the tile under the pointer.
+   * Two things have been removed from this screen's hover, one per task, and
+   * the reasons are different:
    *
-   * Driven as a pair on the same tile: "hover does not change the window" is
-   * satisfied by a screen where clicking does not either.
+   *   T180 — `PartInfoText`, which opens in a **fixed corner**
+   *          (`ButtonUpgradeInfo.as:163`). Faithful, and unreadable across 28
+   *          tiles, because the panel is nowhere near the one being pointed at.
+   *   T181 — the cursor card that replaced it, which follows the pointer and
+   *          therefore **covers the grid** — and a dense grid you sweep to
+   *          compare things is the one place a floating panel cannot go. The
+   *          text moved into the window instead (`A39`).
+   *
+   * So hover is a CSS state here and nothing else. Driven as a pair on the
+   * same tile, because "hover does not change the window" is satisfied by a
+   * screen where clicking does not either.
    */
   it('changes the window on click and not on hover', () => {
     enterShop();
@@ -117,6 +124,9 @@ describe('the shop screen', () => {
       fireEvent.mouseEnter(tiles[1]);
     });
     expect(document.querySelector('.shop-detail__name')?.textContent).toBe('Cannon');
+    // And no floating card, which is the T181 half. Portalled to `<body>`, so
+    // queried on the document rather than on the render container.
+    expect(document.querySelector('.cursor-tip')).toBeNull();
 
     act(() => {
       tiles[1].click();
@@ -124,55 +134,21 @@ describe('the shop screen', () => {
     expect(document.querySelector('.shop-detail__name')?.textContent).toBe('Flame Thrower');
   });
 
-  it('shows the name, level and price in the hover card', () => {
+  it('carries the AS3 blurb in the window, since there is no tooltip to hold it', () => {
+    // 28 generated strings whose only consumer was the hover panel. Dropping
+    // the panel without rehousing them would have left them rendering nowhere,
+    // which is the "ported but unwired" state this repo tracks separately.
     enterShop();
-    enterShop();
-    publish([row({ id: 'Cannon', name: 'Cannon', level: 3, maxLevel: 10, cost: 100 })]);
-
+    publish([row({ id: 'Cannon', name: 'Cannon', category: 'primary', index: 0 })]);
     render(<UpgradesScreen />);
 
-    const tile = document.querySelector<HTMLButtonElement>('.shop-tile')!;
-    expect(document.querySelector('.cursor-tip')).toBeNull();
-
-    act(() => {
-      fireEvent.mouseEnter(tile);
-    });
-
-    // Portalled to `<body>`, so deliberately not inside the render container.
-    const tip = document.querySelector('.cursor-tip')!;
-    expect(tip.querySelector('.cursor-tip__title')?.textContent).toBe('Cannon');
-    expect(tip.querySelector('.cursor-tip__mode')?.textContent).toBe('Level 3 / 10');
-    expect(tip.querySelector('.cursor-tip__price')?.textContent).toBe('$100');
-
-    act(() => {
-      fireEvent.mouseLeave(tile);
-    });
-    expect(document.querySelector('.cursor-tip')).toBeNull();
-  });
-
-  it('says fully upgraded rather than printing a null price', () => {
-    // `cost === null` is the AS3's maxed state (`:110`'s `levelsArray[...] != 0`
-    // gate). Pinned beside the priced case above, because a card that renders
-    // `$null` still passes a "the price line exists" check.
-    enterShop();
-    enterShop();
-    publish([row({ id: 'Cannon', name: 'Cannon', cost: null })]);
-    render(<UpgradesScreen />);
-    act(() => {
-      fireEvent.mouseEnter(document.querySelector('.shop-tile')!);
-    });
-    expect(document.querySelector('.cursor-tip__price')?.textContent).toBe('Fully upgraded');
-  });
-
-  it('names an unowned upgrade as not owned rather than level 0', () => {
-    enterShop();
-    enterShop();
-    publish([row({ id: 'Flame', name: 'Flame Thrower', owned: false, level: 0 })]);
-    render(<UpgradesScreen />);
-    act(() => {
-      fireEvent.mouseEnter(document.querySelector('.shop-tile')!);
-    });
-    expect(document.querySelector('.cursor-tip__mode')?.textContent).toBe('Not owned');
+    const blurb = document.querySelector('.shop-detail__blurb');
+    expect(blurb).not.toBeNull();
+    expect(blurb!.textContent?.length ?? 0).toBeGreaterThan(0);
+    // Not the fallback: `descriptionFor` returns the row's *name* when the
+    // table has no entry, so a lookup that silently missed would still fill
+    // this element and pass a "has text" check.
+    expect(blurb!.textContent).not.toBe('Cannon');
   });
 
   it('draws every layer of a row`s tile', () => {
@@ -735,7 +711,13 @@ describe('the shop is built not to scroll', () => {
     // assertion does not depend on how the three are wrapped across lines.
     // Anchored on the last selector in the group, so the assertion does not
     // depend on how the list is wrapped across lines.
-    expect(css).toMatch(/\.shop-tile--on\.shop-tile--equipped \{[^}]*border-color:\s*#fff/);
+    // The ring itself, and it is the bestiary's blue rather than a white one
+    // — see the rule's own comment for why the "as in the original" that used
+    // to justify the white was wrong. `glassSurfaces.test.ts` is what holds
+    // the two screens identical; this only checks the specificity group wins.
+    expect(css).toMatch(
+      /\.shop-tile--on\.shop-tile--equipped \{[^}]*border-color:\s*rgb\(150 200 255/,
+    );
     // Equipped is a CSS state now, not two extracted shapes. `A32`.
     expect(css).toMatch(/\.shop-tile--equipped \{[^}]*box-shadow:[^}]*rgb\(255 0 0/);
   });

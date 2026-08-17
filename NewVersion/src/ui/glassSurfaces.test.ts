@@ -97,6 +97,58 @@ describe('the glass tile surface', () => {
     }
   });
 
+  /*
+   * ── The shop and the bestiary agree on hover and on selection ────────────
+   *
+   * Asked for by name: the bestiary's tile states were the ones that read as
+   * "juicy", and the shop's were to match them *exactly*. Comparing the
+   * declarations is the only way that survives a later edit to one screen —
+   * the two are never on screen together, which is how the base ramp drifted
+   * three ways in the first place.
+   *
+   * The world card is deliberately not in this comparison: it is a wide card
+   * with a terrain strip and no selected state at all, so it shares the
+   * surface and not the states. Saying so here stops the next person "fixing"
+   * its absence.
+   */
+  const PAIRED = [
+    ['.shop-tile:hover', '.bestiary-tile:hover'],
+    ['.shop-tile:active', '.bestiary-tile:active'],
+  ] as const;
+
+  it.each(PAIRED)('%s matches %s declaration for declaration', (a, b) => {
+    expect(squash(block(a)).replace(a, '')).toBe(squash(block(b)).replace(b, ''));
+  });
+
+  it('gives the selected tile the same blue ring and bloom on both screens', () => {
+    // The shop's is a four-selector group so it out-specifies `--affordable`,
+    // `--locked` and `--equipped`; the bestiary has no competing states, so it
+    // is one selector. The *declarations* are what must agree, so the
+    // selectors are stripped before comparing.
+    // Anchored on the *last* selector in the shop's group — `block` keys on
+    // `<selector> {`, and only the last one is followed by the brace.
+    const declarations = (selector: string): string => {
+      const text = squash(block(selector));
+      return text.slice(text.indexOf('{'));
+    };
+    const shop = declarations('.shop-tile--on.shop-tile--equipped');
+    const bestiary = declarations('.bestiary-tile--on');
+    expect(shop).toBe(bestiary);
+
+    // And the counterpart, because two empty blocks are also equal: the ring
+    // is actually the blue one rather than whatever was there before.
+    expect(shop).toMatch(/border-color: rgb\(150 200 255 \/ 85%\)/);
+    expect(shop).toMatch(/0 0 0\.9em rgb\(120 190 255 \/ 55%\)/);
+  });
+
+  it('keeps the shop`s selected ring winning over its other tile states', () => {
+    // Only the shop has competing states, and the group is what makes the
+    // selection beat them by specificity rather than by source order.
+    for (const other of ['affordable', 'locked', 'equipped']) {
+      expect(cssCode).toContain(`.shop-tile--on.shop-tile--${other}`);
+    }
+  });
+
   it('keeps transform out of the transition, so a re-added one cannot animate', () => {
     // The declaration that made the jump smooth. Leaving it behind is how the
     // property comes back: a later edit adds `transform` to a hover rule and
