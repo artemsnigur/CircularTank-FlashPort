@@ -14,110 +14,13 @@ import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
 import { ScreenShell } from '../ScreenShell';
 import { EnemyTile } from '../EnemyTile';
-import { LEVELS } from '../../game/levels/levelData';
-import { Difficulties as DIFFICULTIES, Worlds } from '../../game/config/constants';
+import { Difficulties as DIFFICULTIES } from '../../game/config/constants';
 import { MAX_LEVEL_VALUE } from '../../game/levels/levelProgress';
 import { previewForLevel } from '../../game/levels/levelPreview';
 import { useInfoText } from '../useInfoText';
 import type { LevelListing } from '../../state/gameStore';
 import type { Difficulty } from '../../game/config/constants';
-
-/**
- * DEV-AID: jump to any level in any world.
- *
- * `LevelSelectScene` publishes world 1 only (`SELECTED_WORLD`) and gates each
- * level on the previous one being cleared, which is faithful but makes most of
- * the game unreachable for a visual pass — level 1-9, the first Boss level,
- * needs eight clears first.
- *
- * Two deliberate choices:
- *
- *  - It emits the same `ui:start-game` the real grid emits, rather than
- *    inventing a second route into `GameplayScene`. The Test buttons on the
- *    enemies screen already work this way.
- *  - It sets `sandbox`, so nothing it launches can reach the save. That is what
- *    makes it safe to jump into world 7 without inventing progress the player
- *    never made.
- *
- * Reading `LEVELS` in React is the one rule bent here: screens normally take
- * game data from a scene via the store. The alternative is teaching
- * `LevelSelectScene` to publish nine worlds purely for a dev affordance, which
- * would put dev-only branching in production scene code. `EnemiesScreen` bends
- * the same rule for the same reason.
- *
- * Stripped from production builds by the `import.meta.env.DEV` guard at its
- * only call site.
- */
-function DevLevelJump(): React.ReactElement {
-  const difficulty = useGameStore((s) => s.difficulty);
-  const [world, setWorld] = useState(1);
-  const [equipped, setEquipped] = useState(true);
-  const levels = LEVELS[world - 1] ?? [];
-
-  return (
-    <section className="dev-jump">
-      <h3 className="dev-jump__title">Dev · jump to any level</h3>
-
-      <label className="dev-jump__equip">
-        <input
-          type="checkbox"
-          checked={equipped}
-          onChange={(e) => setEquipped(e.target.checked)}
-        />
-        {/* Default on: arriving at a late level with the starting Cannon reads
-            as "the boss will not die" when it is really 31s of perfect fire. */}
-        <span>Arrive fully upgraded</span>
-      </label>
-
-      <div className="dev-jump__worlds">
-        {LEVELS.map((_, index) => {
-          const n = index + 1;
-          return (
-            <button
-              key={n}
-              type="button"
-              className={`dev-jump__world${n === world ? ' dev-jump__world--on' : ''}`}
-              aria-pressed={n === world}
-              onClick={() => setWorld(n)}
-            >
-              {n}
-            </button>
-          );
-        })}
-      </div>
-
-      <ul className="dev-jump__grid">
-        {levels.map((spec, index) => {
-          const level = index + 1;
-          return (
-            <li key={level}>
-              <button
-                type="button"
-                className={`dev-jump__cell dev-jump__cell--${spec.mode.toLowerCase()}`}
-                title={`World ${world} level ${level} — ${spec.mode}, ${spec.roomWidth}x${spec.roomHeight}`}
-                aria-label={`World ${world}, level ${level}, ${spec.mode}`}
-                onClick={() =>
-                  GameEvents.emit('ui:start-game', { world, level, difficulty, sandbox: true, equipped })
-                }
-              >
-                <span className="dev-jump__number">{level}</span>
-                <span className="dev-jump__mode">{spec.mode}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-
-      <p className="screen__hint">
-        {Worlds[world - 1] ?? `World ${world}`} · {levels.length} levels. Runs launched here
-        are sandboxed: no money banked, no result recorded, no change to your save.
-        {equipped
-          ? ' Upgrades are maxed for the run only and are never written back.'
-          : ' Using your real upgrades — a late level may be unwinnable at low damage.'}
-      </p>
-    </section>
-  );
-}
+import type { MedalTier } from '../../game/levels/medalTiers';
 
 /**
  * The three difficulty buttons — `ButtonDifficultyEasy/Medium/Hard`.
@@ -166,17 +69,34 @@ function DifficultyPicker(): React.ReactElement {
 }
 
 /**
- * Medals earned, as seen from the current difficulty.
+ * Medals earned, coloured by the difficulty each was taken on.
  *
- * The count is per-difficulty by the cascade in `getLevelValues`, so the same
- * level reads 3 on Easy and 0 on Hard until it has been beaten on Hard. That is
- * the whole reason the row carries a value rather than a boolean.
+ * ── Not the current difficulty's count ────────────────────────────────────
+ * This used to draw `value` — medals as seen from the selected difficulty —
+ * which made a level beaten 3-medal on Easy read as *zero* while `HARD` was
+ * set. The AS3 never consults the difficulty buttons here: `:841` reads the
+ * whole values triple and `:849-910` colours each medal by the highest tier
+ * that reached its slot, so one level can show gold, silver and bronze
+ * together. `medalTiers` is that rule; the scene sends the result.
+ *
+ * `value` is still on the row and still per-difficulty — it answers "how far
+ * are you at the setting you chose", which the tally line and the accessible
+ * name want. Two questions, two fields.
  */
-function Medals({ value }: { value: number }): React.ReactElement {
+function Medals({ medals }: { medals: readonly MedalTier[] }): React.ReactElement {
   return (
     <span className="level-grid__medals" aria-hidden="true">
-      {'★'.repeat(value)}
-      {'☆'.repeat(MAX_LEVEL_VALUE - value)}
+      {Array.from({ length: MAX_LEVEL_VALUE }, (_, i) => {
+        const tier = medals[i];
+        return (
+          <span
+            key={i}
+            className={`level-grid__medal${tier ? ` level-grid__medal--${tier}` : ''}`}
+          >
+            {tier ? '★' : '☆'}
+          </span>
+        );
+      })}
     </span>
   );
 }
@@ -334,7 +254,7 @@ function LevelCell({
       >
         <span className="level-grid__number">{entry.unlocked ? entry.level : '🔒'}</span>
         {entry.unlocked && <span className="level-grid__mode">{entry.mode}</span>}
-        {entry.unlocked && <Medals value={entry.value} />}
+        {entry.unlocked && <Medals medals={entry.medals} />}
       </button>
     </li>
   );
@@ -493,16 +413,14 @@ export function LevelSelectScreen(): React.ReactElement | null {
       */}
       {showingPicker ? (
         <div className="levels levels--picker">
-          <div className="levels__heading">
-            <button
-              type="button"
-              className="chrome-pill chrome-pill--dark"
-              onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
-            >
-              ‹ Back
-            </button>
-            <h2 className="screen__subtitle">Choose a world</h2>
-          </div>
+          {/*
+            No way back out of the picker, which is the original's own shape:
+            `ScreenLevelSelect` has `bWorldSelect` for going *up* from a grid
+            and nothing for leaving the world list — the bottom bar carries
+            that. A second exit beside the bar's Menu button was the port's
+            addition and is gone.
+          */}
+          <h2 className="screen__subtitle">Choose a world</h2>
           <DifficultyPicker />
           <WorldPicker />
           <p className="screen__hint">
@@ -567,7 +485,6 @@ export function LevelSelectScreen(): React.ReactElement | null {
         </div>
       )}
 
-      {import.meta.env.DEV && <DevLevelJump />}
     </ScreenShell>
   );
 }

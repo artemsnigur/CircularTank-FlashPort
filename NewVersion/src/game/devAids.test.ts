@@ -80,7 +80,9 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
   // T100: a fresh profile knows only `Basic`, which has no resistances, so the
   // bestiary's 16 typed badges cannot be photographed without one.
   'src/game/scenes/BestiaryScene.ts': ['reveal the whole bestiary via ?known=all'],
-  'src/ui/screens/LevelSelectScreen.tsx': ['jump to any level'],
+  // `LevelSelectScreen.tsx` left this list in T172. The dev level jump is
+  // gone — it took the whole body at short viewports and pushed SELECT
+  // WORLD off the screen. The enemies screen still reaches every level.
   'src/ui/screens/UpgradesScreen.tsx': ['catalogue top-up'],
   'src/ui/DiagnosticsPanel.tsx': ['pipeline diagnostics panel'],
   'src/game/events/GameEvents.ts': ['dev money event'],
@@ -158,7 +160,8 @@ describe('dev aids are enumerable', () => {
     // into "it renders at (464, 224) at double size, because a
     // `setScrollFactor(0)` object is placed in camera-pixel space" in a single
     // run, which no amount of reading the scene had managed.
-    // 37 since T148 — the off-screen markers' counts and gate inputs.
-    expect(total).toBe(37);
+    // 36 since T172 — the level jump went with the screen's dev section.
+    // It was 37 from T148, when the off-screen markers added their counts.
+    expect(total).toBe(36);
   });
 });

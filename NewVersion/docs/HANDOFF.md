@@ -292,7 +292,12 @@ needs to know before touching it:
   takes the levels branch; the picker is somewhere you go via `SELECT WORLD`.
   The rules live in `levels/levelSelectEntry.ts` because a scene cannot be
   constructed in a test — that is why the original defect was invisible.
-- Divergences from the restyle are `A21`-`A33`.
+- **Level medals are coloured per medal, not per level.** The highest tier that
+  reached each slot takes it, so one tile can show gold, silver and bronze
+  (`medalTiers.ts`, `A34`). The count comes from the values triple and never
+  from the selected difficulty — a level taken on Easy still shows its medals
+  while `HARD` is set.
+- Divergences from the restyle are `A21`-`A34`.
 
 **jsdom cannot see any of this.** Layout bugs here are found by measuring boxes
 in a real browser — see the trap below — and the visual judgement is the

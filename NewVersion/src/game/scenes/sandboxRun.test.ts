@@ -149,7 +149,9 @@ describe('every dev entry point sets it', () => {
    */
   const entries: [string, string][] = [
     ['src/ui/screens/EnemiesScreen.tsx', 'the per-type Test buttons'],
-    ['src/ui/screens/LevelSelectScreen.tsx', 'the dev level jump'],
+    // `LevelSelectScreen.tsx` left in T172 for the same reason the menu did:
+    // its dev level jump is gone, so there is no entry point there to guard.
+    // Its counterpart is below.
   ];
 
   it.each(entries)('%s (%s) emits sandbox: true', (path) => {
@@ -169,8 +171,19 @@ describe('every dev entry point sets it', () => {
     expect(source).not.toContain('sandbox: true');
   });
 
-  it('the dev jump is behind the DEV guard', () => {
+  /**
+   * Level select's two `ui:start-game` emitters are the grid tile and PLAY
+   * LEVEL — both the player's, both un-sandboxed. The dev jump that used to
+   * sit there is gone (T172), so, as with the menu, this is what keeps the
+   * shortened list honest: a third emitter would be a dev route the list no
+   * longer covers.
+   */
+  it('level select starts only real runs', () => {
     const source = readFileSync('src/ui/screens/LevelSelectScreen.tsx', 'utf8');
-    expect(source).toContain('{import.meta.env.DEV && <DevLevelJump />}');
+    const starts = source.match(/ui:start-game/g) ?? [];
+
+    expect(starts).toHaveLength(2);
+    expect(source).not.toContain('sandbox: true');
+    expect(source).not.toContain('import.meta.env.DEV');
   });
 });

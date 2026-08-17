@@ -118,6 +118,8 @@ export interface LevelListing {
     unlocked: boolean;
     /** Medals 0-3 at the current difficulty — see `levelUnlockStates`. */
     value: number;
+    /** The tier of each medal drawn, best first — `medalTiers`. */
+    medals: Array<'gold' | 'silver' | 'bronze'>;
   }>;
 }
 

@@ -346,6 +346,15 @@ export interface GameEventMap {
       unlocked: boolean;
       /** Medals 0-3 at the current difficulty; see `levelUnlockStates`. */
       value: number;
+      /**
+       * The tier of each medal drawn, best first — `medalTiers`.
+       *
+       * Not derivable from `value`: the AS3 colours each medal by the highest
+       * difficulty that reached *that slot*, so one level can show gold,
+       * silver and bronze together, and the count comes from the best tier
+       * rather than from the selected difficulty.
+       */
+      medals: Array<'gold' | 'silver' | 'bronze'>;
     }>;
   };
   'ui:pause': { paused: boolean };

@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LevelSelectScreen } from './LevelSelectScreen';
 import { GameEvents } from '../../game/events/GameEvents';
 import { useGameStore } from '../../state/gameStore';
+import type { LevelListing } from '../../state/gameStore';
 
 const initial = useGameStore.getState();
 
@@ -28,14 +29,38 @@ const initial = useGameStore.getState();
  * it called level 2 a Flag level, and the panel correctly said Normal.
  * World 1 runs Normal, Normal, Flag, Normal, Flag.
  */
-const LISTING = {
+const LISTING: LevelListing = {
   world: 1,
   worldName: 'Desert',
   levels: [
-    { level: 1, mode: 'Normal', cleared: true, unlocked: true, value: 3 },
-    { level: 2, mode: 'Normal', cleared: true, unlocked: true, value: 2 },
-    { level: 3, mode: 'Flag', cleared: false, unlocked: true, value: 0 },
-    { level: 4, mode: 'Normal', cleared: false, unlocked: false, value: 0 },
+    // `medals` is what the tiles draw and `value` is the per-difficulty count;
+    // level 2 carries a mixed row on purpose, because a component that painted
+    // every medal one colour would pass a uniform fixture.
+    {
+      level: 1,
+      mode: 'Normal',
+      cleared: true,
+      unlocked: true,
+      value: 3,
+      medals: ['bronze', 'bronze', 'bronze'],
+    },
+    {
+      level: 2,
+      mode: 'Normal',
+      cleared: true,
+      unlocked: true,
+      value: 2,
+      medals: ['gold', 'silver', 'bronze'],
+    },
+    { level: 3, mode: 'Flag', cleared: false, unlocked: true, value: 0, medals: [] },
+    {
+      level: 4,
+      mode: 'Normal',
+      cleared: false,
+      unlocked: false,
+      value: 0,
+      medals: [],
+    },
   ],
 };
 
@@ -338,5 +363,78 @@ describe('the level layout is built not to scroll', () => {
     for (const tier of ['easy', 'medium', 'hard']) {
       expect(css, tier).toContain(`.difficulty__button--${tier}.difficulty__button--on {`);
     }
+  });
+});
+
+/**
+ * ── The medals, the dev tool and the picker's exit — T172 ──────────────────
+ */
+describe('the medals on a tile', () => {
+  const medalsOf = (level: number): string[] =>
+    [
+      ...document
+        .querySelector(`[aria-label^="Level ${level},"] .level-grid__medals`)!
+        .querySelectorAll('.level-grid__medal'),
+    ].map((n) => /level-grid__medal--(\w+)/.exec(n.className)?.[1] ?? '');
+
+  /**
+   * **Coloured per medal, not per level** — `:849-910`. Level 2's fixture is
+   * gold/silver/bronze on purpose: a component that painted the whole row one
+   * colour would pass any uniform fixture, and the AS3's rule is exactly that
+   * the three can differ.
+   */
+  it('paints each medal with its own tier', () => {
+    render(<LevelSelectScreen />);
+    expect(medalsOf(2)).toEqual(['gold', 'silver', 'bronze']);
+  });
+
+  it('paints a single-tier row uniformly', () => {
+    // The counterpart: mixed rows working does not prove uniform ones do.
+    render(<LevelSelectScreen />);
+    expect(medalsOf(1)).toEqual(['bronze', 'bronze', 'bronze']);
+  });
+
+  /**
+   * Three glyphs always, so the tile does not change height between an earned
+   * and an unearned level. The unearned ones carry no tier class.
+   */
+  it('keeps three slots when none are earned', () => {
+    render(<LevelSelectScreen />);
+    expect(medalsOf(3)).toEqual(['', '', '']);
+  });
+
+  /**
+   * **The regression this replaced.** The tiles used to draw `value`, the count
+   * at the *selected* difficulty, so a level taken 3-medal on Easy read as zero
+   * while `HARD` was set. The fixture's difficulty is Medium and level 1's
+   * `value` is 3 — so a component still reading `value` would coincidentally
+   * pass the count assertions above. Changing the difficulty must not move the
+   * medals at all.
+   */
+  it('ignores the selected difficulty', () => {
+    useGameStore.setState({ difficulty: 'Hard' });
+    render(<LevelSelectScreen />);
+    expect(medalsOf(1)).toEqual(['bronze', 'bronze', 'bronze']);
+  });
+});
+
+describe('what is no longer on the screen', () => {
+  it('has no dev level jump', () => {
+    // Removed outright in T172: it broke the layout on a dev server, taking the
+    // whole body at short viewports and pushing SELECT WORLD off. Asserted as
+    // an absence so it does not quietly return.
+    const { container } = render(<LevelSelectScreen />);
+    expect(container.querySelector('.dev-jump')).toBeNull();
+    expect(screen.queryByText(/jump to any level/i)).toBeNull();
+  });
+
+  it('offers no way out of the world picker but the bottom bar', () => {
+    // `ScreenLevelSelect` has `bWorldSelect` for going *up* from a grid and
+    // nothing for leaving the world list. The port's extra Back was a second
+    // exit beside the bar's Menu button.
+    useGameStore.setState({ worldList: { selected: 0, worlds: [] } });
+    render(<LevelSelectScreen />);
+
+    expect(screen.queryByRole('button', { name: /back/i })).toBeNull();
   });
 });

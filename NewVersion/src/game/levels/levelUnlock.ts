@@ -44,6 +44,8 @@ import type { ProgressTable } from './levelProgress';
 import type { Difficulty } from '../config/constants';
 import { LEVELS, levelsInWorld, WORLD_COUNT } from './levelData';
 import type { LevelMode } from './levelData';
+import { medalTiers } from './medalTiers';
+import type { MedalTier } from './medalTiers';
 
 /**
  * A progress table in the role of "what some rule reads".
@@ -294,8 +296,21 @@ export interface LevelUnlockState {
    * Medium the best of the first two, Hard only the first. That is why the row
    * carries a *value* and not just `cleared`: the same level shows 3 on Easy
    * and 0 on Hard until it has been beaten on Hard.
+   *
+   * **Not what colours the medals** — see `medals` below, and `medalTiers.ts`
+   * for why the AS3 does not consult the difficulty for those at all.
    */
   value: number;
+  /**
+   * One entry per medal shown, best tier first — `medalTiers`.
+   *
+   * Separate from `value` because they answer different questions: `value` is
+   * "how far are you at the setting you have chosen", which the tally line and
+   * the accessible name want; this is "what does the tile draw", which
+   * `:849-910` derives from all three tiers at once and never from the
+   * selected difficulty.
+   */
+  medals: MedalTier[];
 }
 
 /**
@@ -345,8 +360,9 @@ export function levelUnlockStates(
       mode: spec.mode,
       cleared: isLevelCleared(view, world, level),
       unlocked: isLevelUnlocked(view, world, level),
-      // The only field that lags — see `display` above.
+      // The only fields that lag — see `display` above.
       value: getLevelValues(display, world, level, difficulty),
+      medals: medalTiers(display[world - 1]?.[level - 1] ?? [0, 0, 0]),
     };
   });
 }

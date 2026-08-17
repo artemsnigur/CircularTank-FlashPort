@@ -599,12 +599,37 @@ body {
 /* Always three glyphs, so a cell does not change height between an earned and
    an unearned level. */
 .level-grid__medals {
-  display: block;
+  display: flex;
+  gap: 2cqw;
   font-size: 17cqw;
   line-height: 1;
-  letter-spacing: 0.04em;
-  color: #ffc44d;
-  text-shadow: 0 0 0.4em rgb(255 180 40 / 45%);
+}
+
+/*
+ * **Each medal is coloured on its own** — `:849-910` gives a slot to the
+ * highest difficulty that reached it, so a level can show gold, silver and
+ * bronze in one row. `medalTiers.ts` derives which; this only paints them.
+ *
+ * An unearned slot stays as a hollow glyph rather than disappearing, so the
+ * row keeps its width and the cell keeps its height.
+ */
+.level-grid__medal {
+  color: rgb(255 255 255 / 22%);
+}
+
+.level-grid__medal--gold {
+  color: #ffd23f;
+  text-shadow: 0 0 0.45em rgb(255 200 50 / 60%);
+}
+
+.level-grid__medal--silver {
+  color: #dfe8f0;
+  text-shadow: 0 0 0.45em rgb(220 235 250 / 55%);
+}
+
+.level-grid__medal--bronze {
+  color: #d98e33;
+  text-shadow: 0 0 0.45em rgb(215 130 40 / 55%);
 }
 
 /* `ButtonWorldSelect` — centred under the grid, as the original places it. */
