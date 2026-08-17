@@ -44,7 +44,7 @@
  * `damageTypeLabel` transcribes the AS3's own lookup — but the icon is not
  * extracted, so the line renders without it.
  */
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
@@ -160,26 +160,51 @@ function EquipControls({ row }: { row: ShopRow }): React.ReactElement | null {
 /**
  * `SLOT 1 | SLOT 2` — the two primary slots and what is in them.
  *
- * `ScreenUpgrades` draws these as a pair of readouts beside the weapon grid
- * (`weaponSlotImage1/2` at `:570-577`), and they are the answer to "what am I
- * actually taking into a level", which the selected tile can only give one at
- * a time.
+ * `ScreenUpgrades` draws these as `weaponSlotImage1` and `weaponSlotImage2` at
+ * (284, 178) and (340, 178), with `bWeaponSwitch` between them at 312
+ * (`:570-579`) — so: two labelled wells holding the equipped weapon's own art,
+ * with a small marker centred between the pair. The port draws that marker as
+ * a red diamond and does not wire it: `bWeaponSwitch` swaps the two slots, and
+ * nothing in `ShopCatalogue` carries a swap. Noted at the element rather than
+ * in a report, which is where someone will be standing when it matters.
  *
- * **A readout, not a control.** Equipping still happens in the detail window,
- * where the weapon being equipped is named; a second place to change it would
- * be a second rule about what an empty slot means. `ScreenGame.as`'s own
- * `equippedWeapons` is likewise displayed here and set elsewhere.
+ * **A readout, not a control.** Equipping happens in the detail window, where
+ * the weapon being equipped is named; a second place to change it would be a
+ * second rule about what an empty slot means.
+ *
+ * The weapon's *name* is present but visually hidden. The original shows only
+ * the picture, and matching that would leave a screen reader with two wells
+ * called "Slot 1" and "Slot 2" and no way to tell what is in either.
  */
 function SlotSummary({ rows }: { rows: ShopRow[] }): React.ReactElement {
-  const inSlot = (slot: 1 | 2): string => rows.find((r) => r.slot === slot)?.name ?? 'Empty';
+  const inSlot = (slot: 1 | 2): ShopRow | null => rows.find((r) => r.slot === slot) ?? null;
 
   return (
     <dl className="shop__slots">
-      {([1, 2] as const).map((slot) => (
-        <div key={slot} className="shop__slot">
-          <dt>Slot {slot}</dt>
-          <dd>{inSlot(slot)}</dd>
-        </div>
+      {([1, 2] as const).map((slot, i) => (
+        <Fragment key={slot}>
+          {i === 1 && <span className="shop__slots-mark" aria-hidden="true" />}
+          <div className="shop__slot">
+            <dt>Slot {slot}</dt>
+            <dd>
+              {inSlot(slot) === null ? (
+                <>
+                  <span className="shop__slot-empty" aria-hidden="true" />
+                  <span className="visually-hidden">Empty</span>
+                </>
+              ) : (
+                <>
+                  <UpgradeIcon
+                    layers={inSlot(slot)!.tile}
+                    label={inSlot(slot)!.name}
+                    size="var(--slot-icon)"
+                  />
+                  <span className="visually-hidden">{inSlot(slot)!.name}</span>
+                </>
+              )}
+            </dd>
+          </div>
+        </Fragment>
       ))}
     </dl>
   );
@@ -366,6 +391,7 @@ export function UpgradesScreen(): React.ReactElement | null {
     <ScreenShell
       title="Upgrades"
       titleClip="TitleUpgrades"
+      typeTitle
       nav="Upgrades"
       className="screen--shop"
       /*

@@ -1492,15 +1492,42 @@ code {
    */
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  /*
+   * **A size container, so the tiles can measure the space they actually
+   * have.** Sized in `vh`, the tile was too big on short viewports and too
+   * small on tall ones — because the bar and the nav are near-fixed, so they
+   * eat 29% of a 480px window and only 15% of a 1440px one. `vh` cannot see
+   * that; `cqh` is a share of this box, which is the box the grid lives in.
+   * Measured: 11.5vh overflowed five viewports by 13-62px and fitted three.
+   */
+  container-type: size;
 }
 
 .shop {
-  --tile: clamp(2.25rem, min(6.2vh, 4.6vw), 4.75rem);
+  /*
+   * **The tile takes the smaller of a height and a width share.** Which one
+   * binds changes with the window: on a 1920x1080 desktop it is the height —
+   * five tile rows must fit — and on a narrow tall one it is the width. Taking
+   * the minimum means the grid is never sized by the dimension with room to
+   * spare, which is what produced tiny tiles beside a wide empty column.
+   *
+   * The units are `cqh`/`cqw` — shares of the scroll container, not of the
+   * window. See the container note on `.screen--shop .screen-shell__body`:
+   * the bar and nav take a much larger fraction of a short viewport, so a
+   * `vh` share overshoots there and undershoots on a tall screen.
+   *
+   * `13cqh` is measured: five tile rows, three headers and their gaps come to
+   * about 6.1 tiles of height, so 13% leaves roughly a sixth of the container
+   * spare at every size. The `11rem` ceiling stops a 4K display sizing tiles
+   * off width and overflowing the column it was trying to fill.
+   */
+  --tile: clamp(2rem, min(13cqh, 9cqw), 11rem);
   --tile-icon: calc(var(--tile) * 0.74);
   --tile-gap: calc(var(--tile) * 0.14);
   /* The detail window, and the one lever its insides scale from — the same
      construction as the menu card's `--card-w`. */
-  --pane: clamp(14rem, 26vw, 24rem);
+  --pane: clamp(14rem, 24vw, 26rem);
+  --slot-icon: calc(var(--tile) * 0.72);
 
   display: grid;
   /* ~65 / 35, expressed as "everything else, then the window" so the window
@@ -1509,6 +1536,16 @@ code {
   gap: clamp(0.5rem, 1.6vw, 1.5rem);
   height: 100%;
   min-height: 0;
+  /*
+   * **The ceiling that closes the void.** Without it the two columns are
+   * pinned to opposite edges of the viewport: measured at 2560x1440, that put
+   * 1635px of bare ground between a 76px grid and the window. A `max-width`
+   * with auto margins keeps the pair together and moves the slack outside
+   * them, where it reads as margin rather than as a hole.
+   */
+  width: 100%;
+  max-width: 1600px;
+  margin-inline: auto;
 }
 
 /* ── Left: the catalogue ──────────────────────────────────────────────────
@@ -1517,7 +1554,13 @@ code {
    `LevelGuide` at 258 — both to the right of a grid that ends around 230). */
 .shop__catalogue {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  /*
+   * The grids flex, the aside takes what it needs. The other way round —
+   * `max-content minmax(0, 1fr)` — gave the grids their full width and left
+   * the aside whatever remained, which at 2560 was 143px for a widget wanting
+   * ~350: the slot wells were squeezed rather than the empty ground.
+   */
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: clamp(0.5rem, 1.5vw, 1.75rem);
   align-items: start;
   min-height: 0;
@@ -1539,7 +1582,7 @@ code {
 .shop-group__title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(0.6rem, 1.55vh, 0.9rem);
+  font-size: clamp(0.7rem, calc(var(--tile) * 0.26), 1.5rem);
   font-weight: 700;
   letter-spacing: 0.1em;
   /* Sentence case in the markup so a screen reader is not spelling it out;
@@ -1559,6 +1602,10 @@ code {
   /* Six across — `ScreenUpgrades.as:440-467` places them at `36 * 1..6`. */
   grid-template-columns: repeat(6, var(--tile));
   gap: var(--tile-gap);
+  /* The tiles are a fixed size, so the column will usually be wider than they
+     are. Centring puts that slack on both sides instead of pooling it into
+     one gap between the grid and the aside. */
+  justify-content: center;
 }
 
 .shop-grid__cell {
@@ -1675,33 +1722,91 @@ code {
   min-height: 0;
 }
 
+/*
+ * The two primary slots — `weaponSlotImage1/2` at (284, 178) and (340, 178),
+ * with `bWeaponSwitch` centred between them at 312 (`:570-579`).
+ *
+ * A labelled well holding the equipped weapon's own art, not its name: the
+ * original shows the picture, and at this size a name would not fit. The name
+ * is in the DOM `.visually-hidden`, so the widget stays readable aloud.
+ */
 .shop__slots {
   display: flex;
-  gap: var(--space-2);
+  align-items: stretch;
+  /* The footer is a flex column, so without this the box stretches to the
+     column's width — which the level guide sets — and two small wells sit
+     marooned in a 351px panel. `center` sizes it to its own content. */
+  align-self: center;
+  justify-content: center;
+  gap: calc(var(--tile) * 0.08);
   margin: 0;
+  padding: calc(var(--tile) * 0.14);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: calc(var(--tile) * 0.2);
+  background: rgb(0 0 0 / 42%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 14%),
+    0 4px 12px rgb(0 0 0 / 45%);
+  backdrop-filter: blur(6px);
 }
 
 .shop__slot {
-  flex: 1;
-  padding: calc(var(--tile) * 0.1) calc(var(--tile) * 0.16);
-  border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: 10px;
-  background: rgb(255 255 255 / 6%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--tile) * 0.06);
   font-family: var(--font-display);
-  text-align: left;
 }
 
 .shop__slot dt {
-  font-size: clamp(0.5rem, 1.2vh, 0.7rem);
-  letter-spacing: 0.12em;
+  font-size: calc(var(--tile) * 0.2);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-faint);
+  color: var(--steel-000);
+  text-shadow: 0 1px 0 rgb(0 0 0 / 85%);
+  white-space: nowrap;
 }
 
 .shop__slot dd {
+  display: grid;
+  place-items: center;
   margin: 0;
-  font-size: clamp(0.6rem, 1.4vh, 0.85rem);
-  color: var(--text);
+  width: var(--tile);
+  height: var(--tile);
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 50%;
+  background-image: radial-gradient(
+    circle at 50% 32%,
+    rgb(255 255 255 / 16%),
+    rgb(0 0 0 / 45%) 70%
+  );
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+
+/* An empty slot reads as an unfilled socket rather than as missing art. */
+.shop__slot-empty {
+  width: 40%;
+  height: 40%;
+  border-radius: 50%;
+  border: 1px dashed rgb(255 255 255 / 22%);
+}
+
+/*
+ * `bWeaponSwitch`, as a red diamond between the pair.
+ *
+ * **Decorative here.** The original's button swaps the two slots; nothing in
+ * `ShopCatalogue` carries a swap, so this is the marker without the action —
+ * recorded at `SlotSummary` in the screen, where someone will be standing.
+ */
+.shop__slots-mark {
+  align-self: center;
+  width: calc(var(--tile) * 0.2);
+  height: calc(var(--tile) * 0.2);
+  flex: none;
+  transform: rotate(45deg);
+  background: linear-gradient(135deg, #ff6b6b, var(--accent));
+  border: 1px solid rgb(0 0 0 / 45%);
+  box-shadow: 0 0 calc(var(--tile) * 0.12) color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 /* ── Right: the detail window ─────────────────────────────────────────────
@@ -2499,6 +2604,30 @@ code {
   width: auto;
 }
 
+/*
+ * The header set in type — `typeTitle` on `ScreenShell`, opt-in per screen.
+ *
+ * The bar loses its black band with it: the point of the treatment is that the
+ * wordmark floats, and a solid band behind it is what T164 took off the menu.
+ * The shield stays, because the original draws one here.
+ */
+.screen-shell__type {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(1.75rem, 5.2vh, 4.5rem);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.screen--shop .screen-shell__bar {
+  background: none;
+  border-bottom: 0;
+  /* The type sets the bar's height now, so the padding only has to clear the
+     shield — the band's old fixed padding left a gap the title floated in. */
+  padding: clamp(0.15rem, 0.8vh, 0.6rem) var(--space-4);
+}
+
 .screen-shell__body {
   position: relative;
   min-height: 0;
@@ -3242,12 +3371,19 @@ code {
  * the extrusion would show up inside the letters as smudge. So `__solid`
  * carries the body and `__gloss` carries the metal, exactly on top.
  */
-.menu-title {
-  position: absolute;
-  top: 6vh;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
+/*
+ * ── `.type-title`, the metallic-wordmark recipe ─────────────────────────────
+ *
+ * Shared by the menu's logo and the shop's header — extracted in T167 rather
+ * than pasted, for the reason `.gloss-pill` gives above.
+ *
+ * **It carries no size and no position.** Every depth in it is in `em`, so it
+ * is scale-free: the caller sets `font-size` and the extrusion, the keyline
+ * and the shadows follow. That is also what keeps it order-independent, since
+ * callers declare properties this rule does not touch.
+ */
+.type-title {
+  position: relative;
   margin: 0;
   font-family: var(--font-display);
   /*
@@ -3266,8 +3402,17 @@ code {
   text-transform: uppercase;
   user-select: none;
   /* One shadow for the whole silhouette, so the letters read as a single
-     object sitting above the sky rather than as glyphs with their own. */
+     object rather than as glyphs with their own. */
   filter: drop-shadow(0 0.09em 0.14em rgb(0 0 0 / 55%));
+}
+
+/* The menu's logo — position and size only; the surface is `.type-title`. */
+.menu-title {
+  position: absolute;
+  top: 6vh;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
 }
 
 /*
@@ -3278,7 +3423,7 @@ code {
  * wider than the one above it — which is what puts a dark edge *around* the
  * metal instead of a line through it.
  */
-.menu-title__solid {
+.type-title__solid {
   display: block;
   color: #14171c;
   -webkit-text-stroke: 0.035em #05070a;
@@ -3306,7 +3451,7 @@ code {
  * stop therefore lands near 64% of the visible letter, which puts the horizon
  * down by the feet. 44% of the box is ~56% of the cap.
  */
-.menu-title__gloss {
+.type-title__gloss {
   position: absolute;
   inset: 0;
   display: block;
@@ -3333,7 +3478,7 @@ code {
  * logo on its own — degraded, not broken.
  */
 @supports not ((background-clip: text) or (-webkit-background-clip: text)) {
-  .menu-title__gloss {
+  .type-title__gloss {
     display: none;
   }
 }

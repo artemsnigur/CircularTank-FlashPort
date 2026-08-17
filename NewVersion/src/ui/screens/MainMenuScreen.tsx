@@ -37,6 +37,7 @@
  */
 import { useGameStore } from '../../state/gameStore';
 import { AudioToggles } from '../AudioToggles';
+import { TypeTitle } from '../TypeTitle';
 import { GameEvents } from '../../game/events/GameEvents';
 import { shapeUrl } from '../../assets/registry';
 import { CHROME_CLIPS } from '../../game/ui/chromeArt';
@@ -129,12 +130,7 @@ export function MainMenuScreen(): React.ReactElement | null {
         name, the upper one is the metal and is hidden from the tree. See the
         header — they cannot be one element.
       */}
-      <h1 className="menu-title">
-        <span className="menu-title__solid">{WORDMARK}</span>
-        <span className="menu-title__gloss" aria-hidden="true">
-          {WORDMARK}
-        </span>
-      </h1>
+      <TypeTitle text={WORDMARK} className="menu-title" />
 
       <div className="menu-toggles">
         <AudioToggles />

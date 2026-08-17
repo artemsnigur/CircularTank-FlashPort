@@ -57,14 +57,23 @@ const row = (over: Partial<ShopRow> = {}): ShopRow => ({
   ...over,
 });
 
-const layerSources = (): string[] =>
-  Array.from(document.querySelectorAll('.upgrade-icon__layer')).map(
+/**
+ * The catalogue's layers only.
+ *
+ * **Scoped since T167**, and the reason is worth keeping: the slot wells draw
+ * the equipped weapon's own art too, so a document-wide count sees an equipped
+ * row twice and reads as a duplication bug. Scoping keeps "one row, one
+ * picture" checkable; the wells get their own assertion below rather than
+ * being folded into this number.
+ */
+const layerSources = (scope = '.shop-grid'): string[] =>
+  Array.from(document.querySelectorAll(`${scope} .upgrade-icon__layer`)).map(
     (img) => img.getAttribute('src') ?? '',
   );
 
 /** Filename-anchored: `includes('597')` would also match `1597.svg`. */
-const draws = (shape: number): boolean =>
-  layerSources().some((src) => src.endsWith(`/${shape}.svg`) || src.endsWith(`${shape}.svg`));
+const draws = (shape: number, scope = '.shop-grid'): boolean =>
+  layerSources(scope).some((src) => src.endsWith(`/${shape}.svg`) || src.endsWith(`${shape}.svg`));
 
 describe('the shop screen', () => {
   beforeEach(() => {
@@ -115,7 +124,7 @@ describe('the shop screen', () => {
     publish([row({ tile: [] })]);
     render(<UpgradesScreen />);
 
-    expect(document.querySelectorAll('.upgrade-icon')).toHaveLength(0);
+    expect(document.querySelectorAll('.shop-grid .upgrade-icon')).toHaveLength(0);
     // And the tile itself is still there — the gap is the icon, not the tile.
     expect(document.querySelectorAll('.shop-tile')).toHaveLength(1);
   });
@@ -128,7 +137,7 @@ describe('the shop screen', () => {
     publish([row()]);
     render(<UpgradesScreen />);
 
-    const icon = document.querySelector('.upgrade-icon');
+    const icon = document.querySelector('.shop-grid .upgrade-icon');
     expect(icon?.getAttribute('aria-hidden')).toBe('true');
     expect(icon?.getAttribute('title')).toBe('Cannon');
     // The tile carries the name instead, since the picture no longer sits
@@ -157,11 +166,35 @@ describe('the slot summary and the balance — T158', () => {
 
     render(<UpgradesScreen />);
 
+    // The well shows a picture, as the original does. The name is still in the
+    // DOM `.visually-hidden`, or a screen reader gets two wells called "Slot 1"
+    // and "Slot 2" and no way to tell what is in either.
     const slots = document.querySelector('.shop__slots');
     expect(slots).toHaveTextContent('Slot 1');
     expect(slots).toHaveTextContent('Cannon');
     expect(slots).toHaveTextContent('Slot 2');
     expect(slots).toHaveTextContent('MiniGun');
+  });
+
+  it('draws the equipped weapon`s own art in its well', () => {
+    // T167. The picture is the point of the widget — a well that showed the
+    // right name over the wrong art would pass every assertion above.
+    publish([row({ id: 'MiniGun', name: 'MiniGun', slot: 1, index: 1, tile: [601, 597, 602] })]);
+    render(<UpgradesScreen />);
+
+    expect(draws(601, '.shop__slots')).toBe(true);
+    // And the empty slot draws no art at all rather than repeating slot 1's.
+    expect(document.querySelectorAll('.shop__slots .upgrade-icon')).toHaveLength(1);
+    expect(document.querySelectorAll('.shop__slot-empty')).toHaveLength(1);
+  });
+
+  it('marks the pair with the switch marker between them', () => {
+    // `bWeaponSwitch` sits at x 312, between the wells at 284 and 340
+    // (`:570-579`). Decorative here — nothing carries a swap.
+    publish([row({ slot: 1 })]);
+    render(<UpgradesScreen />);
+
+    expect(document.querySelectorAll('.shop__slots-mark')).toHaveLength(1);
   });
 
   /**
@@ -433,13 +466,55 @@ describe('the shop is built not to scroll', () => {
    * the column instead, a wide monitor would size tiles to fill horizontally
    * and overflow vertically.
    */
-  it('sizes the tile from whichever viewport dimension binds', () => {
+  /**
+   * **Container units, not viewport units, and that was a measured fix.**
+   *
+   * The bar and the nav are near-fixed, so they take 29% of a 480px window and
+   * 15% of a 1440px one — a `vh` share therefore overshoots on short screens
+   * and undershoots on tall ones. At `11.5vh` the shop overflowed five
+   * viewports by 13-62px while fitting three. `cqh` is a share of the scroll
+   * container itself, which is the box the grid actually has.
+   */
+  it('sizes the tile from the container, not the window', () => {
     const shop = block('.shop');
 
-    expect(shop).toMatch(/--tile:\s*clamp\([^;]*min\([^;]*vh[^;]*vw[^;]*\)/);
-    // The ceiling is what stops a 2K display sizing tiles off `vw`; five tile
-    // rows at the cap is 380px, which is the whole budget this rests on.
-    expect(shop).toMatch(/--tile:\s*clamp\([^;]*4\.75rem\)/);
+    expect(shop).toMatch(/--tile:\s*clamp\([^;]*min\([^;]*cqh[^;]*cqw[^;]*\)/);
+    expect(shop).not.toMatch(/--tile:[^;]*\dvh/);
+    // Which needs the body to be a size container, or `cqh` resolves against
+    // the nearest one — or against nothing.
+    expect(block('.screen--shop .screen-shell__body')).toMatch(/container-type:\s*size/);
+    // The ceiling stops a 4K display sizing tiles off width and overflowing
+    // the column it was trying to fill.
+    expect(shop).toMatch(/--tile:\s*clamp\([^;]*11rem\)/);
+  });
+
+  /**
+   * The void. Without a ceiling the two columns pin to opposite edges of the
+   * viewport — measured at 2560x1440 as 1635px of bare ground between a 76px
+   * grid and the window.
+   */
+  it('caps the layout width so the columns cannot fly apart', () => {
+    const shop = block('.shop');
+
+    expect(shop).toMatch(/max-width:\s*1600px/);
+    expect(shop).toMatch(/margin-inline:\s*auto/);
+    // And the tiles centre in their column, so the slack sits on both sides
+    // rather than pooling into one gap beside the aside.
+    expect(block('.shop-grid')).toMatch(/justify-content:\s*center/);
+  });
+
+  /**
+   * The aside takes what it needs and the grids flex, not the reverse. With
+   * `max-content` on the grids the slot wells were squeezed into 143px at
+   * 2560x1440 for a widget wanting ~350 — the empty ground should give way,
+   * not the widget.
+   */
+  it('lets the slot aside keep its width', () => {
+    expect(block('.shop__catalogue')).toMatch(
+      /grid-template-columns:\s*minmax\(0, 1fr\) auto/,
+    );
+    // And it sizes to its own content rather than stretching to the column.
+    expect(block('.shop__slots')).toMatch(/align-self:\s*center/);
   });
 
   it('derives the tile`s parts from it rather than from fixed lengths', () => {

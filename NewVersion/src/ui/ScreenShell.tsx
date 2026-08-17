@@ -22,6 +22,7 @@
  * scaling rule for no gain.
  */
 import { BottomNav } from './BottomNav';
+import { TypeTitle } from './TypeTitle';
 import { ChromeArt } from './ChromeArt';
 import type { ChromeClipName } from './ChromeArt';
 import type { NavDestination } from '../game/ui/navTabs';
@@ -31,6 +32,7 @@ export function ScreenShell({
   titleClip,
   nav,
   shield = true,
+  typeTitle = false,
   className,
   children,
 }: {
@@ -48,6 +50,16 @@ export function ScreenShell({
    * not draw there.
    */
   shield?: boolean;
+  /**
+   * Set the title in type instead of drawing `titleClip`.
+   *
+   * **Opt-in per screen, deliberately.** The screens are being polished one at
+   * a time and the two treatments are meant to coexist meanwhile; a global
+   * switch would have restyled four screens nobody had looked at. The clip is
+   * still required either way, so a screen can be flipped back by removing one
+   * prop rather than by finding its art again.
+   */
+  typeTitle?: boolean;
   className?: string;
   children: React.ReactNode;
 }): React.ReactElement {
@@ -57,7 +69,11 @@ export function ScreenShell({
         {/* Frame 1 is its resting state; the other two are the states
             `ScreenLevelSelect` drives from world progress. */}
         {shield && <ChromeArt clip="IconShield" frame={1} className="screen-shell__shield" />}
-        <ChromeArt clip={titleClip} label={title} className="screen-shell__title" />
+        {typeTitle ? (
+          <TypeTitle text={title} as="h1" className="screen-shell__type" />
+        ) : (
+          <ChromeArt clip={titleClip} label={title} className="screen-shell__title" />
+        )}
       </header>
 
       <div className="screen-shell__body">{children}</div>

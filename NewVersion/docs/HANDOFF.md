@@ -261,7 +261,16 @@ needs to know before touching it:
   - **`.gloss-pill` is the shared glossy-button recipe** (menu PLAY, shop Buy).
     Overriding it needs *two* classes — `.gloss-pill.shop-buy` — because both
     are (0,1,0) and a single class leaves it to source order.
-- Divergences from the restyle are `A21`-`A29`.
+- **`.gloss-pill` and `.type-title` are the two shared surface recipes** — the
+  glossy button (menu PLAY, shop Buy) and the metallic wordmark (menu logo,
+  shop header). Both carry the surface and no size, so a consumer that only
+  sets dimensions cannot collide with them; one that *overrides* them needs two
+  classes, because both are (0,1,0).
+- **Size the shop's tiles in `cqh`, never `vh`.** The bar and nav take a much
+  larger fraction of a short window than a tall one, so a viewport share
+  overshoots at 480px and undershoots at 1440. This is measured, not
+  theoretical: `11.5vh` overflowed five of eight viewports.
+- Divergences from the restyle are `A21`-`A30`.
 
 **jsdom cannot see any of this.** Layout bugs here are found by measuring boxes
 in a real browser — see the trap below — and the visual judgement is the

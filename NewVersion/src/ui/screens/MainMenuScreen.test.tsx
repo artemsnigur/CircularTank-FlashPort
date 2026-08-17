@@ -84,7 +84,7 @@ describe('the wordmark', () => {
     const { container } = render(<MainMenuScreen />);
 
     expect(container.querySelectorAll('.menu-title span')).toHaveLength(2);
-    expect(container.querySelector('.menu-title__gloss')?.getAttribute('aria-hidden')).toBe('true');
+    expect(container.querySelector('.type-title__gloss')?.getAttribute('aria-hidden')).toBe('true');
     // The exact name, not a substring: a doubled name would still match /…/i.
     expect(screen.getByRole('heading', { name: 'CIRCULAR TANK' })).toBeInTheDocument();
   });
@@ -340,7 +340,7 @@ describe('the wordmark and PLAY are built, not drawn', () => {
    * this can break, and one character to lose.
    */
   it('clips the wordmark gradient to the glyphs, with a prefix', () => {
-    const gloss = block('.menu-title__gloss');
+    const gloss = block('.type-title__gloss');
 
     expect(gloss).toMatch(/background-image:\s*linear-gradient/);
     expect(gloss).toContain('-webkit-background-clip: text');
@@ -363,7 +363,7 @@ describe('the wordmark and PLAY are built, not drawn', () => {
    * a phone and a hairline on a 2K monitor.
    */
   it('scales the wordmark depth with the type', () => {
-    const solid = block('.menu-title__solid');
+    const solid = block('.type-title__solid');
 
     expect(solid).toMatch(/text-shadow:[^;]*em/);
     expect(solid).not.toMatch(/text-shadow:[^;]*\dpx/);
