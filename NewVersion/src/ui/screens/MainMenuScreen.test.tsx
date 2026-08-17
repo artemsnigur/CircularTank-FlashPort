@@ -371,7 +371,7 @@ describe('the wordmark and PLAY are built, not drawn', () => {
   });
 
   it('builds the pill out of gradients and inset light', () => {
-    const play = block('.menu-play');
+    const play = block('.gloss-pill');
 
     expect(play).toMatch(/background-image:\s*linear-gradient/);
     // The lit top rim and the shaded bottom — the pair is what gives the pill
@@ -385,7 +385,7 @@ describe('the wordmark and PLAY are built, not drawn', () => {
   it('gives the pill a specular sweep as its own layer', () => {
     // A gradient stop cannot curve; the pseudo-element's elliptical radius is
     // what makes the highlight read as a reflection instead of a band.
-    const sweep = block('.menu-play::before');
+    const sweep = block('.gloss-pill::before');
 
     expect(sweep).toMatch(/border-radius:[^;]*\//);
     expect(sweep).toMatch(/background-image:\s*linear-gradient/);
@@ -394,8 +394,8 @@ describe('the wordmark and PLAY are built, not drawn', () => {
 
   it('responds to hover and press differently', () => {
     // A button that only brightens on press still looks like it is floating.
-    expect(css).toMatch(/\.menu-play:active \{[^}]*transform:\s*translateY\(/);
-    expect(css).toMatch(/\.menu-play:hover,\s*\n\.menu-play:focus-visible \{/);
-    expect(css).toMatch(/\.menu-play:focus-visible \{[^}]*outline:/);
+    expect(css).toMatch(/\.gloss-pill:active \{[^}]*transform:\s*translateY\(/);
+    expect(css).toMatch(/\.gloss-pill:hover,\s*\n\.gloss-pill:focus-visible \{/);
+    expect(css).toMatch(/\.gloss-pill:focus-visible \{[^}]*outline:/);
   });
 });

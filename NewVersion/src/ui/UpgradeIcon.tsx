@@ -20,9 +20,21 @@ const SIZE = 38;
 export function UpgradeIcon({
   layers,
   label,
+  size = SIZE,
 }: {
   layers: readonly number[];
   label: string;
+  /**
+   * The box, as a CSS length. A number is px — the AS3's own 38.
+   *
+   * **A string is the point of the parameter.** The shop's tiles size
+   * themselves off the viewport so the catalogue fits without scrolling, and
+   * the icon has to track them; the box is set inline because it is a
+   * *measurement* the caller owns, and an inline style cannot be overridden by
+   * a stylesheet. Passing `'72%'` or `'var(--tile-icon)'` is the supported way
+   * to hand that decision over.
+   */
+  size?: number | string;
 }): React.ReactElement | null {
   if (layers.length === 0) return null;
 
@@ -36,7 +48,7 @@ export function UpgradeIcon({
     */
     <span
       className="upgrade-icon"
-      style={{ width: SIZE, height: SIZE }}
+      style={{ width: size, height: size }}
       title={label}
       aria-hidden="true"
     >

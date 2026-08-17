@@ -249,7 +249,19 @@ needs to know before touching it:
     inside it and a test fails — which is the point, because the symptom
     otherwise is a large panel with cramped contents that nobody reads as a
     bug.
-- Divergences from the restyle are `A21`-`A28`.
+- **The shop is a tile grid with one detail window, and it must not scroll.**
+  T166 rebuilt it as `ScreenUpgrades`' own shape — six tiles to a row, one
+  right-hand window addressing the selection (`A29`). Three things to know:
+  - **`overflow: hidden` is the mechanism, so a bad change clips instead of
+    scrolling** — silently. The fit is *measured*, not assumed: drive the real
+    screen and compare `scrollHeight` with `clientHeight` on
+    `.screen-shell__body`. It holds from 1024x480 to 3840x2160 today.
+  - **Everything is a fraction of `--tile` or `--pane`**, both viewport-clamped.
+    A fixed `px` padding, gap or `font-size` inside the window fails a test.
+  - **`.gloss-pill` is the shared glossy-button recipe** (menu PLAY, shop Buy).
+    Overriding it needs *two* classes — `.gloss-pill.shop-buy` — because both
+    are (0,1,0) and a single class leaves it to source order.
+- Divergences from the restyle are `A21`-`A29`.
 
 **jsdom cannot see any of this.** Layout bugs here are found by measuring boxes
 in a real browser — see the trap below — and the visual judgement is the

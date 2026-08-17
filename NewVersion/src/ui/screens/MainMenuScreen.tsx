@@ -169,7 +169,7 @@ export function MainMenuScreen(): React.ReactElement | null {
         */}
         <button
           type="button"
-          className="menu-play"
+          className="menu-play gloss-pill"
           aria-label={resume.level > 1 ? `Continue at level ${resume.level}` : 'Play'}
           onClick={() =>
             GameEvents.emit('ui:start-game', {
