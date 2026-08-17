@@ -297,6 +297,15 @@ needs to know before touching it:
   (`medalTiers.ts`, `A34`). The count comes from the values triple and never
   from the selected difficulty — a level taken on Easy still shows its medals
   while `HARD` is set.
+- **`A8` is reversed.** A level-select tile *selects*; `PLAY LEVEL` starts.
+  Hover is a CSS state and moves nothing — it used to move the panel, which
+  meant the panel changed under the cursor on the way anywhere. The grid emits
+  no `ui:start-game` at all and a test pins that to one emitter.
+- **`aspect-ratio` is a preference, not a constraint.** It loses to content
+  needing more room, which is what stretched the level tiles and pushed the
+  bottom row out of its plate. Place the parts absolutely and add
+  `overflow: hidden` if the box must actually be square — and *measure* the
+  height/width ratio, since the CSS reads correct either way.
 - Divergences from the restyle are `A21`-`A34`.
 
 **jsdom cannot see any of this.** Layout bugs here are found by measuring boxes

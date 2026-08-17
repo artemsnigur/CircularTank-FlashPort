@@ -172,17 +172,20 @@ describe('every dev entry point sets it', () => {
   });
 
   /**
-   * Level select's two `ui:start-game` emitters are the grid tile and PLAY
-   * LEVEL — both the player's, both un-sandboxed. The dev jump that used to
-   * sit there is gone (T172), so, as with the menu, this is what keeps the
-   * shortened list honest: a third emitter would be a dev route the list no
-   * longer covers.
+   * Level select has **one** `ui:start-game` emitter — `PLAY LEVEL` — and it is
+   * the player's, un-sandboxed.
+   *
+   * It was two until T173: the grid tile launched a level directly (`A8`), and
+   * reversing that decision left this the only route in. The dev jump that
+   * used to sit here went in T172. So, as with the menu, this keeps the
+   * shortened list honest — a second emitter now is either a revert of `A8` or
+   * a dev route the list no longer covers, and both deserve a look.
    */
-  it('level select starts only real runs', () => {
+  it('level select starts only real runs, from one place', () => {
     const source = readFileSync('src/ui/screens/LevelSelectScreen.tsx', 'utf8');
     const starts = source.match(/ui:start-game/g) ?? [];
 
-    expect(starts).toHaveLength(2);
+    expect(starts).toHaveLength(1);
     expect(source).not.toContain('sandbox: true');
     expect(source).not.toContain('import.meta.env.DEV');
   });

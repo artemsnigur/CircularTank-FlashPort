@@ -3,13 +3,16 @@
  *
  * ── What this is really guarding ──────────────────────────────────────────
  * The original **selects** a level and then needs `ButtonPlayLevel` to start
- * it. This port starts one on click (`A8`), and T157 added a detail column
- * with a `PLAY LEVEL` button in it — which is exactly the shape a revert of
- * `A8` would take. So the first test here is that a tile still launches
- * directly, and the rest describe the panel as an *addition* beside it.
+ * it. The port diverged from that for a long time — `A8`, a cell click
+ * launched immediately — and T173 reversed the decision. So the first block
+ * here now asserts the *inverse* of what it used to: a tile selects, `PLAY
+ * LEVEL` starts, and hover does nothing at all.
+ *
+ * The old assertions are kept as their opposites rather than deleted, because
+ * click-to-launch is exactly what a well-meaning revert would reintroduce.
  */
 import { readFileSync } from 'node:fs';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { LevelSelectScreen } from './LevelSelectScreen';
@@ -81,15 +84,61 @@ afterEach(() => {
   GameEvents.removeAllListeners();
 });
 
-describe('the grid still starts a level on click — divergence A8', () => {
-  it('launches directly from a tile, with no select step', () => {
+/**
+ * ── `A8` reversed — the grid selects, PLAY LEVEL starts ────────────────────
+ *
+ * This block used to assert the opposite, and read "the grid still starts a
+ * level on click — divergence A8". That was an accurate description of a
+ * deliberate decision, not a bug; T173 reversed the decision at the
+ * maintainer's direction, back to the AS3's four steps.
+ *
+ * Kept as the inverse rather than deleted, because a click that launches is
+ * exactly what a well-meaning revert would reintroduce.
+ */
+describe('the grid selects a level; it does not start one', () => {
+  it('starts nothing when a tile is clicked', () => {
     const started: unknown[] = [];
     GameEvents.subscribe('ui:start-game', (payload) => started.push(payload));
 
     render(<LevelSelectScreen />);
     screen.getByRole('button', { name: /Level 2, Normal/ }).click();
 
-    expect(started).toEqual([{ world: 1, level: 2, difficulty: 'Medium' }]);
+    expect(started).toEqual([]);
+  });
+
+  it('points the panel at the clicked level instead', () => {
+    // The counterpart: "starts nothing" is also satisfied by a dead tile.
+    render(<LevelSelectScreen />);
+    act(() => {
+      screen.getByRole('button', { name: /Level 2, Normal/ }).click();
+    });
+
+    const panel = screen.getByRole('complementary', { name: 'Level detail' });
+    expect(panel).toHaveTextContent('Level 2');
+    expect(screen.getByRole('button', { name: /Level 2, Normal/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  /**
+   * **Hover must not move the selection.** It did, and the panel changed under
+   * the cursor on the way to anywhere else. Driven on the same element as the
+   * click above, so "hover does nothing" cannot pass by the tile being inert.
+   */
+  it('ignores hover and focus entirely', () => {
+    render(<LevelSelectScreen />);
+    const panel = screen.getByRole('complementary', { name: 'Level detail' });
+    const tile = screen.getByRole('button', { name: /Level 2, Normal/ });
+
+    act(() => {
+      fireEvent.mouseEnter(tile);
+      tile.focus();
+    });
+
+    // Still the level guide's fallback, not the hovered one.
+    expect(panel).toHaveTextContent('Level 3');
+    expect(tile).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('leaves a locked tile inert', () => {
@@ -100,6 +149,9 @@ describe('the grid still starts a level on click — divergence A8', () => {
     screen.getByRole('button', { name: /Level 4, locked/ }).click();
 
     expect(started).toEqual([]);
+    expect(screen.getByRole('complementary', { name: 'Level detail' })).toHaveTextContent(
+      'Level 3',
+    );
   });
 });
 
@@ -147,12 +199,12 @@ describe('the detail column', () => {
     expect(panel).toHaveTextContent('Level 3');
   });
 
-  it('follows the pointer to another level', () => {
+  it('follows a click to another level', () => {
     render(<LevelSelectScreen />);
     const panel = screen.getByRole('complementary', { name: 'Level detail' });
 
     act(() => {
-      screen.getByRole('button', { name: /Level 2, Normal/ }).focus();
+      screen.getByRole('button', { name: /Level 2, Normal/ }).click();
     });
 
     expect(panel).toHaveTextContent('Level 2');
@@ -375,7 +427,12 @@ describe('the medals on a tile', () => {
       ...document
         .querySelector(`[aria-label^="Level ${level},"] .level-grid__medals`)!
         .querySelectorAll('.level-grid__medal'),
-    ].map((n) => /level-grid__medal--(\w+)/.exec(n.className)?.[1] ?? '');
+      // `getAttribute`, not `className`: the medals are `<svg>` now, and
+      // `SVGElement.className` is an `SVGAnimatedString` whose `toString` is
+      // `[object SVGAnimatedString]` — every tier read as empty, uniformly,
+      // which is the shape of a check that returns the same wrong answer for
+      // every input.
+    ].map((n) => /level-grid__medal--(\w+)/.exec(n.getAttribute('class') ?? '')?.[1] ?? '');
 
   /**
    * **Coloured per medal, not per level** — `:849-910`. Level 2's fixture is

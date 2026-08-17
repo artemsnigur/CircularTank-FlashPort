@@ -21,6 +21,7 @@ import { useInfoText } from '../useInfoText';
 import type { LevelListing } from '../../state/gameStore';
 import type { Difficulty } from '../../game/config/constants';
 import type { MedalTier } from '../../game/levels/medalTiers';
+import { LevelModeIcon } from '../LevelModeIcon';
 
 /**
  * The three difficulty buttons — `ButtonDifficultyEasy/Medium/Hard`.
@@ -83,18 +84,29 @@ function DifficultyPicker(): React.ReactElement {
  * are you at the setting you chose", which the tally line and the accessible
  * name want. Two questions, two fields.
  */
-function Medals({ medals }: { medals: readonly MedalTier[] }): React.ReactElement {
+function Medals({
+  medals,
+  mode,
+}: {
+  medals: readonly MedalTier[];
+  /**
+   * The medal's *shape* — `:874` builds the icon from the level's mode before
+   * `:898` sets its tier frame, so a Flag level earns flags and a Boss level
+   * earns skulls. One icon doing two jobs, which is why this takes the mode
+   * rather than the badge owning it alone.
+   */
+  mode: string;
+}): React.ReactElement {
   return (
     <span className="level-grid__medals" aria-hidden="true">
       {Array.from({ length: MAX_LEVEL_VALUE }, (_, i) => {
         const tier = medals[i];
         return (
-          <span
+          <LevelModeIcon
             key={i}
+            mode={mode}
             className={`level-grid__medal${tier ? ` level-grid__medal--${tier}` : ''}`}
-          >
-            {tier ? '★' : '☆'}
-          </span>
+          />
         );
       })}
     </span>
@@ -173,9 +185,9 @@ function WorldPicker(): React.ReactElement {
  * **What is not ported:** hovering a *level-grid cell* to see it. The AS3 shows
  * a level's roster in a detail panel for the **selected** level
  * (`ScreenLevelSelect.addEnemyImages`, `:1112-1160`, gated at `:1197` on
- * `!isLocked`), built from `ImageEnemy` tiles. This port has no selection step
- * — a cell click starts the level — which is divergence **`A8`**, a decision,
- * not a gap. So the information is offered on hover instead.
+ * `!isLocked`), built from `ImageEnemy` tiles. The port now has that selection
+ * step too — `A8` was reversed in T173 — so the panel beside the grid is the
+ * faithful home for this, and the hover tooltip is an extra beside it.
  *
  * **This does not port `ImageEnemy`, and does not unblock its tooltips.**
  * `ImageEnemy.as:174`/`:178` need per-*enemy* hover targets, which only exist
@@ -190,13 +202,16 @@ function LevelCell({
   world,
   entry,
   difficulty,
-  onFocus,
+  selected,
+  onSelect,
 }: {
   world: number;
   entry: NonNullable<LevelListing>['levels'][number];
   difficulty: Difficulty;
-  /** Points the detail panel at this level — hover and keyboard focus alike. */
-  onFocus: () => void;
+  /** Whether the detail panel is describing this level. */
+  selected: boolean;
+  /** Points the detail panel at this level — a click, and only a click. */
+  onSelect: () => void;
 }): React.ReactElement {
   const preview = entry.unlocked ? previewForLevel(world, entry.level, difficulty) : null;
 
@@ -219,10 +234,15 @@ function LevelCell({
           'level-grid__cell',
           entry.cleared ? 'level-grid__cell--cleared' : '',
           entry.unlocked ? '' : 'level-grid__cell--locked',
+          selected ? 'level-grid__cell--on' : '',
         ]
           .filter(Boolean)
           .join(' ')}
         disabled={!entry.unlocked}
+        // `aria-pressed` and not `aria-current`: this is a selection among
+        // peers, and it is what tells a screen reader which tile the panel is
+        // describing — the highlight says it to everyone else.
+        aria-pressed={selected}
         // No `title`: a native tooltip and the panel would both appear, saying
         // different things. The panel supersedes it and `aria-label` keeps the
         // accessible name.
@@ -231,30 +251,51 @@ function LevelCell({
             ? `Level ${entry.level}, ${entry.mode}, ${entry.value} of ${MAX_LEVEL_VALUE} on ${difficulty}`
             : `Level ${entry.level}, locked`
         }
-        onClick={() =>
-          GameEvents.emit('ui:start-game', { world, level: entry.level, difficulty })
-        }
+        /*
+         * **A click selects; it does not start.** This is `A8` reversed at the
+         * maintainer's direction, back to the AS3's four steps: pick a world,
+         * see the grid, *select* a level (`selectedLevel`, drawn as a
+         * highlight), then press Play.
+         *
+         * The old model started the level here, and hover moved the panel —
+         * which meant the panel changed under the cursor on the way to
+         * anything, and a mis-click launched a level. Both are gone: hover is
+         * now only a CSS state.
+         */
+        onClick={onSelect}
         {...(preview ? hover : {})}
         /*
          * **Composed, and after the spread.** `useInfoText` supplies its own
          * `onMouseEnter` for the tooltip; declaring one before the spread lets
-         * the spread win, and the detail panel silently never updates —
-         * typecheck caught it here, which it only does because both are on the
-         * same element.
+         * the spread win and the tooltip silently never opens — typecheck
+         * caught that here, which it only does because both are on the same
+         * element.
          *
-         * Focus as well as hover: the panel describes what the player is
-         * pointing at, and a keyboard points with focus. Hover alone leaves it
-         * stale for anyone tabbing the grid.
+         * The tooltip still follows the cursor. That is the one thing hover
+         * should do: it is a transient readout beside the pointer, not a
+         * change to what the screen is describing.
          */
         onMouseEnter={() => {
-          onFocus();
           if (preview) hover.onMouseEnter();
         }}
-        onFocus={onFocus}
       >
-        <span className="level-grid__number">{entry.unlocked ? entry.level : '🔒'}</span>
-        {entry.unlocked && <span className="level-grid__mode">{entry.mode}</span>}
-        {entry.unlocked && <Medals medals={entry.medals} />}
+        {/*
+          Number top-left, mode badge top-right, medals along the bottom —
+          `ButtonLevelSelect`'s own arrangement (`:925` puts `iconMode` at
+          (32, 11) and `:915` the medals at y 32, on a 41px button).
+
+          Absolutely placed rather than stacked in flow, and that is a layout
+          fix as much as a faithfulness one: a column of three grew the tile
+          past its `aspect-ratio`, which is what stretched the cells and
+          pushed the last row out of the plate.
+        */}
+        <span className="level-grid__number">{entry.unlocked ? entry.level : ''}</span>
+        {entry.unlocked ? (
+          <LevelModeIcon mode={entry.mode} className="level-grid__badge" />
+        ) : (
+          <span className="level-grid__lock" aria-hidden="true" />
+        )}
+        {entry.unlocked && <Medals medals={entry.medals} mode={entry.mode} />}
       </button>
     </li>
   );
@@ -264,17 +305,14 @@ function LevelCell({
  * The right-hand column — `ScreenLevelSelect.as:390-429`'s `bgWindow` and the
  * six fields it holds: level name, mode, difficulty, objective, note, enemies.
  *
- * ── It describes a level; it does not gate starting one ───────────────────
+ * ── It describes the selected level, and PLAY LEVEL is the only way in ────
  * The original **selects** a level and then needs `ButtonPlayLevel` to start
- * it. This port starts one on click — divergence `A8`, which the maintainer
- * confirmed stays. So the two ideas are separated: the grid still launches on
- * click, and this panel describes whichever level the player is *pointing at*,
- * falling back to the one they would play next.
+ * it. `A8` diverged from that — a cell click launched immediately — and T173
+ * reversed it at the maintainer's direction, so the flow is the AS3's four
+ * steps again: world, grid, select, Play.
  *
- * `PLAY LEVEL` therefore adds a route rather than replacing one. It is the
- * original's own art doing the original's own job for the level named directly
- * above it — and on a keyboard it is reachable in a way a grid of 30 tiles is
- * not.
+ * `PLAY LEVEL` is therefore the route rather than a second one. The grid no
+ * longer starts anything, which also means a mis-click costs nothing.
  */
 function LevelDetail({
   world,
@@ -300,10 +338,8 @@ function LevelDetail({
       {/*
         PLAY LEVEL, in CSS — `ButtonPlayLevel`'s art is no longer drawn.
 
-        This is the button `A8` made a second route rather than the only one:
-        the grid still starts a level on click, and this starts the one named
-        directly above it. On a keyboard it is reachable in a way a grid of 45
-        tiles is not.
+        The only way into a level since T173. The grid selects; this starts
+        whichever level the panel is describing.
       */}
       <button
         type="button"
@@ -353,11 +389,15 @@ export function LevelSelectScreen(): React.ReactElement | null {
   const worldList = useGameStore((s) => s.worldList);
   const difficulty = useGameStore((s) => s.difficulty);
   /**
-   * Which level the detail panel describes.
+   * Which level the detail panel describes — the AS3's `selectedLevel`.
    *
-   * `null` until the player points at something, and then it follows hover and
-   * keyboard focus alike — the panel is a description of what is under the
-   * cursor, so the two inputs mean the same thing here.
+   * **Moved by a click only.** It used to follow hover and focus, on the
+   * reading that the panel described "what the player is pointing at". In use
+   * that means the panel changes under the cursor on the way to anywhere else,
+   * so the thing you were reading is gone by the time you look at it. A
+   * selection should be something you ask for.
+   *
+   * `null` until then, and the fallback is the level guide's — see `shown`.
    */
   const [focused, setFocused] = useState<number | null>(null);
   if (activeScene !== 'LevelSelect') return null;
@@ -457,7 +497,8 @@ export function LevelSelectScreen(): React.ReactElement | null {
                     world={listing!.world}
                     entry={entry}
                     difficulty={difficulty}
-                    onFocus={() => setFocused(entry.level)}
+                    selected={entry.level === shown}
+                    onSelect={() => setFocused(entry.level)}
                   />
                 ))}
               </ul>

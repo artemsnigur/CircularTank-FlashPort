@@ -509,31 +509,43 @@ body {
    A dark glass chip with a lit top edge — the same light model as everything
    else on these screens: the highlight is at the top because that is where the
    light is. */
+/*
+ * **Square, and it has to be enforced twice.**
+ *
+ * `aspect-ratio` is a *preferred* ratio: it loses to content that needs more
+ * room, so a tile stacking a number, a label and a medal row in flow grew
+ * taller than it was wide — which stretched every cell and pushed the last row
+ * out of the plate below it. The parts are placed absolutely now and
+ * `overflow: hidden` makes the ratio binding.
+ */
 .level-grid__cell {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2cqw;
+  display: block;
   width: 100%;
   max-width: var(--cell);
   aspect-ratio: 1;
+  overflow: hidden;
   padding: 0;
-  border: 1px solid rgb(255 255 255 / 14%);
-  border-radius: 18%;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 20%;
   cursor: pointer;
   color: var(--steel-000);
   font-family: var(--font-display);
-  background-image: linear-gradient(
-    180deg,
-    rgb(255 255 255 / 16%) 0%,
-    rgb(255 255 255 / 4%) 40%,
-    rgb(0 0 0 / 30%) 100%
-  );
+  /* A lit top third falling to a dark floor — the same light model as the
+     shop's tiles and the pills, so the screens read as one surface. */
+  background-image:
+    radial-gradient(ellipse at 50% -10%, rgb(255 255 255 / 26%), rgb(255 255 255 / 0%) 62%),
+    linear-gradient(
+      180deg,
+      rgb(148 166 186 / 34%) 0%,
+      rgb(70 84 102 / 26%) 42%,
+      rgb(0 0 0 / 42%) 100%
+    );
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 22%),
-    0 2px 5px rgb(0 0 0 / 45%);
+    inset 0 1px 0 rgb(255 255 255 / 34%),
+    inset 0 -1px 0 rgb(255 255 255 / 8%),
+    inset 0 0 6cqw rgb(0 0 0 / 30%),
+    0 2px 6px rgb(0 0 0 / 50%);
   /* So the number and the medals can size themselves from the real cell rather
      than from `--cell`, which the track is free to shrink below. */
   container-type: inline-size;
@@ -543,12 +555,29 @@ body {
     border-color 110ms ease;
 }
 
+/* Hover is **only** a visual state now — it no longer moves the selection. */
 .level-grid__cell:hover:not(:disabled) {
   transform: translateY(-1px);
-  border-color: rgb(255 255 255 / 34%);
+  border-color: rgb(255 255 255 / 42%);
+  filter: brightness(1.22);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 32%),
-    0 4px 9px rgb(0 0 0 / 55%);
+    inset 0 1px 0 rgb(255 255 255 / 46%),
+    inset 0 -1px 0 rgb(255 255 255 / 10%),
+    0 5px 12px rgb(0 0 0 / 58%);
+}
+
+/*
+ * The selected level — the AS3's `selectedLevel` highlight, and the thing a
+ * click now produces. Bright and unmistakable, because it is the only signal
+ * that the right-hand panel is describing *this* tile.
+ */
+.level-grid__cell--on {
+  border-color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 55%),
+    0 0 0 2px rgb(255 255 255 / 90%),
+    0 0 8cqw rgb(255 255 255 / 40%),
+    0 3px 9px rgb(0 0 0 / 55%);
 }
 
 .level-grid__cell:active:not(:disabled) {
@@ -580,29 +609,78 @@ body {
     0 2px 5px rgb(0 0 0 / 45%);
 }
 
+/*
+ * The mode shape — star, flag, shield, keep or skull. `currentColor`, so the
+ * badge and each medal tier colour it from their own rule.
+ */
+.mode-icon {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+/* Number top-left, badge top-right, medals along the bottom — `:915`, `:925`. */
 .level-grid__number {
-  display: block;
-  font-size: 34cqw;
+  position: absolute;
+  top: 6cqw;
+  left: 9cqw;
+  font-size: 30cqw;
   line-height: 1;
-  text-shadow: 0 1px 0 rgb(0 0 0 / 85%);
+  text-shadow:
+    0 1px 0 rgb(0 0 0 / 90%),
+    0 0 0.35em rgb(0 0 0 / 60%);
 }
 
-.level-grid__mode {
-  display: block;
-  font-size: 15cqw;
-  line-height: 1;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgb(255 255 255 / 55%);
+.level-grid__badge {
+  position: absolute;
+  top: 8cqw;
+  right: 7cqw;
+  width: 26cqw;
+  height: 26cqw;
+  color: rgb(255 255 255 / 72%);
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 80%));
 }
 
-/* Always three glyphs, so a cell does not change height between an earned and
-   an unearned level. */
+/* A locked level draws a keyhole plate and no number — `:844` blanks the text
+   and the AS3's own art is a padlock. */
+.level-grid__lock {
+  position: absolute;
+  inset: 28% 34% 22%;
+  border-radius: 40% 40% 18% 18%;
+  background: rgb(0 0 0 / 45%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 10%),
+    0 1px 0 rgb(255 255 255 / 6%);
+}
+
+.level-grid__lock::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -42%;
+  width: 62%;
+  height: 62%;
+  transform: translateX(-50%);
+  border: 14cqw solid rgb(0 0 0 / 45%);
+  border-bottom: 0;
+  border-radius: 999px 999px 0 0;
+}
+
+/* Always three slots, so a cell reads the same whether or not they are
+   earned — the row is a progress bar as much as a tally. */
 .level-grid__medals {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6cqw;
   display: flex;
-  gap: 2cqw;
-  font-size: 17cqw;
-  line-height: 1;
+  justify-content: center;
+  gap: 3cqw;
+}
+
+.level-grid__medal {
+  width: 19cqw;
+  height: 19cqw;
 }
 
 /*
@@ -613,8 +691,9 @@ body {
  * An unearned slot stays as a hollow glyph rather than disappearing, so the
  * row keeps its width and the cell keeps its height.
  */
+/* Unearned: a hollow ghost of the same shape, so the row keeps its rhythm. */
 .level-grid__medal {
-  color: rgb(255 255 255 / 22%);
+  color: rgb(255 255 255 / 16%);
 }
 
 .level-grid__medal--gold {
@@ -636,10 +715,12 @@ body {
 .gloss-pill.levels__world-button {
   justify-self: center;
   align-self: center;
-  width: min(60%, 22rem);
-  min-height: clamp(1.9rem, 5.5cqh, 3.4rem);
-  border-radius: clamp(0.5rem, 1.6cqh, 1.1rem);
-  font-size: clamp(0.7rem, 1.9cqh, 1.3rem);
+  /* Substantially bigger than it was — it is the only control under a grid of
+     45 tiles, and at 5.5cqh it read as a footnote to them. */
+  width: min(78%, 34rem);
+  min-height: clamp(2.4rem, 9cqh, 5.5rem);
+  border-radius: clamp(0.7rem, 2.6cqh, 1.8rem);
+  font-size: clamp(0.85rem, 3.1cqh, 2.1rem);
 }
 
 .levels__world-button-label {
