@@ -17,11 +17,27 @@ import { EnemyTile } from '../EnemyTile';
 import { Difficulties as DIFFICULTIES } from '../../game/config/constants';
 import { MAX_LEVEL_VALUE } from '../../game/levels/levelProgress';
 import { previewForLevel } from '../../game/levels/levelPreview';
-import { useInfoText } from '../useInfoText';
 import type { LevelListing } from '../../state/gameStore';
 import type { Difficulty } from '../../game/config/constants';
 import type { MedalTier } from '../../game/levels/medalTiers';
 import { LevelModeIcon } from '../LevelModeIcon';
+import { CursorTooltip } from '../CursorTooltip';
+import { shapeUrl } from '../../assets/registry';
+import { CHROME_CLIPS } from '../../game/ui/chromeArt';
+
+/**
+ * The world's own texture band — `bgFadeText` frame `1 + world` (`:795`).
+ *
+ * Frame 1 is the world picker's, so the frames array (0-based) is indexed by
+ * the world number directly. Out of range falls back to world 1's rather than
+ * to nothing: a missing band reads as a broken header, and every world in the
+ * data has one.
+ */
+function worldBand(world: number): string {
+  const frames = CHROME_CLIPS.BackgroundFadeText.frames;
+  const frame = frames[world] ?? frames[1];
+  return `url(${shapeUrl(`${frame.layers[0].shape}.svg`)})`;
+}
 
 /**
  * The three difficulty buttons — `ButtonDifficultyEasy/Medium/Hard`.
@@ -199,32 +215,21 @@ function WorldPicker(): React.ReactElement {
  * the same rule the bestiary applies to unmet enemies.
  */
 function LevelCell({
-  world,
   entry,
   difficulty,
   selected,
   onSelect,
+  onHover,
 }: {
-  world: number;
   entry: NonNullable<LevelListing>['levels'][number];
   difficulty: Difficulty;
   /** Whether the detail panel is describing this level. */
   selected: boolean;
   /** Points the detail panel at this level — a click, and only a click. */
   onSelect: () => void;
+  /** Raises and lowers the cursor tooltip. Hover changes nothing else. */
+  onHover: (level: number | null) => void;
 }): React.ReactElement {
-  const preview = entry.unlocked ? previewForLevel(world, entry.level, difficulty) : null;
-
-  const hover = useInfoText({
-    text: preview?.summary ?? '',
-    // Opens down-and-right of the cursor. Not an AS3 corner — there is no
-    // `changeText` call for this trigger to inherit one from, so it is chosen:
-    // the grid runs left-to-right from the top, and this is the direction with
-    // room on the most cells.
-    showLeft: true,
-    showTop: true,
-    enemyRows: preview?.rows,
-  });
 
   return (
     <li>
@@ -263,21 +268,17 @@ function LevelCell({
          * now only a CSS state.
          */
         onClick={onSelect}
-        {...(preview ? hover : {})}
         /*
-         * **Composed, and after the spread.** `useInfoText` supplies its own
-         * `onMouseEnter` for the tooltip; declaring one before the spread lets
-         * the spread win and the tooltip silently never opens — typecheck
-         * caught that here, which it only does because both are on the same
-         * element.
+         * Hover raises the cursor tooltip and does nothing else — it does not
+         * move the selection, and the panel on the right stays where the last
+         * click put it.
          *
-         * The tooltip still follows the cursor. That is the one thing hover
-         * should do: it is a transient readout beside the pointer, not a
-         * change to what the screen is describing.
+         * These fire once per tile crossed, not once per pointer move: the
+         * tooltip's *position* is written straight to `style.transform` by
+         * `CursorTooltip`, so React never sees a coordinate.
          */
-        onMouseEnter={() => {
-          if (preview) hover.onMouseEnter();
-        }}
+        onMouseEnter={() => onHover(entry.unlocked ? entry.level : null)}
+        onMouseLeave={() => onHover(null)}
       >
         {/*
           Number top-left, mode badge top-right, medals along the bottom —
@@ -400,6 +401,16 @@ export function LevelSelectScreen(): React.ReactElement | null {
    * `null` until then, and the fallback is the level guide's — see `shown`.
    */
   const [focused, setFocused] = useState<number | null>(null);
+  /**
+   * Which tile the pointer is over, for the cursor tooltip only.
+   *
+   * Deliberately *not* the same thing as `focused`: this changes as the
+   * pointer crosses tiles and must never move the panel — that is the whole
+   * point of T173's split. It changes a handful of times a second at most,
+   * which is why it can be React state at all; the tooltip's coordinates never
+   * are. See `CursorTooltip`.
+   */
+  const [hovered, setHovered] = useState<number | null>(null);
   if (activeScene !== 'LevelSelect') return null;
 
   // `selected` 0 is the picker — the AS3's `selectedWorld = 0`. The scene owns
@@ -481,8 +492,23 @@ export function LevelSelectScreen(): React.ReactElement | null {
         <div className="levels">
           <section className="levels__main" aria-label="Levels">
             {/* `:421` draws `worldText` over the grid's own plate. */}
-            <header className="levels__world">
-              <h2 className="levels__world-name">{listing?.worldName ?? 'Loading…'}</h2>
+            <header
+              className="levels__world"
+              /*
+                Each world has its own texture — `bgFadeText`, ten frames of
+                one shape, `gotoAndStop(1 + selectedWorld)` (`:795`). Frame 1
+                is the picker, so world N is index N.
+
+                A background image and not a `ChromeArt`, for `A27`'s reason:
+                the shape has no `viewBox`, and this has to stretch across
+                whatever the column is rather than keep its authored 410px.
+              */
+              style={{ backgroundImage: worldBand(listing?.world ?? 1) }}
+            >
+              {/* `:1184` — `worldText.text = "World " + selectedWorld`. The
+                  world's *name* is the port's addition beside it. */}
+              <h2 className="levels__world-name">World {listing?.world ?? 1}</h2>
+              <p className="levels__world-theme">{listing?.worldName ?? ''}</p>
               <p className="levels__tally">
                 {medals}/{levels.length * MAX_LEVEL_VALUE} medals on {difficulty} ·{' '}
                 {cleared}/{levels.length} cleared
@@ -494,11 +520,11 @@ export function LevelSelectScreen(): React.ReactElement | null {
                 {levels.map((entry) => (
                   <LevelCell
                     key={entry.level}
-                    world={listing!.world}
                     entry={entry}
                     difficulty={difficulty}
                     selected={entry.level === shown}
                     onSelect={() => setFocused(entry.level)}
+                    onHover={setHovered}
                   />
                 ))}
               </ul>
@@ -522,6 +548,19 @@ export function LevelSelectScreen(): React.ReactElement | null {
             world={listing!.world}
             entry={levels.find((l) => l.level === shown) ?? null}
             difficulty={difficulty}
+          />
+
+          {/*
+            One preview computed for the hovered tile, not 45 for every tile on
+            every render — which is what `LevelCell` used to do. `hovered` is
+            null whenever the pointer is off the grid, so this costs nothing
+            the rest of the time.
+          */}
+          <CursorTooltip
+            title={`Level ${listing!.world}-${hovered ?? ''}`}
+            preview={
+              hovered === null ? null : previewForLevel(listing!.world, hovered, difficulty)
+            }
           />
         </div>
       )}

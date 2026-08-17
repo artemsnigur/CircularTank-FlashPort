@@ -495,3 +495,134 @@ describe('what is no longer on the screen', () => {
     expect(screen.queryByRole('button', { name: /back/i })).toBeNull();
   });
 });
+
+/**
+ * ── The cursor tooltip and the world band — T174 ───────────────────────────
+ *
+ * The tooltip's *position* is written to `style.transform` by a ref and never
+ * passes through React, so jsdom cannot see it move. What it can see is the
+ * structure that makes the move safe — and one line of that structure,
+ * `pointer-events: none`, is the whole difference between a tooltip and a
+ * flicker loop, so it is asserted rather than trusted.
+ *
+ * The behaviour was driven in a browser: pointer parked on a tile for two
+ * seconds gave 1 mouseover and 1 mouseout (a loop shows as dozens), the hit
+ * test under the cursor returned the tile rather than the tooltip, and a tile
+ * on the far side of the grid reported one distinct box throughout.
+ */
+describe('the cursor tooltip', () => {
+  const css = readFileSync('src/styles/global.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('is absent until the pointer is on an unlocked tile', () => {
+    render(<LevelSelectScreen />);
+    expect(document.querySelector('.cursor-tip')).toBeNull();
+  });
+
+  it('appears on hover and names the level', () => {
+    render(<LevelSelectScreen />);
+
+    act(() => {
+      fireEvent.mouseEnter(screen.getByRole('button', { name: /Level 2, Normal/ }));
+    });
+
+    const tip = document.querySelector('.cursor-tip');
+    expect(tip).not.toBeNull();
+    expect(tip).toHaveTextContent('Level 1-2');
+    expect(tip).toHaveTextContent(/Normal mode/i);
+  });
+
+  it('goes away again on leave', () => {
+    render(<LevelSelectScreen />);
+    const tile = screen.getByRole('button', { name: /Level 2, Normal/ });
+
+    act(() => {
+      fireEvent.mouseEnter(tile);
+    });
+    act(() => {
+      fireEvent.mouseLeave(tile);
+    });
+
+    expect(document.querySelector('.cursor-tip')).toBeNull();
+  });
+
+  /**
+   * **The flicker loop, as a rule.**
+   *
+   * The card is drawn a few pixels from the cursor. Without this the pointer
+   * lands on the tooltip rather than the tile, the tile's `mouseleave` fires,
+   * the tooltip unmounts, the pointer is over the tile again — a loop as fast
+   * as the browser can dispatch, which reads as violent twitching.
+   */
+  it('cannot take the hit test from the tile beneath it', () => {
+    expect(css).toMatch(/\.cursor-tip \{[^}]*pointer-events:\s*none/);
+  });
+
+  /**
+   * Out of flow, or every hover reflows the grid it sits in. It is portalled to
+   * `<body>` for a second reason the stylesheet cannot show: the shell's body
+   * sets `container-type: size`, which implies `contain: layout` and makes it
+   * the containing block for fixed descendants — as well as clipping them.
+   */
+  it('is fixed, layered and portalled out of the grid', () => {
+    expect(css).toMatch(/\.cursor-tip \{[^}]*position:\s*fixed/);
+    expect(css).toMatch(/\.cursor-tip \{[^}]*z-index:\s*\d+/);
+    expect(readFileSync('src/ui/CursorTooltip.tsx', 'utf8')).toContain('document.body');
+  });
+
+  /**
+   * The counterpart to "it moves by transform": it must not also be positioned
+   * by `left`/`top`, which would re-layout on every pointer event and undo the
+   * whole point.
+   */
+  it('moves by transform alone', () => {
+    const tip = /\.cursor-tip \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(tip).toMatch(/top:\s*0/);
+    expect(tip).toMatch(/left:\s*0/);
+
+    const source = readFileSync('src/ui/CursorTooltip.tsx', 'utf8');
+    expect(source).toContain('style.transform');
+    expect(source).not.toMatch(/style\.(left|top)\s*=/);
+  });
+});
+
+describe('the world band', () => {
+  it('names the world by number, as `:1184` does', () => {
+    render(<LevelSelectScreen />);
+    expect(screen.getByRole('heading', { name: 'World 1' })).toBeInTheDocument();
+    // The theme name stays beside it — the port's addition, not the AS3's.
+    expect(document.querySelector('.levels__world-theme')).toHaveTextContent('Desert');
+  });
+
+  it('paints the world`s own texture behind it', () => {
+    const { container } = render(<LevelSelectScreen />);
+    const band = container.querySelector<HTMLElement>('.levels__world');
+
+    // `bgFadeText` frame `1 + world`, so world 1 is the second frame. Just that
+    // a texture is painted: the resolved URL is a hashed asset path.
+    expect(band?.style.backgroundImage).toContain('url(');
+  });
+});
+
+describe('the tile hover', () => {
+  const css = readFileSync('src/styles/global.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const hover = /\.level-grid__cell:hover:not\(:disabled\) \{([^}]*)\}/.exec(css)?.[1] ?? '';
+
+  /**
+   * Hover must not move the tile. It lifted it a pixel, which across a grid
+   * the pointer crosses several times a second reads as a twitch — and the
+   * transition animated that on 45 elements.
+   */
+  it('changes light, not position', () => {
+    expect(hover).not.toBe('');
+    expect(hover).not.toMatch(/transform:/);
+    expect(hover).toMatch(/filter:\s*brightness/);
+  });
+
+  it('keeps a border on the resting tile, so a hover colour cannot resize it', () => {
+    // A border added only on hover shifts every tile after it in the grid.
+    const base = /\n\.level-grid__cell \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(base).toMatch(/border:\s*1px solid/);
+    expect(hover).toMatch(/border-color:/);
+    expect(hover).not.toMatch(/border-width:|border:\s*\d/);
+  });
+});

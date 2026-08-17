@@ -306,6 +306,19 @@ needs to know before touching it:
   bottom row out of its plate. Place the parts absolutely and add
   `overflow: hidden` if the box must actually be square — and *measure* the
   height/width ratio, since the CSS reads correct either way.
+- **Never put `backdrop-filter` over the Phaser canvas.** It cost 52 fps on
+  level select — 8 fps against 60 — because the canvas repaints every frame and
+  the browser re-blurs the whole area each time. On the in-game screens it was
+  also invisible: `.screen-shell` paints opaque `#000`, and blurring a flat
+  colour returns it unchanged. Only `.menu-card` keeps one, over a real
+  picture. Measure with an rAF sampler and disable suspects one at a time;
+  reading the CSS tells you nothing.
+- **A cursor-following tooltip needs three things or it flickers violently:**
+  `pointer-events: none` (or it steals the hit test from the element it
+  describes, unmounting itself in a loop), a portal to `<body>` (the shell body
+  is `container-type: size`, which contains layout and so becomes the
+  containing block for fixed children *and* clips them), and movement by
+  `style.transform` through a ref rather than React state.
 - Divergences from the restyle are `A21`-`A34`.
 
 **jsdom cannot see any of this.** Layout bugs here are found by measuring boxes

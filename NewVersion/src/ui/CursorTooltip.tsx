@@ -1,0 +1,144 @@
+/**
+ * A tooltip that follows the pointer.
+ *
+ * ── Why it is not `useInfoText` ───────────────────────────────────────────
+ * `InfoText` is the port of `PartInfoText`: one panel, anchored to a *corner*
+ * chosen per trigger from `infoTextSites.ts`, because that is what the AS3
+ * does. It is still what the level guide's presets and the shop's rows use.
+ *
+ * This is a different thing for a different job — a readout that tracks the
+ * cursor across a 45-tile grid, where a fixed corner would mean looking away
+ * from what you are pointing at.
+ *
+ * ── The performance rule, which is the whole design ───────────────────────
+ * **Nothing here re-renders on pointer movement.** A `useState` per `mousemove`
+ * would run React 60+ times a second over a screen that also has a Phaser
+ * canvas compositing behind it; on this screen that is the difference between
+ * smooth and unusable. So:
+ *
+ *   - **Position** is written straight to `style.transform` through a ref, in
+ *     a listener attached once. React never sees a coordinate.
+ *   - **Content** is a prop, and changes only when the pointer crosses into a
+ *     different tile — a handful of renders per second at worst, not per
+ *     pixel.
+ *
+ * `transform` specifically, not `left`/`top`: it is composited, so a move
+ * costs no layout and no paint.
+ */
+import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+
+import type { LevelPreview } from '../game/levels/levelPreview';
+
+/** Clear of the cursor, and offset down-right so the arrow never covers it. */
+const OFFSET_X = 18;
+const OFFSET_Y = 20;
+
+/**
+ * The last pointer position, tracked continuously.
+ *
+ * **Because the tooltip mounts *after* the move that summoned it.** The first
+ * `mousemove` inside a tile is what sets `hovered`; by the time this component
+ * exists that event is gone, so with only a `mousemove` listener the card
+ * would sit at the origin until the pointer happened to move again — a card
+ * flashing in the top-left corner of the screen and then jumping.
+ *
+ * Module scope and one listener for the whole app: the alternative is every
+ * trigger carrying the coordinate through the state that mounts this, which is
+ * the per-pixel React update the whole design exists to avoid.
+ */
+const pointer = { x: 0, y: 0 };
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'mousemove',
+    (event) => {
+      pointer.x = event.clientX;
+      pointer.y = event.clientY;
+    },
+    { passive: true },
+  );
+}
+
+export function CursorTooltip({
+  preview,
+  title,
+}: {
+  /** What to describe, or `null` to show nothing. */
+  preview: LevelPreview | null;
+  title: string;
+}): React.ReactElement | null {
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (preview === null) return;
+
+    const place = (x: number, y: number): void => {
+      const el = box.current;
+      if (!el) return;
+
+      /*
+       * Flip before the edge rather than after it. Measured from the element
+       * itself, so a long roster flips at the right moment instead of at a
+       * guessed width — and read inside the listener because the box changes
+       * size with its content.
+       */
+      const { offsetWidth: w, offsetHeight: h } = el;
+      const left = x + OFFSET_X + w > window.innerWidth ? x - OFFSET_X - w : x + OFFSET_X;
+      const top = y + OFFSET_Y + h > window.innerHeight ? y - OFFSET_Y - h : y + OFFSET_Y;
+
+      el.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`;
+    };
+
+    // Place it where the pointer already is, before waiting for it to move.
+    place(pointer.x, pointer.y);
+
+    const move = (event: MouseEvent): void => place(event.clientX, event.clientY);
+
+    // `passive`: this never calls `preventDefault`, and saying so lets the
+    // browser skip waiting on it before it scrolls.
+    window.addEventListener('mousemove', move, { passive: true });
+    return () => window.removeEventListener('mousemove', move);
+  }, [preview]);
+
+  if (preview === null) return null;
+
+  /*
+   * **Portalled to `<body>`, and that is not tidiness.**
+   *
+   * Two things in the level-select subtree would break a `position: fixed`
+   * child: `.screen-shell__body` sets `overflow: hidden`, and it sets
+   * `container-type: size` — which implies `contain: layout`, and a
+   * layout-contained element becomes the containing block for its *fixed*
+   * descendants. So a tooltip rendered in place would be positioned against
+   * that box and clipped by it, losing a corner near every screen edge.
+   *
+   * It also has to be out of the grid's flow entirely. Rendered inline it is a
+   * grid item of `.levels`, appearing and vanishing on every hover — which is
+   * a full reflow of the two columns each time the pointer crosses a tile.
+   */
+  return createPortal(
+    /*
+      `aria-hidden`: the tile it describes already carries the same facts in its
+      accessible name, and a live region that moved with the mouse would
+      interrupt a screen reader continuously.
+    */
+    <div className="cursor-tip" ref={box} aria-hidden="true">
+      <p className="cursor-tip__title">{title}</p>
+      <p className="cursor-tip__mode">{preview.mode} mode</p>
+      <p className="cursor-tip__objective">{preview.objective}</p>
+
+      {preview.rows.length > 0 && (
+        <ul className="cursor-tip__enemies">
+          {preview.rows.map((row, i) => (
+            <li key={`${row.type}-${i}`}>
+              <span className="cursor-tip__enemy">{row.type}</span>
+              <span className="cursor-tip__amount">{row.amountLabel}</span>
+              <span className="cursor-tip__tier">{row.levelLabel}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>,
+    document.body,
+  );
+}

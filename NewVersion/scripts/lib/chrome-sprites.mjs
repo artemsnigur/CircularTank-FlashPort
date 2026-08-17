@@ -87,6 +87,20 @@ export const CHROME_PANEL_SPRITE_IDS = Object.freeze({
    * a picture rather than furniture.
    */
   BackgroundMainMenu: 1322,
+  /**
+   * The band behind level select's world name — `bgFadeText` (`:99`, `:388`).
+   *
+   * **Ten frames, one shape each, and the frame is the world.**
+   * `changeToLevelsFunction` sets `gotoAndStop(1 + selectedWorld)` (`:795`) and
+   * `changeToWorldsFunction` resets it to frame 1 (`:684`), so frame 1 is the
+   * world picker and frames 2..10 are worlds 1..9. Each is that world's own
+   * texture — sand for the desert, and so on.
+   *
+   * Sized 410 wide in the original against a 640 stage; the port stretches it
+   * across whatever the column is, which is why it arrives here as a
+   * background image rather than a `ChromeArt`.
+   */
+  BackgroundFadeText: 927,
 });
 
 /**

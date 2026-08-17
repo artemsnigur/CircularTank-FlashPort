@@ -242,6 +242,23 @@ export const CHROME_CLIPS: Readonly<Record<string, ChromeClip>> = Object.freeze(
       { frame: 1, layers: [{ shape: 1321, x: 0, y: 0, width: 640, height: 480 }] },
     ],
   },
+  BackgroundFadeText: {
+    symbol: 927,
+    width: 410,
+    height: 32,
+    frames: [
+      { frame: 1, layers: [{ shape: 908, x: 0, y: 0, width: 410, height: 32 }] },
+      { frame: 2, layers: [{ shape: 910, x: 0, y: 0, width: 410, height: 32 }] },
+      { frame: 3, layers: [{ shape: 912, x: 0, y: 0, width: 410, height: 32 }] },
+      { frame: 4, layers: [{ shape: 914, x: 0, y: 0, width: 410, height: 32 }] },
+      { frame: 5, layers: [{ shape: 916, x: 0, y: 0, width: 410, height: 32 }] },
+      { frame: 6, layers: [{ shape: 918, x: 0, y: 0, width: 410, height: 32 }] },
+      { frame: 7, layers: [{ shape: 920, x: 0, y: 0, width: 410, height: 32 }] },
+      { frame: 8, layers: [{ shape: 922, x: 0, y: 0, width: 410, height: 32 }] },
+      { frame: 9, layers: [{ shape: 924, x: 0, y: 0, width: 410, height: 32 }] },
+      { frame: 10, layers: [{ shape: 926, x: 0, y: 0, width: 410, height: 32 }] },
+    ],
+  },
   ButtonToggleSound: {
     symbol: 44,
     width: 30.01,
@@ -318,5 +335,5 @@ export const CHROME_CLIPS: Readonly<Record<string, ChromeClip>> = Object.freeze(
 
 /** Every shape the chrome draws — what the asset sync must have copied. */
 export const CHROME_SHAPE_IDS: readonly number[] = Object.freeze(
-  [23,24,26,27,28,40,41,42,43,45,167,187,377,379,383,385,387,389,391,393,438,439,441,442,443,445,446,448,449,450,451,452,453,454,455,457,458,460,461,463,464,466,467,540,541,543,544,546,548,549,550,551,552,561,563,564,573,575,577,580,581,591,593,594,847,856,900,904,971,976,977,978,979,1321],
+  [23,24,26,27,28,40,41,42,43,45,167,187,377,379,383,385,387,389,391,393,438,439,441,442,443,445,446,448,449,450,451,452,453,454,455,457,458,460,461,463,464,466,467,540,541,543,544,546,548,549,550,551,552,561,563,564,573,575,577,580,581,591,593,594,847,856,900,904,908,910,912,914,916,918,920,922,924,926,971,976,977,978,979,1321],
 );

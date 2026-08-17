@@ -330,7 +330,19 @@ body {
 /* The shell owns this screen's layout now — grid rows, background and scroll.
    Only the blur is the screen's own, and it survives the move. */
 .screen--levels {
-  backdrop-filter: blur(2px);
+  /*
+   * **No backdrop blur here, and that is a performance fix.**
+   *
+   * Measured at 2560x1440: 8 fps median with it, 60 without — and 60 with the
+   * canvas hidden instead, which is the other half of the diagnosis. Phaser
+   * repaints its backdrop every frame, so the browser re-blurred the whole
+   * viewport behind this panel 60 times a second.
+   *
+   * It was buying nothing. `.screen-shell` paints `--bg`, which is `#000` and
+   * opaque, so the blurred backdrop is a flat colour and blurring it returns
+   * the same flat colour. Pure cost, no effect. The main menu's card keeps
+   * its blur, because there is a real picture behind that one.
+   */
 }
 
 /*
@@ -416,10 +428,132 @@ body {
   padding: clamp(0.25rem, 0.9cqh, 0.7rem) clamp(0.5rem, 1.5cqw, 1.2rem);
   border: 1px solid rgb(255 255 255 / 10%);
   border-radius: clamp(0.4rem, 1cqh, 0.9rem);
-  background-image: linear-gradient(180deg, #6b5636 0%, #4b3d27 55%, #2b231a 100%);
+  /*
+   * The world's own texture — `bgFadeText`, set inline from the world number.
+   * A dark base under it and a repeat over it: the band is 410x32 in the
+   * original and is stretched across a far wider column here, where one
+   * smeared copy would read as a blur.
+   */
+  background-color: #2b231a;
+  background-repeat: repeat;
+  background-size: auto 100%;
+  background-position: center;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 22%),
+    inset 0 0 0 100vmax rgb(0 0 0 / 28%),
     0 2px 8px rgb(0 0 0 / 45%);
+}
+
+/*
+ * ══ The cursor tooltip — level select's hover readout ═══════════════════════
+ *
+ * **`pointer-events: none` is load-bearing, not tidiness.** The card is drawn
+ * a few pixels from the cursor, so without it the pointer lands on the tooltip
+ * instead of the tile: the tile's `mouseleave` fires, the tooltip unmounts, the
+ * pointer is back over the tile, `mouseenter` fires, the tooltip reappears
+ * under the cursor — a flicker loop running as fast as the browser can
+ * dispatch. It reads as violent twitching and it is entirely this one line.
+ *
+ * **`position: fixed` at the origin, moved only by `transform`.** The
+ * component writes `translate3d` straight to `style` through a ref, so a move
+ * is a composited transform: no layout, no paint, no React render. Setting
+ * `left`/`top` instead would re-layout on every mouse event.
+ *
+ * It is portalled to `<body>` — see the component for why the level-select
+ * subtree cannot host it.
+ */
+.cursor-tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2000;
+  pointer-events: none;
+  /* Promoted once, so the compositor keeps it on its own layer instead of
+     re-rasterising the card on every move. */
+  will-change: transform;
+
+  max-width: min(22rem, 60vw);
+  padding: 0.7rem 0.85rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.7rem;
+  background-image: linear-gradient(180deg, rgb(30 34 40 / 97%), rgb(14 16 19 / 97%));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 16%),
+    0 10px 30px rgb(0 0 0 / 65%);
+  font-family: var(--font-display);
+  color: var(--steel-000);
+}
+
+.cursor-tip__title {
+  margin: 0;
+  font-size: var(--text-md);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 85%);
+}
+
+.cursor-tip__mode {
+  margin: 0.1rem 0 0;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.cursor-tip__objective {
+  margin: 0.35rem 0 0;
+  font-size: var(--text-xs);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #ff6b60;
+}
+
+.cursor-tip__enemies {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0 0;
+  border-top: 1px solid rgb(255 255 255 / 10%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.cursor-tip__enemies li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: var(--text-2xs);
+}
+
+.cursor-tip__enemy {
+  color: var(--steel-100);
+  /* A long roster must not widen the card past its cap and start wrapping the
+     figures beside it. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cursor-tip__amount {
+  color: #7dff8a;
+  font-variant-numeric: tabular-nums;
+}
+
+.cursor-tip__tier {
+  color: var(--text-faint);
+  letter-spacing: 0.08em;
+}
+
+/* The world's name, beside the number the original prints. */
+.levels__world-theme {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(0.6rem, 1.7cqh, 1.2rem);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgb(255 235 200 / 80%);
+  text-shadow: 0 1px 0 rgb(0 0 0 / 90%);
 }
 
 .levels__world-name {
@@ -465,7 +599,6 @@ body {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 12%),
     0 4px 14px rgb(0 0 0 / 45%);
-  backdrop-filter: blur(4px);
   container-type: size;
 }
 
@@ -549,21 +682,28 @@ body {
   /* So the number and the medals can size themselves from the real cell rather
      than from `--cell`, which the track is free to shrink below. */
   container-type: inline-size;
+  /* No `transform` in the transition — hover no longer moves the tile, and
+     animating 45 of them was work for nothing. */
   transition:
-    transform 110ms ease,
+    filter 110ms ease,
     box-shadow 110ms ease,
     border-color 110ms ease;
 }
 
-/* Hover is **only** a visual state now — it no longer moves the selection. */
+/*
+ * Hover is a **light** change and nothing else — no `transform`.
+ *
+ * It used to lift the tile a pixel, which reads as a twitch across a grid
+ * where the pointer crosses several tiles a second. Brightness and a brighter
+ * rim say the same thing with nothing appearing to move.
+ */
 .level-grid__cell:hover:not(:disabled) {
-  transform: translateY(-1px);
-  border-color: rgb(255 255 255 / 42%);
-  filter: brightness(1.22);
+  border-color: rgb(255 255 255 / 46%);
+  filter: brightness(1.26);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 46%),
-    inset 0 -1px 0 rgb(255 255 255 / 10%),
-    0 5px 12px rgb(0 0 0 / 58%);
+    inset 0 1px 0 rgb(255 255 255 / 50%),
+    inset 0 -1px 0 rgb(255 255 255 / 12%),
+    0 3px 10px rgb(0 0 0 / 55%);
 }
 
 /*
@@ -747,7 +887,6 @@ body {
   border-radius: calc(var(--pane) * 0.055);
   background: rgb(20 20 20 / 82%);
   box-shadow: 0 16px 40px rgb(0 0 0 / 55%);
-  backdrop-filter: blur(8px);
   min-height: 0;
   overflow: hidden;
   text-align: left;
@@ -2172,7 +2311,6 @@ code {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 14%),
     0 4px 12px rgb(0 0 0 / 45%);
-  backdrop-filter: blur(6px);
 }
 
 .shop__slot {
@@ -2234,7 +2372,6 @@ code {
   border-radius: calc(var(--pane) * 0.06);
   background: rgb(20 20 20 / 82%);
   box-shadow: 0 16px 40px rgb(0 0 0 / 55%);
-  backdrop-filter: blur(8px);
   min-height: 0;
   overflow: hidden;
 }
@@ -3611,7 +3748,6 @@ code {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 14%),
     0 4px 12px rgb(0 0 0 / 45%);
-  backdrop-filter: blur(6px);
 }
 
 .level-guide__title {

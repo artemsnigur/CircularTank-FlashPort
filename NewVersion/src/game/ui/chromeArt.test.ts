@@ -47,7 +47,10 @@ const CLASS_FOR: Readonly<Record<string, string>> = {
 describe('the chrome table', () => {
   it('points every clip at the symbol its AS3 class embeds', () => {
     const names = Object.keys(CHROME_CLIPS);
-    expect(names.length).toBe(29);
+    // 30 since T174 added `BackgroundFadeText` (927), level select's per-world
+    // texture band. The count is here so a clip appearing or vanishing is a
+    // decision rather than a diff nobody reads.
+    expect(names.length).toBe(30);
 
     for (const name of names) {
       expect(CHROME_CLIPS[name].symbol, name).toBe(embeddedSymbol(CLASS_FOR[name] ?? name));
