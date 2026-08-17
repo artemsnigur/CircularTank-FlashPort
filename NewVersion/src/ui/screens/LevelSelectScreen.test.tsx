@@ -8,6 +8,7 @@
  * `A8` would take. So the first test here is that a tile still launches
  * directly, and the rest describe the panel as an *addition* beside it.
  */
+import { readFileSync } from 'node:fs';
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -83,7 +84,9 @@ describe('the detail column', () => {
     const panel = screen.getByRole('complementary', { name: 'Level detail' });
 
     // Level 3 is the last unlocked one — the level the player is here to play.
-    expect(panel).toHaveTextContent('Level 1-3');
+    // `Level 3`, not `Level 1-3`: `:421` sets `levelText` to the level alone,
+    // and the world is named over the grid beside it.
+    expect(panel).toHaveTextContent('Level 3');
     expect(panel).toHaveTextContent(/Flag mode/i);
   });
 
@@ -95,7 +98,7 @@ describe('the detail column', () => {
       screen.getByRole('button', { name: /Level 2, Normal/ }).focus();
     });
 
-    expect(panel).toHaveTextContent('Level 1-2');
+    expect(panel).toHaveTextContent('Level 2');
     // The mode changes with it — Flag on the frontier, Normal here — which is
     // what separates "the panel followed" from "the panel is stuck on one
     // level and happens to name it".
@@ -138,15 +141,170 @@ describe('the difficulty buttons', () => {
     );
   });
 
-  it('draws the selected one at frame 3 and the others at 1', () => {
-    // `ButtonGameDifficulty:73` against `:87`. Both, because a picker stuck on
-    // one frame passes either assertion alone.
+  /**
+   * The pills are CSS since T170 — `ButtonDifficultyEasy`'s three clips are no
+   * longer drawn. The rule they carried survives the swap and is what this
+   * pins: `ButtonGameDifficulty:73`'s frame 3 is **selected**, not pressed, so
+   * the state lives on the resting control.
+   *
+   * Both directions, because a picker stuck in one state passes either
+   * assertion alone.
+   */
+  it('marks the selected difficulty and only that one', () => {
     render(<LevelSelectScreen />);
 
     const medium = screen.getAllByRole('button', { name: 'Medium' })[0];
     const easy = screen.getAllByRole('button', { name: 'Easy' })[0];
 
-    expect(medium.querySelector('.chrome-art')?.getAttribute('data-frame')).toBe('3');
-    expect(easy.querySelector('.chrome-art')?.getAttribute('data-frame')).toBe('1');
+    expect(medium).toHaveAttribute('aria-pressed', 'true');
+    expect(medium.className).toContain('difficulty__button--on');
+    expect(easy).toHaveAttribute('aria-pressed', 'false');
+    expect(easy.className).not.toContain('difficulty__button--on');
+  });
+
+  it('draws no clip art for them at all', () => {
+    // The counterpart to the swap: the class could be right while the old
+    // pictures were still rendered underneath.
+    const { container } = render(<LevelSelectScreen />);
+    expect(container.querySelectorAll('.difficulty .chrome-art')).toHaveLength(0);
+  });
+});
+
+/**
+ * ── The layout, and what these can and cannot see — T170 ───────────────────
+ *
+ * **The stylesheet is read, not rendered.** jsdom has no layout engine and
+ * resolves no `calc()`, so a `--cell` that computed to nonsense would pass
+ * every line below. The fit was **measured in headless Chromium** against the
+ * production build, driving the real screen at eight viewports from 1024x480
+ * to 3840x2160 and comparing `scrollHeight` with `clientHeight` on
+ * `.screen-shell__body`, plus rectangle intersection between every cell and
+ * the panels beside it. All eight equal, 0 overlaps. Numbers in the commit.
+ *
+ * **Against the production build, and that mattered.** The first run used the
+ * dev server, where `DevLevelJump` renders — a whole section, not a button. On
+ * a 1024x480 viewport it took the entire body and the layout row measured 0px
+ * tall, so every reading was of a screen that does not ship.
+ */
+describe('the level layout is built not to scroll', () => {
+  /**
+   * Comments stripped — the third instance of this trap in the repo is
+   * documented on the shop's suite, and the same scan is used here.
+   */
+  const css = readFileSync('src/styles/global.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const block = (selector: string): string => {
+    const literal = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const found = new RegExp(`${literal}\\s*\\{([^}]*)\\}`).exec(css);
+    expect(found, `${selector} is missing`).not.toBeNull();
+    return found![1];
+  };
+
+  it('takes the scroll off the body rather than hoping it never overflows', () => {
+    const body = block('.screen--levels .screen-shell__body');
+
+    expect(body).toMatch(/overflow:\s*hidden/);
+    // `.screen-shell__body` sets `overflow-y: auto`; both are one class, so the
+    // override has to out-specify it rather than merely follow it.
+    expect(css).toMatch(/\.screen-shell__body \{[^}]*overflow-y: auto/);
+    // And the DEV jump is a sibling, so the layout gets a row rather than the
+    // whole body — the shop overflowed by exactly its DEV button's height.
+    expect(body).toMatch(/grid-template-rows:\s*minmax\(0, 1fr\) auto/);
+  });
+
+  /**
+   * The cell measures the **plate**, not the window.
+   *
+   * `cqh` here resolves to `.levels__grid-panel`, whose height is whatever the
+   * column leaves after the heading and the button — which is exactly the
+   * height the grid has to fit into. Measuring the viewport instead makes the
+   * cell a function of space the grid does not own, and the bar and nav take a
+   * far larger fraction of a short window than a tall one.
+   */
+  it('sizes the cell from the plate it sits on', () => {
+    expect(block('.levels__grid-panel')).toMatch(/container-type:\s*size/);
+
+    const grid = block('.level-grid');
+    expect(grid).toMatch(/--cell:\s*clamp\([^;]*min\([^;]*cqh[^;]*cqw[^;]*\)/);
+    expect(grid).not.toMatch(/--cell:[^;]*\dvh/);
+  });
+
+  it('lays the world out nine across, as the original does', () => {
+    // 45 levels a world, nine to a row, so five rows.
+    const grid = block('.level-grid');
+    expect(grid).toMatch(/grid-template-columns:\s*repeat\(9, minmax\(0, var\(--cell\)\)\)/);
+  });
+
+  /**
+   * `minmax(0, ...)` on the tracks, and a cell that can be narrower than
+   * `--cell`. Without both, a grid wider than its plate overflows and draws
+   * over the button under it — which is what the browser run caught here
+   * before the tracks could give way.
+   */
+  it('shrinks the cells rather than overflowing the plate', () => {
+    const cell = block('.level-grid__cell');
+
+    expect(cell).toMatch(/max-width:\s*var\(--cell\)/);
+    expect(cell).toMatch(/aspect-ratio:\s*1/);
+    expect(cell).not.toMatch(/height:\s*var\(--cell\)/);
+    // And its parts measure the real cell, not the variable.
+    expect(cell).toMatch(/container-type:\s*inline-size/);
+    expect(block('.level-grid__number')).toMatch(/font-size:\s*\d+cqw/);
+  });
+
+  it('spans the screen rather than capping and centring it', () => {
+    // `A32`: a `max-width` here reads as black pillars on a 2K display.
+    const levels = block('.levels');
+
+    expect(levels).not.toMatch(/max-width:\s*\d+px/);
+    expect(levels).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) var\(--pane\)/);
+    expect(levels).toMatch(/--pane:\s*clamp\(/);
+  });
+
+  /**
+   * Everything in the window is a fraction of `--pane`. A fixed `px` padding,
+   * gap or type size stays put while the panel grows on a large display, and
+   * the result is a big panel with cramped contents that nobody files as a bug.
+   */
+  it('leaves no fixed padding, gap or text size in the window', () => {
+    const fixed: string[] = [];
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .map((m) => ({ selector: m[1].trim(), body: m[2] }))
+      .filter((r) => /^\.(levels__(detail|name|mode|label|objective|enemy|enemies)|difficulty)/.test(r.selector));
+
+    expect(rules.length, 'the window`s rules were renamed').toBeGreaterThanOrEqual(6);
+    for (const { selector, body } of rules) {
+      for (const [, property, value] of body.matchAll(
+        /(?:^|;)\s*(padding|gap|font-size)\s*:([^;]+)/g,
+      )) {
+        const scales =
+          value.includes('var(--pane') || /(?:^|\s)0(?:\s|$)|em\b|%/.test(value.trim());
+        if (!scales) fixed.push(`${selector} { ${property}:${value.trim()} }`);
+      }
+    }
+    expect(fixed, 'these stay put while the window grows').toEqual([]);
+  });
+
+  /**
+   * The two buttons that adopted the shared pill must override it with **two**
+   * classes. Both rules are (0,1,0), so a single class leaves the winner to
+   * source order — the failure this project has shipped five times.
+   */
+  it('overrides the shared pill by specificity, not by position', () => {
+    expect(css).toContain('.gloss-pill.levels__play {');
+    expect(css).toContain('.gloss-pill.levels__world-button {');
+    expect(css).not.toMatch(/\n\.levels__play \{/);
+    expect(css).not.toMatch(/\n\.levels__world-button \{/);
+
+    // PLAY LEVEL is red, and it is the loudest thing on the screen.
+    expect(block('.gloss-pill.levels__play')).toMatch(/background-image:\s*linear-gradient/);
+  });
+
+  it('gives each difficulty its own selected colour', () => {
+    // Amber, silver and gold. Collapsing them onto one accent would lose which
+    // tier is set at a glance, which is the whole job of the frame it replaced.
+    for (const tier of ['easy', 'medium', 'hard']) {
+      expect(css, tier).toContain(`.difficulty__button--${tier}.difficulty__button--on {`);
+    }
   });
 });

@@ -334,129 +334,520 @@ body {
 }
 
 /*
- * ── Level select's two columns ─────────────────────────────────────────────
+ * ══ Level select — ScreenLevelSelect ════════════════════════════════════════
  *
- * `ScreenLevelSelect` puts the grid on a silver plate at the left and a dark
- * info window at the right (`bgLevelSelect` and `bgWindow`, `:390`/`:418`).
- * Proportions kept, coordinates not: `minmax(0, 1fr)` on the grid column is
- * what lets the tiles shrink on a phone instead of pushing the panel off.
+ * The grid plate on the left and the info window on the right — `bgLevelSelect`
+ * and `bgWindow` at `:390` and `:418`, which in the original are adjacent
+ * plates spanning the stage.
  *
- * **The stacking breakpoint is the detail panel's own width, not a device
- * guess.** Below ~46rem the two columns cannot both hold their content, so
- * they stack and the panel moves under the grid — where it is still the thing
- * you read after pointing at a tile.
+ * Built to the same three rules the shop arrived at over T166-T169:
+ *
+ *   1. **No scroll, structurally.** `overflow: hidden` on the body, and the
+ *      cell sized so five rows always fit. Measured rather than assumed — see
+ *      `LevelSelectScreen.test.tsx` for what the jsdom checks can and cannot
+ *      see, and the commit for the numbers.
+ *   2. **Container units, never viewport units.** The bar and the nav take a
+ *      much larger fraction of a short window than a tall one, so a `vh` share
+ *      overshoots at 480px and undershoots at 1440. That cost a pass on the
+ *      shop; `cqh` is a share of the box the grid actually has.
+ *   3. **No `max-width`.** A cap reads as black pillars on a 2K display. The
+ *      two columns span instead. `A32`.
  */
-.levels__layout {
+.screen--levels .screen-shell__body {
+  /* Two classes: `.screen-shell__body` sets `overflow-y: auto` and a single
+     class would leave the override to source order. */
+  overflow: hidden;
+  min-height: 0;
+  padding: clamp(0.4rem, 1.2vh, 0.9rem);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
-  gap: var(--space-4);
-  align-items: start;
+  /* `.levels` is not the body's only child — the DEV level jump is a sibling.
+     `minmax(0, 1fr)` gives the layout what is left rather than all of it; the
+     shop overflowed by exactly the height of its DEV button for want of this. */
+  grid-template-rows: minmax(0, 1fr) auto;
+  container-type: size;
 }
 
-@media (max-width: 46rem) {
-  .levels__layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.levels {
+  /* The info window, and the lever its insides scale from. */
+  --pane: clamp(15rem, 26cqw, 34rem);
+
+  display: grid;
+  /* The grid plate takes the slack, the window keeps a readable width. Both
+     span: no cap, no centring. */
+  grid-template-columns: minmax(0, 1fr) var(--pane);
+  gap: clamp(0.4rem, 1.2cqw, 1.1rem);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
-.levels__grid-panel {
-  padding: var(--space-3);
-}
-
-/* The detail column — dark plate, fields stacked in the AS3's own order:
-   name, mode, play, difficulty, objective, enemies (`:421-429`). */
-.levels__detail {
+.levels--picker {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  text-align: left;
+  gap: var(--space-3);
+  overflow-y: auto;
 }
 
-.levels__name {
+/* ── Left: the world's plate ──────────────────────────────────────────────
+   Heading, grid, and the way out to the world picker — the vertical order
+   `ScreenLevelSelect` uses, with `ButtonWorldSelect` (`:692`) at the bottom. */
+.levels__main {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.3rem, 1cqh, 0.8rem);
+  min-height: 0;
+  min-width: 0;
+}
+
+/*
+ * `worldText` over the grid — `:421`.
+ *
+ * The original draws it on a sandy band across the plate's top. Reproduced as
+ * a gradient rather than the extracted strip: it has to span whatever width
+ * the column is, and a fixed-size shape would need a second scaling rule to do
+ * what one gradient does natively.
+ */
+.levels__world {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: clamp(0.5rem, 2cqw, 1.5rem);
+  flex-wrap: wrap;
+  padding: clamp(0.25rem, 0.9cqh, 0.7rem) clamp(0.5rem, 1.5cqw, 1.2rem);
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: clamp(0.4rem, 1cqh, 0.9rem);
+  background-image: linear-gradient(180deg, #6b5636 0%, #4b3d27 55%, #2b231a 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 22%),
+    0 2px 8px rgb(0 0 0 / 45%);
+}
+
+.levels__world-name {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--text-lg);
-  letter-spacing: 0.06em;
+  font-size: clamp(0.85rem, 2.4cqh, 1.9rem);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text);
+  color: var(--steel-000);
+  text-shadow:
+    0 1px 0 rgb(0 0 0 / 90%),
+    0 0 0.5em rgb(0 0 0 / 70%);
 }
 
-/* `:424` draws the mode in red, on its own line. A bar rather than bare text:
-   it is the loudest thing in the original's column and reads as a banner. */
-.levels__mode {
-  margin: 0;
-  padding: var(--space-1) var(--space-2);
-  background: var(--pill-red);
-  border: 2px solid var(--steel-900);
-  border-radius: 4px;
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-align: center;
-  color: var(--accent-ink);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
-}
-
-/* `ButtonPlayLevel` — the original's art, with its three frames cross-faded
-   exactly as the nav buttons do. */
-.levels__play {
-  position: relative;
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-
-.levels__play:disabled {
-  filter: grayscale(0.7) brightness(0.5);
-  cursor: default;
-}
-
-
-
-/* `:423`/`:425` — the small captions above each value, in the smaller of the
-   two text formats the screen uses (`textFormat3`, 12px against 16px). */
-.levels__label {
-  margin: var(--space-2) 0 0;
-  font-family: var(--font-display);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-
-/* `:426` — the objective itself is red in the original, and it is the one
-   line the player is here to read. */
-.levels__objective {
+.levels__tally {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--text-sm);
-  color: var(--danger);
+  font-size: clamp(0.55rem, 1.5cqh, 1rem);
+  letter-spacing: 0.05em;
+  color: rgb(255 255 255 / 62%);
 }
 
-.levels__enemies {
+/*
+ * The plate the tiles sit on, and the container they measure.
+ *
+ * `container-type: size` here rather than on `.levels`: this box's height is
+ * whatever the flex column leaves after the heading and the button, which is
+ * exactly the height the grid has to fit into. Measuring the *screen* instead
+ * would make the cell a function of space the grid does not own.
+ *
+ * Its own width and height are set by the layout, not by the tiles, so there
+ * is no circularity — the tiles read a box that was already decided.
+ */
+.levels__grid-panel {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: clamp(0.25rem, 1cqh, 0.8rem);
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: clamp(0.4rem, 1cqh, 0.9rem);
+  background: rgb(0 0 0 / 38%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 12%),
+    0 4px 14px rgb(0 0 0 / 45%);
+  backdrop-filter: blur(4px);
+  container-type: size;
+}
+
+/*
+ * Nine across — `ScreenLevelSelect` lays the world out 9 wide, and a world is
+ * 45 levels, so five rows.
+ *
+ * **The cell takes the smaller of a height and a width share**, for the reason
+ * rule 2 above gives. Five rows plus their gaps come to about 5.4 cells, so
+ * 17cqh leaves roughly an twelfth of the panel spare; nine columns plus gaps
+ * come to about 9.8 cells, so 9.8cqw does the same across.
+ *
+ * `minmax(0, ...)` on the tracks so a cell can never widen the grid past its
+ * panel — a fixed track is how the shop's tiles came to overlap the widget
+ * beside them (`A29`), and it is invisible until someone measures it.
+ */
+.level-grid {
+  /*
+   * The ceiling is 11rem, not 6. Measured: at 6rem the cell stopped growing
+   * from 1600px wide upward — 96px in a panel 1058px tall at 2560x1440, with
+   * the grid using barely half the height it had. A ceiling that binds before
+   * the container does is just a smaller screen.
+   */
+  --cell: clamp(1.25rem, min(17cqh, 9.8cqw), 11rem);
+
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: var(--space-1);
+  grid-template-columns: repeat(9, minmax(0, var(--cell)));
+  gap: calc(var(--cell) * 0.1);
+  justify-content: center;
+  align-content: center;
+}
+
+.level-grid > li {
+  display: contents;
+}
+
+/* ── One level ────────────────────────────────────────────────────────────
+   A dark glass chip with a lit top edge — the same light model as everything
+   else on these screens: the highlight is at the top because that is where the
+   light is. */
+.level-grid__cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2cqw;
+  width: 100%;
+  max-width: var(--cell);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 18%;
+  cursor: pointer;
+  color: var(--steel-000);
+  font-family: var(--font-display);
+  background-image: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 16%) 0%,
+    rgb(255 255 255 / 4%) 40%,
+    rgb(0 0 0 / 30%) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 22%),
+    0 2px 5px rgb(0 0 0 / 45%);
+  /* So the number and the medals can size themselves from the real cell rather
+     than from `--cell`, which the track is free to shrink below. */
+  container-type: inline-size;
+  transition:
+    transform 110ms ease,
+    box-shadow 110ms ease,
+    border-color 110ms ease;
+}
+
+.level-grid__cell:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgb(255 255 255 / 34%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 32%),
+    0 4px 9px rgb(0 0 0 / 55%);
+}
+
+.level-grid__cell:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.92);
+}
+
+.level-grid__cell:focus-visible {
+  outline: 2px solid rgb(150 200 255 / 90%);
+  outline-offset: 2px;
+}
+
+/* Locked stays visible but inert — the AS3 draws a padlock rather than hiding
+   a level the player has not reached. */
+.level-grid__cell--locked {
+  cursor: not-allowed;
+  border-color: rgb(255 255 255 / 6%);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 5%), rgb(0 0 0 / 34%));
+  color: rgb(255 255 255 / 30%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+
+/* Cleared — a green edge, the counterpart to the shop's equipped red. */
+.level-grid__cell--cleared {
+  border-color: color-mix(in srgb, var(--ok) 55%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 24%),
+    0 0 0 1px color-mix(in srgb, var(--ok) 26%, transparent),
+    0 2px 5px rgb(0 0 0 / 45%);
+}
+
+.level-grid__number {
+  display: block;
+  font-size: 34cqw;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 85%);
+}
+
+.level-grid__mode {
+  display: block;
+  font-size: 15cqw;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 55%);
+}
+
+/* Always three glyphs, so a cell does not change height between an earned and
+   an unearned level. */
+.level-grid__medals {
+  display: block;
+  font-size: 17cqw;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: #ffc44d;
+  text-shadow: 0 0 0.4em rgb(255 180 40 / 45%);
+}
+
+/* `ButtonWorldSelect` — centred under the grid, as the original places it. */
+.gloss-pill.levels__world-button {
+  justify-self: center;
+  align-self: center;
+  width: min(60%, 22rem);
+  min-height: clamp(1.9rem, 5.5cqh, 3.4rem);
+  border-radius: clamp(0.5rem, 1.6cqh, 1.1rem);
+  font-size: clamp(0.7rem, 1.9cqh, 1.3rem);
+}
+
+.levels__world-button-label {
+  position: relative;
+  font-family: var(--font-display);
+  letter-spacing: 0.14em;
+  margin-right: -0.14em;
+  text-transform: uppercase;
+  color: #f2f6fa;
+  text-shadow:
+    0 -1px 0 rgb(0 0 0 / 60%),
+    0 0.04em 0.05em rgb(0 0 0 / 85%);
+}
+
+/* ── Right: the info window ───────────────────────────────────────────────
+   `bgWindow` (`:418`) and the fields it holds, in the AS3's own order: level,
+   mode, play, difficulty, objective, enemies (`:421-429`). */
+.levels__detail {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--pane) * 0.028);
+  padding: calc(var(--pane) * 0.055);
+  border: 2px solid rgb(255 255 255 / 10%);
+  border-radius: calc(var(--pane) * 0.055);
+  background: rgb(20 20 20 / 82%);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 55%);
+  backdrop-filter: blur(8px);
+  min-height: 0;
+  overflow: hidden;
+  text-align: left;
+}
+
+/* `:421` — red, at the window's top. */
+.levels__name {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: calc(var(--pane) * 0.085);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ff3b30;
+  text-shadow:
+    0 0 0.4em rgb(255 40 30 / 40%),
+    0 2px 2px rgb(0 0 0 / 85%);
+}
+
+/* `:424` — the mode on its own line, white over a recessed band. */
+.levels__mode {
+  margin: 0;
+  padding: calc(var(--pane) * 0.018) calc(var(--pane) * 0.03);
+  border-radius: calc(var(--pane) * 0.03);
+  background: rgb(255 255 255 / 7%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
+  font-family: var(--font-display);
+  font-size: calc(var(--pane) * 0.06);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--steel-000);
+  text-shadow: 0 2px 3px rgb(0 0 0 / 80%);
+}
+
+/*
+ * PLAY LEVEL — red, and the loudest thing on the screen, as in the original.
+ *
+ * Two classes on every override: `.gloss-pill` supplies the surface and both
+ * rules are (0,1,0), so a single `.levels__play` would be settled by whichever
+ * sits later in this file. That has shipped five times here.
+ */
+.gloss-pill.levels__play {
+  width: 100%;
+  min-height: calc(var(--pane) * 0.2);
+  border-radius: calc(var(--pane) * 0.045);
+  font-size: calc(var(--pane) * 0.095);
+  background-image: linear-gradient(
+    180deg,
+    #ff8a8a 0%,
+    #e23a3a 12%,
+    #a51414 40%,
+    #5e0505 62%,
+    #2a0202 84%,
+    #6b0d0d 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 62%),
+    inset 0 0 0 1px rgb(255 255 255 / 12%),
+    inset 0 0.12em 0.3em -0.1em rgb(255 255 255 / 26%),
+    inset 0 -0.14em 0.28em -0.12em rgb(0 0 0 / 90%),
+    0 0.08em 0.12em rgb(0 0 0 / 55%),
+    0 0.28em 0.6em rgb(180 0 0 / 35%),
+    0 0.3em 0.7em rgb(0 0 0 / 45%);
+}
+
+.gloss-pill.levels__play:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.85) brightness(0.5);
+  transform: none;
+}
+
+.levels__play-label {
+  position: relative;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin-right: -0.1em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow:
+    0 -1px 0 rgb(0 0 0 / 55%),
+    0 0.045em 0.05em rgb(0 0 0 / 90%);
+}
+
+/* `:423`/`:425` — the small captions above each value. */
+.levels__label {
+  margin: calc(var(--pane) * 0.012) 0 0;
+  font-family: var(--font-display);
+  font-size: calc(var(--pane) * 0.042);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* `:426` — red, and the one line the player is here to read. */
+.levels__objective {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: calc(var(--pane) * 0.058);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #ff3b30;
+  text-shadow:
+    0 0 0.4em rgb(255 40 30 / 35%),
+    0 2px 2px rgb(0 0 0 / 85%);
+}
+
+/* ── Difficulty ───────────────────────────────────────────────────────────
+   `ButtonGameDifficulty:73`'s frame 3 is *selected*, not pressed, so the state
+   lives on the resting pill: the chosen one lights and the others do not. */
+.difficulty {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--pane, 18rem) * 0.02);
+}
+
+.difficulty__button {
+  padding: calc(var(--pane, 18rem) * 0.022) calc(var(--pane, 18rem) * 0.02);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: calc(var(--pane, 18rem) * 0.045);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--steel-100);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 14%), rgb(0 0 0 / 32%));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 20%);
+  transition:
+    filter 110ms ease,
+    border-color 110ms ease;
+}
+
+.difficulty__button:hover {
+  border-color: rgb(255 255 255 / 34%);
+  filter: brightness(1.25);
+}
+
+/*
+ * The selected pill, per tier. Three separate rules rather than one accent,
+ * because the original gives each difficulty its own colour — amber, silver
+ * and gold — and collapsing them would lose which one is which at a glance.
+ */
+.difficulty__button--easy.difficulty__button--on {
+  border-color: #d79a3a;
+  color: #2a1a05;
+  background-image: linear-gradient(180deg, #f6c877 0%, #d79a3a 55%, #a26c1c 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 55%),
+    0 0 0.7em rgb(230 160 60 / 55%);
+}
+
+.difficulty__button--medium.difficulty__button--on {
+  border-color: #e8eef4;
+  color: #14181c;
+  background-image: linear-gradient(180deg, #ffffff 0%, #d3dbe3 55%, #9aa6b2 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 70%),
+    0 0 0.7em rgb(220 232 244 / 55%);
+}
+
+.difficulty__button--hard.difficulty__button--on {
+  border-color: #ffe14d;
+  color: #1b1500;
+  background-image: linear-gradient(180deg, #fff6a8 0%, #ffdc2e 50%, #d9a800 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 65%),
+    0 0 0.9em rgb(255 220 46 / 70%);
+}
+
+/* ── The enemy roster ─────────────────────────────────────────────────────
+   `addEnemyImages` (`:1112-1160`) — share on top, picture, tier underneath. */
+.levels__enemies {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--pane) * 0.02);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .levels__enemy {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-2xs);
-  color: var(--text-dim);
+  gap: calc(var(--pane) * 0.008);
+  padding: calc(var(--pane) * 0.018);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: calc(var(--pane) * 0.03);
+  background: rgb(255 255 255 / 6%);
+  font-family: var(--font-display);
+  font-size: calc(var(--pane) * 0.04);
+  color: var(--steel-100);
 }
 
 .levels__enemy-amount {
-  margin-left: auto;
-  color: var(--text);
+  color: var(--steel-000);
+  font-variant-numeric: tabular-nums;
+}
+
+.levels__enemy-level {
+  color: rgb(255 255 255 / 62%);
+  letter-spacing: 0.06em;
 }
 
 .screen__header {
@@ -543,66 +934,6 @@ code {
   background: transparent;
   font-size: var(--text-sm);
   padding: 0.5rem 0.9rem;
-}
-
-/* ── Level grid ──────────────────────────────────────────────────────────── */
-
-/*
- * The tile grid — six columns, as `ScreenLevelSelect` lays out its 30 levels.
- *
- * `repeat(6, minmax(0, 1fr))` rather than `auto-fill`: the original's shape is
- * six across and five down, and auto-fill made the column count a function of
- * the container's width, so the same world read as a different grid on a
- * phone. `minmax(0, …)` lets the tiles shrink instead of forcing a scrollbar.
- *
- * No `max-width` any more — the plate around it is what bounds it now.
- */
-.level-grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0.4rem;
-  width: 100%;
-}
-
-/*
- * Three columns on a narrow screen, rather than six that have shrunk.
- *
- * Six across is the original's shape and it holds down to about a tablet;
- * below that `minmax(0, 1fr)` keeps honouring the column count by making each
- * tile smaller, so the layout stays *correct* and stops being *tappable* —
- * the failure mode a fixed column count has, and the reason `auto-fill` was
- * tempting in the first place.
- *
- * Three, not two or four: it halves the original cleanly, so a world's 30
- * levels stay in whole rows (10 of 3 against 5 of 6) and the reading order
- * does not change. 30rem is where six tiles plus their gaps fall under the
- * ~44px tap target on a 16px root.
- */
-@media (max-width: 30rem) {
-  .level-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem;
-  }
-}
-
-.level-grid__cell {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 10px;
-  border: 1px solid var(--panel-border);
-  background: var(--panel);
-  color: var(--text);
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  cursor: pointer;
-}
-
-.level-grid__cell:active {
-  background: var(--accent);
-  color: var(--accent-ink);
 }
 
 /* ── Loader ──────────────────────────────────────────────────────────────── */
@@ -1194,39 +1525,6 @@ code {
   gap: 0.75rem;
 }
 
-/* Level select cells. Locked cells stay visible but inert, matching the AS3's
-   padlock rather than hiding levels the player has not reached. */
-.level-grid__cell--locked {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.level-grid__cell--cleared {
-  border-color: color-mix(in srgb, var(--ok) 60%, transparent);
-}
-
-.level-grid__number {
-  display: block;
-  font-size: var(--text-md);
-}
-
-.level-grid__mode {
-  display: block;
-  font-size: var(--text-3xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-}
-
-/* Medals earned at the current difficulty — 0..3, always three glyphs so the
-   cell height does not jump between an earned and an unearned level. */
-.level-grid__medals {
-  display: block;
-  font-size: var(--text-3xs);
-  letter-spacing: 0.05em;
-  color: var(--accent);
-}
-
 /* Status pages — ScreenStatus. The overlay opens on the last page and pages
    back to the results, so the pager is always visible when there is more than
    one page and the exit buttons only exist on the results page. */
@@ -1370,44 +1668,6 @@ code {
 .world-grid__tier-total {
   color: var(--text-dim);
 }
-
-/* Difficulty picker — ButtonDifficultyEasy/Medium/Hard. */
-.difficulty {
-  display: flex;
-  gap: 0.4rem;
-  justify-content: center;
-  margin: 0.25rem 0 0.75rem;
-}
-
-/*
- * The three difficulty buttons now draw the original's art, so the element is
- * a hit target and nothing else — no padding, no border, no background of its
- * own to show through the picture.
- *
- * **The label is `aria-label`, not text.** The word is inside the artwork, and
- * rendering it again underneath would double it for a sighted reader and read
- * it twice to a screen reader.
- */
-.difficulty__button {
-  position: relative;
-  display: block;
-  flex: none;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  height: 1.75rem;
-}
-
-.difficulty__button > .chrome-art {
-  height: 100%;
-  width: auto;
-}
-
-/* Which one is set lives in the *frame* — `ButtonGameDifficulty:73` — so
-   `--on` has nothing left to colour. It stays as the focus/selection hook the
-   tutorial hint animation and any future styling can reach for. The hover
-   face stacks through `.chrome-stack`. */
 
 /* `Main.hDifficultyChosen` still unset — the AS3 points a helper hand here.
    Gated on the tutorial, so it does not show until that lands. */

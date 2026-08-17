@@ -281,7 +281,13 @@ needs to know before touching it:
   comment explaining its removal; `UpgradesScreen.test.tsx` asserted `.shop`
   had no `max-width` and failed against the sentence *"T167 added
   `max-width: 1800px`"* in the comment saying why it has none.
-- Divergences from the restyle are `A21`-`A32`.
+- **Measure layout against `vite preview`, never the dev server.** `DevLevelJump`
+  renders only under `import.meta.env.DEV` and it is a whole section: at
+  1024x480 it took the entire body and level select's layout row measured
+  **0px** tall, so every reading was of a screen that does not ship. The shop's
+  harness had the same flaw and got away with it because its DEV affordance is
+  one 60px button.
+- Divergences from the restyle are `A21`-`A33`.
 
 **jsdom cannot see any of this.** Layout bugs here are found by measuring boxes
 in a real browser — see the trap below — and the visual judgement is the
