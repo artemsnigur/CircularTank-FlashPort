@@ -681,6 +681,45 @@ describe('the tile hover', () => {
     expect(hover).toMatch(/filter:\s*brightness/);
   });
 
+  /**
+   * **SELECT WORLD does not lift either**, matching the tiles above it.
+   *
+   * `.gloss-pill` raises its consumers a pixel on hover, which is right for the
+   * menu's PLAY and wrong for the one button under a grid that deliberately
+   * does not move.
+   *
+   * Measured in a browser: rest 1279.61, hover 1279.61, held 1280.62 — no
+   * lift, and the press still dips.
+   */
+  it('does not lift SELECT WORLD on hover', () => {
+    expect(css).toMatch(
+      // Anchored on the last selector in the group, so the assertion does not
+      // depend on how the pair is wrapped across lines.
+      /\.gloss-pill\.levels__world-button:focus-visible \{[^}]*transform:\s*none/,
+    );
+  });
+
+  /**
+   * The press must survive the override. `.gloss-pill:active` is (0,2,0) and
+   * the hover override is (0,3,0), so without an equally specific `:active`
+   * rule the override would keep winning while the button was held — killing
+   * the dip on the one interaction that should have it.
+   */
+  it('keeps the press dip at matching specificity', () => {
+    expect(css).toMatch(
+      /\.gloss-pill\.levels__world-button:active \{[^}]*transform:\s*translateY/,
+    );
+  });
+
+  /**
+   * And the override is **scoped**: the shared recipe still lifts, so the
+   * menu's PLAY button is untouched. Deleting the lift from `.gloss-pill`
+   * itself would have been the easy fix and the wrong one.
+   */
+  it('leaves the shared pill`s lift alone', () => {
+    expect(css).toMatch(/\.gloss-pill:hover,[^{]*\{[^}]*transform:\s*translateY\(-1px\)/);
+  });
+
   it('keeps a border on the resting tile, so a hover colour cannot resize it', () => {
     // A border added only on hover shifts every tile after it in the grid.
     const base = /\n\.level-grid__cell \{([^}]*)\}/.exec(css)?.[1] ?? '';

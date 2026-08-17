@@ -882,6 +882,29 @@ body {
   font-size: clamp(0.85rem, 3.1cqh, 2.1rem);
 }
 
+/*
+ * **No hover lift on this one**, matching the tiles above it.
+ *
+ * `.gloss-pill` raises its consumers a pixel on hover, which is right for the
+ * menu's PLAY — a single control on a still screen. Here it sits under 45
+ * tiles that deliberately do not move, and a button that alone twitches as the
+ * pointer reaches it reads as a fault rather than as feedback.
+ *
+ * **Three classes' worth of specificity, and the press rule has to match it.**
+ * `.gloss-pill:active` is (0,2,0); the hover override below is (0,3,0), so
+ * without an equally specific `:active` the override would keep winning while
+ * the button was held and the press would stop dipping. They are adjacent and
+ * `:active` is second, so it takes both on source order.
+ */
+.gloss-pill.levels__world-button:hover,
+.gloss-pill.levels__world-button:focus-visible {
+  transform: none;
+}
+
+.gloss-pill.levels__world-button:active {
+  transform: translateY(0.03em);
+}
+
 .levels__world-button-label {
   position: relative;
   font-family: var(--font-display);
