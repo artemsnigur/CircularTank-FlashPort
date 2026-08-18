@@ -3729,6 +3729,119 @@ code {
  * bars start shrinking; a shrinking navigation bar is a bug that only appears
  * on a small screen with a long list, which is where nobody looks.
  */
+/*
+ * ══ Screen transitions ══════════════════════════════════════════════════════
+ *
+ * Every screen is a sibling in `App.tsx` that returns `null` unless it is the
+ * active one, so a navigation *unmounts* one subtree and *mounts* another in a
+ * different position. There is no moment when both exist.
+ *
+ * **That rules out a true crossfade and makes a mount animation exact.** A
+ * crossfade needs the outgoing tree to survive its own removal, which would
+ * mean either retaining a screen whose own `activeScene` guard already returns
+ * null — it would render nothing to fade — or snapshotting its DOM. Both are a
+ * lot of machinery for one frame of overlap. A mount animation needs neither
+ * and cannot desynchronise, because the browser starts it when the element
+ * appears.
+ *
+ * What sells it as a transition rather than a pop is that **the ground never
+ * moves**: the Phaser canvas and the wallpaper are behind every screen and
+ * persist across the switch, so content rises into a scene that was already
+ * there.
+ *
+ * ── The dock deliberately does not animate ────────────────────────────────
+ * `.screen-shell__bar` and `.screen-shell__body` do; `.bottom-nav` does not.
+ * It is the one piece of chrome that is the *same object* on all five screens,
+ * and a navigation bar that fades out and back in each time you press it reads
+ * as a page load. The frame stays, the content changes.
+ */
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    /* Small on purpose. At 10px and 0.985 the movement is felt rather than
+       watched; anything larger turns a tab press into an event. */
+    transform: translateY(10px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * ── `backwards`, not `both`, and a browser had to say so ─────────────────
+ *
+ * The `from` state must apply before the first frame paints or a screen
+ * flashes at full opacity for one frame and then starts — the same one-frame
+ * flash `D-TIP` chased on the cursor tooltip. `backwards` and `both` both do
+ * that. The difference is what happens *after*.
+ *
+ * `both` also holds the `to` state forever, and a held `transform: none` does
+ * not compute to `none`: measured in Chromium, `getComputedStyle().transform`
+ * read **`matrix(1, 0, 0, 1, 0, 0)`** on every screen once the animation had
+ * finished. An identity matrix is still a transform, so each of these bodies
+ * would have become the containing block for any `position: fixed` descendant
+ * — permanently, on every screen, for the sake of a frame.
+ *
+ * The cursor tooltip is portalled to `<body>` and escapes it today. The next
+ * fixed thing might not, and this is not a bug anyone would trace back to an
+ * animation that finished 200ms ago.
+ *
+ * `backwards` applies the `from` state before the start and **nothing** after
+ * the end, which is exactly the pair of properties wanted. The CSS-only test
+ * could not have found this; `transition.mjs` drives it.
+ */
+.screen-shell__bar,
+.screen-shell__body,
+.menu-title,
+.menu-toggles,
+.menu-card {
+  animation: screen-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+
+/*
+ * The menu's wallpaper fades and **does not move**, which is not a stylistic
+ * choice: it is full-bleed, so `scale(0.985)` would pull its edges inward and
+ * show a hairline of the Phaser canvas all the way round for the length of the
+ * animation. Its floating parts — wordmark, audio toggles, card — carry the
+ * movement instead, which is where the eye is anyway.
+ *
+ * The same trap does not apply to `.screen-shell__body`: those bodies are
+ * transparent and their plates have their own backgrounds well inside the
+ * edge, so scaling moves content rather than revealing ground.
+ */
+@keyframes screen-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.menu-wallpaper {
+  animation: screen-fade 220ms ease backwards;
+}
+
+/*
+ * **Honoured, not decorative.** Someone who has asked their OS to reduce
+ * motion has usually asked because motion makes them ill, and a 220ms rise on
+ * every navigation is exactly the kind of thing meant. The screen still
+ * appears; it simply appears.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .screen-shell__bar,
+  .screen-shell__body,
+  .menu-title,
+  .menu-toggles,
+  .menu-card,
+  .menu-wallpaper {
+    animation: none;
+  }
+}
+
 .screen-shell {
   display: grid;
   grid-template-rows: auto 1fr auto;

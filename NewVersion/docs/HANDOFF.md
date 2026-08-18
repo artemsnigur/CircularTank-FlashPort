@@ -310,6 +310,14 @@ needs to know before touching it:
   a slot is a separate control on the save picker. `optionsService.test.ts`
   writes two slots, resets, and requires both to survive — do not "simplify"
   that to a `localStorage.clear()`.
+- **`animation-fill-mode: both` holds an identity matrix, not `none`.** The
+  screen transition ends on `transform: none`; with `both`, the computed style
+  after it finished read `matrix(1, 0, 0, 1, 0, 0)` — still a transform, so
+  every `container-type: size` body became the containing block for any fixed
+  descendant, permanently (`A45`). Use `backwards` when you only want the
+  first-frame guard. **A stylesheet test can refuse the cause; only a browser
+  sees the effect** — the CSS-only test asserted `transform: none` in the
+  keyframe and passed while the bug was live.
 - **If every size inside a box is a multiple of one lever, that lever needs a
   height term.** The box's height is *not* a multiple of it, so a width-only
   `clamp` overflows a short viewport — and with `overflow: hidden` it clips in
