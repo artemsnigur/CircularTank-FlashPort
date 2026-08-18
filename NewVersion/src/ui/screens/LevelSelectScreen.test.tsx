@@ -362,26 +362,34 @@ describe('the level layout is built not to scroll', () => {
   });
 
   /*
-   * ── PLAY LEVEL sits on the panel's floor — T189 ─────────────────────────
+   * ── PLAY LEVEL sits above the medals — T190 ─────────────────────────────
    *
-   * It was under the medals, a third of the way down a window whose remaining
-   * two thirds are the things you read *before* deciding: difficulty,
-   * objective, roster. Both halves are pinned because either alone is
-   * reversible by accident — the CSS without the DOM order anchors it below
-   * whatever happens to be last, and the DOM order without the CSS just moves
-   * it down by one gap.
+   * T189 anchored it to the panel's floor with `margin-top: auto`, on a
+   * misread request; T190 undid both halves. The order is the level's
+   * identity, the action, then what is known about it.
+   *
+   * Pinned as a *relative* order rather than an index, so inserting another
+   * row between them fails and adding one at the end does not — the contract
+   * is "the button is above the medals", not "the button is child three".
    */
-  it('puts PLAY LEVEL last in the panel and anchors it to the floor', () => {
+  it('puts PLAY LEVEL above the medals', () => {
     render(<LevelSelectScreen />);
 
     const panel = document.querySelector('.levels__detail')!;
-    const last = panel.children[panel.children.length - 1];
-    expect(last.classList.contains('levels__play')).toBe(true);
+    const children = [...panel.children];
+    const play = children.findIndex((el) => el.classList.contains('levels__play'));
+    const medals = children.findIndex((el) => el.classList.contains('levels__medal-row'));
 
-    // `auto`, not a fixed margin: it takes what is spare and collapses to
-    // nothing when there is none, so the anchor costs no height on the short
-    // viewports where this panel was clipping until T188.
-    expect(block('.gloss-pill.levels__play')).toMatch(/margin-top:\s*auto/);
+    expect(play, 'no PLAY LEVEL button in the panel').toBeGreaterThan(-1);
+    expect(medals, 'no medal row in the panel').toBeGreaterThan(-1);
+    expect(play).toBeLessThan(medals);
+  });
+
+  it('no longer anchors PLAY LEVEL to the panel floor', () => {
+    // The other half of T189, and it has to go too: left behind, the anchor
+    // would push the button back down past the medals the moment the panel
+    // had spare height, which is every viewport from 1366x768 up.
+    expect(block('.gloss-pill.levels__play')).not.toMatch(/margin-top:\s*auto/);
   });
 
   it('spans the screen rather than capping and centring it', () => {

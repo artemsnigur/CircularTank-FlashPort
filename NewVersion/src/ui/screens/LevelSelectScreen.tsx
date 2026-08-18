@@ -409,12 +409,40 @@ function LevelDetail({
       <p className="levels__mode">{preview ? `${preview.mode} mode` : '—'}</p>
 
       {/*
+        PLAY LEVEL, in CSS — `ButtonPlayLevel`'s art is no longer drawn.
+
+        The only way into a level since T173. The grid selects; this starts
+        whichever level the panel is describing.
+
+        **Above the medals** (T190). It briefly sat on the panel's floor under
+        `margin-top: auto`; that was a misread of the request and is undone.
+        The order is the level's identity, the action, then what is known about
+        it — the medals read as a record of this level rather than as one more
+        thing to get past before the button.
+      */}
+      <button
+        type="button"
+        className="levels__play gloss-pill"
+        disabled={!entry || !entry.unlocked}
+        aria-label={
+          entry && entry.unlocked ? `Play level ${world}-${entry.level}` : 'No level selected'
+        }
+        onClick={() =>
+          entry && GameEvents.emit('ui:start-game', { world, level: entry.level, difficulty })
+        }
+      >
+        <span className="levels__play-label">Play level</span>
+      </button>
+
+      {/*
         The same three medals the tile draws, several times larger.
 
         `:874` builds the icon from the level's *mode* and `:898` sets its tier
         frame, so a Flag level earns flags and a Boss level earns skulls — the
         shape says what the level is and the colour says how well it went.
         Worth the room in a panel that has it; the tile has 19cqw and cannot.
+        Directly under PLAY LEVEL since T190, so the panel reads identity,
+        action, then record.
 
         Always three sockets, earned or not, so the panel's height does not
         change as the selection moves across the grid — which would be a scroll
@@ -462,35 +490,6 @@ function LevelDetail({
       ) : (
         <p className="levels__objective">{entry?.unlocked ? '—' : 'Locked'}</p>
       )}
-      {/*
-        PLAY LEVEL, in CSS — `ButtonPlayLevel`'s art is no longer drawn.
-
-        The only way into a level since T173. The grid selects; this starts
-        whichever level the panel is describing.
-
-        **Last in the panel, and anchored to its floor** by `margin-top: auto`
-        (T189). It sat under the medals, a third of the way down a window whose
-        remaining two thirds are the things you read *before* deciding —
-        difficulty, objective, roster. The primary action belongs after them.
-
-        `auto` rather than a fixed margin on purpose: it takes whatever is
-        spare and collapses to nothing when there is none, so the anchor costs
-        no height on the short viewports where this panel was clipping until
-        T188.
-      */}
-      <button
-        type="button"
-        className="levels__play gloss-pill"
-        disabled={!entry || !entry.unlocked}
-        aria-label={
-          entry && entry.unlocked ? `Play level ${world}-${entry.level}` : 'No level selected'
-        }
-        onClick={() =>
-          entry && GameEvents.emit('ui:start-game', { world, level: entry.level, difficulty })
-        }
-      >
-        <span className="levels__play-label">Play level</span>
-      </button>
     </aside>
   );
 }
