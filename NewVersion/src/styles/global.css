@@ -3830,8 +3830,37 @@ code {
    */
   flex-wrap: wrap;
   gap: clamp(var(--space-2), 2vw, var(--space-4));
-  padding: var(--space-2) var(--space-3);
-  padding-bottom: calc(var(--space-2) + var(--safe-bottom));
+  /*
+   * **Lifted off the bottom edge**, and by padding rather than margin: the
+   * plate still reaches the screen edge, so there is no strip of wallpaper
+   * under a floating bar and `--safe-bottom` still does its job on a phone
+   * with a home indicator. The buttons rise; the dock does not detach.
+   *
+   * More below than above on purpose — a row of controls sitting on its own
+   * baseline reads as anchored, and an equal gap reads as centred in a band.
+   */
+  padding: clamp(0.4rem, 1.1vh, 1rem) var(--space-3);
+  /*
+   * **The lift is a share of the window's height, and that is load-bearing.**
+   *
+   * A flat lift cost the shop 4px it did not have at 1280x540 — the widest,
+   * shortest viewport measured, where the catalogue is already at its tightest
+   * (`scrollHeight 379` against `clientHeight 375`). The bar is the `auto`
+   * track under five screens' `1fr` bodies, so anything added here is taken
+   * from all of them.
+   *
+   * Tuned by measurement, and deliberately not to the boundary: at `1.5vh`
+   * bottom and `1.1vh` top the dock is **56px at 1280x540 against the 58px it
+   * was before this pass**, so the shop gets 2px more than it had rather than
+   * landing exactly on its limit. An earlier attempt at `1.7vh`/`1.3vh` came
+   * to 58.2px and still failed by a sub-pixel — a fix that lands on the
+   * boundary is not a fix, it is the same bug rounded differently.
+   *
+   * The breathing room appears where there is height for it: about 22px at
+   * 1440 and the 1.75rem ceiling from roughly 1870 up. The luxury yields on a
+   * cramped window; it does not push a layout out.
+   */
+  padding-bottom: calc(clamp(0.5rem, 1.5vh, 1.75rem) + var(--safe-bottom));
   background: var(--steel-900);
   border-top: 2px solid var(--steel-700);
 }
@@ -3859,18 +3888,27 @@ code {
    * The icons are 40 units square in the SWF and the wide tabs 200x40, so one
    * height keeps the row aligned and each width follows its aspect ratio.
    *
-   * `2.5rem` is 40px at the default root size — **exactly the size these clips
-   * were exported at**, which is why they are crisp. The `min()` only ever
-   * takes the art *down*: at 6vw the row needs about 14.1 button-heights of
-   * width, so anything from roughly 670px wide up gets the native 40px and
-   * anything narrower scales the whole row down together.
+   * 40px is the size these clips were exported at, and until T186 it was also
+   * the ceiling. It is now the **floor**: the six clips are pure vector —
+   * checked shape by shape for embedded rasters, several other SWF exports do
+   * carry `<image>` payloads with `image-rendering: pixelated` and would not
+   * survive this — so growing them costs nothing, and at 2560x1440 a 40px bar
+   * is a small target on a large screen.
    *
-   * Scaling down is free here — every one of the six clips is pure vector,
-   * checked shape by shape for embedded rasters (several other SWF exports do
-   * carry `<image>` payloads with `image-rendering: pixelated`, and those
-   * would not survive it). Scaling *up* is what would cost, and this cannot.
+   * Two constraints, and they bind at opposite ends:
+   *
+   *   `clamp(40px, 6vh, 80px)`  what the *height* of the window can afford.
+   *                             Native at 1024x480, 65px at 1080p, the 80px
+   *                             ceiling from about 1340px tall.
+   *   `6vw`                     what the *width* can afford. The row needs
+   *                             roughly 14.1 button-heights across, so this is
+   *                             what keeps two 5:1 tabs and four icons inside
+   *                             a 360px phone.
+   *
+   * `min()` of the two takes whichever is scarcer, so the bar grows on a big
+   * desktop and shrinks on a narrow phone from one rule.
    */
-  height: min(2.5rem, 6vw);
+  height: min(clamp(40px, 6vh, 80px), 6vw);
 }
 
 .nav-button > .chrome-art {

@@ -309,6 +309,15 @@ needs to know before touching it:
   `scrollHeight - clientHeight`, not just the body's.** And note the shape of
   the near miss: it was clean from 1366x768 up, so every viewport anyone
   develops on said the rule was right.
+- **The bar's height is `min(clamp(40px, 6vh, 80px), 6vw)`, and it is the
+  `auto` track under five screens' `1fr` bodies** — anything added to it is
+  taken from all of them. 40px is the clips' export size and is the *floor*,
+  not a ceiling, because they are pure vector (`A42`); the `6vw` term is what
+  keeps two 5:1 tabs and four icons inside a 360px phone. **Re-run the shop,
+  bestiary, achievements and level-select harnesses after touching it** — the
+  shop failed at 1280x540 by 4px when the dock grew, and the first fix landed
+  on 58.2px against the 58px it had been and still failed by a sub-pixel. **A
+  fix that lands on the boundary is not a fix.**
 - **"Is it an SVG" is not the question; "does the SVG contain an `<image>`"
   is.** Some JPEXS exports are raster payloads wrapped in SVG — `910.svg`
   carries a base64 PNG with `image-rendering: pixelated` baked in — and those
