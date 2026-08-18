@@ -1078,6 +1078,15 @@ body {
  * sits later in this file. That has shipped five times here.
  */
 .gloss-pill.levels__play {
+  /*
+   * **Anchored to the panel's floor.** `.levels__detail` is a flex column, so
+   * `auto` here takes every spare pixel above the button and pushes it down —
+   * and collapses to zero when there is none, which is why it is `auto` and
+   * not a fixed top margin. The panel was clipping its own roster on short
+   * viewports until T188; an anchor that added height would have brought that
+   * straight back at 1024x480.
+   */
+  margin-top: auto;
   width: 100%;
   min-height: calc(var(--pane) * 0.2);
   border-radius: calc(var(--pane) * 0.045);

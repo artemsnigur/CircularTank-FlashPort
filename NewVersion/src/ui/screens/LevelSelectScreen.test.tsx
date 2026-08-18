@@ -361,6 +361,29 @@ describe('the level layout is built not to scroll', () => {
     expect(block('.level-grid__number')).toMatch(/font-size:\s*\d+cqw/);
   });
 
+  /*
+   * ── PLAY LEVEL sits on the panel's floor — T189 ─────────────────────────
+   *
+   * It was under the medals, a third of the way down a window whose remaining
+   * two thirds are the things you read *before* deciding: difficulty,
+   * objective, roster. Both halves are pinned because either alone is
+   * reversible by accident — the CSS without the DOM order anchors it below
+   * whatever happens to be last, and the DOM order without the CSS just moves
+   * it down by one gap.
+   */
+  it('puts PLAY LEVEL last in the panel and anchors it to the floor', () => {
+    render(<LevelSelectScreen />);
+
+    const panel = document.querySelector('.levels__detail')!;
+    const last = panel.children[panel.children.length - 1];
+    expect(last.classList.contains('levels__play')).toBe(true);
+
+    // `auto`, not a fixed margin: it takes what is spare and collapses to
+    // nothing when there is none, so the anchor costs no height on the short
+    // viewports where this panel was clipping until T188.
+    expect(block('.gloss-pill.levels__play')).toMatch(/margin-top:\s*auto/);
+  });
+
   it('spans the screen rather than capping and centring it', () => {
     // `A32`: a `max-width` here reads as black pillars on a 2K display.
     const levels = block('.levels');

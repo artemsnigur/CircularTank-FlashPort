@@ -438,26 +438,6 @@ function LevelDetail({
         />
       </div>
 
-      {/*
-        PLAY LEVEL, in CSS — `ButtonPlayLevel`'s art is no longer drawn.
-
-        The only way into a level since T173. The grid selects; this starts
-        whichever level the panel is describing.
-      */}
-      <button
-        type="button"
-        className="levels__play gloss-pill"
-        disabled={!entry || !entry.unlocked}
-        aria-label={
-          entry && entry.unlocked ? `Play level ${world}-${entry.level}` : 'No level selected'
-        }
-        onClick={() =>
-          entry && GameEvents.emit('ui:start-game', { world, level: entry.level, difficulty })
-        }
-      >
-        <span className="levels__play-label">Play level</span>
-      </button>
-
       <p className="levels__label">Difficulty</p>
       <DifficultyPicker />
 
@@ -482,6 +462,35 @@ function LevelDetail({
       ) : (
         <p className="levels__objective">{entry?.unlocked ? '—' : 'Locked'}</p>
       )}
+      {/*
+        PLAY LEVEL, in CSS — `ButtonPlayLevel`'s art is no longer drawn.
+
+        The only way into a level since T173. The grid selects; this starts
+        whichever level the panel is describing.
+
+        **Last in the panel, and anchored to its floor** by `margin-top: auto`
+        (T189). It sat under the medals, a third of the way down a window whose
+        remaining two thirds are the things you read *before* deciding —
+        difficulty, objective, roster. The primary action belongs after them.
+
+        `auto` rather than a fixed margin on purpose: it takes whatever is
+        spare and collapses to nothing when there is none, so the anchor costs
+        no height on the short viewports where this panel was clipping until
+        T188.
+      */}
+      <button
+        type="button"
+        className="levels__play gloss-pill"
+        disabled={!entry || !entry.unlocked}
+        aria-label={
+          entry && entry.unlocked ? `Play level ${world}-${entry.level}` : 'No level selected'
+        }
+        onClick={() =>
+          entry && GameEvents.emit('ui:start-game', { world, level: entry.level, difficulty })
+        }
+      >
+        <span className="levels__play-label">Play level</span>
+      </button>
     </aside>
   );
 }
