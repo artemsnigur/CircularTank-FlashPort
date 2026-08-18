@@ -300,6 +300,16 @@ needs to know before touching it:
   `scrollHeight` were both clean: a grid overflowing its *grid column* does not
   overflow a body that has margin to spare. Test rectangle intersection between
   siblings as well as container overflow.
+- **Options omits graphics quality and difficulty on purpose, and both are
+  pinned by test.** Quality is not applicable (`stage.quality` has no WebGL
+  equivalent); difficulty is a divergence — it lives on level select beside the
+  medals it decides (`A43`). The failure mode is a *re-addition* by someone
+  completing the AS3's control list, which nothing else would object to.
+- **"Reset options" is settings, not progress**, and that is the AS3's own line
+  (`SaveManager.resetOptions` clears `optionsSave`, never `gameSave`). Deleting
+  a slot is a separate control on the save picker. `optionsService.test.ts`
+  writes two slots, resets, and requires both to survive — do not "simplify"
+  that to a `localStorage.clear()`.
 - **And it misses a panel clipping its own contents.** Same family, third
   instance. The bestiary's window was sized `clamp(14rem, 30cqw, 30rem)` —
   width only — while everything inside it is a multiple of that, so its content

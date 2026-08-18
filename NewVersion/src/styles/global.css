@@ -3208,35 +3208,6 @@ code {
 
 /* The stat lines moved into the shop block below — see `.shop-detail__stats`. */
 
-.volume-sliders {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.6rem;
-}
-.volume-slider {
-  display: grid;
-  grid-template-columns: 4rem 1fr 3rem;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: var(--text-xs);
-}
-.volume-slider__input {
-  /* min-width: 0 so the track can shrink inside the grid track rather than
-     forcing the row wider than its container on a narrow phone. */
-  min-width: 0;
-  width: 100%;
-  accent-color: currentcolor;
-  cursor: pointer;
-}
-.volume-slider__readout {
-  text-align: right;
-  /* Tabular figures stop the row twitching as the percentage changes width
-     while dragging. */
-  font-variant-numeric: tabular-nums;
-  opacity: 0.7;
-}
-
 /*
  * == Bestiary -- ScreenEnemies ==============================================
  *
@@ -4268,73 +4239,400 @@ code {
 .slot-grid__cell--confirm { align-items: center; gap: 0.6rem; }
 .slot-grid__confirm-row { display: flex; gap: 0.6rem; }
 
-/* Options — `ScreenOptions.as`. A list of switches, not bullets. */
-.options__list {
-  list-style: none;
-  margin: 1rem auto 0;
-  padding: 0;
-  max-width: 32rem;
+/*
+ * == Options -- ScreenOptions ===============================================
+ *
+ * Two glass cards side by side, centred: the five gameplay preferences on the
+ * left, the sound controls and the reset on the right. Same three rules the
+ * other five screens landed on -- no scroll, container units rather than
+ * viewport units, and the pair capped and centred rather than pinned to the
+ * edges (`A40`'s correction, applied here from the start).
+ *
+ * The AS3's own layout is a single 640x480 panel of checkboxes with the
+ * sliders beneath; the two-card split is this port's, for the same reason
+ * every other screen has one -- there is no fixed stage to lay out against.
+ */
+.screen--options .screen-shell__body {
+  /* Two classes, so this beats `.screen-shell__body`'s `overflow-y: auto`
+     rather than depending on source order. */
+  overflow: hidden;
+  min-height: 0;
+  padding: clamp(0.5rem, 1.4vh, 1rem);
   display: grid;
-  gap: 0.9rem;
+  grid-template-rows: minmax(0, 1fr) auto;
+  container-type: size;
 }
 
-.options__row {
-  text-align: left;
-}
+.options {
+  /*
+   * One lever, as `--pane` and `--card-w` are on the other screens: every size
+   * inside a card is a fraction of this, so the whole thing scales from one
+   * number and a stray `px` shows up as a test failure.
+   *
+   * **Capped by the height as well as the width — the same defect T179 found
+   * on the bestiary's window, caught here before it shipped.** Everything in a
+   * card is a multiple of `--card`, so the taller column's content runs about
+   * 1.16 times it; a width-only clamp gave a 343px card needing 397px of
+   * height inside a 314px box at 1024x480, and `overflow: hidden` meant that
+   * clipped in silence rather than scrolling. Measured: 83px over at both
+   * 1024x480 and 1280x600, and nothing from 1366x768 up — which is exactly why
+   * a width-only rule looks correct on the screen you develop on.
+   *
+   * 80cqh leaves about 20px on the binding case and barely touches 1366x768
+   * (457px to 454px), above which the 30rem cap is already what wins.
+   */
+  --card: min(clamp(15rem, 34cqw, 30rem), 80cqh);
 
-.options__toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
+  display: grid;
+  grid-template-columns: repeat(2, var(--card));
+  justify-content: center;
+  align-content: center;
+  gap: clamp(0.5rem, 2cqw, 1.6rem);
   width: 100%;
-  padding: 0.35rem 0;
-  background: none;
-  border: 0;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
+  height: 100%;
+  min-height: 0;
 }
 
-.options__box {
-  flex: 0 0 auto;
-  width: 1.15rem;
-  height: 1.15rem;
-  display: grid;
-  place-items: center;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--surface-sunken);
-  font-size: var(--text-xs);
-  line-height: 1;
-}
-
-.options__toggle[aria-checked='true'] .options__box {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--surface);
-}
-
-.options__label {
-  font-weight: 600;
-}
-
-.options__hint {
-  margin: 0.1rem 0 0 1.75rem;
-  font-size: var(--text-xs);
-  opacity: 0.7;
-}
-
-.options__audio {
-  margin-top: 1.75rem;
-  text-align: center;
+/*
+ * A card.
+ *
+ * `min-height: 0` and `overflow: hidden` so a card can never push the body
+ * into a scroll; the type inside is sized off `--card`, which is itself capped
+ * by the container, so in practice it does not have to.
+ */
+.options__card {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--card) * 0.028);
+  padding: calc(var(--card) * 0.055);
+  border: 2px solid rgb(255 255 255 / 10%);
+  border-radius: calc(var(--card) * 0.05);
+  background: rgb(20 20 20 / 82%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 12%),
+    0 16px 40px rgb(0 0 0 / 55%);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .options__subtitle {
-  margin: 0 0 0.6rem;
-  font-size: var(--text-sm);
+  margin: 0 0 calc(var(--card) * 0.02);
+  font-family: var(--font-display);
+  font-size: calc(var(--card) * 0.055);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  opacity: 0.75;
+  color: var(--text-faint);
+}
+
+.options__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--card) * 0.018);
+  min-height: 0;
+}
+
+.options__row {
+  min-width: 0;
+}
+
+/*
+ * One switch: the label and hint on the left, the track on the right.
+ *
+ * The whole row is the button, so the hit target is the row rather than a
+ * 40px sliver at its end — which matters more here than anywhere else in the
+ * game, because these are the only controls a player uses with a mouse and no
+ * urgency.
+ */
+.options__switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--card) * 0.04);
+  width: 100%;
+  padding: calc(var(--card) * 0.022) calc(var(--card) * 0.03);
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: calc(var(--card) * 0.03);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 5%), rgb(0 0 0 / 22%));
+  color: var(--steel-000);
+  cursor: pointer;
+  text-align: left;
+  /* No `transform` — the same rule the tiles and the dock settled on. */
+  transition:
+    filter 110ms ease,
+    border-color 110ms ease,
+    background-color 110ms ease;
+}
+
+.options__switch:hover {
+  border-color: rgb(255 255 255 / 26%);
+  filter: brightness(1.18);
+}
+
+.options__switch:active {
+  filter: brightness(0.94);
+}
+
+.options__switch:focus-visible {
+  outline: 2px solid rgb(150 200 255 / 90%);
+  outline-offset: 2px;
+}
+
+.options__text {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--card) * 0.006);
+  min-width: 0;
+}
+
+.options__label {
+  font-family: var(--font-display);
+  font-size: calc(var(--card) * 0.05);
+  letter-spacing: 0.04em;
+}
+
+.options__hint {
+  font-size: calc(var(--card) * 0.038);
+  line-height: 1.25;
+  color: var(--text-dim);
+}
+
+/*
+ * The track and knob.
+ *
+ * Sized in `em` off the row's own font-size so it tracks the label rather than
+ * the card — a switch that stays 40px while its label shrinks is the tell of a
+ * control bolted on rather than designed in.
+ */
+.options__track {
+  position: relative;
+  flex: none;
+  width: 2.6em;
+  height: 1.35em;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  background-image: linear-gradient(180deg, rgb(0 0 0 / 55%), rgb(255 255 255 / 6%));
+  box-shadow: inset 0 2px 5px rgb(0 0 0 / 70%);
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    border-color 140ms ease;
+}
+
+.options__knob {
+  position: absolute;
+  top: 50%;
+  left: 0.13em;
+  width: 1.02em;
+  height: 1.02em;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  background-image: radial-gradient(circle at 50% 28%, #f4f7fa, #b6c0cb 60%, #79838f 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 80%),
+    0 2px 4px rgb(0 0 0 / 65%);
+  /* The one transform in this block, and it is the control's whole behaviour
+     rather than a hover flourish. */
+  transition: left 140ms ease;
+}
+
+.options__switch--on .options__track {
+  border-color: rgb(120 190 255 / 55%);
+  background-image: linear-gradient(180deg, #1d4a72, #3d8fd0);
+  box-shadow:
+    inset 0 2px 5px rgb(0 0 0 / 45%),
+    0 0 0.7em rgb(120 190 255 / 45%);
+}
+
+.options__switch--on .options__knob {
+  left: calc(100% - 1.15em);
+}
+
+/* ---- The volume sliders -- `:38`, `:62` -------------------------------- */
+.volume-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--card, 20rem) * 0.02);
+  margin-top: calc(var(--card, 20rem) * 0.02);
+}
+
+.volume-slider {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: calc(var(--card, 20rem) * 0.03);
+  padding: calc(var(--card, 20rem) * 0.02) calc(var(--card, 20rem) * 0.03);
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: calc(var(--card, 20rem) * 0.03);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 5%), rgb(0 0 0 / 22%));
+}
+
+.volume-slider__label {
+  font-family: var(--font-display);
+  font-size: calc(var(--card, 20rem) * 0.045);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/*
+ * A milled metal bar with a machined thumb.
+ *
+ * `appearance: none` on all three engines, then the track and thumb drawn
+ * per-engine — there is no shorthand that reaches both, and leaving one out is
+ * how a control ends up styled on Chrome and default on Firefox.
+ */
+.volume-slider__input {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 0;
+  width: 100%;
+  height: 0.85em;
+  border-radius: 999px;
+  background-image: linear-gradient(180deg, #05070a 0%, #171c22 55%, #2b323a 100%);
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 90%),
+    inset 0 -1px 0 rgb(255 255 255 / 10%);
+  cursor: pointer;
+  accent-color: #3d8fd0;
+}
+
+.volume-slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 1.35em;
+  height: 1.35em;
+  border-radius: 50%;
+  background-image: radial-gradient(circle at 50% 26%, #f6f9fc, #b9c3ce 58%, #6f7985 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 85%),
+    0 2px 5px rgb(0 0 0 / 70%);
+  border: 1px solid rgb(0 0 0 / 45%);
+}
+
+.volume-slider__input::-moz-range-thumb {
+  width: 1.35em;
+  height: 1.35em;
+  border-radius: 50%;
+  background-image: radial-gradient(circle at 50% 26%, #f6f9fc, #b9c3ce 58%, #6f7985 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 85%),
+    0 2px 5px rgb(0 0 0 / 70%);
+  border: 1px solid rgb(0 0 0 / 45%);
+}
+
+.volume-slider__readout {
+  min-width: 3ch;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: calc(var(--card, 20rem) * 0.045);
+  /* Tabular figures stop the row twitching as the percentage changes width
+     while dragging. */
+  font-variant-numeric: tabular-nums;
+  color: var(--steel-000);
+}
+
+/* ---- Reset -- `ButtonResetOptions` ------------------------------------- */
+.options__danger {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--card) * 0.02);
+  margin-top: auto;
+  padding-top: calc(var(--card) * 0.035);
+  border-top: 1px solid rgb(255 255 255 / 12%);
+}
+
+.options__danger-note {
+  margin: 0;
+  font-size: calc(var(--card) * 0.038);
+  line-height: 1.3;
+  color: var(--text-dim);
+}
+
+.options__danger-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: calc(var(--card) * 0.025);
+}
+
+/*
+ * The button, on the shared pill.
+ *
+ * **Two classes**, because `.gloss-pill` and `.options__reset` are both
+ * (0,1,0) and a single class would leave the override to source order — five
+ * shipped bugs in this project were decided that way.
+ */
+.gloss-pill.options__reset {
+  width: 100%;
+  min-height: calc(var(--card) * 0.115);
+  padding: 0 calc(var(--card) * 0.04);
+  font-family: var(--font-display);
+  font-size: calc(var(--card) * 0.048);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--steel-000);
+}
+
+.options__reset-label {
+  /* Above `.gloss-pill::before`'s highlight, which is absolutely positioned
+     and would otherwise paint over unpositioned text. */
+  position: relative;
+}
+
+/*
+ * Crimson, because it is the one irreversible control on the screen.
+ *
+ * At rest it is the ordinary dark pill with a red rim — a button that shouts
+ * before it is aimed at is noise. The red arrives on hover, which is the point
+ * at which the player has aimed at it.
+ */
+.gloss-pill.options__reset--danger {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 45%),
+    inset 0 0 0 1px rgb(255 90 90 / 35%),
+    0 0 0 1px rgb(200 40 40 / 45%),
+    0 0.08em 0.12em rgb(0 0 0 / 55%);
+  color: #ffd9d9;
+}
+
+.gloss-pill.options__reset--danger:hover {
+  background-image: linear-gradient(
+    180deg,
+    #ff9a9a 0%,
+    #e8433f 8%,
+    #a81f1c 34%,
+    #6b1110 62%,
+    #40090a 82%,
+    #7a1615 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 62%),
+    inset 0 0 0 1px rgb(255 120 120 / 30%),
+    0 0 0 1px rgb(255 51 51 / 70%),
+    0 0 0.9em rgb(255 60 60 / 55%),
+    0 0.08em 0.12em rgb(0 0 0 / 55%);
+  color: #fff2f2;
+}
+
+/* The confirm step is already aimed at, so it wears the red at rest. */
+.gloss-pill.options__reset--confirm {
+  background-image: linear-gradient(
+    180deg,
+    #ff9a9a 0%,
+    #e8433f 8%,
+    #a81f1c 34%,
+    #6b1110 62%,
+    #40090a 82%,
+    #7a1615 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 62%),
+    inset 0 0 0 1px rgb(255 120 120 / 30%),
+    0 0 0 1px rgb(255 51 51 / 70%),
+    0 0 0.9em rgb(255 60 60 / 55%),
+    0 0.08em 0.12em rgb(0 0 0 / 55%);
+  color: #fff2f2;
 }
 
 /*

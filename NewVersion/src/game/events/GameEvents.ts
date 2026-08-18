@@ -549,6 +549,16 @@ export interface GameEventMap {
    * cannot accidentally rewrite the other five with stale values.
    */
   'ui:set-option': Partial<GameplayOptions>;
+  /**
+   * `ButtonResetOptions.onReleaseHandler` — `SaveManager.resetOptions()`.
+   *
+   * **Preferences, not progress.** The AS3 clears `optionsSave` and reloads
+   * defaults; `gameSave` is untouched. Deleting a *slot* is `ui:delete-slot`
+   * on the save picker, which is where the original puts it too
+   * (`ButtonGameSave:453`). Keeping the two apart is the point — one is
+   * undoable in a click and the other is not.
+   */
+  'ui:reset-options': Record<string, never>;
   /** The current preferences, so React can render the checkboxes. */
   'options:changed': GameplayOptions;
   /** The achievements board, published by its scene. */

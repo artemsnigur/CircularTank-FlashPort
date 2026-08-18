@@ -14,6 +14,7 @@ import { GameEvents } from '../events/GameEvents';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import {
   publishGameplayOptions,
+  resetOptions,
   setGameplayOption,
 } from '../options/optionsService';
 import { publishAudioOptions, setAudioOption } from '../audio/soundService';
@@ -47,6 +48,14 @@ export class OptionsScene extends Phaser.Scene {
     const offOptions = GameEvents.subscribe('ui:set-option', (change) => {
       setGameplayOption(this, change);
     });
+    // `ButtonResetOptions` — preferences back to defaults, progress untouched.
+    // Subscribed here beside the others for the reason the comment above gives:
+    // `uiEventListeners.test.ts` reads this file to pair the screen's emits
+    // against the scene's subscribes, and a subscription behind a helper is
+    // invisible to it.
+    const offReset = GameEvents.subscribe('ui:reset-options', () => {
+      resetOptions(this);
+    });
     publishGameplayOptions(this);
     // The screen reuses `AudioToggles`, so it emits `ui:set-audio` too.
     const offAudio = GameEvents.subscribe('ui:set-audio', (change) => {
@@ -70,6 +79,7 @@ export class OptionsScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offGoto();
       offOptions();
+      offReset();
       offAudio();
       GameEvents.off('viewport:changed', onResize);
       GameEvents.emit('scene:shutdown', { key: SceneKeys.Options });
