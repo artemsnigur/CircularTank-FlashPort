@@ -103,6 +103,7 @@ function DifficultyPicker(): React.ReactElement {
 function Medals({
   medals,
   mode,
+  block = 'level-grid',
 }: {
   medals: readonly MedalTier[];
   /**
@@ -112,16 +113,26 @@ function Medals({
    * rather than the badge owning it alone.
    */
   mode: string;
+  /**
+   * Which size draws them — `level-grid` on a 45-tile grid cell, `levels` in
+   * the detail panel, where T188 shows the same row several times larger.
+   *
+   * **One component, two sizes, and the tier colour is neither's.** The three
+   * tiers are `.medal--gold|silver|bronze`, shared, so a panel medal and a
+   * tile medal cannot end up different golds — which is exactly how the three
+   * glass tile surfaces drifted apart (`A38`).
+   */
+  block?: 'level-grid' | 'levels';
 }): React.ReactElement {
   return (
-    <span className="level-grid__medals" aria-hidden="true">
+    <span className={`${block}__medals`} aria-hidden="true">
       {Array.from({ length: MAX_LEVEL_VALUE }, (_, i) => {
         const tier = medals[i];
         return (
           <LevelModeIcon
             key={i}
             mode={mode}
-            className={`level-grid__medal${tier ? ` level-grid__medal--${tier}` : ''}`}
+            className={`${block}__medal${tier ? ` medal--${tier}` : ''}`}
           />
         );
       })}
@@ -396,6 +407,36 @@ function LevelDetail({
           are the modes that say something; "Normal" is the absence of one, and
           the original still prints it. */}
       <p className="levels__mode">{preview ? `${preview.mode} mode` : '—'}</p>
+
+      {/*
+        The same three medals the tile draws, several times larger.
+
+        `:874` builds the icon from the level's *mode* and `:898` sets its tier
+        frame, so a Flag level earns flags and a Boss level earns skulls — the
+        shape says what the level is and the colour says how well it went.
+        Worth the room in a panel that has it; the tile has 19cqw and cannot.
+
+        Always three sockets, earned or not, so the panel's height does not
+        change as the selection moves across the grid — which would be a scroll
+        appearing and disappearing under the pointer. An unearned slot is a
+        dark inset well with a ghost of the same glyph in it.
+      */}
+      <p className="levels__label">Medals</p>
+      <div
+        className="levels__medal-row"
+        role="img"
+        aria-label={
+          entry && entry.unlocked
+            ? `${entry.medals.length} of ${MAX_LEVEL_VALUE} medals`
+            : 'No medals'
+        }
+      >
+        <Medals
+          medals={entry && entry.unlocked ? entry.medals : []}
+          mode={entry?.mode ?? 'Normal'}
+          block="levels"
+        />
+      </div>
 
       {/*
         PLAY LEVEL, in CSS — `ButtonPlayLevel`'s art is no longer drawn.

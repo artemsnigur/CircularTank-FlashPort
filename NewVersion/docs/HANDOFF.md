@@ -310,6 +310,13 @@ needs to know before touching it:
   a slot is a separate control on the save picker. `optionsService.test.ts`
   writes two slots, resets, and requires both to survive — do not "simplify"
   that to a `localStorage.clear()`.
+- **If every size inside a box is a multiple of one lever, that lever needs a
+  height term.** The box's height is *not* a multiple of it, so a width-only
+  `clamp` overflows a short viewport — and with `overflow: hidden` it clips in
+  silence. Three screens have now needed the same correction: the bestiary's
+  window (`A37`), the options cards (`A43`) and level select's detail panel
+  (`A44`). The form is `min(clamp(min, Xcqw, max), Ycqh)`. **Check this before
+  adding a row to any panel.**
 - **And it misses a panel clipping its own contents.** Same family, third
   instance. The bestiary's window was sized `clamp(14rem, 30cqw, 30rem)` —
   width only — while everything inside it is a multiple of that, so its content

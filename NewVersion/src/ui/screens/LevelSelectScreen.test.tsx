@@ -367,7 +367,20 @@ describe('the level layout is built not to scroll', () => {
 
     expect(levels).not.toMatch(/max-width:\s*\d+px/);
     expect(levels).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) var\(--pane\)/);
-    expect(levels).toMatch(/--pane:\s*clamp\(/);
+    /*
+     * Both terms of the lever, and the `min()` that joins them. T188 added the
+     * height cap after a per-panel clipping check — new to this harness, and
+     * the third one to need it — found `.levels__detail` cutting its own
+     * roster by 61-119px at the three shortest viewports, silently, because
+     * the panel is `overflow: hidden` and the *body* never scrolled.
+     *
+     * Asserting only the `cqw` half would pass on exactly the version that
+     * clipped.
+     */
+    expect(levels).toMatch(/--pane:\s*min\(clamp\([^;]*cqw[^;]*\),\s*\d+cqh\)/);
+    // `cqh`, not `vh` — the `A32` finding: the bar and the nav take a far
+    // larger fraction of a short window than a tall one.
+    expect(levels).not.toMatch(/--pane:[^;]*vh/);
   });
 
   /**
@@ -432,7 +445,69 @@ describe('the medals on a tile', () => {
       // `[object SVGAnimatedString]` — every tier read as empty, uniformly,
       // which is the shape of a check that returns the same wrong answer for
       // every input.
-    ].map((n) => /level-grid__medal--(\w+)/.exec(n.getAttribute('class') ?? '')?.[1] ?? '');
+      // The tier class is `medal--x`, not `level-grid__medal--x`: T188 gave
+      // the detail panel a much larger copy of this row and the *colour* is
+      // shared between the two sizes, so neither block owns it. Anchored on a
+      // word boundary so a future `something__medal--x` cannot match here.
+    ].map((n) => /(?:^|\s)medal--(\w+)/.exec(n.getAttribute('class') ?? '')?.[1] ?? '');
+
+  /*
+   * ── The panel draws the same row, bigger — T188 ─────────────────────────
+   *
+   * One component at two sizes. What is worth pinning is not that the panel
+   * has icons, but that it shows **the selected level's** medals in **that
+   * level's shape** and shares the tier colours with the tile — three separate
+   * ways a second copy of this row would go wrong quietly.
+   */
+  const panelMedals = (): string[] =>
+    [...document.querySelectorAll('.levels__medals .levels__medal')].map(
+      (n) => /(?:^|\s)medal--(\w+)/.exec(n.getAttribute('class') ?? '')?.[1] ?? '',
+    );
+
+  it('shows the selected level`s medals in the detail panel', () => {
+    render(<LevelSelectScreen />);
+    // Level 2's fixture is gold/silver/bronze — the same three the tile shows,
+    // which is the point: two renderings of one fact cannot disagree.
+    act(() => {
+      screen.getByRole('button', { name: /^Level 2,/ }).click();
+    });
+    expect(panelMedals()).toEqual(medalsOf(2));
+    expect(panelMedals()).toEqual(['gold', 'silver', 'bronze']);
+  });
+
+  it('keeps three sockets even with nothing earned, so the panel cannot resize', () => {
+    /*
+     * A panel that grew a row as the selection moved would change height under
+     * the pointer, and this screen's whole layout guarantee is that it never
+     * scrolls. Level 3's fixture has `medals: []` — level 1's is three bronze,
+     * which is why this picks the third.
+     */
+    render(<LevelSelectScreen />);
+    act(() => {
+      screen.getByRole('button', { name: /^Level 3,/ }).click();
+    });
+    // Three, from the same constant the component counts with.
+    expect(panelMedals()).toHaveLength(3);
+    expect(panelMedals().every((tier) => tier === '')).toBe(true);
+  });
+
+  it('draws the panel medal in the level`s own mode shape', () => {
+    // `:874` builds the icon from the mode before `:898` sets its tier, so a
+    // Boss level earns skulls. The panel must ask the same question the tile
+    // does, not default to a star.
+    render(<LevelSelectScreen />);
+    const boss = screen.getAllByRole('button', { name: /^Level \d+,/ }).find((b) =>
+      (b.getAttribute('aria-label') ?? '').includes('Boss'),
+    );
+    if (boss) {
+      act(() => {
+        boss.click();
+      });
+      const tileShape = boss.querySelector('.level-grid__medal')?.innerHTML;
+      const panelShape = document.querySelector('.levels__medal')?.innerHTML;
+      expect(panelShape).toBe(tileShape);
+    }
+  });
 
   /**
    * **Coloured per medal, not per level** — `:849-910`. Level 2's fixture is

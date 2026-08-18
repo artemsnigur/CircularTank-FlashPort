@@ -380,8 +380,27 @@ body {
 }
 
 .levels {
-  /* The info window, and the lever its insides scale from. */
-  --pane: clamp(15rem, 26cqw, 34rem);
+  /*
+   * The info window, and the lever its insides scale from.
+   *
+   * **Capped by the height as well as the width**, the same correction the
+   * bestiary's window (`A37`) and the options cards (`A43`) needed. Everything
+   * in the window is a multiple of `--pane`, so its content runs taller as it
+   * runs wider, and a width-only clamp overflowed a short viewport: measured
+   * at 1024x480, 1280x540 and 1280x600 the panel clipped its own contents by
+   * 67px, 119px and 61px — the enemy roster at the bottom, silently, because
+   * the panel is `overflow: hidden` and the *body* never scrolled.
+   *
+   * **How much of it predates T188's medal row is not established, and the
+   * honest answer is that nobody could have known either way**: `fitlevels.mjs`
+   * had no per-panel clipping check until this pass — the third harness to
+   * need the one T179 added — so the panel has never been asked whether it
+   * holds its contents. The row certainly contributed; the roster was already
+   * the thing being cut. Both are fixed by the cap.
+   *
+   * 62cqh does not bind from 1366x768 up, where the panel already fits.
+   */
+  --pane: min(clamp(15rem, 26cqw, 34rem), 62cqh);
 
   display: grid;
   /* The grid plate takes the slack, the window keeps a readable width. Both
@@ -883,19 +902,78 @@ body {
   color: rgb(255 255 255 / 16%);
 }
 
-.level-grid__medal--gold {
+/*
+ * ── The detail panel's medals, several times the tile's ──────────────────
+ *
+ * The same three the tile draws — same component, same shared tier colours —
+ * at a size a panel can afford. Each sits in a dark inset well, so an unearned
+ * slot reads as an empty socket rather than as a faint smudge, and the row
+ * keeps its width whatever has been earned.
+ *
+ * Sized off `--pane` like everything else in this window, so it scales with
+ * the panel rather than with the viewport.
+ */
+.levels__medal-row {
+  display: flex;
+  justify-content: center;
+}
+
+.levels__medals {
+  display: flex;
+  justify-content: center;
+  gap: calc(var(--pane) * 0.035);
+}
+
+.levels__medal {
+  width: calc(var(--pane) * 0.155);
+  height: calc(var(--pane) * 0.155);
+  padding: calc(var(--pane) * 0.022);
+  border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / 10%);
+  /* The socket: lit at the top rim, sunk below, the same light model the
+     achievement badges and the glass tiles use. */
+  background-image: radial-gradient(
+    circle at 50% 22%,
+    rgb(255 255 255 / 10%),
+    rgb(12 14 17 / 92%) 68%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 12%),
+    inset 0 -3px 8px rgb(0 0 0 / 70%);
+  /* Unearned. The three tier rules below out-specify nothing — they are a
+     second class on the same element — so this is the default and they win by
+     being applied, not by cascade order. */
+  color: rgb(255 255 255 / 14%);
+  box-sizing: border-box;
+}
+
+/*
+ * ── The three tiers, shared by every size that draws them ────────────────
+ *
+ * Standalone rather than `.level-grid__medal--gold`, because T188 added a
+ * second, much larger copy of this row to the detail panel. Two size rules
+ * over one colour rule is the split that keeps a tile medal and a panel medal
+ * the same gold — the alternative is three colours written twice, which is how
+ * the glass tiles drifted three ways (`A38`).
+ *
+ * **`drop-shadow`, not `text-shadow`.** These were `text-shadow`, which paints
+ * nothing at all here: `LevelModeIcon` renders an `<svg>` and the glyph is a
+ * filled path, not text. The glow has never rendered on the tiles. `filter`
+ * follows the alpha of the shape, which is what was wanted.
+ */
+.medal--gold {
   color: #ffd23f;
-  text-shadow: 0 0 0.45em rgb(255 200 50 / 60%);
+  filter: drop-shadow(0 0 0.35em rgb(255 200 50 / 60%));
 }
 
-.level-grid__medal--silver {
+.medal--silver {
   color: #dfe8f0;
-  text-shadow: 0 0 0.45em rgb(220 235 250 / 55%);
+  filter: drop-shadow(0 0 0.35em rgb(220 235 250 / 55%));
 }
 
-.level-grid__medal--bronze {
+.medal--bronze {
   color: #d98e33;
-  text-shadow: 0 0 0.45em rgb(215 130 40 / 55%);
+  filter: drop-shadow(0 0 0.35em rgb(215 130 40 / 55%));
 }
 
 /* `ButtonWorldSelect` — centred under the grid, as the original places it. */
