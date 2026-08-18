@@ -85,25 +85,6 @@ export function restingFrame(
   return frames.rest;
 }
 
-/**
- * Whether affordability changes what this button shows.
- *
- * **Derived from the frame table, not written as `destination === 'Upgrades'`.**
- * `makeIcon` is a property of `ButtonUpgrades` — it has 7 frames precisely
- * because the triplet shifts by 3 when the shop has something within reach —
- * so asking the table whether the rest frame moves is asking the AS3 the
- * question directly. If a re-read ever finds a second button with the same
- * shift, the hint follows without an edit here.
- *
- * The bar draws this as a badge rather than a frame swap (`A41`), which is why
- * the predicate exists at all: the port needs the *fact*, and the AS3 encodes
- * it as an offset.
- */
-export function showsAffordanceHint(destination: NavDestination, affordable: boolean): boolean {
-  if (!affordable) return false;
-  return navFrames(destination, true).rest !== navFrames(destination, false).rest;
-}
-
 /** Whether the button leads anywhere — false on the screen it points at. */
 export function isNavigable(destination: NavDestination, current: NavDestination | null): boolean {
   return destination !== current;

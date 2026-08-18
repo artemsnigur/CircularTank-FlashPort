@@ -3809,353 +3809,97 @@ code {
 }
 
 /*
- * == The bottom navigation dock -- BottomBar.as =============================
+ * ── The bottom navigation ──────────────────────────────────────────────────
  *
  * `BottomBar.as` puts two 200-wide tabs at x 5 and 209 and then an icon row at
- * a 45px pitch from 413, on a 640-wide stage. Those are *pictures at fixed
- * stage coordinates*; this is six labelled pills on a dock, spread evenly
- * (`A41`). The order is the AS3's and the coordinates are not, for the same
- * reason every other screen dropped its coordinates: they were the screen.
- *
- * The dock itself is glass over the wallpaper -- a lit top rim, a dark ramp,
- * and a shadow above it so the bar reads as sitting in front of the screen
- * rather than as a strip of a different colour welded to the bottom.
+ * a 45px pitch from 413, on a 640-wide stage. The proportions are kept and the
+ * absolute coordinates are not: the tabs take the space they need at the left,
+ * the icons sit at the right, and the gap between them absorbs the difference.
  */
 .bottom-nav {
-  flex: none;
-  padding: clamp(0.35rem, 1.1vh, 0.7rem) clamp(0.4rem, 1.4vw, 1rem);
-  padding-bottom: calc(clamp(0.35rem, 1.1vh, 0.7rem) + var(--safe-bottom));
-  border-top: 1px solid rgb(255 255 255 / 12%);
-  background-image: linear-gradient(
-    180deg,
-    rgb(148 166 186 / 12%) 0%,
-    rgb(20 24 30 / 92%) 34%,
-    rgb(8 10 13 / 96%) 100%
-  );
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 22%),
-    0 -6px 18px rgb(0 0 0 / 45%);
-  /*
-   * **No `backdrop-filter`.** `D-FPS` measured a 52 fps loss from one over the
-   * live Phaser canvas, and this bar sits over it on every in-game screen.
-   * The ramp above is opaque enough that a blur would cost the frames for no
-   * visible pixels -- which is exactly the finding.
-   */
-}
-
-/*
- * One row, wrapping.
- *
- * `space-evenly` rather than `space-between`: with six pills of unequal width
- * the between form pins the first and last to the edges and pools the slack in
- * the middle, which is the void the shop spent three tasks on. Evenly puts the
- * same slack outside them too, so the row reads as centred at any width.
- */
-.bottom-nav__row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-evenly;
-  gap: clamp(0.25rem, 0.8vw, 0.7rem);
+  justify-content: space-between;
+  /*
+   * **Wrapping is the safety net, not the plan.** The buttons scale with the
+   * window (see `.nav-button`), so the row is meant to stay on one line at
+   * every size measured — 360x640 up. `wrap` is here so that if a future
+   * label or a seventh button ever does exceed the width, the row breaks
+   * instead of the art sliding over its neighbours, which is what the old
+   * `max-width` cap did.
+   */
+  flex-wrap: wrap;
+  gap: clamp(var(--space-2), 2vw, var(--space-4));
+  padding: var(--space-2) var(--space-3);
+  padding-bottom: calc(var(--space-2) + var(--safe-bottom));
+  background: var(--steel-900);
+  border-top: 2px solid var(--steel-700);
 }
 
-/*
- * One tab, and **only its size**.
- *
- * The six styles below each supply their own surface, hover, press and
- * "you are here". This carries what they all have to agree on: how big they
- * are, so the row stays level whatever they look like.
- */
-.nav-pill {
+.bottom-nav__tabs,
+.bottom-nav__icons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.nav-button {
   position: relative;
-  display: grid;
-  place-items: center;
-  flex: 0 1 auto;
-  min-width: clamp(4.5rem, 11vw, 9rem);
-  min-height: clamp(1.9rem, 4.4vh, 2.6rem);
-  padding: 0 clamp(0.5rem, 1.1vw, 1rem);
+  display: block;
+  flex: none;
+  /* The art carries the whole button; the element is a hit target and a
+     stacking context and nothing else. */
+  padding: 0;
   border: 0;
-  cursor: pointer;
-  font-family: var(--font-display);
-  font-size: clamp(0.62rem, 1.05vw, 0.9rem);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--steel-000);
   background: none;
+  cursor: pointer;
   /*
-   * **Every style block below is `.nav-pill.nav-style--x`, two classes.**
+   * ── One height for the row, and it never exceeds the art's own size ──────
    *
-   * They override `border-radius`, `background`, `color`, `font-family` and
-   * `letter-spacing` from this rule. A lone `.nav-style--x` is (0,1,0), the
-   * same as this, so which one won would come down to which sits later in the
-   * file — and this project has shipped five bugs decided exactly that way.
-   * Qualifying them costs one class and removes the question.
+   * The icons are 40 units square in the SWF and the wide tabs 200x40, so one
+   * height keeps the row aligned and each width follows its aspect ratio.
+   *
+   * `2.5rem` is 40px at the default root size — **exactly the size these clips
+   * were exported at**, which is why they are crisp. The `min()` only ever
+   * takes the art *down*: at 6vw the row needs about 14.1 button-heights of
+   * width, so anything from roughly 670px wide up gets the native 40px and
+   * anything narrower scales the whole row down together.
+   *
+   * Scaling down is free here — every one of the six clips is pure vector,
+   * checked shape by shape for embedded rasters (several other SWF exports do
+   * carry `<image>` payloads with `image-rendering: pixelated`, and those
+   * would not survive it). Scaling *up* is what would cost, and this cannot.
    */
-  /*
-   * **`filter` and `box-shadow` only, never `transform`, in the transition.**
-   * Each style below is free to dip on press, but none may lift on hover, and
-   * leaving `transform` out of the shared transition is what stops a re-added
-   * one easing in and looking deliberate. `glassSurfaces.test.ts` pins the
-   * same rule on the three tile surfaces.
-   */
-  transition:
-    filter 120ms ease,
-    box-shadow 120ms ease,
-    border-color 120ms ease,
-    background-color 120ms ease;
+  height: min(2.5rem, 6vw);
+}
+
+.nav-button > .chrome-art {
+  height: 100%;
+  width: auto;
 }
 
 /*
- * The two wide tabs -- `BottomBar.as` gives them 200 units against the icons'
- * 45, so they keep a larger share here without keeping the ratio: five times
- * the width of a labelled button would be a banner, not a tab.
+ * **No `max-width` on the wide tabs, and that cap was a real defect.**
+ *
+ * It was `40vw`, meant to keep two 200-wide tabs plus four icons on a narrow
+ * phone. But the `.chrome-art` inside takes its width from the clip's
+ * aspect-ratio and `width: auto`, so capping the *button* did not shrink the
+ * *picture*: at 360x640 the art measured 200px inside a 144px control — 56px
+ * of it hanging over the neighbour, and 6 art-on-art overlaps across the row.
+ * The button rects stayed clean throughout, which is why nothing caught it.
+ *
+ * Scaling the shared height instead shrinks the art itself, so the tabs keep
+ * their 5:1 proportion and stay inside their controls at every width.
  */
-.nav-pill--wide {
-  min-width: clamp(6rem, 15vw, 12rem);
-}
 
-.nav-pill__label {
-  position: relative;
-  white-space: nowrap;
-}
-
-/*
- * `IconEnough` -- `ButtonUpgrades` pins a badge over the tab when something in
- * the shop is affordable, on top of shifting its frames. A green dot carries
- * the same message at button scale, in the colour this UI already uses for
- * "you can pay for this" (the shop's prices and stat values).
- */
-.nav-pill__dot {
-  position: absolute;
-  top: 14%;
-  right: 8%;
-  width: 0.42em;
-  height: 0.42em;
-  border-radius: 50%;
-  background: #7dff8a;
-  box-shadow:
-    0 0 0.4em rgb(0 255 90 / 75%),
-    inset 0 1px 0 rgb(255 255 255 / 60%);
-  pointer-events: none;
-}
-
-/* ═════════════════════════════════════════════════════════════════════════
-   T184 -- six styles, one per button, for comparison in place.
-
-   **These are not meant to match, and the mismatch is the deliverable.**
-   Exactly one survives the next pass; the other five blocks get deleted and
-   `NAV_STYLE` collapses to a constant. `A42`.
-
-   Every one of them obeys three house rules, because those are what is being
-   compared *between* the styles rather than what is being tested:
-
-     1. brighten or shift on hover, never lift;
-     2. dip on press;
-     3. a distinct, obvious "you are here" state.
-   ═════════════════════════════════════════════════════════════════════════ */
-
-/* ── 1. Soft UI / neumorphic ──────────────────────────────────────────────
-   Extruded matte clay: one light shadow up-left, one dark down-right, no
-   border at all. The trick is that the button and its ground are the *same*
-   colour -- the shape comes entirely from the two shadows, which is why it
-   needs a mid-tone surface rather than the dock's near-black. */
-.nav-pill.nav-style--soft {
-  border-radius: 0.9em;
-  background: #2b3038;
-  color: #d8dee7;
-  text-shadow: 0 1px 0 rgb(0 0 0 / 45%);
-  box-shadow:
-    -3px -3px 7px rgb(255 255 255 / 8%),
-    4px 4px 9px rgb(0 0 0 / 62%);
-}
-
-.nav-pill.nav-style--soft:hover {
-  color: #fff;
-  box-shadow:
-    -3px -3px 8px rgb(255 255 255 / 12%),
-    5px 5px 11px rgb(0 0 0 / 68%);
-}
-
-/* Pressed *into* the surface -- the shadows swap sides and go inset, which is
-   the whole idiom: the button is not on the panel, it is part of it. */
-.nav-pill.nav-style--soft:active,
-.nav-pill.nav-style--soft.nav-pill--on {
-  background: #262b32;
-  box-shadow:
-    inset 3px 3px 7px rgb(0 0 0 / 70%),
-    inset -3px -3px 7px rgb(255 255 255 / 7%);
-}
-
-.nav-pill.nav-style--soft.nav-pill--on {
-  color: #8fd0ff;
-  text-shadow: 0 0 0.6em rgb(120 190 255 / 55%);
+.nav-button[aria-current='page'] {
   cursor: default;
 }
 
-/* ── 2. Flat minimalist ───────────────────────────────────────────────────
-   No shadow, no gradient, no rim. One matte fill, generous type, a small
-   radius. The whole style is the restraint, so the states are colour changes
-   and nothing else. */
-.nav-pill.nav-style--flat {
-  border-radius: 0.35em;
-  background: #333a44;
-  color: #e6ebf2;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-}
-
-.nav-pill.nav-style--flat:hover {
-  background: #414a57;
-}
-
-.nav-pill.nav-style--flat:active {
-  background: #2a3039;
-}
-
-.nav-pill.nav-style--flat.nav-pill--on {
-  background: #e8edf4;
-  color: #1a1e24;
-  cursor: default;
-}
-
-/* ── 3. Cyberpunk neon ────────────────────────────────────────────────────
-   Near-black plate, a thin cyan rim, and the same colour bled outward *and*
-   inward so the edge reads as a tube rather than as a line. Monospace,
-   because the look is a terminal. */
-.nav-pill.nav-style--neon {
-  border: 1px solid #29e0ff;
-  border-radius: 0.2em;
-  background: #06080d;
-  color: #8ef4ff;
-  font-family: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
-  letter-spacing: 0.18em;
-  text-shadow: 0 0 0.5em rgb(41 224 255 / 85%);
-  box-shadow:
-    inset 0 0 0.7em rgb(41 224 255 / 22%),
-    0 0 0.55em rgb(41 224 255 / 45%);
-}
-
-.nav-pill.nav-style--neon:hover {
-  border-color: #7ceeff;
-  color: #dcfdff;
-  box-shadow:
-    inset 0 0 1em rgb(41 224 255 / 38%),
-    0 0 1.1em rgb(41 224 255 / 75%);
-}
-
-.nav-pill.nav-style--neon:active {
-  filter: brightness(0.8);
-}
-
-/* Lit in magenta rather than brighter cyan: on a neon sign the "on" state is a
-   different tube, not the same one turned up. */
-.nav-pill.nav-style--neon.nav-pill--on {
-  border-color: #ff3ded;
-  color: #ffd6fb;
-  text-shadow: 0 0 0.6em rgb(255 61 237 / 90%);
-  box-shadow:
-    inset 0 0 1em rgb(255 61 237 / 30%),
-    0 0 1.2em rgb(255 61 237 / 70%);
-  cursor: default;
-}
-
-/* ── 4. Retro arcade ──────────────────────────────────────────────────────
-   Chunky, hard-edged, no blur anywhere: a solid 3px border and a hard offset
-   shadow with zero spread, so it reads as a sticker sitting proud of the
-   dock. Pressing it moves the button onto its own shadow. */
-.nav-pill.nav-style--arcade {
-  border: 3px solid #12151a;
-  border-radius: 0;
-  background: #ffc531;
-  color: #1a1206;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  box-shadow: 4px 4px 0 0 #12151a;
-}
-
-.nav-pill.nav-style--arcade:hover {
-  background: #ffdb6e;
-}
-
-/* The one place a `transform` is right: the button travels *into* its shadow,
-   which is the idiom's whole point. On press, not on hover -- see the house
-   rules above. */
-.nav-pill.nav-style--arcade:active {
-  transform: translate(4px, 4px);
-  box-shadow: 0 0 0 0 #12151a;
-}
-
-.nav-pill.nav-style--arcade.nav-pill--on {
-  background: #ff5d47;
-  color: #fff4ef;
-  box-shadow:
-    4px 4px 0 0 #12151a,
-    0 0 0 3px #ffc531 inset;
-  cursor: default;
-}
-
-/* ── 5. Material outline ──────────────────────────────────────────────────
-   Transparent, a 1px coloured outline, wide letter-spacing and a lot of air.
-   Hover tints the interior instead of the edge -- Material's own behaviour --
-   and the current state fills it, which is the same component's "selected". */
-.nav-pill.nav-style--outline {
-  border: 1px solid rgb(120 190 255 / 55%);
-  border-radius: 0.3em;
-  background: transparent;
-  color: #a8d4ff;
-  letter-spacing: 0.16em;
-}
-
-.nav-pill.nav-style--outline:hover {
-  border-color: rgb(150 205 255 / 85%);
-  background-color: rgb(120 190 255 / 12%);
-  color: #d9ecff;
-}
-
-.nav-pill.nav-style--outline:active {
-  background-color: rgb(120 190 255 / 22%);
-}
-
-.nav-pill.nav-style--outline.nav-pill--on {
-  border-color: #9ad0ff;
-  background-color: rgb(120 190 255 / 26%);
-  color: #ffffff;
-  cursor: default;
-}
-
-/* ── 6. Brutalist ─────────────────────────────────────────────────────────
-   Raw and deliberately graceless: flat white, a heavy black slab border,
-   square corners, monospace, and no easing of any kind. Inverts on hover
-   rather than tinting -- there is no in-between state in this idiom. */
-.nav-pill.nav-style--brutalist {
-  border: 3px solid #f2f2f2;
-  border-radius: 0;
-  background: #0c0c0c;
-  color: #f2f2f2;
-  font-family: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  /* No transition at all: the switch is instant, which is the point. */
-  transition: none;
-}
-
-.nav-pill.nav-style--brutalist:hover {
-  background: #f2f2f2;
-  color: #0c0c0c;
-}
-
-.nav-pill.nav-style--brutalist:active {
-  background: #bdbdbd;
-  color: #0c0c0c;
-}
-
-.nav-pill.nav-style--brutalist.nav-pill--on {
-  background: #f2f2f2;
-  color: #0c0c0c;
-  outline: 3px solid #0c0c0c;
-  outline-offset: -9px;
-  cursor: default;
-}
+/* Rest, hover and pressed stack through `.chrome-stack` — see it for why the
+   positioning cannot live here. The resting frame is in flow and sets the
+   button's size, so a state frame of a different size cannot change its
+   width as it lights up. */
 
 /*
  * ── The three chrome primitives ────────────────────────────────────────────

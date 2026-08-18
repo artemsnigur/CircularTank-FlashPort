@@ -309,33 +309,18 @@ needs to know before touching it:
   `scrollHeight - clientHeight`, not just the body's.** And note the shape of
   the near miss: it was clean from 1366x768 up, so every viewport anyone
   develops on said the rule was right.
-- **The bottom bar is currently six different styles at once, on purpose.**
-  T184 is a live A/B/C/D/E/F comparison — soft, flat, neon, arcade, outline and
-  brutalist, one per button, assigned by *position in the row* rather than by
-  anything about the destination (`A42`). **Do not "fix" the inconsistency**:
-  one style wins, five CSS blocks and `NAV_STYLE` get deleted, and the
-  style-variety test in `ScreenShell.test.tsx` goes with them. Only the tab for
-  the screen you are on lights up, so comparing the active states means
-  visiting all five nav screens; the sixth (Main menu) has no reachable current
-  state at all, because `ButtonMenu` has no "you are here" frame.
-- **The bottom bar is pills, and `navTabs.ts` still decides two things.** The
-  frame numbers are no longer drawn (`A41`) but they are not decoration:
-  `frames.current === undefined` is what stops the Main menu pill ever lighting
-  (`ButtonMenu` has three frames, no "you are here"), and
-  `showsAffordanceHint` derives the shop badge by asking whether the rest frame
-  *moves* rather than testing for `'Upgrades'`. **Do not simplify either into a
-  literal** — the frame table is where the AS3's answer lives.
-- **`ButtonUpgrades` frame 7 is not shifted by affordability**, so the shop's
-  own tab must not wear the "you can afford something" badge (`:88`). This
-  shipped wrong on the first pass of T183 and was caught only because the test
-  around it had to be rewritten for the new rendering. **A test rewritten for a
-  new rendering is a chance to check the rule survived** — re-point it at what
-  the old assertion *meant*, not at the nearest new selector.
-- **Changing the bottom bar's height changes every screen.** It is the `auto`
-  track under each screen's `1fr` body, so a taller dock silently shortens five
-  layouts that were measured against the old one. Re-run the shop, bestiary,
-  achievements and level-select harnesses after touching it — T183's dock runs
-  43–65px against the old fixed 2.5rem.
+- **"Is it an SVG" is not the question; "does the SVG contain an `<image>`"
+  is.** Some JPEXS exports are raster payloads wrapped in SVG — `910.svg`
+  carries a base64 PNG with `image-rendering: pixelated` baked in — and those
+  cannot be scaled up. The six bottom-bar clips were checked shape by shape and
+  are pure vector, which is why T183's "the bar is being upscaled" argument was
+  wrong and got reverted (`A41`). **Check before claiming an upscale problem.**
+- **Capping a control does not cap the art inside it.** `.nav-button--wide` had
+  `max-width: 40vw`; the `.chrome-art` within takes its width from the clip's
+  aspect ratio, so at 360x640 a 200px picture sat in a 144px button and hung
+  56px over its neighbour while every button rectangle measured clean. Third
+  instance of one shape, after T168's widget overlap and T179's panel clipping:
+  **the container being fine says nothing about what is inside it.**
 - **An extracted shape has a size it was drawn at, and this port scales past
   it.** The shop's backing disc is a 30x30 export drawn at up to 176px — a
   six-times upscale whose antialiased edge goes ragged, and *worse* on a
