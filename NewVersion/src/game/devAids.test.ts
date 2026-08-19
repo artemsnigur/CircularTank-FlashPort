@@ -82,7 +82,6 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
   // `LevelSelectScreen.tsx` left this list in T172. The dev level jump is
   // gone — it took the whole body at short viewports and pushed SELECT
   // WORLD off the screen. The enemies screen still reaches every level.
-  'src/ui/DiagnosticsPanel.tsx': ['pipeline diagnostics panel'],
   'src/game/audio/queueHistory.ts': ['sound queue history'],
   'src/game/audio/SoundManager.ts': [
     'queue history record',
@@ -164,6 +163,6 @@ describe('dev aids are enumerable', () => {
     // files. Taken out at the maintainer's request rather than because it was
     // broken — a dev affordance that ships behind `import.meta.env.DEV` still
     // shows up in every development session, which is where it was unwanted.
-    expect(total).toBe(33);
+    expect(total).toBe(32);
   });
 });

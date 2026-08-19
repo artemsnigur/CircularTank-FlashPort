@@ -9,7 +9,6 @@ import { EnemiesScreen } from './ui/screens/EnemiesScreen';
 import { BestiaryScreen } from './ui/screens/BestiaryScreen';
 import { OptionsScreen } from './ui/screens/OptionsScreen';
 import { AchievementsScreen } from './ui/screens/AchievementsScreen';
-import { DiagnosticsPanel } from './ui/DiagnosticsPanel';
 import { installButtonSounds } from './ui/buttonSounds';
 import { useEffect, useRef } from 'react';
 import { InfoText } from './ui/InfoText';
@@ -55,7 +54,6 @@ export function App(): React.ReactElement {
         <OptionsScreen />
         <AchievementsScreen />
         <Hud />
-        <DiagnosticsPanel />
         {/*
           One panel for the whole app. The AS3 gives each of its eight screens
           its own `PartInfoText` and hands it to that screen's buttons as

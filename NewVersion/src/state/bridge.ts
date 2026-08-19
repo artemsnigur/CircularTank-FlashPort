@@ -140,8 +140,10 @@ export function attachStoreBridge(): () => void {
     }
   });
 
-  on('wave:changed', ({ wave, enemiesRemaining, mode, flagsRemaining }) => {
-    store.getState().setWave(wave, enemiesRemaining, mode, flagsRemaining);
+  on('wave:changed', ({ wave, enemiesKilled, enemiesTotal, mode, flagsCaptured, flagsTotal }) => {
+    store
+      .getState()
+      .setWave(wave, enemiesKilled, enemiesTotal, mode, flagsCaptured, flagsTotal);
   });
 
   on('achievement:unlocked', ({ id, title }) => {

@@ -700,6 +700,25 @@ decisive, wrong result and was believed.*
     `global.css` to lose to its own base class on source order alone. **When a
     CSS override does nothing, count the classes before re-reading the value.**
 
+20. **Check what the page already publishes before looking for a handle to
+    inject through.** Two drafts of the T196 colour harness drove health via
+    `window.__gameStore` and then `window.__GAME_EVENTS__`. Neither exists —
+    this build exposes only `__PHASER_GAME__`, `__arena`, `__soundQueue` and
+    `__tutorialPanel`, and the last three are DEV-only, so under `vite preview`
+    there is no store handle at all. Either draft would have set nothing, read
+    the same value five times, and reported a flat ramp as a pass.
+
+    The working version checks a **pairing** instead: the health bar publishes
+    its own value in `aria-valuenow`/`aria-valuemax`, so the fill's computed
+    colour must match the interpolation of that fraction — recomputed in the
+    harness, never imported from the module under test, or the check agrees
+    with the code by construction.
+
+    The wider habit: **split the claim where the evidence divides.** A pure
+    function is provable offline and should be proved there exhaustively; only
+    the wiring needs a browser, and the browser half is usually a relationship
+    between two things the page already shows.
+
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
 be checked against a second mode on the same build before it is believed.
@@ -712,6 +731,16 @@ be checked against a second mode on the same build before it is believed.
 `Main.keyP || Main.keyEsc` plus an auto-pause on focus loss; the four
 `ButtonPause*` classes are the buttons *inside* the panel. So the port binds
 **P and Escape**, and the panel carries Resume / Reset Level / Quit Level.
+
+**The in-game HUD, as it now stands (`A47`-`A49`).** One readout per corner:
+money top-left in green with a `$`, the controls top-right, the health bar
+bottom-left as a pill, the weapon hotbar centred on the bottom edge. The
+objective line reads `3/20 killed`, or `3/20 collected` on a Flag level — the
+old "N on screen" live population figure is gone, and so is the whole
+diagnostics panel. The health colour is computed by
+`src/game/ui/healthColour.ts`, not painted by a gradient; **do not put a
+`background-image` back on `.hud-health__fill`**, it would cover the computed
+fill.
 
 **The HUD's look is flat grey, not glass (`A47`).** T194 built it as glass to
 match the menus and that was rejected: no border, no shadow, no gradient, one

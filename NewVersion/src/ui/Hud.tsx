@@ -20,6 +20,7 @@ import { GameEvents } from '../game/events/GameEvents';
 import { usePauseControl } from './usePauseControl';
 import { PauseOverlay } from './PauseOverlay';
 import { formatNumber } from '../game/core/Functions';
+import { healthColour } from '../game/ui/healthColour';
 import {
   FADE_OUT_MS,
   SLIDE_OUT_DISTANCE,
@@ -75,7 +76,8 @@ function CurrencyCounter(): React.ReactElement {
 function HealthBar(): React.ReactElement {
   const health = useGameStore((s) => s.health);
   const maxHealth = useGameStore((s) => s.maxHealth);
-  const pct = maxHealth > 0 ? Math.round((health / maxHealth) * 100) : 0;
+  const fraction = maxHealth > 0 ? health / maxHealth : 0;
+  const pct = Math.round(fraction * 100);
 
   return (
     <div
@@ -86,7 +88,17 @@ function HealthBar(): React.ReactElement {
       aria-valuemax={maxHealth}
       aria-label="Tank health"
     >
-      <div className="hud-health__fill" style={{ width: `${pct}%` }} />
+      {/*
+        The colour is computed from the *unrounded* fraction and applied as a
+        flat fill. It was a red-amber-green gradient sized to the bar, which
+        made the colour a property of where you looked along the bar rather
+        than of how much health was left — so a full bar showed its own red end
+        at all times. See `healthColour`.
+      */}
+      <div
+        className="hud-health__fill"
+        style={{ width: `${pct}%`, backgroundColor: healthColour(fraction) }}
+      />
       <span className="hud-health__text">
         {health}/{maxHealth}
       </span>
@@ -96,43 +108,37 @@ function HealthBar(): React.ReactElement {
 
 function WaveIndicator(): React.ReactElement | null {
   const wave = useGameStore((s) => s.wave);
-  const remaining = useGameStore((s) => s.enemiesRemaining);
   const mode = useGameStore((s) => s.levelMode);
+  const enemiesKilled = useGameStore((s) => s.enemiesKilled);
+  const enemiesTotal = useGameStore((s) => s.enemiesTotal);
+  const flagsCaptured = useGameStore((s) => s.flagsCaptured);
+  const flagsTotal = useGameStore((s) => s.flagsTotal);
   if (wave <= 0) return null;
 
-  // Flag and Boss levels spawn indefinitely, so there is no finite total to
-  // count down — the figure is how many are on screen right now.
-  const label = mode === 'Flag' || mode === 'Boss' ? 'on screen' : 'left';
+  /*
+   * Progress, not a countdown, and one line for every mode — T197.
+   *
+   * It read "17 left", and on Flag and Boss levels "N on screen", which was
+   * the live arena population rather than progress towards anything. The live
+   * figure is gone: it moves every second, it goes *up* when the level spawns,
+   * and nothing a player does with it is a decision.
+   *
+   * A Flag level is measured in flags because that is what ends it
+   * (`waveState.isWaveComplete` — `flagsLeft <= 0`); every other mode is
+   * measured in kills.
+   */
+  const onFlags = mode === 'Flag';
+  const done = onFlags ? flagsCaptured : enemiesKilled;
+  const total = onFlags ? flagsTotal : enemiesTotal;
+  const verb = onFlags ? 'collected' : 'killed';
 
   return (
     <div className="hud-stat hud-stat--right">
       <span className="hud-stat__label">level {mode !== 'Normal' ? `· ${mode}` : ''}</span>
       <span className="hud-stat__value">{wave}</span>
       <span className="hud-stat__sub">
-        {remaining} {label}
+        {done}/{total} {verb}
       </span>
-    </div>
-  );
-}
-
-/**
- * Flags still to capture.
- *
- * Flag levels end on flags, not on clearing the arena, so this is the only
- * counter that reflects progress towards finishing one. Hidden everywhere else.
- */
-function FlagCounter(): React.ReactElement | null {
-  const mode = useGameStore((s) => s.levelMode);
-  const flagsRemaining = useGameStore((s) => s.flagsRemaining);
-  if (mode !== 'Flag') return null;
-
-  return (
-    <div className="hud-stat hud-stat--flags" aria-live="polite">
-      <span className="hud-stat__icon" aria-hidden="true">
-        ⚑
-      </span>
-      <span className="hud-stat__value">{flagsRemaining}</span>
-      <span className="hud-stat__label">flags left</span>
     </div>
   );
 }
@@ -782,16 +788,28 @@ export function Hud(): React.ReactElement | null {
       {/*
         ── Two clusters and a hotbar, all along the bottom and right ───────
         T194 pulled the HUD out of two full-width rows into the corners. T195
-        moved health and money from the top-left down to the bottom-left, so
-        the top-left corner is empty and the only furniture above the middle
-        is the controls cluster on the right.
+        moved health down to the bottom-left; T196 sent the money back up, so
+        each corner now carries one thing: money top-left, controls top-right,
+        health bottom-left, weapons centred on the bottom edge.
 
         The middle is where the tank is and where the player is looking, and
         the whole centre band stays clear.
       */}
+      {/*
+        Money top-left, health bottom-left — requested T196, and they are
+        deliberately not a pair. The money is a figure you check between
+        fights; the health bar is read mid-fight, at the end of the screen
+        nearest the action.
+      */}
+      <div className="hud__corner hud__corner--tl">
+        <CurrencyCounter />
+      </div>
+
       <div className="hud__corner hud__corner--tr">
+        {/* One readout. `FlagCounter` was a second widget saying the same
+            thing in the other direction ("N flags left"); T197 folded it into
+            the line above, which now reads `3/20 collected` on a Flag level. */}
         <WaveIndicator />
-        <FlagCounter />
         <div className="hud__controls">
           {/* PartInterface.as carries bToggleSound in the in-game HUD, not
               only on an options screen — music you cannot silence mid-level is
@@ -807,14 +825,9 @@ export function Hud(): React.ReactElement | null {
         read *during* a fight rather than between them.
       */}
       <div className="hud__bottom">
-        {/*
-          Health and money sit bottom-left, requested T195. They were
-          top-left; the top-left corner is now empty, which is the clearest
-          part of the arena to leave clear.
-        */}
+        {/* Health alone in the bottom-left; the money moved back up in T196. */}
         <div className="hud__corner hud__corner--bl">
           <HealthBar />
-          <CurrencyCounter />
         </div>
         <ReloadReadout />
       </div>

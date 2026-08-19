@@ -320,7 +320,13 @@ const INDICATOR_DEPTH = 9;
  * (`:660`, `x = 640 - width`), which is only safe because a Flash stage has no
  * notch or home bar. See `layout()`.
  */
-const MINIMAP_MARGIN = 8;
+/*
+ * Was 8. T197 asked for the minimap tighter into the corner; 2 leaves it clear
+ * of the very edge without the gap reading as a deliberate inset. The
+ * safe-area inset is added on top of this inside `minimapAnchor`, so a
+ * notched phone still keeps the map out from under the rounded corner.
+ */
+const MINIMAP_MARGIN = 2;
 
 /**
  * How much room the DOM HUD's bottom row needs, in **CSS pixels**.
@@ -5478,7 +5484,15 @@ export class GameplayScene extends Phaser.Scene {
   private emitWaveState(): void {
     const spec = this.levelSpec;
     const wave = this.wave;
-    const indefinite = spec?.mode === 'Flag' || spec?.mode === 'Boss';
+    /*
+     * Only Flag levels are open-ended for this purpose. Boss levels used to be
+     * lumped in here and reported `this.enemies.length` — the live on-screen
+     * population — which is not progress and was removed from the HUD in T197.
+     * A Boss level does have a finite complement: `waveState` seeds
+     * `enemiesLeft` from `spec.totalEnemies` for it exactly as for an arena
+     * level (`waveState.ts:140`), and `isWaveComplete` reads it down to zero.
+     */
+    const indefinite = spec?.mode === 'Flag';
 
     // An enemy of an arena wave is in exactly one of three places, and the
     // three move between each other without changing the total:
@@ -5494,17 +5508,31 @@ export class GameplayScene extends Phaser.Scene {
       ? this.enemies.length
       : (wave?.enemiesLeft ?? 0) + (wave?.pendingWarnings ?? 0) + this.enemies.length;
 
+    /*
+     * Killed is derived by subtraction rather than counted, so it cannot drift
+     * from the three-places accounting above: an enemy is announced, pending
+     * or alive, and anything no longer in one of the three is dead. A separate
+     * kill counter would be a fourth number to keep in step, which is the
+     * shape `removeEnemy`'s idempotence bug already took once.
+     */
+    const total = spec?.totalEnemies ?? 0;
+    const killed = Math.max(0, total - remaining);
+    const flagsTotal = spec?.flagCount ?? 0;
+    const flagsCaptured = Math.max(0, flagsTotal - (wave?.flagsLeft ?? 0));
+
     // Emitting only on change: this is called every frame so the figure cannot
     // go stale, and a level is ~10 changes rather than ~10,000 events.
-    const signature = `${this.level}|${remaining}|${spec?.mode ?? 'Normal'}|${wave?.flagsLeft ?? 0}`;
+    const signature = `${this.level}|${killed}/${total}|${spec?.mode ?? 'Normal'}|${flagsCaptured}/${flagsTotal}`;
     if (signature === this.lastWaveSignature) return;
     this.lastWaveSignature = signature;
 
     GameEvents.emit('wave:changed', {
       wave: this.level,
-      enemiesRemaining: remaining,
+      enemiesKilled: killed,
+      enemiesTotal: total,
       mode: spec?.mode ?? 'Normal',
-      flagsRemaining: wave?.flagsLeft ?? 0,
+      flagsCaptured,
+      flagsTotal,
     });
   }
 

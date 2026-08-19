@@ -190,11 +190,13 @@ export interface GameState {
   /** `reloadTimeSecondary <= 0`, which decides the special icon's opacity. */
   secondaryReady: boolean;
   wave: number;
-  enemiesRemaining: number;
+  enemiesKilled: number;
+  enemiesTotal: number;
   /** Level mode, so the HUD can show mode-specific counters. */
   levelMode: string;
   /** Flags still to capture; only shown on a Flag level. */
-  flagsRemaining: number;
+  flagsCaptured: number;
+  flagsTotal: number;
   /**
    * The opening countdown's panel, or null when there is none to draw.
    *
@@ -295,9 +297,11 @@ export interface GameState {
   }) => void;
   setWave: (
     wave: number,
-    enemiesRemaining: number,
+    enemiesKilled: number,
+    enemiesTotal: number,
     levelMode: string,
-    flagsRemaining: number,
+    flagsCaptured: number,
+    flagsTotal: number,
   ) => void;
   setCountdown: (countdown: GameState['countdown']) => void;
   endLevel: (summary: LevelOutcomeSummary) => void;
@@ -346,9 +350,11 @@ const initialRunState = {
   weaponSlot: 1,
   secondaryReady: false,
   wave: 0,
-  enemiesRemaining: 0,
+  enemiesKilled: 0,
+  enemiesTotal: 0,
   levelMode: 'Normal',
-  flagsRemaining: 0,
+  flagsCaptured: 0,
+  flagsTotal: 0,
   countdown: null,
   achievements: [] as AchievementToast[],
   paused: false,
@@ -428,8 +434,8 @@ export const useGameStore = create<GameState>()((set) => ({
       weaponSlot: slot,
       secondaryReady,
     }),
-  setWave: (wave, enemiesRemaining, levelMode, flagsRemaining) =>
-    set({ wave, enemiesRemaining, levelMode, flagsRemaining }),
+  setWave: (wave, enemiesKilled, enemiesTotal, levelMode, flagsCaptured, flagsTotal) =>
+    set({ wave, enemiesKilled, enemiesTotal, levelMode, flagsCaptured, flagsTotal }),
   setCountdown: (countdown) => set({ countdown }),
   setPaused: (paused: boolean) => set({ paused }),
   // A finished level is never "paused" as far as the UI is concerned: the

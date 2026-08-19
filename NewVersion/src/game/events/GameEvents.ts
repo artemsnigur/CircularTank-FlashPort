@@ -166,11 +166,22 @@ export interface GameEventMap {
   } | null;
   'wave:changed': {
     wave: number;
-    enemiesRemaining: number;
+    /**
+     * Enemies killed and the level's full complement, so the HUD can read
+     * `3/20 killed`.
+     *
+     * This replaced a single `enemiesRemaining`, which the HUD rendered as
+     * "17 left". Two fields rather than one because the *total* is the part a
+     * countdown cannot recover: 17 left says nothing about whether that is
+     * most of the level or the last of it.
+     */
+    enemiesKilled: number;
+    enemiesTotal: number;
     /** Level mode, so the HUD knows which counters are meaningful. */
     mode: string;
-    /** Flags still to capture; only meaningful on a Flag level. */
-    flagsRemaining: number;
+    /** Flags captured, and how many the level has. Only set on Flag levels. */
+    flagsCaptured: number;
+    flagsTotal: number;
   };
   'achievement:unlocked': { id: string; title: string };
   /**

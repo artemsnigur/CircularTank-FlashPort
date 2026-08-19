@@ -178,9 +178,16 @@ describe('the silent set is closed', () => {
       .filter((file) => readFileSync(file, 'utf8').includes(SILENT_ATTRIBUTE))
       .map((file) => file.split(/[\\/]/).pop()!.replace('.tsx', ''));
 
-    // DiagnosticsPanel is a dev aid, not a game control — it is removed with
-    // the other dev affordances and should never have made the AS3's UI sound.
-    expect(optedOut).toEqual(['DiagnosticsPanel']);
+    /*
+     * Empty since T197 deleted `DiagnosticsPanel`, which was the only entry
+     * and was a dev aid rather than a game control.
+     *
+     * The counterpart matters more than the assertion now: `toEqual([])` also
+     * passes when the scan finds no files at all, which is the exact shape of
+     * a check that proves nothing. The file count is asserted beside it.
+     */
+    expect(tsxFiles(UI_DIR).length, 'the scan found no UI files at all').toBeGreaterThan(10);
+    expect(optedOut).toEqual([]);
   });
 });
 

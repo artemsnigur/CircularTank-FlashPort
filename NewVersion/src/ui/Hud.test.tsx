@@ -55,17 +55,21 @@ function block(selector: string): string {
  * underneath and a readout drifting into the middle is the failure.
  */
 describe('the HUD layout', () => {
-  it('puts health bottom-left, controls top-right and weapons on the bottom', () => {
+  it('puts money top-left, health bottom-left and weapons on the bottom', () => {
     enterGameplay();
     const { container } = render(<Hud />);
 
-    // T195 moved health and money down. The top-left corner is empty, and
-    // that absence is asserted rather than assumed — a renamed class would
-    // otherwise pass the three positive checks below while leaving a stray
-    // cluster up there.
+    /*
+     * One readout per corner. T195 put health and money together at the
+     * bottom-left; T196 sent the money back up, so the two are asserted apart
+     * — the money must *not* be in the bottom cluster, which is what a
+     * half-applied move would leave behind.
+     */
+    expect(container.querySelector('.hud__corner--tl .hud-money')).not.toBeNull();
     expect(container.querySelector('.hud__corner--bl .hud-health')).not.toBeNull();
-    expect(container.querySelector('.hud__corner--bl .hud-money')).not.toBeNull();
-    expect(container.querySelector('.hud__corner--tl')).toBeNull();
+    expect(container.querySelector('.hud__corner--bl .hud-money')).toBeNull();
+    // And exactly one of it, so a move that copied rather than moved fails.
+    expect(container.querySelectorAll('.hud-money').length).toBe(1);
 
     expect(container.querySelector('.hud__corner--tr .hud__controls')).not.toBeNull();
     expect(container.querySelector('.hud__bottom .hud-reload')).not.toBeNull();
@@ -168,6 +172,33 @@ describe('the HUD layout', () => {
     expect(cssCode).toMatch(/backdrop-filter/);
   });
 
+  /*
+   * The pill, T196. The shared surface rule sets a small radius on
+   * `.hud-health` too and both selectors are one class, so this only holds on
+   * source order — `.hud-health` sits below it. Pinned because moving the rule
+   * up the file would restore the old corners with nothing else changing.
+   */
+  it('rounds the health bar into a pill, beating the shared radius', () => {
+    expect(block('.hud-health')).toMatch(/border-radius:\s*999px/);
+
+    const sharedAt = cssCode.indexOf('.hud-stat,\n.hud-health,\n.hud-reload {');
+    const healthAt = cssCode.indexOf('.hud-health {');
+    expect(sharedAt, 'shared surface rule not found').toBeGreaterThan(-1);
+    expect(healthAt, 'health rule not found').toBeGreaterThan(-1);
+    expect(healthAt, 'the pill radius must sit below the rule it overrides').toBeGreaterThan(
+      sharedAt,
+    );
+  });
+
+  it('leaves the health colour to healthColour(), not the stylesheet', () => {
+    // The ramp moved into a tested function. A gradient left behind here
+    // would paint over the computed fill and silently win.
+    expect(block('.hud-health__fill')).not.toMatch(/linear-gradient/);
+    expect(block('.hud-health__fill')).not.toMatch(/background-image/);
+    // The counterpart: the fill rule does still exist and still styles it.
+    expect(block('.hud-health__fill')).toMatch(/border-radius:\s*inherit/);
+  });
+
   it('scales the surface off the viewport height, with no fixed px', () => {
     // The arena's useful scale is the window's height, and the HUD's parent is
     // the full overlay rather than a sized container — so `vh`, not `cqh`,
@@ -256,21 +287,23 @@ describe('Hud', () => {
     expect(screen.getByText('75/100')).toBeInTheDocument();
   });
 
-  it('shows the wave counter and remaining enemies', () => {
+  it('shows the wave counter and kill progress', () => {
     enterGameplay();
     render(<Hud />);
 
     act(() => {
       GameEvents.emit('wave:changed', {
         wave: 3,
-        enemiesRemaining: 7,
+        enemiesKilled: 13,
+        enemiesTotal: 20,
         mode: 'Normal',
-        flagsRemaining: 0,
+        flagsCaptured: 0,
+        flagsTotal: 0,
       });
     });
 
     expect(screen.getByText('3')).toBeInTheDocument();
-    expect(screen.getByText('7 left')).toBeInTheDocument();
+    expect(screen.getByText('13/20 killed')).toBeInTheDocument();
   });
 
   it('shows both reload bars once a secondary is equipped, and one before', () => {
@@ -715,45 +748,64 @@ describe('Hud', () => {
     act(() => {
       GameEvents.emit('wave:changed', {
         wave: 3,
-        enemiesRemaining: 9,
+        enemiesKilled: 9,
+        enemiesTotal: 20,
         mode: 'Normal',
-        flagsRemaining: 0,
+        flagsCaptured: 0,
+        flagsTotal: 0,
       });
       GameEvents.emit('currency:earned', { amount: 5, total: 5 });
     });
 
-    expect(screen.getByText('9 left')).toBeInTheDocument();
+    // Progress, not a countdown — T197. `9 left` said nothing about whether
+    // that was most of the level or the last of it.
+    expect(screen.getByText('9/20 killed')).toBeInTheDocument();
+    expect(screen.queryByText(/left/)).not.toBeInTheDocument();
   });
 
-  it('shows a flag counter only on Flag levels', () => {
+  /*
+   * T197 replaced the separate flag widget with one objective line that
+   * changes what it counts. Driven against its counterpart on the *identical*
+   * emit shape: the same wave, the same numbers, only `mode` differing. That
+   * is what separates "a Flag level counts flags" from "this line always says
+   * collected".
+   */
+  it('counts flags on a Flag level and kills everywhere else', () => {
     enterGameplay();
     const { rerender } = render(<Hud />);
 
     act(() => {
       GameEvents.emit('wave:changed', {
         wave: 3,
-        enemiesRemaining: 4,
+        enemiesKilled: 4,
+        enemiesTotal: 20,
         mode: 'Normal',
-        flagsRemaining: 0,
+        flagsCaptured: 3,
+        flagsTotal: 9,
       });
     });
     rerender(<Hud />);
-    expect(screen.queryByText('flags left')).not.toBeInTheDocument();
+    expect(screen.getByText('4/20 killed')).toBeInTheDocument();
+    expect(screen.queryByText('3/9 collected')).not.toBeInTheDocument();
 
     act(() => {
       GameEvents.emit('wave:changed', {
         wave: 3,
-        enemiesRemaining: 4,
+        enemiesKilled: 4,
+        enemiesTotal: 20,
         mode: 'Flag',
-        flagsRemaining: 7,
+        flagsCaptured: 3,
+        flagsTotal: 9,
       });
     });
     rerender(<Hud />);
 
-    expect(screen.getByText('flags left')).toBeInTheDocument();
-    expect(screen.getByText('7')).toBeInTheDocument();
-    // Flag levels spawn forever, so the enemy figure is what is on screen.
-    expect(screen.getByText('4 on screen')).toBeInTheDocument();
+    expect(screen.getByText('3/9 collected')).toBeInTheDocument();
+    expect(screen.queryByText('4/20 killed')).not.toBeInTheDocument();
+
+    // The live arena population is gone from the HUD entirely — it moved every
+    // second, it went *up* when the level spawned, and no decision used it.
+    expect(screen.queryByText(/on screen/)).not.toBeInTheDocument();
   });
 
   it('surfaces an achievement toast', () => {

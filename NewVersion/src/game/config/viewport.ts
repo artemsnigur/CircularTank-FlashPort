@@ -195,10 +195,10 @@ export function computeSafeRect(viewport: Viewport, insets: SafeAreaInsets = NO_
 /*
  * Deleted in T152: `describeViewport`.
  *
- * A one-line formatter "for the debug overlay". `DiagnosticsPanel.tsx` is that
- * overlay and renders the same six numbers itself, as a definition list a
- * phone can actually read; this string was a second formatter for the same
- * facts, called by nothing.
+ * A one-line formatter "for the debug overlay". That overlay was
+ * `DiagnosticsPanel.tsx`, which rendered the same six numbers itself; this
+ * string was a second formatter for the same facts, called by nothing. The
+ * panel was deleted in T197, so neither survives.
  */
 
 /**

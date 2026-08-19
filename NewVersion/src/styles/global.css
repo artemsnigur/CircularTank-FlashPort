@@ -1408,10 +1408,14 @@ code {
   min-width: 0;
 }
 
-/*
- * Bottom-left, requested T195 — it was top-left. Nothing occupies the top-left
- * corner now, which is deliberate: it is the emptiest the arena has been.
- */
+/* Money, and only money. It went to the bottom-left in T195 and came back
+   up in T196; the health bar stayed down there. */
+.hud__corner--tl {
+  grid-area: 1 / 1;
+  align-items: flex-start;
+}
+
+/* Health, and only health — the corner nearest the action. */
 .hud__corner--bl {
   align-items: flex-start;
   justify-self: start;
@@ -1532,24 +1536,42 @@ code {
   position: relative;
   width: clamp(8rem, 22vh, 15rem);
   height: clamp(1.1rem, 2.6vh, 1.6rem);
+
+  /*
+   * A pill, requested T196. `999px` rather than `50%`: a percentage radius is
+   * a share of each axis, so it tracks the box into an ellipse as the bar
+   * changes width. A large length is clamped to half the *shorter* side, which
+   * is what makes the ends semicircular at every size this bar takes.
+   *
+   * This beats the shared `.hud-stat, .hud-health, .hud-reload` radius by
+   * source order, not specificity — both are one class. It sits below that
+   * rule, and moving it above would silently restore the old corners.
+   */
+  border-radius: 999px;
   overflow: hidden;
 }
 
 .hud-health__fill {
   height: 100%;
   border-radius: inherit;
-  background-image: linear-gradient(90deg, #b4231d 0%, #e8b23a 45%, #4ade6a 100%);
+
   /*
-   * The ramp is sized to the **bar**, not to the fill, so the colour at any
-   * point is a property of how full the bar is rather than of the fill's own
-   * width. Without this a bar at 20% shows a squeezed copy of the whole ramp —
-   * green at its right edge — and reads as healthy at the moment it is not.
+   * No `background-image` here at all any more.
+   *
+   * This was a red-amber-green gradient sized to the bar, so the colour was a
+   * property of *where you looked along the bar* rather than of how much
+   * health was left — a full bar carried its own red end at all times. T196
+   * asked for green at full grading to red at empty, which is one flat colour
+   * per health level, so `healthColour()` computes it and React sets
+   * `background-color` inline. The interpolation is pinned in
+   * `healthColour.test.ts`; nothing about the ramp lives in this file.
+   *
+   * The colour transitions alongside the width, so a hit reads as one motion
+   * rather than as a bar that resizes and then recolours.
    */
-  background-size: clamp(8rem, 22vh, 15rem) 100%;
-  /* No inset highlight. The red-amber-green ramp stays because it is the one
-     thing here carrying information rather than style — a bar you can read in
-     peripheral vision — but the lit top edge was pure glass and is gone. */
-  transition: width 160ms ease-out;
+  transition:
+    width 160ms ease-out,
+    background-color 160ms ease-out;
 }
 
 .hud-health__text {
@@ -1879,138 +1901,6 @@ code {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/* ── Diagnostics ─────────────────────────────────────────────────────────── */
-
-.diag__toggle {
-  position: absolute;
-  right: calc(var(--safe-right) + 0.5rem);
-  bottom: calc(var(--safe-bottom) + 0.5rem);
-  font-size: var(--text-2xs);
-  padding: 0.35rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid var(--panel-border);
-  background: var(--panel);
-  color: var(--text-dim);
-  cursor: pointer;
-}
-
-.diag {
-  position: absolute;
-  inset: var(--safe-top) var(--safe-right) var(--safe-bottom) auto;
-  width: min(24rem, 92vw);
-  overflow-y: auto;
-  pointer-events: auto;
-  background: var(--panel);
-  border-left: 1px solid var(--panel-border);
-  padding: 0.9rem;
-  font-size: var(--text-xs);
-  line-height: 1.45;
-  backdrop-filter: blur(8px);
-}
-
-.diag__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.diag__close {
-  background: none;
-  border: none;
-  color: var(--text);
-  font-size: var(--text-xl);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.diag h3 {
-  margin: 0.9rem 0 0.3rem;
-  font-size: var(--text-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-dim);
-}
-
-.diag__grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.1rem 0.6rem;
-  margin: 0;
-}
-
-.diag__grid dt {
-  color: var(--text-dim);
-}
-
-.diag__grid dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.diag__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.diag__track {
-  border-top: 1px solid var(--panel-border);
-  padding-top: 0.5rem;
-}
-
-.diag__track-head {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.25rem;
-}
-
-.diag__notes {
-  margin: 0.35rem 0 0;
-  padding-left: 1rem;
-  color: var(--text-dim);
-}
-
-.diag__muted {
-  color: var(--text-dim);
-}
-
-.diag__empty {
-  margin: 0;
-  color: var(--text-dim);
-  font-style: italic;
-}
-
-.pill {
-  display: inline-block;
-  padding: 0.05rem 0.4rem;
-  border-radius: 999px;
-  font-size: var(--text-3xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  background: var(--surface-sunken);
-}
-
-.pill--ok {
-  background: var(--ok);
-  color: var(--ok-ink);
-}
-
-.pill--warn,
-.pill--fallback {
-  background: var(--warn);
-  color: var(--warn-ink);
-}
-
-.pill--fail {
-  background: var(--danger);
-  color: var(--danger-ink);
 }
 
 /* End-of-level results. Placeholder until ScreenStatus is ported. */
