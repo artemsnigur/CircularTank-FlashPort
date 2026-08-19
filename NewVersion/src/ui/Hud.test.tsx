@@ -55,17 +55,74 @@ function block(selector: string): string {
  * underneath and a readout drifting into the middle is the failure.
  */
 describe('the HUD layout', () => {
-  it('puts health top-left, controls top-right and weapons on the bottom', () => {
+  it('puts health bottom-left, controls top-right and weapons on the bottom', () => {
     enterGameplay();
     const { container } = render(<Hud />);
 
-    expect(container.querySelector('.hud__corner--tl .hud-health')).not.toBeNull();
+    // T195 moved health and money down. The top-left corner is empty, and
+    // that absence is asserted rather than assumed — a renamed class would
+    // otherwise pass the three positive checks below while leaving a stray
+    // cluster up there.
+    expect(container.querySelector('.hud__corner--bl .hud-health')).not.toBeNull();
+    expect(container.querySelector('.hud__corner--bl .hud-money')).not.toBeNull();
+    expect(container.querySelector('.hud__corner--tl')).toBeNull();
+
     expect(container.querySelector('.hud__corner--tr .hud__controls')).not.toBeNull();
-    expect(container.querySelector('.hud__corner--bottom .hud-reload')).not.toBeNull();
+    expect(container.querySelector('.hud__bottom .hud-reload')).not.toBeNull();
 
     // And the counterpart: nothing sits in the middle row of the grid, which
     // is the whole point of the change.
     expect(container.querySelectorAll('.hud > *').length).toBeLessThanOrEqual(7);
+  });
+
+  /*
+   * ── Flat grey, T195 ──────────────────────────────────────────────────
+   *
+   * The glass finish was rejected for the HUD: no border, no box-shadow, no
+   * gradient. Pinned because every other surface in this stylesheet is built
+   * the opposite way, so the next person to reach for the house style will
+   * reach for the wrong one.
+   */
+  it('paints the readouts flat, with no border and no glass', () => {
+    const surface = block('.hud-stat,\n.hud-health,\n.hud-reload');
+    expect(surface).toMatch(/border:\s*none/);
+    expect(surface).toMatch(/box-shadow:\s*none/);
+    expect(surface).toMatch(/background-image:\s*none/);
+    // One grey for the whole HUD, so it moves together.
+    expect(surface).toMatch(/background-color:\s*var\(--hud-plate\)/);
+    expect(block('.hud')).toMatch(/--hud-plate:/);
+
+    // The pause button is a `.gloss-pill`, so it needs the finish taken off
+    // explicitly — and at two classes, or the pill's own rule wins.
+    const pause = block('.gloss-pill.hud-pause');
+    expect(pause).toMatch(/border:\s*none/);
+    expect(pause).toMatch(/box-shadow:\s*none/);
+    expect(pause).toMatch(/background-color:\s*var\(--hud-plate\)/);
+
+    /*
+     * The counterpart, so this reads as "the HUD is flat" rather than "this
+     * stylesheet has no gradients": the menus still carry theirs, and it is
+     * `.gloss-pill` itself that the override above is fighting.
+     */
+    expect(block('.gloss-pill')).toMatch(/linear-gradient/);
+  });
+
+  /*
+   * The money is green, and the override must outrank its own base class.
+   *
+   * At one class it did not. `.hud-money__value` and `.hud-stat__value` are
+   * both (0,1,0) and the money rule sits earlier in the file, so source order
+   * handed it to the base and the figure rendered white — measured as
+   * `rgb(255, 255, 255)` at all six viewports while the sheet plainly said
+   * green. This asserts the *shape* of the fix rather than the colour, because
+   * a colour assertion is exactly what passed while the bug was live.
+   */
+  it('states the money colour at two classes so it outranks .hud-stat__value', () => {
+    expect(cssCode).toMatch(/\.hud-stat__value\.hud-money__value\s*\{/);
+    // The counterpart: the base rule it has to beat is still there, and still
+    // sets a colour. If that ever stops being true this test is guarding
+    // nothing and should go.
+    expect(block('.hud-stat__value')).toMatch(/color:/);
   });
 
   it('lets clicks through to the arena except on the controls', () => {
@@ -118,6 +175,7 @@ describe('the HUD layout', () => {
     expect(block('.hud-health')).toMatch(/clamp\([^)]*vh[^)]*\)/);
     expect(block('.hud-stat')).toMatch(/clamp\([^)]*vh[^)]*\)/);
     expect(block('.gloss-pill.hud-pause')).toMatch(/clamp\([^)]*vh[^)]*\)/);
+    expect(block('.hud__bottom')).toMatch(/clamp\([^)]*vh[^)]*\)/);
   });
 });
 
@@ -126,17 +184,32 @@ describe('Hud', () => {
     enterGameplay();
     render(<Hud />);
 
-    expect(screen.getByText('0')).toBeInTheDocument();
+    // `$` prefixed, T195 — it was a bare figure beside a coin glyph.
+    expect(screen.getByText('$0')).toBeInTheDocument();
 
     act(() => {
       GameEvents.emit('currency:earned', { amount: 5, total: 5 });
     });
-    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('$5')).toBeInTheDocument();
 
     act(() => {
       GameEvents.emit('currency:earned', { amount: 5, total: 10 });
     });
-    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(screen.getByText('$10')).toBeInTheDocument();
+  });
+
+  it('comma-groups the money figure behind the dollar sign', () => {
+    // The sign is part of the text node rather than a `::before`, so it is
+    // read out with the figure instead of being skipped as decoration.
+    enterGameplay();
+    render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('currency:earned', { amount: 0, total: 1500 });
+    });
+    // Functions.formatNumber, not toLocaleString — which yields "1 500" in
+    // fr-FR and would make this assertion locale-dependent.
+    expect(screen.getByText('$1,500')).toBeInTheDocument();
   });
 
   it('opens on the saved balance rather than zero', () => {
@@ -149,8 +222,8 @@ describe('Hud', () => {
     act(() => {
       GameEvents.emit('currency:earned', { amount: 0, total: 500 });
     });
-    expect(screen.getByText('500')).toBeInTheDocument();
-    expect(screen.queryByText('0')).not.toBeInTheDocument();
+    expect(screen.getByText('$500')).toBeInTheDocument();
+    expect(screen.queryByText('$0')).not.toBeInTheDocument();
   });
 
   it('drops back to the banked balance when a level is abandoned', () => {
@@ -161,13 +234,13 @@ describe('Hud', () => {
       GameEvents.emit('currency:earned', { amount: 0, total: 200 });
       GameEvents.emit('currency:earned', { amount: 90, total: 290 });
     });
-    expect(screen.getByText('290')).toBeInTheDocument();
+    expect(screen.getByText('$290')).toBeInTheDocument();
 
     // Shutdown without finishing restores the figure actually held.
     act(() => {
       GameEvents.emit('currency:earned', { amount: 0, total: 200 });
     });
-    expect(screen.getByText('200')).toBeInTheDocument();
+    expect(screen.getByText('$200')).toBeInTheDocument();
   });
 
   it('renders health as an accessible progress bar', () => {
@@ -695,12 +768,28 @@ describe('Hud', () => {
   });
 
   it('hides the in-game HUD outside the Gameplay scene', () => {
+    /*
+     * This asserted on the text "coins", which T195 removed — so it would now
+     * pass against a blank document, proving nothing. It asserts on the money
+     * readout instead, and its counterpart below drives the *same* balance
+     * through the *same* component in gameplay, where it must appear. A
+     * negative alone is satisfied by anything.
+     */
     act(() => {
       GameEvents.emit('scene:ready', { key: 'MainMenu' });
       GameEvents.emit('currency:earned', { amount: 5, total: 5 });
     });
-    render(<Hud />);
+    const outside = render(<Hud />);
 
-    expect(screen.queryByText('coins')).not.toBeInTheDocument();
+    expect(screen.queryByText('$5')).not.toBeInTheDocument();
+    expect(outside.container.querySelector('.hud')).toBeNull();
+    outside.unmount();
+
+    enterGameplay();
+    act(() => {
+      GameEvents.emit('currency:earned', { amount: 0, total: 5 });
+    });
+    render(<Hud />);
+    expect(screen.getByText('$5')).toBeInTheDocument();
   });
 });

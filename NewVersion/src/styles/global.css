@@ -1356,26 +1356,38 @@ code {
 /*
  * ══ The in-game HUD ═══════════════════════════════════════════════════════
  *
- * Three clusters in the corners over a live arena, and nothing across the
- * middle. It was two full-width rows (`.hud__row--top` / `--bottom`) with the
- * readouts spread along them, which put furniture along the top and bottom
- * edges — where enemies enter — and left the HUD reading as a frame around the
- * game rather than as instruments beside it.
+ * Clusters in the corners over a live arena, and nothing across the middle:
+ * health and money bottom-left, the controls top-right, the weapon hotbar
+ * centred on the bottom edge. It was two full-width rows, which put furniture
+ * along the top and bottom edges — where enemies enter — and read as a frame
+ * around the game rather than as instruments beside it.
  *
- * ── No `backdrop-filter` here, and that is a measurement, not a taste ─────
- * A blur behind these panels is the obvious way to make them read as glass,
- * and it is the one thing this surface cannot afford. `D-FPS` measured **52
- * fps lost** to a `backdrop-filter` over this same Phaser canvas on a *menu*
- * screen, where the canvas is idle. The HUD sits over it while the game is
- * actually running, which is strictly worse: the blur is recomputed every
- * frame over a region that changes every frame.
+ * ── Flat grey, and that is the whole aesthetic (T195) ────────────────
+ * These panels were built as glass — a lit top rim, a dark vertical ramp, a
+ * drop shadow — matching every menu screen in this project. That was rejected
+ * for the HUD specifically: **one flat grey, no border, no shadow, no
+ * gradient.** The menus can afford decoration because they are the only thing
+ * on screen; this sits on top of a fight, and every rim and shadow here is a
+ * second edge competing with the arena.
  *
- * The glass reading comes from a lit top rim, a dark ramp and a shadow
- * instead — the same construction `.bottom-nav` uses, and its comment says the
- * same thing. Opaque enough that a blur would cost the frames for no visible
- * pixels.
+ * The translucency is for readability, not for depth. `--hud-plate` is one
+ * value used by every readout, so the whole HUD moves together if it needs to
+ * go darker over a bright world.
+ *
+ * ── No `backdrop-filter`, and that is a measurement, not a taste ───────
+ * Still true and still pinned by a test, so it survives the restyle. `D-FPS`
+ * measured **52 fps lost** to a `backdrop-filter` over this same Phaser canvas
+ * on a *menu* screen, where the canvas is idle. The HUD sits over it while the
+ * game is running, which is worse: the blur would be recomputed every frame
+ * over a region that changes every frame. A flat fill costs nothing.
  */
 .hud {
+  /*
+   * One grey, one alpha. Every readout paints with this and nothing else, so
+   * "make the HUD darker" is a one-line change rather than five.
+   */
+  --hud-plate: rgb(38 40 44 / 72%);
+
   flex: 1;
   display: grid;
   /* Corners only: the two outer columns take their content's width and the
@@ -1396,9 +1408,13 @@ code {
   min-width: 0;
 }
 
-.hud__corner--tl {
-  grid-area: 1 / 1;
+/*
+ * Bottom-left, requested T195 — it was top-left. Nothing occupies the top-left
+ * corner now, which is deliberate: it is the emptiest the arena has been.
+ */
+.hud__corner--bl {
   align-items: flex-start;
+  justify-self: start;
 }
 
 .hud__corner--tr {
@@ -1407,12 +1423,20 @@ code {
 }
 
 /*
- * Spans all three columns and centres itself, so the hotbar is centred on the
- * *arena* rather than on whatever the left cluster happens to be wide.
+ * The bottom row carries two things at once, and they must not fight.
+ *
+ * `1fr auto 1fr` rather than a flex row: the two side tracks are equal **by
+ * definition**, so the hotbar in the middle track is centred on the *arena*
+ * regardless of how wide the health cluster grows. A flex row would centre it
+ * on the space left over, which drifts every time the money figure gains a
+ * digit.
  */
-.hud__corner--bottom {
+.hud__bottom {
   grid-area: 3 / 1 / 4 / 4;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  gap: clamp(0.4rem, 1.2vh, 0.9rem);
 }
 
 .hud__controls {
@@ -1434,18 +1458,14 @@ code {
 .hud-stat,
 .hud-health,
 .hud-reload {
-  border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: clamp(0.4rem, 1.1vh, 0.8rem);
-  background-image: linear-gradient(
-    180deg,
-    rgb(148 166 186 / 20%) 0%,
-    rgb(20 24 30 / 88%) 42%,
-    rgb(8 10 13 / 94%) 100%
-  );
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 22%),
-    inset 0 -1px 0 rgb(255 255 255 / 6%),
-    0 3px 12px rgb(0 0 0 / 55%);
+  /* All four are stated, not omitted. `.gloss-pill` and the menu tile recipes
+     set every one of these, so anything that later picks up a shared class has
+     the glass explicitly turned back off rather than inherited. */
+  border: none;
+  box-shadow: none;
+  background-image: none;
+  background-color: var(--hud-plate);
+  border-radius: clamp(0.25rem, 0.7vh, 0.45rem);
 }
 
 .hud-stat {
@@ -1462,9 +1482,26 @@ code {
   gap: 0;
 }
 
+/* The flag counter glyph. It had a gold fill and a glow, which also beat
+   `.hud-stat--flags` on specificity; it now takes the parent colour. */
 .hud-stat__icon {
-  color: #ffd23f;
-  filter: drop-shadow(0 0 0.3em rgb(255 200 50 / 45%));
+  color: inherit;
+}
+
+/*
+ * Money — green, with the `$` written into the value itself rather than added
+ * by a pseudo-element, so it is part of the accessible text and not decoration
+ * a screen reader skips.
+ */
+.hud-stat__value.hud-money__value {
+  /*
+   * Two classes, and this one is load-bearing. At one class it lost to
+   * `.hud-stat__value`'s own colour on source order alone and the money
+   * rendered white — measured as `rgb(255, 255, 255)` at all six viewports
+   * while the stylesheet plainly said green. Sixth time this stylesheet has
+   * been bitten by an equal-specificity override placed above its rival.
+   */
+  color: #4ade6a;
 }
 
 .hud-stat__value {
@@ -1509,7 +1546,9 @@ code {
    * green at its right edge — and reads as healthy at the moment it is not.
    */
   background-size: clamp(8rem, 22vh, 15rem) 100%;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 35%);
+  /* No inset highlight. The red-amber-green ramp stays because it is the one
+     thing here carrying information rather than style — a bar you can read in
+     peripheral vision — but the lit top edge was pure glass and is gone. */
   transition: width 160ms ease-out;
 }
 
@@ -1595,11 +1634,20 @@ code {
 }
 
 /* ── Pause — `ButtonPause.as` ──────────────────────────────────────────── */
+/*
+ * Two classes, because `.gloss-pill` is what makes it a button and the whole
+ * point is to undo its finish. Specificity has shipped five bugs in this
+ * stylesheet by being one class short, so the override is stated as a pair.
+ */
 .gloss-pill.hud-pause {
   width: clamp(1.9rem, 4.4vh, 2.8rem);
   height: clamp(1.9rem, 4.4vh, 2.8rem);
   flex: none;
   padding: 0;
+  border: none;
+  box-shadow: none;
+  background-image: none;
+  background-color: var(--hud-plate);
   border-radius: 50%;
   pointer-events: auto;
 }

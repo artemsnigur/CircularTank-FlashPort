@@ -58,14 +58,16 @@ function CurrencyCounter(): React.ReactElement {
   // event. Drive the tank over a coin in the Gameplay scene and this updates.
   const currency = useGameStore((s) => s.currency);
   return (
-    <div className="hud-stat" aria-live="polite">
-      <span className="hud-stat__icon" aria-hidden="true">
-        ◉
-      </span>
-      {/* Functions.formatNumber, not toLocaleString: the original always
-          comma-groups, whereas toLocaleString yields "1 234" in fr-FR. */}
-      <span className="hud-stat__value">{formatNumber(currency)}</span>
-      <span className="hud-stat__label">coins</span>
+    <div className="hud-stat hud-money" aria-live="polite" aria-label="Money">
+      {/*
+        `$` rather than the old coin glyph and "coins" label. The sign says
+        what the number is in one character, so the label was spending a line
+        of the corner on something the prefix already carries.
+
+        Functions.formatNumber, not toLocaleString: the original always
+        comma-groups, whereas toLocaleString yields "1 234" in fr-FR.
+      */}
+      <span className="hud-stat__value hud-money__value">${formatNumber(currency)}</span>
     </div>
   );
 }
@@ -778,18 +780,15 @@ export function Hud(): React.ReactElement | null {
   return (
     <div className="hud">
       {/*
-        ── Three clusters in the corners, and nothing in the middle ──────────
-        T194. This was two full-width rows with everything spread along them,
-        which put readouts across the top and bottom edges of the arena. The
-        middle is where the tank is and where the player is looking, and the
-        edges are where enemies enter — so the HUD is pulled into the corners
-        and the whole centre band is left clear.
-      */}
-      <div className="hud__corner hud__corner--tl">
-        <HealthBar />
-        <CurrencyCounter />
-      </div>
+        ── Two clusters and a hotbar, all along the bottom and right ───────
+        T194 pulled the HUD out of two full-width rows into the corners. T195
+        moved health and money from the top-left down to the bottom-left, so
+        the top-left corner is empty and the only furniture above the middle
+        is the controls cluster on the right.
 
+        The middle is where the tank is and where the player is looking, and
+        the whole centre band stays clear.
+      */}
       <div className="hud__corner hud__corner--tr">
         <WaveIndicator />
         <FlagCounter />
@@ -807,7 +806,16 @@ export function Hud(): React.ReactElement | null {
         every player already looks for one, and the one HUD element that is
         read *during* a fight rather than between them.
       */}
-      <div className="hud__corner hud__corner--bottom">
+      <div className="hud__bottom">
+        {/*
+          Health and money sit bottom-left, requested T195. They were
+          top-left; the top-left corner is now empty, which is the clearest
+          part of the arena to leave clear.
+        */}
+        <div className="hud__corner hud__corner--bl">
+          <HealthBar />
+          <CurrencyCounter />
+        </div>
         <ReloadReadout />
       </div>
 

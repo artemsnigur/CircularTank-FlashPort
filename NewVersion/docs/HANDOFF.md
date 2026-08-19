@@ -688,6 +688,18 @@ decisive, wrong result and was believed.*
     `D-FPS` finding, which was measured differently. A compositor cost needs a
     real GPU, which means the user's machine, not this harness.
 
+19. **A value that is only printed is not checked.** The T195 harness read the
+    money colour, printed `money $0 rgb(255, 255, 255)` on the line, and
+    stamped **OK** beside it at all six viewports — because the colour was in
+    the output string and not in the pass predicate. The money was white; the
+    stylesheet said green; the run was green. Anything worth putting in a
+    harness's output is worth putting in its predicate, or it is decoration
+    that reads as evidence.
+
+    The bug underneath was the sixth equal-specificity override in
+    `global.css` to lose to its own base class on source order alone. **When a
+    CSS override does nothing, count the classes before re-reading the value.**
+
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
 be checked against a second mode on the same build before it is believed.
@@ -700,6 +712,13 @@ be checked against a second mode on the same build before it is believed.
 `Main.keyP || Main.keyEsc` plus an auto-pause on focus loss; the four
 `ButtonPause*` classes are the buttons *inside* the panel. So the port binds
 **P and Escape**, and the panel carries Resume / Reset Level / Quit Level.
+
+**The HUD's look is flat grey, not glass (`A47`).** T194 built it as glass to
+match the menus and that was rejected: no border, no shadow, no gradient, one
+`--hud-plate` grey. Health and money sit bottom-left, money reads `$1,500` in
+green, the hotbar is centred on the arena by a `1fr auto 1fr` bottom row. Do
+not "restore the house style" here — the divergence from every other screen is
+the point.
 
 **T194 added one anyway, as a declared divergence (`A46`).** The HUD overhaul
 was asked for a pause control top-right, and keyboard-only pause is unreachable
