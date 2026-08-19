@@ -745,6 +745,18 @@ decisive, wrong result and was believed.*
     negative assertion is where it hides — restate the rule or add a
     counterpart that pins what *is* there.
 
+23. **Two silent ways a DOM measurement lies, both found in one harness.**
+    `querySelector('.a, .b')` returns the first match in **document order**,
+    not the first selector's match — a tolerant fallback selector made the
+    query ambiguous and the harness measured a price paragraph instead of the
+    blurb, reporting the longest description as `"$0"`. And `line-height`
+    computes to the keyword `normal`, which `parseFloat` turns into `NaN`, so
+    every comparison against it was false and all five viewports failed on a
+    page where nothing was wrong.
+
+    Both were caught only because the *printed value* was implausible.
+    **Print the value being judged, not just the verdict.**
+
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
 be checked against a second mode on the same build before it is believed.
@@ -771,6 +783,12 @@ enemy in the wrong place. Dot colour is an authored per-family palette (the
 AS3 draws every enemy in one red), covered against `BESTIARY` so a new enemy
 type fails the test until it is classified. `marker` deliberately does not
 round; the rect fills still do.
+
+**Shop blurbs are hand-authored (`A53`).** `upgradeDescriptionData.ts` is
+generated from the AS3 and must not be edited; the one-line shop copy lives in
+`upgradeBlurbs.ts`, with tests requiring the two to cover each other exactly.
+`BLURB_MAX_LENGTH` is 26 because that is what the detail column measures at,
+not because 26 looked right.
 
 **No audio control during a level (`A52`).** The HUD's mute/music toggles were
 removed by request; both toggles and both volume sliders live on the options

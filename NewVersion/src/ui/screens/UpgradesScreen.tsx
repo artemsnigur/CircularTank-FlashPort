@@ -53,6 +53,7 @@ import { formatNumber } from '../../game/core/Functions';
 import { LevelGuideWidget } from '../LevelGuideWidget';
 import { UpgradeIcon } from '../UpgradeIcon';
 import { UPGRADE_DESCRIPTIONS } from '../../game/upgrades/upgradeDescriptionData';
+import { blurbFor } from '../../game/upgrades/upgradeBlurbs';
 import { damageTypeLabel } from '../../game/upgrades/damageTypeLabel';
 import { tileGlyphLayers } from '../../game/upgrades/tileHighlight';
 
@@ -240,10 +241,23 @@ function SlotSummary({ rows }: { rows: ShopRow[] }): React.ReactElement {
  * a window addressing a selection. `A39`.
  */
 function descriptionFor(row: ShopRow): string {
+  /*
+   * The blurb, not the AS3 string — T201.
+   *
+   * The originals run to six lines and spell out damage multipliers and boss
+   * resistances. That is reference material, and the window is a thing you
+   * glance at while choosing a loadout. `upgradeBlurbs.ts` carries a one-line
+   * form of each; the generated table stays exactly as extracted and is still
+   * the spec for what a weapon does.
+   *
+   * Falling back through the long text before the name, so a row the blurb
+   * table has not caught up with still says something useful rather than
+   * degrading straight to its own title.
+   */
   const info = UPGRADE_DESCRIPTIONS.find(
     (d) => d.category === row.category && d.index === row.index + 1,
   );
-  return info?.text ?? row.name;
+  return blurbFor(row.category, row.index + 1) ?? info?.text ?? row.name;
 }
 
 /**
