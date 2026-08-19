@@ -746,8 +746,14 @@ be checked against a second mode on the same build before it is believed.
 `ButtonPause*` classes are the buttons *inside* the panel. So the port binds
 **P and Escape**, and the panel carries Resume / Reset Level / Quit Level.
 
-**The minimap (`A50`).** Round dots, culled rather than clipped, with the
-overhang cut by a geometry mask — the AS3's own arrangement (`:286`). **Do not
+**The minimap (`A50`, `A51`).** It lives in **screen space** —
+`setScrollFactor(0)` on the Graphics *and* its mask — because anchoring it to
+`camera.worldView` made it twitch: `drawMinimap` runs in `update`, but
+`Camera.preRender` (follow lerp, `roundPixels` floor, `worldView` recompute)
+runs from `CameraManager.render` after it. **Do not move it back to world
+space.** Dots are all red, as the AS3 has them; the ground matches
+`--hud-plate` and is checked against the stylesheet rather than copied. Round
+dots, culled rather than clipped, with the overhang cut by a geometry mask — the AS3's own arrangement (`:286`). **Do not
 put `clampToPanel` back on the dots**: it moves their centres, which reports an
 enemy in the wrong place. Dot colour is an authored per-family palette (the
 AS3 draws every enemy in one red), covered against `BESTIARY` so a new enemy

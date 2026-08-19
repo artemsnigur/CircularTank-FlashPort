@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 /**
  * The minimap's geometry — `PartInterface.drawMinimap` (`:652-694`).
  *
@@ -12,19 +13,16 @@ import {
   MINIMAP_BOSS_DOT,
   MINIMAP_DOT,
   MINIMAP_ENEMY,
-  MINIMAP_ENEMY_FAMILIES,
-  MINIMAP_ENEMY_FAMILY,
   MINIMAP_SIZE,
   MINIMAP_TANK,
   MINIMAP_VIEWPORT_ALPHA,
   clampToPanel,
   dotSize,
   marker,
-  minimapAnchor,
   minimapPlan,
+  minimapScreenAnchor,
   viewportRect,
 } from './minimap';
-import { BESTIARY } from '../enemies/bestiaryData';
 
 /** A room twice the camera's width and four times its height. */
 const room = { width: 1280, height: 1600 };
@@ -212,8 +210,19 @@ describe('the draw plan', () => {
     expect(plan.find((f) => f.kind === 'tank')?.colour).toBe(MINIMAP_TANK);
     expect(plan.find((f) => f.kind === 'enemy')?.colour).toBe(MINIMAP_ENEMY);
     expect(plan.find((f) => f.kind === 'viewport')?.alpha).toBe(MINIMAP_VIEWPORT_ALPHA);
-    // And everything else is opaque — `:657` and `:672` take no alpha.
-    expect(plan.filter((f) => f.kind !== 'viewport').every((f) => f.alpha === 1)).toBe(true);
+
+    /*
+     * Every *dot* is opaque — `:672`, `:675`, `:687` and `:692` take no alpha,
+     * and a translucent marker over a translucent ground would be unreadable.
+     *
+     * The ground is excluded by name rather than by loosening the rule: it was
+     * `alpha: 1` here too until T199 matched it to `--hud-plate`, which is a
+     * declared divergence with its own test above. Excluding it silently would
+     * have let a dot go translucent unnoticed.
+     */
+    const dots = plan.filter((f) => f.kind !== 'viewport' && f.kind !== 'ground');
+    expect(dots.length).toBeGreaterThan(0);
+    expect(dots.every((f) => f.alpha === 1)).toBe(true);
   });
 
   /*
@@ -266,6 +275,52 @@ describe('the draw plan', () => {
     expect(tank.rect.y + tank.rect.height / 2).toBe(MINIMAP_SIZE);
   });
 
+  it('draws every enemy in the same red, whatever its type', () => {
+    /*
+     * `:675` — one `beginFill(16711680)` for all of them. A per-family palette
+     * shipped in T198 and was reverted in T199; this is the assertion that
+     * keeps it reverted.
+     *
+     * Driven against its counterpart on the same plan: the *ground* is a
+     * different colour, so "everything is one colour" cannot pass this.
+     */
+    const plan = minimapPlan({
+      ...base,
+      enemies: [
+        { x: 100, y: 100, boss: false },
+        { x: 200, y: 200, boss: false },
+        { x: 300, y: 300, boss: true },
+      ],
+    });
+
+    const dots = plan.filter((f) => f.kind === 'enemy' || f.kind === 'boss');
+    expect(dots).toHaveLength(3);
+    for (const dot of dots) {
+      expect(dot.colour, dot.kind).toBe(MINIMAP_ENEMY);
+    }
+
+    expect(plan.find((f) => f.kind === 'ground')!.colour).not.toBe(MINIMAP_ENEMY);
+  });
+
+  it('paints the ground in the HUD plate colour, translucent', () => {
+    /*
+     * The panel floats over a live arena, so an opaque grey block reads as a
+     * hole in the world. It matches `--hud-plate`, which is what every DOM
+     * readout paints with — and the two are checked against each other rather
+     * than both being copied by hand, because a value duplicated across two
+     * files drifts.
+     */
+    const css = readFileSync('src/styles/global.css', 'utf8');
+    const declared = /--hud-plate:\s*rgb\((\d+)\s+(\d+)\s+(\d+)\s*\/\s*(\d+)%\)/.exec(css);
+    expect(declared, '--hud-plate is not in the stylesheet in the expected form').not.toBeNull();
+
+    const [, r, g, b, alpha] = declared!;
+    const ground = minimapPlan(base).find((f) => f.kind === 'ground')!;
+
+    expect(ground.colour).toBe((Number(r) << 16) | (Number(g) << 8) | Number(b));
+    expect(ground.alpha).toBeCloseTo(Number(alpha) / 100, 6);
+  });
+
   it('drops a dot only when it is wholly off the panel', () => {
     // Culling, which is what replaced clipping. Driven against its opposite on
     // the same call: one enemy far outside the room, one just inside.
@@ -305,53 +360,6 @@ describe('the draw plan', () => {
     expect(Number.isInteger(ground.rect.width)).toBe(true);
   });
 
-  /*
-   * Colour by behaviour family — an authored divergence, since the AS3 draws
-   * every enemy in one red (`:675`).
-   */
-  it('colours a dot by its family, and keeps the AS3 red for bosses', () => {
-    const of = (type: string, boss = false) =>
-      minimapPlan({ ...base, enemies: [{ x: 100, y: 100, boss, type }] }).find(
-        (f) => f.kind === 'enemy' || f.kind === 'boss',
-      )!.colour;
-
-    // Same family, same colour; different family, different colour. Asserted
-    // as a relationship so the palette can be retuned without breaking it.
-    expect(of('Basic')).toBe(of('Strong'));
-    expect(of('Fast')).toBe(of('Accelerating'));
-    expect(of('Fast')).not.toBe(of('Basic'));
-    expect(of('Ghost')).not.toBe(of('Shooting'));
-
-    // A boss keeps the original red whatever its type — it is the one marker
-    // that must never be mistaken for something else.
-    expect(of('Fast', true)).toBe(MINIMAP_ENEMY);
-
-    // An unclassified type falls back to the AS3 red rather than vanishing.
-    expect(of('NotAnEnemyType')).toBe(MINIMAP_ENEMY);
-  });
-
-  it('classifies every enemy in the bestiary, and nothing that is not one', () => {
-    /*
-     * Derived from `BESTIARY`, not from a copied count.
-     *
-     * `EnemyTypeName` is a type and cannot be enumerated at runtime, but
-     * `BESTIARY` is the same twenty ids as a value. Checking against it means
-     * a type added to the game fails here until it is given a family — which
-     * `toHaveLength(20)` would not, since that only fails when someone edits
-     * this palette, the one moment they are already thinking about it.
-     */
-    const known = [...BESTIARY.map((e) => e.id)].sort();
-    const classified = Object.keys(MINIMAP_ENEMY_FAMILY).sort();
-
-    expect(classified).toEqual(known);
-    for (const family of Object.values(MINIMAP_ENEMY_FAMILY)) {
-      expect(Object.keys(MINIMAP_ENEMY_FAMILIES)).toContain(family);
-    }
-
-    // And every family is used; an unused one is a colour nobody ever sees.
-    const used = new Set(Object.values(MINIMAP_ENEMY_FAMILY));
-    expect([...used].sort()).toEqual(Object.keys(MINIMAP_ENEMY_FAMILIES).sort());
-  });
 
   it('keeps one dot per enemy, however many there are', () => {
     // The wave system puts up to `maxEnemies` on the field; a plan that
@@ -362,113 +370,105 @@ describe('the draw plan', () => {
   });
 });
 
-/**
- * Where the panel sits — the T146 defect, which was **placement, not wiring**.
- *
- * `drawMinimap` really was running and painting four rects; a
- * `setScrollFactor(0)` object is just positioned in camera-pixel space with
- * the zoom applied about the camera centre, so a design-unit coordinate landed
- * mid-screen at double size. World units against the live `worldView` have no
- * such transform, and these pin that.
- */
-describe('the anchor', () => {
-  const margin = 8;
-  const noInset = { right: 0, bottom: 0 };
-
-  it('sits in the bottom-right of whatever the camera can see', () => {
-    // A camera scrolled to (500, 300) showing 640x400 of the world: the panel
-    // belongs at the far corner of *that*, not of the room and not of the
-    // design rectangle.
-    const at = minimapAnchor({ x: 500, y: 300, width: 640, height: 400 }, noInset, margin);
-
-    expect(at).toEqual({ x: 500 + 640 - 80 - 8, y: 300 + 400 - 80 - 8 });
-  });
-
-  it('moves with the camera', () => {
-    // The counterpart, and the property `setScrollFactor(0)` was there to buy:
-    // the panel must stay in the corner as the view scrolls, which here comes
-    // from re-anchoring rather than from a fixed factor.
-    const a = minimapAnchor({ x: 0, y: 0, width: 640, height: 400 }, noInset, margin);
-    const b = minimapAnchor({ x: 260, y: 320, width: 640, height: 400 }, noInset, margin);
-
-    expect(b.x - a.x).toBe(260);
-    expect(b.y - a.y).toBe(320);
-  });
-
-  it('keeps the whole panel inside the view', () => {
-    // 80 for the panel and 8 for the margin: the far edge must land one margin
-    // short of the view's, or the corner is clipped by the canvas edge.
-    const view = { x: 0, y: 0, width: 640, height: 400 };
-    const at = minimapAnchor(view, noInset, margin);
-
-    expect(at.x + 80 + margin).toBe(view.width);
-    expect(at.y + 80 + margin).toBe(view.height);
-  });
-
-  it('pulls in from a notch or home bar', () => {
-    // Insets arrive already converted to world units — `safeRect` is in design
-    // units and a zoomed camera sees fewer world units than the viewport is
-    // wide, which is the conversion the scene does before calling.
-    const at = minimapAnchor(
-      { x: 0, y: 0, width: 640, height: 400 },
-      { right: 30, bottom: 20 },
-      margin,
-    );
-
-    expect(at).toEqual({ x: 640 - 80 - 8 - 30, y: 400 - 80 - 8 - 20 });
-  });
-
-  it('ignores a negative inset rather than pushing the panel outward', () => {
-    // A bad `env()` read has produced negative insets before. Treating one as a
-    // shove toward the edge would put the panel half off-canvas.
-    const at = minimapAnchor({ x: 0, y: 0, width: 640, height: 400 }, { right: -50, bottom: -50 }, margin);
-
-    expect(at).toEqual(minimapAnchor({ x: 0, y: 0, width: 640, height: 400 }, noInset, margin));
-  });
-});
 
 /**
- * The corner, and the term that kept it out of it.
+ * The corner, in camera space — and the two reasons it used to twitch.
  *
- * T197 moved `MINIMAP_MARGIN` from 8 to 2 and the panel visibly did not move.
- * The margin was never the dominant term: `GameplayScene.drawMinimap` adds a
- * `HUD_BOTTOM_CLEARANCE_CSS` to `inset.bottom`, and that constant was **96**,
- * measured against `.hud__row--bottom` — a full-width HUD row that T194 had
- * already deleted. The panel was being held clear of furniture that no longer
- * existed.
+ * The panel was a world object anchored to `camera.worldView`. It jittered,
+ * and neither cause was in this module:
  *
- * These pin the arithmetic `minimapAnchor` is responsible for. The clearance
- * itself is the scene's constant and is checked where it is used; what is
- * proved here is that nothing in this function re-introduces a gap.
+ * 1. `drawMinimap` runs in `Scene.update`; `Camera.preRender` — follow lerp,
+ *    `roundPixels`, and the `worldView` recompute — runs from
+ *    `CameraManager.render`, *after* update. The panel was always placed from
+ *    the previous frame's camera.
+ * 2. `startFollow(player, true, ...)` sets `roundPixels`, and `Camera.js:558`
+ *    floors the scroll, so the per-frame delta jumps between whole integers.
+ *
+ * `minimapScreenAnchor` takes no scroll at all, which is what removes it.
+ * These pin the transform, since getting it wrong is what sank the first
+ * attempt at screen space (T146: the panel landed mid-arena at double size).
  */
-describe('the panel sits in the corner', () => {
-  const view = { x: 0, y: 0, width: 1000, height: 600 };
+describe('the panel sits in the corner, in camera space', () => {
+  const camera = { width: 1000, height: 600, zoom: 1 };
 
-  it('puts the far corner exactly margin away, with no inset', () => {
-    const at = minimapAnchor(view, { right: 0, bottom: 0 }, 2);
+  /** Where a scroll-factor-zero point at `x` actually renders. */
+  const renders = (x: number, size: number, zoom: number) =>
+    (x - size / 2) * zoom + size / 2;
 
-    // Computed, not compared: the panel's right edge is its x plus its size.
-    expect(at.x + MINIMAP_SIZE).toBe(view.x + view.width - 2);
-    expect(at.y + MINIMAP_SIZE).toBe(view.y + view.height - 2);
+  it('renders flush into the corner at zoom 1', () => {
+    const at = minimapScreenAnchor(camera, { right: 0, bottom: 0 }, 2);
+
+    // Computed through the camera's own transform, not compared to the
+    // function's internals — this is the number the player sees.
+    expect(renders(at.x, camera.width, 1) + MINIMAP_SIZE).toBe(camera.width - 2);
+    expect(renders(at.y, camera.height, 1) + MINIMAP_SIZE).toBe(camera.height - 2);
   });
 
-  it('moves in by exactly the inset, and by nothing else', () => {
-    // The counterpart to the above: the only thing that may push the panel off
-    // the corner is a real safe-area inset, one-for-one.
-    const flush = minimapAnchor(view, { right: 0, bottom: 0 }, 2);
-    const inset = minimapAnchor(view, { right: 30, bottom: 40 }, 2);
+  /*
+   * The case the first attempt got wrong, and the reason this is a test rather
+   * than a comment: at zoom != 1 the panel is scaled about the camera's centre,
+   * so a coordinate that is correct at zoom 1 is wrong everywhere else.
+   */
+  it('still renders flush into the corner at zoom 2 and 0.5', () => {
+    for (const zoom of [2, 0.5]) {
+      const cam = { ...camera, zoom };
+      const at = minimapScreenAnchor(cam, { right: 0, bottom: 0 }, 2);
 
-    expect(flush.x - inset.x).toBe(30);
-    expect(flush.y - inset.y).toBe(40);
+      // The panel is scaled by the camera too, so its drawn extent is
+      // `MINIMAP_SIZE * zoom` and the gap is `2 * zoom`.
+      expect(renders(at.x, cam.width, zoom) + MINIMAP_SIZE * zoom, `x at zoom ${zoom}`).toBeCloseTo(
+        cam.width - 2 * zoom,
+        6,
+      );
+      expect(
+        renders(at.y, cam.height, zoom) + MINIMAP_SIZE * zoom,
+        `y at zoom ${zoom}`,
+      ).toBeCloseTo(cam.height - 2 * zoom, 6);
+    }
   });
 
-  it('ignores a negative inset rather than pushing the panel outward', () => {
-    // `Math.max(0, ...)`: a safe-area computation can go slightly negative when
-    // the viewport and the probe disagree, and the panel must not drift off the
-    // edge of the view when it does.
-    const flush = minimapAnchor(view, { right: 0, bottom: 0 }, 2);
-    const negative = minimapAnchor(view, { right: -50, bottom: -50 }, 2);
+  it('moves in by the inset, and by nothing else', () => {
+    const flush = minimapScreenAnchor(camera, { right: 0, bottom: 0 }, 2);
+    const inset = minimapScreenAnchor(camera, { right: 30, bottom: 40 }, 2);
+
+    expect(flush.x - inset.x).toBeCloseTo(30, 6);
+    expect(flush.y - inset.y).toBeCloseTo(40, 6);
+  });
+
+  it('ignores a negative inset rather than pushing the panel off the view', () => {
+    const flush = minimapScreenAnchor(camera, { right: 0, bottom: 0 }, 2);
+    const negative = minimapScreenAnchor(camera, { right: -50, bottom: -50 }, 2);
 
     expect(negative).toEqual(flush);
+  });
+
+  it('takes no scroll, which is the whole of the jitter fix', () => {
+    /*
+     * The counterpart that states the actual rule: the position depends on the
+     * camera's *size and zoom* only. Two frames with different scroll — which
+     * is every frame while the tank moves — must place the panel identically.
+     * Under the old world-space anchor this was the one thing that changed.
+     */
+    const a = minimapScreenAnchor({ width: 1000, height: 600, zoom: 1 }, { right: 0, bottom: 0 }, 2);
+    const b = minimapScreenAnchor({ width: 1000, height: 600, zoom: 1 }, { right: 0, bottom: 0 }, 2);
+    expect(a).toEqual(b);
+
+    // And it does still respond to the things it should.
+    const zoomed = minimapScreenAnchor(
+      { width: 1000, height: 600, zoom: 1.5 },
+      { right: 0, bottom: 0 },
+      2,
+    );
+    expect(zoomed).not.toEqual(a);
+  });
+
+  it('survives a zero or negative zoom without dividing by it', () => {
+    // `roomFillZoom` is derived from a viewport that is briefly 0 during a
+    // resize, and NaN coordinates would silently stop the panel rendering.
+    for (const zoom of [0, -1]) {
+      const at = minimapScreenAnchor({ ...camera, zoom }, { right: 0, bottom: 0 }, 2);
+      expect(Number.isFinite(at.x), `x at zoom ${zoom}`).toBe(true);
+      expect(Number.isFinite(at.y), `y at zoom ${zoom}`).toBe(true);
+    }
   });
 });

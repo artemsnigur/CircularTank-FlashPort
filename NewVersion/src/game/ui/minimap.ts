@@ -34,8 +34,23 @@
 /** `:658` — the panel is 80x80 and the divisor in every term below. */
 export const MINIMAP_SIZE = 80;
 
-/** `:657` `beginFill(6710886)` — the ground. */
-const MINIMAP_GROUND = 0x666666;
+/**
+ * The ground.
+ *
+ * ── Divergence: `--hud-plate`, not the AS3's grey ─────────────────────────
+ * `:657` is `beginFill(6710886)` — an opaque mid-grey, chosen when the HUD was
+ * a band below the camera and the panel sat on solid chrome. Here it floats
+ * over a live arena, and an opaque grey block reads as a hole in the world.
+ *
+ * This is the same colour and alpha as `--hud-plate` in `global.css`, which is
+ * what every DOM readout paints with, so the panel belongs to the same set of
+ * instruments as the money and health plates rather than looking like a
+ * separate artefact. The two are kept in step by a test that reads the
+ * stylesheet — a value copied by hand into two files drifts.
+ */
+const MINIMAP_GROUND = 0x26282c;
+/** `--hud-plate` is `rgb(38 40 44 / 72%)`; this is the 72%. */
+export const MINIMAP_GROUND_ALPHA = 0.72;
 /** `:668` `beginFill(16777215, 0.2)` — what the camera can see. */
 const MINIMAP_VIEWPORT = 0xffffff;
 export const MINIMAP_VIEWPORT_ALPHA = 0.2;
@@ -50,77 +65,6 @@ export const MINIMAP_TANK = 0xffffff;
 export const MINIMAP_DOT = 4;
 export const MINIMAP_BOSS_DOT = 8;
 
-/**
- * ── Divergence: the dots are coloured by type, and the AS3's were not ─────
- *
- * `:675` is `beginFill(16711680)` for **every** enemy, boss or not. This
- * palette is authored, not ported — the original has no per-type colour to
- * port, and neither does this game: enemies are drawn from SVG shapes and are
- * never tinted, so there is no "the enemy's colour" to read off anything.
- *
- * That makes the grouping the only defensible part, so it is by **behaviour
- * family** rather than one hue per type. Twenty arbitrary colours on a 4px dot
- * is twenty colours nobody can tell apart; five families is a distinction a
- * player can actually act on at a glance.
- *
- * `MINIMAP_ENEMY` is kept as the baseline red and as the fallback, so a type
- * added to `EnemyTypeName` without being classified here still draws — in the
- * AS3's own colour — rather than disappearing.
- */
-export const MINIMAP_ENEMY_FAMILIES = Object.freeze({
-  /** Bulk: what a level is mostly made of. The AS3 red. */
-  bulk: 0xff0000,
-  /** Speed and unpredictability — the family the player must react to first. */
-  fast: 0xc45bff,
-  /** Evasive: phases, blinks or shrinks out of a shot. */
-  evasive: 0x37d5ff,
-  /** Ranged or explosive: dangerous at a distance rather than on contact. */
-  ranged: 0xffa32e,
-  /** Support: makes the rest of the arena harder rather than hurting you. */
-  support: 0x4ade6a,
-});
-
-/** Which family each type belongs to. Every `EnemyTypeName` appears once. */
-export const MINIMAP_ENEMY_FAMILY: Readonly<Record<string, keyof typeof MINIMAP_ENEMY_FAMILIES>> =
-  Object.freeze({
-    Basic: 'bulk',
-    Strong: 'bulk',
-    Soldier: 'bulk',
-    Tiny: 'bulk',
-
-    Fast: 'fast',
-    Accelerating: 'fast',
-    Crazy: 'fast',
-    Random: 'fast',
-    Temperamental: 'fast',
-
-    Ghost: 'evasive',
-    ScaredGhost: 'evasive',
-    Teleporting: 'evasive',
-    Ninja: 'evasive',
-    Shrinking: 'evasive',
-
-    Shooting: 'ranged',
-    Exploding: 'ranged',
-    Trap: 'ranged',
-    GrapplingHook: 'ranged',
-
-    Medic: 'support',
-    DamageAddict: 'support',
-  });
-
-/**
- * The colour for one enemy's dot.
- *
- * A boss keeps the AS3 red whatever its type: it is already distinguished by
- * being twice the size, and a boss is the one marker that must never be
- * mistaken for something else on a glance.
- */
-export function enemyDotColour(type: string | undefined, isBoss: boolean): number {
-  if (isBoss) return MINIMAP_ENEMY;
-  const family = type ? MINIMAP_ENEMY_FAMILY[type] : undefined;
-  return family ? MINIMAP_ENEMY_FAMILIES[family] : MINIMAP_ENEMY;
-}
 
 interface Room {
   width: number;
@@ -220,35 +164,61 @@ export function dotSize(isBoss: boolean): number {
 }
 
 /**
- * Where the panel's top-left corner goes, in **world** units.
+ * Where the panel goes, in **camera** space — `setScrollFactor(0)` coordinates.
  *
- * ── Why world units and not `setScrollFactor(0)` ──────────────────────────
- * The first attempt (T146) placed the panel with `setScrollFactor(0)` at a
- * design-unit coordinate, and it rendered in the middle of the play area at
- * double size. A scroll-factor-zero object is positioned in *camera-pixel*
- * space, and the camera's zoom is then applied about its centre — so at zoom 2
- * a point at 552 lands at `(552 - 640) * 2 + 640 = 464`. Measured, not
- * reasoned about: the debug projection reported `zoom: 2`, `camera.width:
- * 1280`, and a screenshot put the box exactly there.
+ * ── Why it left world space (T199) ────────────────────────────────────────
+ * It was anchored to `camera.worldView` and repositioned every frame, and it
+ * twitched. Two causes, compounding, and neither is in this file:
  *
- * Anchoring to the camera's live `worldView` needs no inverse transform. The
- * panel is 80 world units, which is 80 design units, which is the same eighth
- * of the view the AS3's 80px is of its 640-wide stage — and it stays glued to
- * the corner because the scene repositions it every frame, which it already
- * does to redraw the dots.
+ * 1. `drawMinimap` runs in `Scene.update`, but `Camera.preRender` — which runs
+ *    the follow lerp, applies `roundPixels` and recomputes `worldView` — is
+ *    called from `CameraManager.render`, **after** update. So the panel was
+ *    always positioned from the *previous* frame's camera.
+ * 2. `startFollow(player, true, ...)` passes `roundPixels`, and
+ *    `Camera.js:558` **floors** the scroll. With a 0.12 lerp the per-frame
+ *    scroll delta fluctuates between whole integers.
  *
- * `insetRight`/`insetBottom` are the safe-area insets **already converted to
- * world units** by the caller. They are not `safeRect` itself: that is in
- * design units, and on a zoomed camera the two scales differ.
+ * Together the panel's on-screen offset each frame was
+ * `(scroll[n-1] - scroll[n]) * zoom` — whole-pixel jumps, in a pattern that
+ * changes with the tank's speed. Un-rounding the *dots* (T198) could not touch
+ * it, because what was moving was the panel underneath them.
+ *
+ * Screen furniture belongs in screen space, so the panel no longer reads the
+ * scroll at all and the frame ordering stops mattering.
+ *
+ * ── The transform, which is why the first attempt failed ─────────────────
+ * T146 tried `setScrollFactor(0)` at a design-unit coordinate and the panel
+ * rendered in the middle of the play area at double size. A scroll-factor-zero
+ * object is placed in camera-pixel space and the zoom is then applied **about
+ * the camera's centre**: a point at `x` renders at
+ * `(x - width / 2) * zoom + width / 2`. Measured at the time, not reasoned
+ * about — at zoom 2 with `camera.width` 1280, 552 landed at 464.
+ *
+ * So this inverts that: it computes where the panel should *render* and then
+ * solves for the `x` that renders there. `margin` and `inset` stay in world
+ * units, as they were, and are scaled to camera pixels here — so the panel
+ * keeps the same size and the same gap it had, at every zoom.
  */
-export function minimapAnchor(
-  view: Rect,
+export function minimapScreenAnchor(
+  camera: { width: number; height: number; zoom: number },
   inset: { right: number; bottom: number },
   margin: number,
 ): { x: number; y: number } {
+  const zoom = camera.zoom > 0 ? camera.zoom : 1;
+
+  // What the panel occupies once the camera has scaled it.
+  const drawn = MINIMAP_SIZE * zoom;
+  const gapRight = (margin + Math.max(0, inset.right)) * zoom;
+  const gapBottom = (margin + Math.max(0, inset.bottom)) * zoom;
+
+  // Where it should land on screen.
+  const renderX = camera.width - drawn - gapRight;
+  const renderY = camera.height - drawn - gapBottom;
+
+  // And the coordinate that renders there, once zoom-about-centre is undone.
   return {
-    x: view.x + view.width - MINIMAP_SIZE - margin - Math.max(0, inset.right),
-    y: view.y + view.height - MINIMAP_SIZE - margin - Math.max(0, inset.bottom),
+    x: (renderX - camera.width / 2) / zoom + camera.width / 2,
+    y: (renderY - camera.height / 2) / zoom + camera.height / 2,
   };
 }
 
@@ -291,7 +261,7 @@ function touchesPanel(rect: Rect): boolean {
 export interface MinimapInput {
   camera: Rect;
   room: Room;
-  enemies: readonly (MinimapSubject & { boss: boolean; type?: string })[];
+  enemies: readonly (MinimapSubject & { boss: boolean })[];
   /** Null on every mode but Flag, and once the last flag is taken. */
   flag: MinimapSubject | null;
   tank: MinimapSubject;
@@ -318,7 +288,7 @@ export function minimapPlan(input: MinimapInput): MinimapFill[] {
       kind: 'ground',
       shape: 'rect',
       colour: MINIMAP_GROUND,
-      alpha: 1,
+      alpha: MINIMAP_GROUND_ALPHA,
       rect: { x: 0, y: 0, width: MINIMAP_SIZE, height: MINIMAP_SIZE },
     },
     {
@@ -335,7 +305,10 @@ export function minimapPlan(input: MinimapInput): MinimapFill[] {
     dots.push({
       kind: enemy.boss ? 'boss' : 'enemy',
       shape: 'circle',
-      colour: enemyDotColour(enemy.type, enemy.boss),
+      // `:675` — one red for every enemy, boss or not. A per-family palette
+      // was tried in T198 and reverted in T199: the AS3's uniform red is what
+      // the game wants, and it is what the original does.
+      colour: MINIMAP_ENEMY,
       alpha: 1,
       rect: marker(enemy.x, enemy.y, room, dotSize(enemy.boss)),
     });

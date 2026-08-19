@@ -26,7 +26,7 @@ import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/s
 import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
 import { crosshairVisible } from '../ui/crosshairVisibility';
-import { MINIMAP_SIZE, minimapAnchor, minimapPlan } from '../ui/minimap';
+import { MINIMAP_SIZE, minimapPlan, minimapScreenAnchor } from '../ui/minimap';
 import { MARKER_CLIPS, MARKER_SHAPE_FILES } from '../ui/markerArt';
 import {
   enemyMarker,
@@ -1843,6 +1843,24 @@ export class GameplayScene extends Phaser.Scene {
       .fillStyle(0xffffff)
       .fillRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
     this.minimap.setMask(this.minimapMaskShape.createGeometryMask());
+
+    /*
+     * Screen space, T199 — this is the jitter fix.
+     *
+     * The panel was a world object glued to `camera.worldView`, and it
+     * twitched: `drawMinimap` runs in `update`, while `Camera.preRender` — the
+     * follow lerp, the `roundPixels` floor at `Camera.js:558`, and the
+     * `worldView` recompute — runs from `CameraManager.render`, *after* it. So
+     * the panel was placed from the previous frame's camera and its on-screen
+     * offset each frame was `(scroll[n-1] - scroll[n]) * zoom`: whole-pixel
+     * jumps that changed with the tank's speed.
+     *
+     * At `setScrollFactor(0)` the panel never reads the scroll, so the frame
+     * ordering stops mattering. The mask has to match or it would clip a
+     * rectangle of the world instead of the panel.
+     */
+    this.minimap.setScrollFactor(0);
+    this.minimapMaskShape.setScrollFactor(0);
 
     // Same layer as the minimap: screen furniture over the world. Positioned
     // in world units against the live `worldView`, for the reason `A17` gives.
@@ -5734,9 +5752,14 @@ export class GameplayScene extends Phaser.Scene {
             bottom: (viewport.logicalHeight - (safe.y + safe.height)) * perDesign + hudClearance,
           }
         : { right: 0, bottom: hudClearance };
-    const at = minimapAnchor(view, inset, MINIMAP_MARGIN);
+    const camera = this.cameras.main;
+    const at = minimapScreenAnchor(
+      { width: camera.width, height: camera.height, zoom: camera.zoom },
+      inset,
+      MINIMAP_MARGIN,
+    );
     g.setPosition(at.x, at.y);
-    // The mask is a separate object in world space, so it has to follow.
+    // The mask is a separate object, so it has to be placed identically.
     this.minimapMaskShape.setPosition(at.x, at.y);
 
     for (const fill of minimapPlan({
@@ -5747,8 +5770,6 @@ export class GameplayScene extends Phaser.Scene {
         x: enemy.x,
         y: enemy.y,
         boss: enemy.enemyLevel === 'B',
-        // T198: the dot takes its colour from the type's behaviour family.
-        type: enemy.enemyType,
       })),
       // Null on every mode but Flag, and once the last flag is taken — the same
       // condition as `levelMode == "Flag" && stage.contains(gameArea.flag)`.
