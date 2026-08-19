@@ -130,6 +130,9 @@ export function OptionsScreen(): React.ReactElement | null {
       titleClip="TitleOptions"
       typeTitle
       nav="Options"
+      // The dock's own Main menu button is suppressed here; this screen puts
+      // the same action in the panel instead. T202.
+      navMenuButton={false}
       className="screen--options"
     >
       <div className="options">
@@ -168,6 +171,28 @@ export function OptionsScreen(): React.ReactElement | null {
             puts both sliders.
           */}
           <VolumeSliders />
+
+          {/*
+            Exit to Menu, directly above Reset options — T202.
+
+            It was only in the dock's bottom-right corner, which is where every
+            screen's global navigation lives. On this screen it reads as
+            disconnected from the settings it sits beside, so it moves into the
+            list and the dock drops its copy. One action, one place, which is
+            the same rule the auto-pause checkbox and the audio toggles follow.
+
+            Same `gloss-pill options__reset` sizing as the button below it, so
+            the two read as one stack rather than as a button and a visitor.
+          */}
+          <div className="options__exit">
+            <button
+              type="button"
+              className="gloss-pill options__reset options__exit-button"
+              onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
+            >
+              <span className="options__reset-label">Exit to Menu</span>
+            </button>
+          </div>
 
           <div className="options__danger">
             <p className="options__danger-note">

@@ -784,6 +784,14 @@ AS3 draws every enemy in one red), covered against `BESTIARY` so a new enemy
 type fails the test until it is classified. `marker` deliberately does not
 round; the rect fills still do.
 
+**Exit to Menu is on the options panel, not the dock, and only there
+(`A54`).** `BottomNav` takes `showMenu`, defaulting to **true**; only Options
+passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
+`ButtonMenu` is the only way out of the bar on the other four screens. The
+`margin-top: auto` that pins the block to the card bottom lives on
+`.options__exit` now; putting it back on `.options__danger` as well splits the
+free space and pushes the two buttons apart.
+
 **Shop blurbs are hand-authored (`A53`).** `upgradeDescriptionData.ts` is
 generated from the AS3 and must not be edited; the one-line shop copy lives in
 `upgradeBlurbs.ts`, with tests requiring the two to cover each other exactly.

@@ -31,6 +31,7 @@ export function ScreenShell({
   title,
   titleClip,
   nav,
+  navMenuButton = true,
   shield = true,
   typeTitle = false,
   className,
@@ -41,6 +42,11 @@ export function ScreenShell({
   titleClip: ChromeClipName;
   /** Which nav item is current, or null for a screen outside the bar. */
   nav: NavDestination | null;
+  /**
+   * Whether the bar draws its Main menu button. Options turns it off because
+   * it puts the same action in its own panel — see T202.
+   */
+  navMenuButton?: boolean;
   /**
    * `IconShield` at the bar's left.
    *
@@ -78,7 +84,7 @@ export function ScreenShell({
 
       <div className="screen-shell__body">{children}</div>
 
-      {nav === null ? null : <BottomNav current={nav} />}
+      {nav === null ? null : <BottomNav current={nav} showMenu={navMenuButton} />}
     </div>
   );
 }

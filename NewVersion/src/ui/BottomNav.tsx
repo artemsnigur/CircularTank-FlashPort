@@ -88,9 +88,18 @@ function NavButton({
 
 export function BottomNav({
   current,
+  showMenu = true,
 }: {
   /** The destination the player is on, so exactly one tab marks itself. */
   current: NavDestination | null;
+  /**
+   * Whether the bar draws its own Main menu button.
+   *
+   * Defaults to true, so the dock is identical on every screen unless a screen
+   * says otherwise — and only one does. The options screen carries the same
+   * action in its panel (T202) and would otherwise show it twice.
+   */
+  showMenu?: boolean;
 }): React.ReactElement {
   /*
    * Read here rather than passed in. Every screen that shows this bar
@@ -126,14 +135,21 @@ export function BottomNav({
         {ICONS.map((destination) => tab(destination, destination))}
         {/* Menu is last in the port and third-from-last in the AS3, where
             Premium sat between. It leads out of the bar rather than across it,
-            so it has no current state to draw — `ButtonMenu` has 3 frames. */}
-        <NavButton
-          clip="ButtonMenu"
-          label="Main menu"
-          frames={MENU_FRAMES}
-          current={false}
-          onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
-        />
+            so it has no current state to draw — `ButtonMenu` has 3 frames.
+
+            Suppressed on the options screen (T202), which carries its own
+            **Exit to Menu** in the panel. The dock is otherwise identical on
+            every screen and should stay that way: this is an opt-out for the
+            one screen that duplicates the action, not a general switch. */}
+        {showMenu ? (
+          <NavButton
+            clip="ButtonMenu"
+            label="Main menu"
+            frames={MENU_FRAMES}
+            current={false}
+            onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
+          />
+        ) : null}
       </div>
     </nav>
   );

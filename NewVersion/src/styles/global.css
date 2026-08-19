@@ -4876,11 +4876,38 @@ code {
 }
 
 /* ---- Reset -- `ButtonResetOptions` ------------------------------------- */
+/*
+ * Exit to Menu — T202.
+ *
+ * It sits immediately above the reset block and shares the reset button's
+ * sizing exactly (`gloss-pill options__reset`), so the two read as one stack
+ * of actions rather than as a button with a visitor above it. Only the tone
+ * differs: this one leaves the screen, it does not destroy anything, so it
+ * takes the neutral pill rather than the danger variant below.
+ *
+ * `margin-top: auto` moves here from `.options__danger`, which used to be the
+ * last thing in the card. Left on both, the two blocks would each claim the
+ * free space and the gap would open *between* them — the buttons must stay
+ * together and the space belongs above the pair.
+ */
+.options__exit {
+  display: flex;
+  margin-top: auto;
+}
+
+.gloss-pill.options__exit-button {
+  /* Nothing to add: the sizing is `options__reset`, deliberately, so the two
+     buttons cannot drift apart. Declared so the class exists as a hook. */
+  width: 100%;
+}
+
 .options__danger {
   display: flex;
   flex-direction: column;
   gap: calc(var(--card) * 0.02);
-  margin-top: auto;
+  /* `margin-top: auto` moved to `.options__exit`, which is the last block to
+     start now. Two auto margins in one column split the free space between
+     them and would push the two buttons apart. */
   padding-top: calc(var(--card) * 0.035);
   border-top: 1px solid rgb(255 255 255 / 12%);
 }

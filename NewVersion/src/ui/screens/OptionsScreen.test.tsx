@@ -16,6 +16,7 @@ import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { OptionsScreen } from './OptionsScreen';
+import { BottomNav } from '../BottomNav';
 import { GameEvents } from '../../game/events/GameEvents';
 import { attachStoreBridge, detachStoreBridge } from '../../state/bridge';
 import { useGameStore } from '../../state/gameStore';
@@ -242,5 +243,101 @@ describe('the layout mechanisms', () => {
     // The rule every grid, tile and dock in this game settled on.
     expect(block('.options__switch:hover')).not.toMatch(/transform/);
     expect(block('.options__switch:hover')).toMatch(/filter:\s*brightness/);
+  });
+});
+
+/**
+ * Exit to Menu — T202.
+ *
+ * The action already existed, in the dock's bottom-right corner, and it now
+ * lives in the panel instead. So the interesting assertions are about *where*
+ * it is and that it is not in both places — a move that copies is the failure
+ * mode, and it looks identical to a move that works until you count.
+ */
+describe('exit to menu', () => {
+  it('sits in the panel, immediately above the reset button', () => {
+    mount();
+
+    const exit = document.querySelector('.options__exit-button');
+    const reset = document.querySelector('.options__reset--danger');
+    expect(exit, 'no exit button in the panel').not.toBeNull();
+    expect(reset, 'no reset button to sit above').not.toBeNull();
+
+    /*
+     * Order asserted through `compareDocumentPosition` rather than by reading
+     * indices out of a list: it states the relationship directly, and it stays
+     * true if something is inserted between them.
+     */
+    const relation = exit!.compareDocumentPosition(reset!);
+    expect(
+      relation & Node.DOCUMENT_POSITION_FOLLOWING,
+      'the exit button is not before the reset button',
+    ).toBeTruthy();
+  });
+
+  it('carries the same sizing class as the reset button', () => {
+    // The request was that it feel like part of the list, and the mechanism
+    // for that is sharing `options__reset` rather than restating its numbers.
+    mount();
+    const exit = document.querySelector('.options__exit-button')!;
+
+    expect(exit.classList.contains('options__reset')).toBe(true);
+    expect(exit.classList.contains('gloss-pill')).toBe(true);
+    // And not the danger variant: it leaves the screen, it destroys nothing.
+    expect(exit.classList.contains('options__reset--danger')).toBe(false);
+  });
+
+  it('asks to go to the main menu, and decides nothing itself', () => {
+    const seen: unknown[] = [];
+    const off = GameEvents.subscribe('ui:goto', (payload) => seen.push(payload));
+    mount();
+
+    act(() => {
+      screen.getByRole('button', { name: /exit to menu/i }).click();
+    });
+    off();
+
+    expect(seen).toEqual([{ key: 'MainMenu' }]);
+  });
+
+  it('appears exactly once on the screen', () => {
+    /*
+     * The point of the whole change. The dock draws a Main menu button on
+     * every other screen; this one turns it off because the panel has the
+     * action. If the suppression ever stops working the screen shows two
+     * controls doing the same thing, which no other assertion here would
+     * notice — each would still find its own.
+     */
+    mount();
+
+    const toMenu = [...document.querySelectorAll('button')].filter((b) => {
+      const name = `${b.getAttribute('aria-label') ?? ''} ${b.textContent ?? ''}`;
+      return /main menu|exit to menu/i.test(name);
+    });
+
+    expect(toMenu.map((b) => b.textContent?.trim() || b.getAttribute('aria-label'))).toEqual([
+      'Exit to Menu',
+    ]);
+  });
+
+  it('leaves the dock alone on every other screen', () => {
+    /*
+     * The counterpart, and the one that matters most: this is a per-screen
+     * opt-out, not a removal. Driven through `BottomNav` directly on its
+     * default, because the claim is about the default rather than about any
+     * particular screen.
+     */
+    const { container } = render(<BottomNav current="Upgrades" />);
+    const menu = [...container.querySelectorAll('button')].filter(
+      (b) => b.getAttribute('aria-label') === 'Main menu',
+    );
+    expect(menu).toHaveLength(1);
+
+    // And the opt-out actually opts out, on the same component.
+    const off = render(<BottomNav current="Options" showMenu={false} />);
+    const gone = [...off.container.querySelectorAll('button')].filter(
+      (b) => b.getAttribute('aria-label') === 'Main menu',
+    );
+    expect(gone).toHaveLength(0);
   });
 });
