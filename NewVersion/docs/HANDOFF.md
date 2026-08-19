@@ -719,6 +719,20 @@ decisive, wrong result and was believed.*
     the wiring needs a browser, and the browser half is usually a relationship
     between two things the page already shows.
 
+21. **A well-cited constant can still be about something that no longer
+    exists.** `HUD_BOTTOM_CLEARANCE_CSS = 96` carried a comment naming its
+    method, its measurement and its viewport — "`.hud__row--bottom` reported
+    `top` 89 CSS px above the canvas bottom at 1280x800" — and every one of
+    those facts was accurate. The row had been deleted two tasks earlier. The
+    minimap was being held 96px clear of furniture that was not there, and a
+    later 6-unit margin change against it looked like it did nothing, because
+    it did.
+
+    A citation records where a number came from; **it cannot notice when its
+    subject is removed.** When a positioning change has no visible effect, list
+    every term in the expression and check each one still refers to something
+    real, before adjusting the term you touched.
+
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
 be checked against a second mode on the same build before it is believed.
@@ -731,6 +745,14 @@ be checked against a second mode on the same build before it is believed.
 `Main.keyP || Main.keyEsc` plus an auto-pause on focus loss; the four
 `ButtonPause*` classes are the buttons *inside* the panel. So the port binds
 **P and Escape**, and the panel carries Resume / Reset Level / Quit Level.
+
+**The minimap (`A50`).** Round dots, culled rather than clipped, with the
+overhang cut by a geometry mask — the AS3's own arrangement (`:286`). **Do not
+put `clampToPanel` back on the dots**: it moves their centres, which reports an
+enemy in the wrong place. Dot colour is an authored per-family palette (the
+AS3 draws every enemy in one red), covered against `BESTIARY` so a new enemy
+type fails the test until it is classified. `marker` deliberately does not
+round; the rect fills still do.
 
 **The in-game HUD, as it now stands (`A47`-`A49`).** One readout per corner:
 money top-left in green with a `$`, the controls top-right, the health bar

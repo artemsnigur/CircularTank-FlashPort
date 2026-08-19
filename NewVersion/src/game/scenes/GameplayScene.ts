@@ -26,7 +26,7 @@ import { getSoundManager, publishAudioOptions, setAudioOption } from '../audio/s
 import { getLevel } from '../levels/levelData';
 import { shouldRun } from '../waves/levelDoneGate';
 import { crosshairVisible } from '../ui/crosshairVisibility';
-import { minimapAnchor, minimapPlan } from '../ui/minimap';
+import { MINIMAP_SIZE, minimapAnchor, minimapPlan } from '../ui/minimap';
 import { MARKER_CLIPS, MARKER_SHAPE_FILES } from '../ui/markerArt';
 import {
   enemyMarker,
@@ -336,12 +336,27 @@ const MINIMAP_MARGIN = 2;
  * the HUD's own unit and converted at the draw, rather than being a world-unit
  * fudge that only clears the row at one window size.
  *
- * Measured, not guessed: `.hud__row--bottom` reported `top` 89 CSS px above the
- * canvas bottom at 1280x800, with the Menu button and the audio toggles in it.
- * 96 leaves a little air. The AS3 needs no equivalent — its HUD was a band
- * *below* the camera, so nothing could overlap the panel.
+ * ── Was 96, and that is why the panel would not move (T198) ─────────────
+ * 96 was measured against `.hud__row--bottom`: a full-width row carrying the
+ * Menu button and the audio toggles, reported at `top` 89 CSS px above the
+ * canvas bottom at 1280x800.
+ *
+ * **T194 deleted that row.** The bottom edge is now `.hud__bottom`, a
+ * `1fr auto 1fr` grid with the weapon hotbar in the middle track and nothing
+ * at all in the right one — which is where the minimap sits. So the panel was
+ * being held 96 CSS px clear of furniture that is not there, and T197's
+ * `MINIMAP_MARGIN` change from 8 to 2 moved it by 6 world units against that,
+ * which is why it read as not having moved.
+ *
+ * 8 is what remains: enough that the panel is not flush against the canvas
+ * edge, and small enough to sit in the corner. The *horizontal* clearance is
+ * unchanged and needs no term — the hotbar is centred, and the driven check in
+ * `minimapcorner.mjs` measures the gap between the two rather than assuming it.
+ *
+ * The AS3 needs no equivalent — its HUD was a band *below* the camera, so
+ * nothing could overlap the panel.
  */
-const HUD_BOTTOM_CLEARANCE_CSS = 96;
+const HUD_BOTTOM_CLEARANCE_CSS = 8;
 /** Tutorial panels sit above everything in the world. */
 const TUTORIAL_DEPTH = 40;
 /** `WarningTimedBomb` frames: 1 ordinary, 2 boss. */
@@ -629,6 +644,9 @@ export class GameplayScene extends Phaser.Scene {
    * contents are every enemy's position, so there is nothing to cache.
    */
   private minimap!: Phaser.GameObjects.Graphics;
+
+  /** The panel's clip rectangle — the AS3's `minimapMask` (`:286`). */
+  private minimapMaskShape!: Phaser.GameObjects.Graphics;
 
   /** DEV-AID: fills painted by the last `drawMinimap`, for `__arena`. */
   private minimapFills = 0;
@@ -1806,6 +1824,25 @@ export class GameplayScene extends Phaser.Scene {
      * instead, every frame, in `drawMinimap`.
      */
     this.minimap = this.add.graphics().setDepth(100);
+
+    /*
+     * The panel's mask — `PartInterface` hangs one on the minimap at `:286`
+     * (`minimap.mask = minimapMask`) and lets its shapes overhang underneath.
+     *
+     * This port needed none while every fill was a rectangle clipped
+     * arithmetically by `clampToPanel`. T198 made the dots circles, and
+     * clipping a circle's bounding box would slide its centre inward rather
+     * than cutting it off — a dot at the room's edge would report the wrong
+     * position. So the dots are drawn whole and cut here instead, which is
+     * both the faithful arrangement and the correct one.
+     *
+     * Repositioned with the panel every frame in `drawMinimap`.
+     */
+    this.minimapMaskShape = this.make
+      .graphics({ x: 0, y: 0 }, false)
+      .fillStyle(0xffffff)
+      .fillRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
+    this.minimap.setMask(this.minimapMaskShape.createGeometryMask());
 
     // Same layer as the minimap: screen furniture over the world. Positioned
     // in world units against the live `worldView`, for the reason `A17` gives.
@@ -5699,6 +5736,8 @@ export class GameplayScene extends Phaser.Scene {
         : { right: 0, bottom: hudClearance };
     const at = minimapAnchor(view, inset, MINIMAP_MARGIN);
     g.setPosition(at.x, at.y);
+    // The mask is a separate object in world space, so it has to follow.
+    this.minimapMaskShape.setPosition(at.x, at.y);
 
     for (const fill of minimapPlan({
       // The **live** camera, not the AS3's frozen 640x400 — see `minimap.ts`.
@@ -5708,6 +5747,8 @@ export class GameplayScene extends Phaser.Scene {
         x: enemy.x,
         y: enemy.y,
         boss: enemy.enemyLevel === 'B',
+        // T198: the dot takes its colour from the type's behaviour family.
+        type: enemy.enemyType,
       })),
       // Null on every mode but Flag, and once the last flag is taken — the same
       // condition as `levelMode == "Flag" && stage.contains(gameArea.flag)`.
@@ -5715,7 +5756,21 @@ export class GameplayScene extends Phaser.Scene {
       tank: { x: this.player.x, y: this.player.y },
     })) {
       g.fillStyle(fill.colour, fill.alpha);
-      g.fillRect(fill.rect.x, fill.rect.y, fill.rect.width, fill.rect.height);
+      if (fill.shape === 'circle') {
+        /*
+         * Drawn from the centre of the bounding box the plan carries, so the
+         * dot marks the thing rather than sitting beside it. `fillCircle`
+         * antialiases, which is what makes an unrounded position read as
+         * smooth movement instead of a blurred square.
+         */
+        g.fillCircle(
+          fill.rect.x + fill.rect.width / 2,
+          fill.rect.y + fill.rect.height / 2,
+          fill.rect.width / 2,
+        );
+      } else {
+        g.fillRect(fill.rect.x, fill.rect.y, fill.rect.width, fill.rect.height);
+      }
       this.minimapFills += 1;
     }
   }

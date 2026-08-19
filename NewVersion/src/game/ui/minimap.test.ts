@@ -12,6 +12,8 @@ import {
   MINIMAP_BOSS_DOT,
   MINIMAP_DOT,
   MINIMAP_ENEMY,
+  MINIMAP_ENEMY_FAMILIES,
+  MINIMAP_ENEMY_FAMILY,
   MINIMAP_SIZE,
   MINIMAP_TANK,
   MINIMAP_VIEWPORT_ALPHA,
@@ -22,6 +24,7 @@ import {
   minimapPlan,
   viewportRect,
 } from './minimap';
+import { BESTIARY } from '../enemies/bestiaryData';
 
 /** A room twice the camera's width and four times its height. */
 const room = { width: 1280, height: 1600 };
@@ -213,22 +216,141 @@ describe('the draw plan', () => {
     expect(plan.filter((f) => f.kind !== 'viewport').every((f) => f.alpha === 1)).toBe(true);
   });
 
-  it('clips every fill to the panel, dots included', () => {
-    // A dot is centred, so one on the room's edge hangs 2px outside. The AS3
-    // masks it (`:286`); dropping the clip on dots would let them bleed over
-    // whatever the panel sits on.
+  /*
+   * ── Replaced in T198, not repaired ────────────────────────────────────
+   *
+   * This asserted that *every* fill was clipped to the panel, dots included,
+   * and it was an accurate description of the code at the time. It is no
+   * longer the rule, and restoring it would reintroduce the defect below.
+   *
+   * Clipping a dot's bounding box moves its **centre**, so a dot at the room's
+   * edge slid inward instead of being cut off — it reported the enemy as
+   * somewhere it was not. That was invisible while dots were squares drawn
+   * from their top-left corner and became a real error the moment they were
+   * drawn as circles from their centre.
+   *
+   * The panel's overhang is cut by a geometry mask on the `Graphics` instead,
+   * which is what the AS3 does (`minimap.mask = minimapMask`, `:286`) rather
+   * than a thing this port invented.
+   */
+  it('clips rectangles to the panel but never moves a dot', () => {
     const plan = minimapPlan({
       ...base,
       enemies: [{ x: 0, y: 0, boss: false }],
       tank: { x: room.width, y: room.height },
     });
 
-    for (const fill of plan) {
+    // The two panel fills are still clipped, exactly as before.
+    for (const fill of plan.filter((f) => f.shape === 'rect')) {
       expect(fill.rect.x, fill.kind).toBeGreaterThanOrEqual(0);
       expect(fill.rect.y, fill.kind).toBeGreaterThanOrEqual(0);
       expect(fill.rect.x + fill.rect.width, fill.kind).toBeLessThanOrEqual(MINIMAP_SIZE);
       expect(fill.rect.y + fill.rect.height, fill.kind).toBeLessThanOrEqual(MINIMAP_SIZE);
     }
+
+    /*
+     * And the counterpart that carries the actual rule: a dot's centre is the
+     * projected position, whether or not that leaves the box. The enemy at
+     * (0, 0) must centre on 0, not be nudged to +2 — which is precisely what
+     * the old clip did.
+     */
+    const dots = plan.filter((f) => f.shape === 'circle');
+    expect(dots.length, 'no dots in the plan at all').toBeGreaterThan(0);
+
+    const enemy = plan.find((f) => f.kind === 'enemy')!;
+    expect(enemy.rect.x + enemy.rect.width / 2).toBe(0);
+    expect(enemy.rect.y + enemy.rect.height / 2).toBe(0);
+
+    const tank = plan.find((f) => f.kind === 'tank')!;
+    expect(tank.rect.x + tank.rect.width / 2).toBe(MINIMAP_SIZE);
+    expect(tank.rect.y + tank.rect.height / 2).toBe(MINIMAP_SIZE);
+  });
+
+  it('drops a dot only when it is wholly off the panel', () => {
+    // Culling, which is what replaced clipping. Driven against its opposite on
+    // the same call: one enemy far outside the room, one just inside.
+    const plan = minimapPlan({
+      ...base,
+      enemies: [
+        { x: -room.width, y: -room.height, boss: false },
+        { x: room.width / 2, y: room.height / 2, boss: false },
+      ],
+    });
+
+    expect(plan.filter((f) => f.kind === 'enemy')).toHaveLength(1);
+  });
+
+  /*
+   * The dots move sub-pixel, which is the whole of the smoothness change.
+   * `marker` used to round, so a dot held still through 25 world units on a
+   * 2000-unit room and then jumped a whole pixel.
+   */
+  it('positions dots without rounding, so they can move sub-pixel', () => {
+    const one = minimapPlan({ ...base, enemies: [{ x: 1000, y: 1000, boss: false }] }).find(
+      (f) => f.kind === 'enemy',
+    )!;
+    const two = minimapPlan({ ...base, enemies: [{ x: 1001, y: 1000, boss: false }] }).find(
+      (f) => f.kind === 'enemy',
+    )!;
+
+    // One world unit of movement must change the drawn position at all. Under
+    // the old rounding these two were byte-identical.
+    expect(two.rect.x).not.toBe(one.rect.x);
+    expect(two.rect.x - one.rect.x).toBeLessThan(1);
+
+    // The counterpart: the *rect* fills still round, because a half-pixel
+    // rectangle edge renders as a blurred line rather than a smooth one.
+    const ground = minimapPlan(base).find((f) => f.kind === 'viewport')!;
+    expect(Number.isInteger(ground.rect.x), 'the viewport rect stopped rounding').toBe(true);
+    expect(Number.isInteger(ground.rect.width)).toBe(true);
+  });
+
+  /*
+   * Colour by behaviour family — an authored divergence, since the AS3 draws
+   * every enemy in one red (`:675`).
+   */
+  it('colours a dot by its family, and keeps the AS3 red for bosses', () => {
+    const of = (type: string, boss = false) =>
+      minimapPlan({ ...base, enemies: [{ x: 100, y: 100, boss, type }] }).find(
+        (f) => f.kind === 'enemy' || f.kind === 'boss',
+      )!.colour;
+
+    // Same family, same colour; different family, different colour. Asserted
+    // as a relationship so the palette can be retuned without breaking it.
+    expect(of('Basic')).toBe(of('Strong'));
+    expect(of('Fast')).toBe(of('Accelerating'));
+    expect(of('Fast')).not.toBe(of('Basic'));
+    expect(of('Ghost')).not.toBe(of('Shooting'));
+
+    // A boss keeps the original red whatever its type — it is the one marker
+    // that must never be mistaken for something else.
+    expect(of('Fast', true)).toBe(MINIMAP_ENEMY);
+
+    // An unclassified type falls back to the AS3 red rather than vanishing.
+    expect(of('NotAnEnemyType')).toBe(MINIMAP_ENEMY);
+  });
+
+  it('classifies every enemy in the bestiary, and nothing that is not one', () => {
+    /*
+     * Derived from `BESTIARY`, not from a copied count.
+     *
+     * `EnemyTypeName` is a type and cannot be enumerated at runtime, but
+     * `BESTIARY` is the same twenty ids as a value. Checking against it means
+     * a type added to the game fails here until it is given a family — which
+     * `toHaveLength(20)` would not, since that only fails when someone edits
+     * this palette, the one moment they are already thinking about it.
+     */
+    const known = [...BESTIARY.map((e) => e.id)].sort();
+    const classified = Object.keys(MINIMAP_ENEMY_FAMILY).sort();
+
+    expect(classified).toEqual(known);
+    for (const family of Object.values(MINIMAP_ENEMY_FAMILY)) {
+      expect(Object.keys(MINIMAP_ENEMY_FAMILIES)).toContain(family);
+    }
+
+    // And every family is used; an unused one is a colour nobody ever sees.
+    const used = new Set(Object.values(MINIMAP_ENEMY_FAMILY));
+    expect([...used].sort()).toEqual(Object.keys(MINIMAP_ENEMY_FAMILIES).sort());
   });
 
   it('keeps one dot per enemy, however many there are', () => {
@@ -302,5 +424,51 @@ describe('the anchor', () => {
     const at = minimapAnchor({ x: 0, y: 0, width: 640, height: 400 }, { right: -50, bottom: -50 }, margin);
 
     expect(at).toEqual(minimapAnchor({ x: 0, y: 0, width: 640, height: 400 }, noInset, margin));
+  });
+});
+
+/**
+ * The corner, and the term that kept it out of it.
+ *
+ * T197 moved `MINIMAP_MARGIN` from 8 to 2 and the panel visibly did not move.
+ * The margin was never the dominant term: `GameplayScene.drawMinimap` adds a
+ * `HUD_BOTTOM_CLEARANCE_CSS` to `inset.bottom`, and that constant was **96**,
+ * measured against `.hud__row--bottom` — a full-width HUD row that T194 had
+ * already deleted. The panel was being held clear of furniture that no longer
+ * existed.
+ *
+ * These pin the arithmetic `minimapAnchor` is responsible for. The clearance
+ * itself is the scene's constant and is checked where it is used; what is
+ * proved here is that nothing in this function re-introduces a gap.
+ */
+describe('the panel sits in the corner', () => {
+  const view = { x: 0, y: 0, width: 1000, height: 600 };
+
+  it('puts the far corner exactly margin away, with no inset', () => {
+    const at = minimapAnchor(view, { right: 0, bottom: 0 }, 2);
+
+    // Computed, not compared: the panel's right edge is its x plus its size.
+    expect(at.x + MINIMAP_SIZE).toBe(view.x + view.width - 2);
+    expect(at.y + MINIMAP_SIZE).toBe(view.y + view.height - 2);
+  });
+
+  it('moves in by exactly the inset, and by nothing else', () => {
+    // The counterpart to the above: the only thing that may push the panel off
+    // the corner is a real safe-area inset, one-for-one.
+    const flush = minimapAnchor(view, { right: 0, bottom: 0 }, 2);
+    const inset = minimapAnchor(view, { right: 30, bottom: 40 }, 2);
+
+    expect(flush.x - inset.x).toBe(30);
+    expect(flush.y - inset.y).toBe(40);
+  });
+
+  it('ignores a negative inset rather than pushing the panel outward', () => {
+    // `Math.max(0, ...)`: a safe-area computation can go slightly negative when
+    // the viewport and the probe disagree, and the panel must not drift off the
+    // edge of the view when it does.
+    const flush = minimapAnchor(view, { right: 0, bottom: 0 }, 2);
+    const negative = minimapAnchor(view, { right: -50, bottom: -50 }, 2);
+
+    expect(negative).toEqual(flush);
   });
 });

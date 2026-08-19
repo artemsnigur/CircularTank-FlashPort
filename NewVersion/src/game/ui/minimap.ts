@@ -50,6 +50,78 @@ export const MINIMAP_TANK = 0xffffff;
 export const MINIMAP_DOT = 4;
 export const MINIMAP_BOSS_DOT = 8;
 
+/**
+ * ── Divergence: the dots are coloured by type, and the AS3's were not ─────
+ *
+ * `:675` is `beginFill(16711680)` for **every** enemy, boss or not. This
+ * palette is authored, not ported — the original has no per-type colour to
+ * port, and neither does this game: enemies are drawn from SVG shapes and are
+ * never tinted, so there is no "the enemy's colour" to read off anything.
+ *
+ * That makes the grouping the only defensible part, so it is by **behaviour
+ * family** rather than one hue per type. Twenty arbitrary colours on a 4px dot
+ * is twenty colours nobody can tell apart; five families is a distinction a
+ * player can actually act on at a glance.
+ *
+ * `MINIMAP_ENEMY` is kept as the baseline red and as the fallback, so a type
+ * added to `EnemyTypeName` without being classified here still draws — in the
+ * AS3's own colour — rather than disappearing.
+ */
+export const MINIMAP_ENEMY_FAMILIES = Object.freeze({
+  /** Bulk: what a level is mostly made of. The AS3 red. */
+  bulk: 0xff0000,
+  /** Speed and unpredictability — the family the player must react to first. */
+  fast: 0xc45bff,
+  /** Evasive: phases, blinks or shrinks out of a shot. */
+  evasive: 0x37d5ff,
+  /** Ranged or explosive: dangerous at a distance rather than on contact. */
+  ranged: 0xffa32e,
+  /** Support: makes the rest of the arena harder rather than hurting you. */
+  support: 0x4ade6a,
+});
+
+/** Which family each type belongs to. Every `EnemyTypeName` appears once. */
+export const MINIMAP_ENEMY_FAMILY: Readonly<Record<string, keyof typeof MINIMAP_ENEMY_FAMILIES>> =
+  Object.freeze({
+    Basic: 'bulk',
+    Strong: 'bulk',
+    Soldier: 'bulk',
+    Tiny: 'bulk',
+
+    Fast: 'fast',
+    Accelerating: 'fast',
+    Crazy: 'fast',
+    Random: 'fast',
+    Temperamental: 'fast',
+
+    Ghost: 'evasive',
+    ScaredGhost: 'evasive',
+    Teleporting: 'evasive',
+    Ninja: 'evasive',
+    Shrinking: 'evasive',
+
+    Shooting: 'ranged',
+    Exploding: 'ranged',
+    Trap: 'ranged',
+    GrapplingHook: 'ranged',
+
+    Medic: 'support',
+    DamageAddict: 'support',
+  });
+
+/**
+ * The colour for one enemy's dot.
+ *
+ * A boss keeps the AS3 red whatever its type: it is already distinguished by
+ * being twice the size, and a boss is the one marker that must never be
+ * mistaken for something else on a glance.
+ */
+export function enemyDotColour(type: string | undefined, isBoss: boolean): number {
+  if (isBoss) return MINIMAP_ENEMY;
+  const family = type ? MINIMAP_ENEMY_FAMILY[type] : undefined;
+  return family ? MINIMAP_ENEMY_FAMILIES[family] : MINIMAP_ENEMY;
+}
+
 interface Room {
   width: number;
   height: number;
@@ -119,9 +191,24 @@ export function clampToPanel(rect: Rect): Rect {
  */
 export function marker(x: number, y: number, room: Room, size: number = MINIMAP_DOT): Rect {
   const half = size / 2;
+  /*
+   * ── Divergence: not rounded, where the AS3 rounds ──────────────────────
+   *
+   * `:678`/`:682` wrap each finished coordinate in `Math.round`. That was kept
+   * faithfully and it is what made the dots crawl: an 80px panel over a
+   * 2000-unit room is 25 world units per pixel, so a dot holds still for 25
+   * units of real movement and then jumps a whole pixel. At Flash's 30fps
+   * against a 60fps canvas the stutter is twice as visible here as it was
+   * there.
+   *
+   * Sub-pixel positions render fine — Phaser antialiases the arc — and the
+   * rounding bought the original nothing this port needs. The *rect* fills
+   * (ground, viewport) still round, because a half-pixel rectangle edge is a
+   * blurred line rather than a smooth one.
+   */
   return {
-    x: Math.round(project(x, room.width) - half),
-    y: Math.round(project(y, room.height) - half),
+    x: project(x, room.width) - half,
+    y: project(y, room.height) - half,
     width: size,
     height: size,
   };
@@ -165,10 +252,22 @@ export function minimapAnchor(
   };
 }
 
-/** One filled rectangle, already clipped to the panel. */
+/** One fill. Rectangles are clipped to the panel; circles are culled by it. */
 export interface MinimapFill {
   /** What it represents, so a test can assert order without matching colours. */
   kind: 'ground' | 'viewport' | 'enemy' | 'boss' | 'flag' | 'tank';
+  /**
+   * How to paint it.
+   *
+   * The AS3 draws every one of these with `drawRect`, so the dots were
+   * squares. A round dot is a divergence and is deliberate: at 4px a square
+   * reads as a pixel artefact rather than a marker, and the tank, the flag and
+   * the enemies are all circular objects in the arena.
+   *
+   * `rect` stays the bounding box for both, so culling and the panel's extent
+   * are one calculation rather than two. A circle is drawn from its centre.
+   */
+  shape: 'rect' | 'circle';
   colour: number;
   alpha: number;
   rect: Rect;
@@ -179,10 +278,20 @@ interface MinimapSubject {
   y: number;
 }
 
+/** True when any part of `rect` is inside the panel. */
+function touchesPanel(rect: Rect): boolean {
+  return (
+    rect.x + rect.width > 0 &&
+    rect.y + rect.height > 0 &&
+    rect.x < MINIMAP_SIZE &&
+    rect.y < MINIMAP_SIZE
+  );
+}
+
 export interface MinimapInput {
   camera: Rect;
   room: Room;
-  enemies: readonly (MinimapSubject & { boss: boolean })[];
+  enemies: readonly (MinimapSubject & { boss: boolean; type?: string })[];
   /** Null on every mode but Flag, and once the last flag is taken. */
   flag: MinimapSubject | null;
   tank: MinimapSubject;
@@ -207,34 +316,62 @@ export function minimapPlan(input: MinimapInput): MinimapFill[] {
   const fills: MinimapFill[] = [
     {
       kind: 'ground',
+      shape: 'rect',
       colour: MINIMAP_GROUND,
       alpha: 1,
       rect: { x: 0, y: 0, width: MINIMAP_SIZE, height: MINIMAP_SIZE },
     },
     {
       kind: 'viewport',
+      shape: 'rect',
       colour: MINIMAP_VIEWPORT,
       alpha: MINIMAP_VIEWPORT_ALPHA,
       rect: viewportRect(camera, room),
     },
   ];
 
+  const dots: MinimapFill[] = [];
   for (const enemy of enemies) {
-    fills.push({
+    dots.push({
       kind: enemy.boss ? 'boss' : 'enemy',
-      colour: MINIMAP_ENEMY,
+      shape: 'circle',
+      colour: enemyDotColour(enemy.type, enemy.boss),
       alpha: 1,
       rect: marker(enemy.x, enemy.y, room, dotSize(enemy.boss)),
     });
   }
 
   if (flag) {
-    fills.push({ kind: 'flag', colour: MINIMAP_FLAG, alpha: 1, rect: marker(flag.x, flag.y, room) });
+    dots.push({
+      kind: 'flag',
+      shape: 'circle',
+      colour: MINIMAP_FLAG,
+      alpha: 1,
+      rect: marker(flag.x, flag.y, room),
+    });
   }
 
-  fills.push({ kind: 'tank', colour: MINIMAP_TANK, alpha: 1, rect: marker(tank.x, tank.y, room) });
+  dots.push({
+    kind: 'tank',
+    shape: 'circle',
+    colour: MINIMAP_TANK,
+    alpha: 1,
+    rect: marker(tank.x, tank.y, room),
+  });
 
-  return fills
+  /*
+   * Rectangles are clipped; circles are culled and drawn whole.
+   *
+   * Clipping a circle's bounding box would move its centre — a dot at the
+   * room's edge would slide inward instead of being cut off, which is a lie
+   * about where the enemy is. The AS3 clipped nothing itself either: it hung a
+   * mask on the panel (`minimap.mask = minimapMask`, `:286`) and let the shapes
+   * overhang underneath it. The scene does the same with a geometry mask, so
+   * the overhang is cut at the panel edge exactly as it was.
+   */
+  const clipped = fills
     .map((fill) => ({ ...fill, rect: clampToPanel(fill.rect) }))
     .filter((fill) => fill.rect.width > 0 && fill.rect.height > 0);
+
+  return [...clipped, ...dots.filter((fill) => touchesPanel(fill.rect))];
 }
