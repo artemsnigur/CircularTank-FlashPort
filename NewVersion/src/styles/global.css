@@ -1736,17 +1736,6 @@ code {
   filter: drop-shadow(0 1px 1px rgb(0 0 0 / 70%));
 }
 
-/*
- * The in-game audio toggles keep their extracted art (`ButtonToggleSound` /
- * `ButtonToggleMusic`) — `PartInterface` is exactly where the AS3 puts them,
- * and this is the one surface where the original's own chrome still belongs.
- * They only need to match the pause button's height.
- */
-.hud .audio-toggles__button {
-  height: clamp(1.9rem, 4.4vh, 2.8rem);
-  pointer-events: auto;
-}
-
 .hud__button {
   font-family: var(--font-display);
   min-height: 44px;
@@ -5591,79 +5580,191 @@ code {
 .achievement-icon img { position: absolute; inset: 0; width: 100%; height: 100%; }
 
 /*
- * The pause panel — `PartInterface.pauseGame` (`:426-476`).
+ * ══ The pause panel ══════════════════════════════════════════════════════
  *
- * The scrim is the AS3's own 75% black (`:430`), which is darker than the
- * results overlay's 62% and deliberately so: results are a screen you read,
- * pause is a screen that says the game has stopped.
+ * Flat, centred, and built from the same `--hud-plate` the minimap and the HUD
+ * readouts use, so pausing reveals a surface the player already recognises
+ * rather than a differently-styled dialog.
+ *
+ * ── What it stopped being ────────────────────────────────────────────────
+ * A `var(--panel)` card with a **3px** border and three identical steel pill
+ * buttons. Three things were wrong with it and all three are the same mistake
+ * — decoration standing in for hierarchy:
+ *
+ *   - a heavy border does the job a shadow or a change of tone does better,
+ *     and at 3px it reads as a frame around a widget rather than a surface;
+ *   - three equally-weighted buttons make a list, not a menu. The player is
+ *     nearly always here to carry on, so Resume carries the accent and the
+ *     other two recede;
+ *   - the title was the largest thing on screen, which spends the panel's
+ *     emphasis on a word nobody needs to read twice.
+ *
+ * ── No `backdrop-filter`, and the reason is not the obvious one ───────────
+ * A blur behind this panel looks like the free case: the game is paused, so
+ * the arena is not moving. It is not free. **A paused Phaser scene still
+ * renders** — pausing stops `update`, not the draw — so the canvas repaints
+ * every frame underneath and the blur is recomposited every frame with it.
+ * That is the same `D-FPS` cost as anywhere else over this canvas, and it
+ * would land while the player is looking at a menu that should feel instant.
  */
 .pause-overlay {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
+  /*
+   * The AS3's own 75% black (`:430`), kept — darker than the results overlay's
+   * 62% and deliberately so: results are a screen you read, pause is a screen
+   * that says the game has stopped.
+   */
   background: rgb(0 0 0 / 75%);
   pointer-events: auto;
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
+/*
+ * The panel itself.
+ *
+ * `--hud-plate` is defined on `.hud`, which is this element's ancestor, so the
+ * variable resolves — the panel is *inside* the HUD tree, not a sibling of it.
+ * Stated here rather than inherited silently because a future move of this
+ * element out of `.hud` would leave the background transparent, and a missing
+ * custom property fails quietly.
+ */
 .pause-overlay__panel {
-  min-width: min(280px, 80vw);
-  padding: 1.5rem 1.75rem;
-  border-radius: 8px;
-  background: var(--panel);
-  border: 3px solid var(--panel-border);
+  width: min(22rem, 82vw);
+  padding: clamp(1.4rem, 4vh, 2.4rem) clamp(1.2rem, 3.2vh, 2rem);
+  border: none;
+  border-radius: clamp(0.5rem, 1.4vh, 0.9rem);
+  background: var(--hud-plate, rgb(38 40 44 / 72%));
+  /*
+   * One soft shadow, which is what lifts the panel off the scrim now that the
+   * border is gone. It is doing a job the 3px frame was doing badly.
+   */
+  box-shadow: 0 1.5rem 3rem rgb(0 0 0 / 55%);
   text-align: center;
 }
 
-.pause-overlay__title {
-  margin: 0 0 1.25rem;
+/* A quiet label above the title — the thing that makes the block read as
+   designed rather than as a heading someone forgot to style. */
+.pause-overlay__eyebrow {
+  margin: 0 0 0.35rem;
   font-family: var(--font-display);
-  font-size: var(--text-lg);
+  font-size: clamp(0.55rem, 1.2vh, 0.7rem);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.pause-overlay__title {
+  margin: 0 0 clamp(1.1rem, 3vh, 1.8rem);
+  font-family: var(--font-display);
+  /* Was `--text-lg` and the loudest thing here. Now it sits just above the
+     buttons in weight, because the buttons are what the panel is for. */
+  font-size: clamp(1rem, 2.6vh, 1.4rem);
+  font-weight: 400;
   letter-spacing: 0.04em;
+  color: var(--steel-000);
 }
 
 .pause-overlay__actions {
   display: grid;
-  gap: 0.5rem;
+  gap: clamp(0.4rem, 1.1vh, 0.6rem);
 }
 
-/* Order matches `:438`, `:452`, `:456` — Resume, Reset, Quit. */
 /*
- * Sized to the same 44px minimum the HUD buttons use — the touch target rule
- * this project already follows, not a new number.
+ * Order matches `:438`, `:452`, `:456` — Resume, Reset, Quit.
+ *
+ * Sized to the same 44px minimum every touch target in this project uses, and
+ * flat for the same reason the HUD is: no gradient, no border, no bevel.
  */
 .pause-overlay__button {
   width: 100%;
   min-height: 44px;
   padding: 0 1rem;
-  border-radius: 999px;
-  border: 2px solid var(--steel-900);
-  background: var(--pill-steel);
-  color: var(--text);
+  border: none;
+  border-radius: clamp(0.35rem, 1vh, 0.6rem);
+  background: rgb(255 255 255 / 8%);
+  color: var(--steel-000);
   font-family: var(--font-display);
-  letter-spacing: 0.06em;
+  font-size: clamp(0.72rem, 1.7vh, 0.9rem);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  text-shadow: 0 1px 0 rgb(0 0 0 / 60%);
   cursor: pointer;
+  /* Colour only. Nothing moves under the pointer in this project. */
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
 }
 
-.pause-overlay__button:hover,
+.pause-overlay__button:hover {
+  background: rgb(255 255 255 / 14%);
+}
+
+/*
+ * Focus is visible and is *not* the same as hover.
+ *
+ * The old rule merged them into one `filter: brightness()`, so a keyboard user
+ * could not tell which button was focused when the pointer was also over one.
+ * This panel opens with focus on Resume, so that distinction is the whole of
+ * its keyboard story.
+ */
 .pause-overlay__button:focus-visible {
-  filter: brightness(1.15);
-  background: var(--pill-steel);
+  outline: 2px solid var(--steel-000);
+  outline-offset: 2px;
 }
 
-.pause-overlay__option {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  margin-top: 1.1rem;
-  font-size: var(--text-xs);
-  color: var(--text-dim);
-  cursor: pointer;
+/*
+ * The default action, in the one thing that outranks everything else on a dark
+ * flat panel: contrast. Not a hue.
+ *
+ * The first draft used `var(--primary, ...)`, and **`--primary` does not
+ * exist in this stylesheet** — it would have silently taken the fallback
+ * forever, which is the `var()` version of a dead reference. The real accent
+ * token is `--accent`, and it is red: correct for danger, wrong for the button
+ * that carries on playing. So Resume is inverted instead, which also keeps the
+ * panel monochrome.
+ */
+.pause-overlay__button--primary {
+  background: var(--steel-000);
+  color: #101216;
+}
+
+.pause-overlay__button--primary:hover {
+  background: var(--steel-000);
+  filter: brightness(0.92);
+}
+
+.pause-overlay__button:active {
+  transform: translateY(1px);
+}
+
+.pause-overlay__hint {
+  margin: clamp(0.9rem, 2.4vh, 1.4rem) 0 0;
+  font-size: clamp(0.55rem, 1.2vh, 0.68rem);
+  color: var(--text-faint);
+}
+
+/* Set in the body face, not the display one: `SWFMainFont` has 581 glyphs and
+   this is the one place the panel renders arbitrary key names. */
+.pause-overlay__key {
+  padding: 0.1em 0.4em;
+  border-radius: 0.25em;
+  background: rgb(255 255 255 / 12%);
+  font-family: var(--font-body);
+  font-size: 0.95em;
+  color: var(--steel-000);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pause-overlay__button {
+    transition: none;
+  }
+
+  .pause-overlay__button:active {
+    transform: none;
+  }
 }
 
 /*

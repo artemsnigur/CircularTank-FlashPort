@@ -733,6 +733,18 @@ decisive, wrong result and was believed.*
     every term in the expression and check each one still refers to something
     real, before adjusting the term you touched.
 
+22. **An assertion can keep passing after its reason dies.** `PauseOverlay`
+    omitted the audio toggles because the HUD already had them; T200 removed
+    the HUD copy, and both the docstring arguing that and a test named
+    `does not duplicate the HUD audio toggles` kept asserting the right
+    outcome from a premise that had become false. Nothing went red, which is
+    what makes it harder to spot than a failing test.
+
+    **When you delete a thing, grep for what justified its absence
+    elsewhere.** A comment or test naming the deleted thing is the tell, and a
+    negative assertion is where it hides — restate the rule or add a
+    counterpart that pins what *is* there.
+
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
 be checked against a second mode on the same build before it is believed.
@@ -759,6 +771,16 @@ enemy in the wrong place. Dot colour is an authored per-family palette (the
 AS3 draws every enemy in one red), covered against `BESTIARY` so a new enemy
 type fails the test until it is classified. `marker` deliberately does not
 round; the rect fills still do.
+
+**No audio control during a level (`A52`).** The HUD's mute/music toggles were
+removed by request; both toggles and both volume sliders live on the options
+screen only. The AS3 puts them in the pause panel too, which is where they
+belong if a mid-level mute is ever wanted.
+
+**The pause panel is flat (`A52`).** `--hud-plate`, no border, one soft
+shadow, Resume inverted as the single emphasised action. It resolves
+`--hud-plate` by being rendered *inside* `.hud` — do not move it out of that
+subtree without moving the declaration.
 
 **The in-game HUD, as it now stands (`A47`-`A49`).** One readout per corner:
 money top-left in green with a `$`, the controls top-right, the health bar

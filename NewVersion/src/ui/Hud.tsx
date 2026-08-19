@@ -15,7 +15,6 @@ import { buildStatusPages, initialPageIndex,
   revealPages,
   unlockSummary,
 } from '../game/waves/statusPages';
-import { AudioToggles } from './AudioToggles';
 import { GameEvents } from '../game/events/GameEvents';
 import { usePauseControl } from './usePauseControl';
 import { PauseOverlay } from './PauseOverlay';
@@ -810,11 +809,21 @@ export function Hud(): React.ReactElement | null {
             thing in the other direction ("N flags left"); T197 folded it into
             the line above, which now reads `3/20 collected` on a Flag level. */}
         <WaveIndicator />
+        {/*
+          Pause alone, T200.
+
+          `PartInterface.as` carries `bToggleSound` and `bToggleMusic` in the
+          in-game HUD, and this port did too — the argument being that music
+          you cannot silence mid-level is the case a toggle exists for. That is
+          reversed by request: the combat HUD carries no audio control, and the
+          two toggles plus both volume sliders live on the options screen.
+
+          The consequence is real and is the point of writing it down here:
+          **there is no way to mute during a level.** The AS3 also puts the
+          toggles in the pause panel (`:426-476`), which is where they would go
+          if that turns out to matter — see `PauseOverlay`.
+        */}
         <div className="hud__controls">
-          {/* PartInterface.as carries bToggleSound in the in-game HUD, not
-              only on an options screen — music you cannot silence mid-level is
-              the case a toggle exists for. */}
-          <AudioToggles />
           <PauseButton />
         </div>
       </div>

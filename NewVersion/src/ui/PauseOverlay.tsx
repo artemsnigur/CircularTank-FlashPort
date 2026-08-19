@@ -9,11 +9,14 @@
  *
  * ── Three deliberate differences ──────────────────────────────────────────
  * **The audio toggles are not here** — divergence, recorded in the audit. The
- * AS3 puts Sound and Music buttons in this panel *and* in the HUD; this port
- * already has `AudioToggles` permanently in the HUD, so a second copy would be
- * two sets of the same control on screen at once. Nothing is lost: the controls
- * the panel exists to offer are still reachable while paused, because the HUD
- * stays mounted underneath.
+ * AS3 puts Sound and Music buttons in this panel *and* in the HUD.
+ *
+ * This used to say "a second copy would be two sets of the same control on
+ * screen at once", which was true while `AudioToggles` sat in the HUD. **T200
+ * removed it from the HUD**, so that reasoning is gone and the position is now
+ * a plain one: there is no audio control during a level, by request. Volume
+ * and the two toggles live on the options screen. If a mid-level mute is
+ * wanted, this panel is where it belongs — it is where the AS3 puts it.
  *
  * **The "Auto pause" checkbox is not here either.** `:459-462` puts it in the
  * panel, duplicating the options screen's own row. One control, one home: the
@@ -24,8 +27,7 @@
  *
  * **Quit goes to level select, not the main menu.** `ButtonPause.as:105` sets
  * `Main.changeScreen = "LevelSelect"`, and quitting a level should not throw
- * the player out to the title. The HUD's own Menu button still goes to the main
- * menu, which is a different action and keeps its own destination.
+ * the player out to the title. The main menu is one step further from there.
  *
  * ── Layout is not transcribed ─────────────────────────────────────────────
  * The AS3's coordinates are absolute inside a 640x480 stage. This port has a
@@ -47,12 +49,19 @@ export function PauseOverlay(): React.ReactElement | null {
   return (
     <div className="pause-overlay" role="dialog" aria-modal="true" aria-label="Game Paused">
       <div className="pause-overlay__panel">
+        <p className="pause-overlay__eyebrow">Paused</p>
         <h2 className="pause-overlay__title">Game Paused</h2>
 
         <div className="pause-overlay__actions">
+          {/*
+            Resume carries `--primary`, and it is the only one that does. Three
+            buttons with equal weight is a list; one emphasised is a menu with
+            an obvious default, which is what a pause panel wants — the player
+            is nearly always here to carry on.
+          */}
           <button
             type="button"
-            className="pause-overlay__button"
+            className="pause-overlay__button pause-overlay__button--primary"
             autoFocus
             onClick={() => GameEvents.emit('ui:pause', { paused: false })}
           >
@@ -80,6 +89,11 @@ export function PauseOverlay(): React.ReactElement | null {
           </button>
         </div>
 
+        {/* The keys that got them here, so the panel teaches its own shortcut. */}
+        <p className="pause-overlay__hint">
+          Press <kbd className="pause-overlay__key">P</kbd> or{' '}
+          <kbd className="pause-overlay__key">Esc</kbd> to resume
+        </p>
       </div>
     </div>
   );
