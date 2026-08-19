@@ -732,6 +732,37 @@ function CountdownPanel(): React.ReactElement | null {
   );
 }
 
+/**
+ * Pause — `ButtonPause.as`, which the AS3 puts in the in-game interface.
+ *
+ * **This replaces the HUD's `Menu` button rather than joining it.** Pause is
+ * the affordance a player reaches for mid-level, and its overlay already
+ * carries the ways out: Resume, Reset Level, Quit Level. A second button that
+ * left the level directly was a way to lose a run to a misclick, with no
+ * confirmation in front of it.
+ *
+ * The main menu is still reachable — Quit Level lands on level select, whose
+ * dock has it — which is the same two steps the original takes.
+ */
+function PauseButton(): React.ReactElement {
+  const paused = useGameStore((s) => s.paused);
+
+  return (
+    <button
+      type="button"
+      className="gloss-pill hud-pause"
+      aria-label={paused ? 'Resume' : 'Pause'}
+      aria-pressed={paused}
+      onClick={() => GameEvents.emit('ui:pause', { paused: !paused })}
+    >
+      {/* Two bars and a triangle in CSS rather than a glyph: the display face
+          has 581 glyphs and no guarantee of carrying either symbol, and a
+          missing-glyph box in the corner of a live game is not recoverable. */}
+      <span className="hud-pause__icon" aria-hidden="true" data-state={paused ? 'play' : 'pause'} />
+    </button>
+  );
+}
+
 export function Hud(): React.ReactElement | null {
   const activeScene = useGameStore((s) => s.activeScene);
   const inGame = activeScene === 'Gameplay';
@@ -746,26 +777,38 @@ export function Hud(): React.ReactElement | null {
 
   return (
     <div className="hud">
-      <div className="hud__row hud__row--top">
+      {/*
+        ── Three clusters in the corners, and nothing in the middle ──────────
+        T194. This was two full-width rows with everything spread along them,
+        which put readouts across the top and bottom edges of the arena. The
+        middle is where the tank is and where the player is looking, and the
+        edges are where enemies enter — so the HUD is pulled into the corners
+        and the whole centre band is left clear.
+      */}
+      <div className="hud__corner hud__corner--tl">
+        <HealthBar />
         <CurrencyCounter />
-        <FlagCounter />
-        <WaveIndicator />
       </div>
 
-      <div className="hud__row hud__row--bottom">
-        <HealthBar />
+      <div className="hud__corner hud__corner--tr">
+        <WaveIndicator />
+        <FlagCounter />
+        <div className="hud__controls">
+          {/* PartInterface.as carries bToggleSound in the in-game HUD, not
+              only on an options screen — music you cannot silence mid-level is
+              the case a toggle exists for. */}
+          <AudioToggles />
+          <PauseButton />
+        </div>
+      </div>
+
+      {/*
+        The weapons, centred on the bottom edge — a hotbar, which is where
+        every player already looks for one, and the one HUD element that is
+        read *during* a fight rather than between them.
+      */}
+      <div className="hud__corner hud__corner--bottom">
         <ReloadReadout />
-        {/* PartInterface.as carries bToggleSound in the in-game HUD, not only
-            on an options screen — music you cannot silence mid-level is the
-            case a toggle exists for. */}
-        <AudioToggles />
-        <button
-          type="button"
-          className="hud__button"
-          onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
-        >
-          Menu
-        </button>
       </div>
 
       <CountdownPanel />

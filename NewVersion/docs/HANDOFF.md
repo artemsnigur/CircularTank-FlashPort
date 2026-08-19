@@ -672,6 +672,22 @@ decisive, wrong result and was believed.*
       margin percentages resolve against the containing block's *width* — even
       vertically. On anything sized by a variable, use a share of that variable.
 
+18. **Headless Chromium cannot measure frame cost, in either configuration.**
+    T194 needed to know what a `backdrop-filter` over the live arena costs.
+    Default headless pins `requestAnimationFrame` to its own cadence and both
+    arms read a flat **30 30 30 30 30** — the display loop saturating, not a
+    result, and it would have been reported as "the blur is free". Unpinning it
+    with `--disable-frame-rate-limit --disable-gpu-vsync` drops to SwiftShader
+    software GL, where the same two arms read **3333 1 1 1 2500** against
+    **2500 0 1 1 1**, median 1 fps, worst frame 1.4-2.6 seconds. Neither number
+    is about the page.
+
+    The tell for the first is **an identical reading in both arms of a paired
+    test**; for the second, **a variance larger than the effect**. Both were
+    reported as inconclusive and the decision was left resting on the earlier
+    `D-FPS` finding, which was measured differently. A compositor cost needs a
+    real GPU, which means the user's machine, not this harness.
+
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
 be checked against a second mode on the same build before it is believed.
@@ -684,6 +700,11 @@ be checked against a second mode on the same build before it is believed.
 `Main.keyP || Main.keyEsc` plus an auto-pause on focus loss; the four
 `ButtonPause*` classes are the buttons *inside* the panel. So the port binds
 **P and Escape**, and the panel carries Resume / Reset Level / Quit Level.
+
+**T194 added one anyway, as a declared divergence (`A46`).** The HUD overhaul
+was asked for a pause control top-right, and keyboard-only pause is unreachable
+on touch. `.hud-pause` emits the same `ui:pause` the keys do — one path, not
+two — and replaced the `Menu` button that used to sit in that corner.
 
 **The trigger lives in React, not in `GameplayScene`.** A paused Phaser scene
 stops dispatching its own keys — `KeyboardPlugin` checks `isActive()` — so a

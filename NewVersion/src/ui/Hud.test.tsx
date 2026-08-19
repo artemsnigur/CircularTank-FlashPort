@@ -3,6 +3,8 @@
  * claim: a Phaser scene emits `currency:earned`, and the React counter shows
  * the new value — no polling, no shared mutable object.
  */
+import { readFileSync } from 'node:fs';
+
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Hud } from './Hud';
@@ -28,6 +30,96 @@ function enterGameplay(): void {
     GameEvents.emit('scene:ready', { key: 'Gameplay' });
   });
 }
+
+const CSS = readFileSync('src/styles/global.css', 'utf8');
+
+/*
+ * Comments stripped before any selector scan. This block's own docstring
+ * argues at length about `backdrop-filter` and names `.hud__row`, so a scan
+ * reading prose as code would report both as present — the prose-as-code trap
+ * this repo has now hit three times.
+ */
+const cssCode = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+
+function block(selector: string): string {
+  const at = cssCode.indexOf(`${selector} {`);
+  expect(at, `${selector} is not in the stylesheet`).toBeGreaterThan(-1);
+  return cssCode.slice(at, cssCode.indexOf('}', at));
+}
+
+/*
+ * ── The layout, T194 ─────────────────────────────────────────────────────
+ *
+ * The HUD was two full-width rows; it is now three corner clusters with the
+ * centre band left clear. These pin *where things are*, because the arena is
+ * underneath and a readout drifting into the middle is the failure.
+ */
+describe('the HUD layout', () => {
+  it('puts health top-left, controls top-right and weapons on the bottom', () => {
+    enterGameplay();
+    const { container } = render(<Hud />);
+
+    expect(container.querySelector('.hud__corner--tl .hud-health')).not.toBeNull();
+    expect(container.querySelector('.hud__corner--tr .hud__controls')).not.toBeNull();
+    expect(container.querySelector('.hud__corner--bottom .hud-reload')).not.toBeNull();
+
+    // And the counterpart: nothing sits in the middle row of the grid, which
+    // is the whole point of the change.
+    expect(container.querySelectorAll('.hud > *').length).toBeLessThanOrEqual(7);
+  });
+
+  it('lets clicks through to the arena except on the controls', () => {
+    // The HUD covers the whole viewport. If the root ever stops being
+    // `pointer-events: none`, aiming and firing stop working everywhere the
+    // overlay reaches — which is everywhere.
+    expect(block('.hud')).toMatch(/pointer-events:\s*none/);
+    expect(block('.hud__controls')).toMatch(/pointer-events:\s*auto/);
+    expect(block('.gloss-pill.hud-pause')).toMatch(/pointer-events:\s*auto/);
+  });
+
+  /*
+   * ── No `backdrop-filter` on the HUD, and this is the measured rule ───────
+   *
+   * `D-FPS` measured 52 fps lost to a `backdrop-filter` over this same Phaser
+   * canvas on a *menu* screen, where the canvas is idle. The HUD sits over it
+   * while the game is running, so the blur would be recomputed every frame
+   * over a region that changes every frame.
+   *
+   * Pinned because it is the one place the obvious "make it glassy" edit is
+   * actively harmful, and nothing in the visual result would show it.
+   */
+  it('never puts a backdrop-filter over the live arena', () => {
+    /*
+     * Every rule whose selector mentions a `hud` class, not a hand-listed
+     * few — the shared surface is a *grouped* selector
+     * (`.hud-stat, .hud-health, .hud-reload`), so naming rules individually
+     * would miss the one that actually paints the panels.
+     */
+    const hudRules = [...cssCode.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) =>
+      /\.hud[\w-]*/.test(m[1]),
+    );
+
+    // A match set that came back empty would pass the loop below in silence.
+    expect(hudRules.length, 'no HUD rules matched at all').toBeGreaterThan(8);
+    for (const [, selector, body] of hudRules) {
+      expect(body, `backdrop-filter on ${selector.trim()}`).not.toMatch(/backdrop-filter/);
+    }
+
+    // The counterpart, so this reads as "the HUD does not" rather than
+    // "nothing in the stylesheet does": the two surfaces that are *not* over
+    // live gameplay keep theirs.
+    expect(cssCode).toMatch(/backdrop-filter/);
+  });
+
+  it('scales the surface off the viewport height, with no fixed px', () => {
+    // The arena's useful scale is the window's height, and the HUD's parent is
+    // the full overlay rather than a sized container — so `vh`, not `cqh`,
+    // which would resolve against the wrong box or none at all.
+    expect(block('.hud-health')).toMatch(/clamp\([^)]*vh[^)]*\)/);
+    expect(block('.hud-stat')).toMatch(/clamp\([^)]*vh[^)]*\)/);
+    expect(block('.gloss-pill.hud-pause')).toMatch(/clamp\([^)]*vh[^)]*\)/);
+  });
+});
 
 describe('Hud', () => {
   it('shows the currency counter updating from a Phaser event', () => {
