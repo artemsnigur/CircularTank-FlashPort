@@ -3764,37 +3764,49 @@ code {
   from {
     opacity: 0;
     /*
-     * **4px, and the number was measured rather than chosen.**
+     * **2px, arrived at by being told twice that it was too much.**
      *
-     * A blur is not free: it is a full-area operation every frame, on an
-     * element that covers nearly the whole window, over a Phaser canvas that
-     * is already drawing. `D-FPS` is the standing warning here — a
-     * `backdrop-filter` over this same canvas cost 52 fps.
+     * 8px first, then 4px, now 2px — the complaint each time was that the
+     * effect read as *harsh*, not that it was slow. At this radius the first
+     * frame is softened rather than illegible, which is the whole difference
+     * between a screen arriving and a screen being smeared on.
      *
-     * **Measured by paired sampling**, because the first attempt was not
-     * trustworthy: it ran all the animated navigations and then all the
-     * unanimated ones and read 33ms against a 17ms baseline — and the same
-     * baseline came back 17/33/33/17 on the next run. The machine's load had
-     * moved between the two blocks. A clean, decisive number from a noisy
-     * instrument is this project's most expensive recurring mistake.
+     * A blur is not free either: it is a full-area operation every frame, on
+     * an element covering nearly the whole window, over a Phaser canvas that
+     * is already drawing. `D-FPS` is the standing warning — a
+     * `backdrop-filter` over this same canvas cost 52 fps — so the cost is
+     * measured rather than assumed, by **paired sampling**: alternating
+     * blurred and unblurred navigations on the same screen so a drift in
+     * machine load lands on both arms instead of on the result.
      *
-     * Alternating the two conditions on the same screen (the shop, 28 tiles,
-     * the heaviest) over seven pairs at 1920x1080, worst frame per navigation:
+     * That method exists because the first attempt did not use it. It ran all
+     * the animated navigations and then all the unanimated ones, read 33ms
+     * against a 17ms baseline — and the same baseline came back 17/33/33/17 on
+     * the next run. A clean, decisive number from a noisy instrument is this
+     * project's most expensive recurring mistake.
      *
-     *   blur off   17 17 17 17 17 17 17    median 17ms
-     *   blur on    50 33 33 33 33 33 50    median 33ms
+     * Seven pairs on the shop (28 tiles, the heaviest screen) at 1920x1080,
+     * worst frame per navigation, `blurcost.mjs`:
      *
-     * So the blur costs **one dropped frame** at the start of a navigation,
-     * reproducibly, with an occasional second. That is the price of the
-     * effect and it is accepted rather than unnoticed: one frame out of the
-     * ~13 in a 220ms transition, at a moment when the content is blurred
-     * anyway. `prefers-reduced-motion` removes it entirely.
+     *   blur(4px) / 220ms   off 17ms median   on 33ms median (50 50 spikes)
+     *   blur(2px) / 170ms   off 17ms median   on 50ms median (33 33 33)
      *
-     * 4px rather than the 8px first tried: half the radius is roughly half the
-     * work, it still reads as soft focus at this size, and nobody can name the
-     * difference between the two.
+     * **The lighter, shorter version did not measure cheaper, and that is
+     * reported rather than tidied away.** Both configurations land on the same
+     * two values, 33ms and 50ms, in different proportions; at seven pairs they
+     * are not distinguishable. There is also a real reason it might not be
+     * cheaper: the curve below is front-loaded, so most of the blur delta
+     * happens in the first two or three frames, and a shorter duration
+     * concentrates the same work further. Less total work, more work per
+     * frame.
+     *
+     * What is solid across every run: **one to two dropped frames** at the
+     * start of a navigation against a 17ms unanimated baseline, and
+     * `prefers-reduced-motion` removes it entirely. The radius came down
+     * because the effect read as harsh, which is a look decision; it was never
+     * a performance one.
      */
-    filter: blur(4px);
+    filter: blur(2px);
   }
 
   to {
@@ -3828,7 +3840,14 @@ code {
 .menu-title,
 .menu-toggles,
 .menu-card {
-  animation: screen-in 220ms ease-out backwards;
+  /*
+   * 170ms on a curve that is nearly over by the halfway point —
+   * `cubic-bezier(0.16, 1, 0.3, 1)` is the usual "ease out expo" shape. At
+   * 220ms with a plain `ease-out` the blur was still visibly resolving when
+   * the eye had already arrived; front-loading it means the screen is sharp
+   * for most of the animation and the tail is only the last of the fade.
+   */
+  animation: screen-in 170ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /*
@@ -3854,7 +3873,7 @@ code {
 }
 
 .menu-wallpaper {
-  animation: screen-fade 220ms ease-out backwards;
+  animation: screen-fade 170ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /*

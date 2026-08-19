@@ -66,10 +66,13 @@ describe('the mount animation', () => {
   it('pulls into focus and fades, and does not move', () => {
     const frames = block('@keyframes screen-in');
     expect(frames).toMatch(/opacity:\s*0/);
-    // 4px, measured rather than chosen — an 8px full-area blur cost a
-    // dropped frame on every navigation and 50-67ms on the shop. See the
-    // rule's own comment for the numbers and the baseline they are against.
-    expect(frames).toMatch(/filter:\s*blur\(4px\)/);
+    /*
+     * 2px — 8px, then 4px, now 2px, reduced twice because the effect read as
+     * harsh rather than slow. The assertion is here so the radius is a
+     * decision rather than a drift; the rule's own comment carries the
+     * measured frame cost of each.
+     */
+    expect(frames).toMatch(/filter:\s*blur\(2px\)/);
     expect(frames).toMatch(/filter:\s*blur\(0\)/);
 
     /*
@@ -83,12 +86,36 @@ describe('the mount animation', () => {
     expect(block('@keyframes screen-fade')).not.toMatch(/transform/);
   });
 
-  it('is quick — between 150 and 300ms', () => {
-    // Comfortably inside "premium" either way; the assertion exists so a
-    // future tweak to 600ms is a deliberate act rather than a slip.
+  it('is quick — between 120 and 220ms', () => {
+    // Tightened from 300 when the duration came down to 170ms: a ceiling that
+    // the current value sits far below is not a guard, it is decoration.
     for (const match of cssCode.matchAll(/animation:\s*screen-(?:in|fade) (\d+)ms/g)) {
-      expect(Number(match[1])).toBeGreaterThanOrEqual(150);
-      expect(Number(match[1])).toBeLessThanOrEqual(300);
+      expect(Number(match[1])).toBeGreaterThanOrEqual(120);
+      expect(Number(match[1])).toBeLessThanOrEqual(220);
+    }
+  });
+
+  it('eases out rather than running linear', () => {
+    /*
+     * Asked for by name. A `linear` fade of a blur reads as a wipe — the
+     * sharpening arrives at a constant rate, which nothing physical does.
+     *
+     * A **literal** regex, not one built from a template literal: `\s`
+     * written into a template is eaten as a string escape before `RegExp`
+     * sees it, and the pattern silently becomes `animation:s*...`, matching
+     * nothing. That read as "screen-in has no easing" on a rule that plainly
+     * has one — an instrument reporting absence because it was malformed.
+     */
+    const easings = [
+      ...cssCode.matchAll(/animation:\s*screen-(?:in|fade) \d+ms ([^;]+?) backwards/g),
+    ].map((m) => m[1].trim());
+
+    // Both animations, or a rule that lost its easing entirely would leave
+    // this loop with nothing to check and pass.
+    expect(easings).toHaveLength(2);
+    for (const easing of easings) {
+      expect(easing).not.toMatch(/\blinear\b/);
+      expect(easing).toMatch(/cubic-bezier|ease-out/);
     }
   });
 
