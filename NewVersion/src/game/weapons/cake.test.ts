@@ -2,6 +2,7 @@
  * Cake Cannon — a round that shatters into a ring of fragments, and whose
  * fragments can shatter again.
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   CAKE_EXTRA_PIECES,
@@ -238,5 +239,39 @@ describe('what the burst is worth', () => {
     expect(stats.damage / stats.reloadTimeMax).toBeLessThan(
       cannon.damage / cannon.reloadTimeMax,
     );
+  });
+});
+
+/**
+ * ── The burst is gated on the kill, T216 ──────────────────────────────────
+ *
+ * `:6132`'s spawn block sits in the `else` of `:5981`, whose condition is the
+ * enemy *surviving* — so a cake that only wounds does nothing but damage. The
+ * port burst on every impact, and its comment claimed that was faithful.
+ *
+ * **This is a source scan and it proves the guard is written, not that it is
+ * reached.** The rule lives in `GameplayScene`'s collision loop, which cannot
+ * be instantiated, so nothing in this suite can drive it — that is exactly why
+ * the bug survived. The behavioural check is `__arena.bullets.impacts` and
+ * `.bursts`, driven in a browser; the counters are placed so `bursts` can only
+ * rise after `hitEnemy` reports a kill.
+ */
+describe('the scene gates the burst on the kill', () => {
+  const SCENE = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
+
+  it('returns from burstCake when the hit did not kill', () => {
+    expect(SCENE).toContain('if (!this.hitEnemy(struck, bullet)) return;');
+  });
+
+  it('no longer bursts unconditionally', () => {
+    // The exact line that was there before, asserted absent — restoring it is
+    // the regression, and it would look like a tidy-up.
+    expect(SCENE).not.toContain('    this.hitEnemy(struck, bullet);' + String.fromCharCode(10) + String.fromCharCode(10));
+  });
+
+  it('hitEnemy reports the kill, which is what the gate reads', () => {
+    // The counterpart: the guard above is only meaningful if hitEnemy returns
+    // something. A void hitEnemy would make the condition always truthy.
+    expect(SCENE).toContain('private hitEnemy(enemy: Enemy, bullet: Bullet): boolean {');
   });
 });

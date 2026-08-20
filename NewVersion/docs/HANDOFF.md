@@ -856,6 +856,13 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**The Cake burst is a death effect (`A68`).** `:6132`'s spawn block is the
+`else` of `:5981`, whose condition is the enemy *surviving* — so cakes only
+shatter on a kill. The port burst on every hit until T216. `hitEnemy` returns
+the kill now and `burstCake` gates on it; `__arena.bullets.impacts`/`.bursts`
+is how to check it from outside. Equal counts do **not** mean the gate is
+broken — on easy levels every cake hit is lethal.
+
 **KABOOM! wants a Tower level (`A67`).** The AS3 says Defense; this is the one
 deliberate mode divergence in the achievements, and the description says
 "tower level" to match. Every other mode was re-checked against its own AS3

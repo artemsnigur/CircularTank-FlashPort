@@ -40,6 +40,11 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     // the clean-run rule reads. Added because 'KABOOM! never unlocks' could
     // not be diagnosed by reading — every layer was individually correct.
     'achievement flag probe',
+    // T216: live bullet kinds. The cake burst fired on every hit instead of
+    // on the kill, and no test could see it — the rule is in the collision
+    // loop, which cannot be instantiated.
+    'cake fragment probe',
+    'cake impact and burst counters',
     // T69: the sweep aimed at a hard-coded screen point. This is how it finds
     // the tank instead.
     'live tank screen position',
@@ -167,6 +172,6 @@ describe('dev aids are enumerable', () => {
     // files. Taken out at the maintainer's request rather than because it was
     // broken — a dev affordance that ships behind `import.meta.env.DEV` still
     // shows up in every development session, which is where it was unwanted.
-    expect(total).toBe(33);
+    expect(total).toBe(35);
   });
 });

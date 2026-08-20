@@ -1,8 +1,14 @@
 /**
  * Cake Cannon fragments — `PartGameArea.as:6132`.
  *
- * On hitting an enemy, a cake round bursts into a ring of `BulletCakePiece`
+ * On **killing** an enemy, a cake round bursts into a ring of `BulletCakePiece`
  * projectiles fired outward from the *enemy*, not from the point of impact.
+ *
+ * The spawn block at `:6132` sits in the `else` of `:5981`, whose condition is
+ * the enemy *surviving* the hit — so a cake that merely wounds does nothing but
+ * damage. The upgrade text agrees: "If an enemy is **killed** by a cake or a
+ * cake slice, the enemy will shoot cake slices." This module was documented as
+ * bursting on impact and the scene did that until T216.
  *
  * ── Pieces spawn pieces ───────────────────────────────────────────────────
  * The spawn block is guarded by `theBullet == BulletCake || theBullet ==

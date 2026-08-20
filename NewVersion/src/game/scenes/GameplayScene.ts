@@ -647,6 +647,17 @@ export class GameplayScene extends Phaser.Scene {
   /** The panel's clip rectangle — the AS3's `minimapMask` (`:286`). */
   private minimapMaskShape!: Phaser.GameObjects.Graphics;
 
+  /**
+   * DEV-AID: cake impacts and cake bursts, for T216.
+   *
+   * Two counters rather than one, because they answer different questions and
+   * only the *pair* is diagnostic: equal and non-zero means the burst fires on
+   * every impact (the bug); impacts with no bursts means the kill gate never
+   * opens; impacts exceeding bursts is the rule working.
+   */
+  private cakeImpacts = 0;
+  private cakeBursts = 0;
+
   /** DEV-AID: fills painted by the last `drawMinimap`, for `__arena`. */
   private minimapFills = 0;
 
@@ -1101,6 +1112,8 @@ export class GameplayScene extends Phaser.Scene {
     this.hp = TANK_MAX_HP;
     this.damageIndicator = 0;
     this.pushedFrames = 0;
+    this.cakeImpacts = 0;
+    this.cakeBursts = 0;
     // `resetTempVariables("LevelStart")` — three of these start true.
     this.levelFlags = createLevelFlags();
     this.banking = null;
@@ -2555,18 +2568,31 @@ export class GameplayScene extends Phaser.Scene {
   }
 
   /**
-   * Shatters a cake round into its ring of fragments around the enemy it hit.
+   * Shatters a cake round into its ring of fragments around the enemy it kills.
    *
    * Damage lands first, then the burst — the parent still hits for its own
    * value on the way in. Fragments carry the parent's piece count, so any of
    * them can burst again on another enemy; see weapons/cake.ts.
+   *
+   * ── The burst is a death effect, not an impact effect (T216) ───────────
+   * This used to spawn the ring on **every** hit, with a comment claiming that
+   * was the AS3's behaviour. It is the opposite. `:6132`'s spawn block sits in
+   * the `else` of `:5981`, whose condition is
+   * `theEnemy.hp - theBullet.damage > 0 || enemyType == "DamageAddict"` — the
+   * enemy *surviving*. So the original bursts only on a lethal hit, and the
+   * upgrade's own description says so: "**If an enemy is killed** by a cake or
+   * a cake slice, the enemy will shoot cake slices."
+   *
+   * A DamageAddict is named in that condition and so counts as surviving
+   * however much damage it takes; it never bursts. Keying off the kill rather
+   * than the hp arithmetic reproduces that for free — it does not die, so it
+   * does not burst.
    */
   private burstCake(bullet: Bullet, struck: Enemy, out: Bullet[]): void {
-    this.hitEnemy(struck, bullet);
+    this.cakeImpacts += 1;
+    if (!this.hitEnemy(struck, bullet)) return;
+    this.cakeBursts += 1;
 
-    // The enemy may have died to that hit; the ring still spawns around where
-    // it was, which is what the AS3 does — the burst block runs off the
-    // bullet's target regardless of the kill.
     const pieces = spawnCakePieces(
       {
         pieces: bullet.cakePieces,
@@ -3413,6 +3439,24 @@ export class GameplayScene extends Phaser.Scene {
        * `DefensiveBombs`, plus the weapon name the flag test compares against,
        * which is a string equality across two tables.
        */
+      /**
+       * DEV-AID: live bullet kinds, for T216.
+       *
+       * The Cake burst fired on every hit rather than on the kill, and no test
+       * could see it — the rule lives in the scene's collision loop, which
+       * cannot be instantiated. Counting `BulletCakePiece` against enemy hp is
+       * what separates "burst on impact" from "burst on death" from outside.
+       */
+      bullets: {
+        total: this.bullets.length,
+        // A fragment is a cake bullet that is not the parent round — both are
+        // public getters, so this needs no widening of Bullet's internals.
+        cakePieces: this.bullets.filter((b) => b.cakePieces > 0 && !b.isCakeParent).length,
+        cakeParents: this.bullets.filter((b) => b.isCakeParent).length,
+        impacts: this.cakeImpacts,
+        bursts: this.cakeBursts,
+      },
+      enemyCount: this.enemies.length,
       achievements: {
         mode: this.levelSpec?.mode ?? null,
         primary: this.weapon?.name ?? null,
@@ -5370,7 +5414,8 @@ export class GameplayScene extends Phaser.Scene {
     this.hitEnemy(enemy, bullet);
   }
 
-  private hitEnemy(enemy: Enemy, bullet: Bullet): void {
+  /** @returns whether the hit killed the enemy — the Cake burst needs it. */
+  private hitEnemy(enemy: Enemy, bullet: Bullet): boolean {
     // Poison lands before the direct hit is resolved, matching the AS3 order
     // (`:5927` sits inside the damage block, ahead of the kill check at
     // `:5981`). It is scaled by the enemy's own Poison resistance, and an
@@ -5434,10 +5479,11 @@ export class GameplayScene extends Phaser.Scene {
 
     if (!result.killed) {
       enemy.flashDamage(impactFeedback(enemy.damageMultipliers, bullet.damageType));
-      return;
+      return false;
     }
 
     this.removeEnemy(enemy, true);
+    return true;
   }
 
   /**
