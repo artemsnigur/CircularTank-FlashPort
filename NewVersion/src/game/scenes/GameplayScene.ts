@@ -76,7 +76,14 @@ import {
 import { beginStep, createDefaultExitContext, tickStep } from '../tutorial/tutorialExit';
 import type { ActiveStep } from '../tutorial/tutorialExit';
 import { bombIndicatorView, medicRingScale } from '../effects/indicators';
-import { dropAmount, spawnMoney, tickCoin } from '../items/money';
+import {
+  MONEY_FIGURE_MIN,
+  MONEY_FIGURE_SCALE,
+  dropAmount,
+  figureFit,
+  spawnMoney,
+  tickCoin,
+} from '../items/money';
 import type { Coin } from '../items/money';
 import { MONEY_CLIPS, coinRadius } from '../items/moneyArt';
 import { nextLevelAfter } from '../levels/levelProgress';
@@ -377,22 +384,31 @@ const MEDIC_RING_SHAPE = 1182;
 const MONEY_DEPTH = 6;
 
 /**
- * The money badge — T218.
+ * The money badge — T218, restyled as an actual coin in T222.
  *
- * The same grey the HUD readouts paint with and the same green the shop's
- * balance uses, so a coin on the floor, the counter top-left and the price in
- * the shop are visibly the same currency. `--hud-plate` and `--green` cannot
- * be read from CSS inside the canvas, so the values are restated here; a test
- * parses the stylesheet and requires them to agree.
+ * It was a dark plate disc with a green rim and a green figure, borrowing the
+ * HUD's colours so the drop, the counter and the shop price were one currency.
+ * That reasoning was about the *UI*, and the drop is not UI — it is an object
+ * lying on the floor of the arena. A dark disc on a dark floor with a thin rim
+ * around it read as a token rather than as money.
  *
- * The green was `#7dff8a` until T221 — pale enough to read as a light rather
- * than a colour, which is what a badge sitting on a dark disc could least
- * afford.
+ * So: gold, filled, no rim, and near-black ink.
+ *
+ *   fill vs the arena floor   10.9 : 1   — the disc itself has to be spotted
+ *   ink vs fill               11.8 : 1   — the figure has to be read
+ *
+ * The rim went for a second reason beyond taste: it was `size * 0.07` on a
+ * disc as small as ten units, so it ate the space the digits needed on exactly
+ * the denominations that had the least of it.
+ *
+ * Nothing here restates a CSS custom property any more — that was the reason
+ * `A38`-style drift was a risk, and the coin no longer shares a value with the
+ * stylesheet. `layerDepths.test.ts` now pins the *properties* instead: that
+ * the fill is a yellow, that the contrast holds, and that no rim is drawn.
  */
-const MONEY_BADGE_FILL = 0x26282c;
-const MONEY_BADGE_ALPHA = 0.92;
-const MONEY_BADGE_RIM = 0x3fae53;
-const MONEY_BADGE_TEXT = '#3fae53';
+const MONEY_BADGE_FILL = 0xffc61a;
+const MONEY_BADGE_ALPHA = 1;
+const MONEY_BADGE_TEXT = '#1a1205';
 /** `:3366` — `poisonParticleTimerMax`. */
 const POISON_PARTICLE_FRAMES = 3;
 /** Just above the ground tile, below anything that moves. */
@@ -3101,14 +3117,10 @@ export class GameplayScene extends Phaser.Scene {
       const size = clip?.size ?? coin.radius * 2;
       const container = this.add.container(coin.x, coin.y).setDepth(MONEY_DEPTH);
 
-      // A filled disc on the HUD's plate colour, with a green rim. Drawn
-      // rather than an image: it is one shape at fifteen sizes, and an
-      // authored asset per denomination is what this replaces.
-      container.add(
-        this.add
-          .circle(0, 0, size / 2, MONEY_BADGE_FILL, MONEY_BADGE_ALPHA)
-          .setStrokeStyle(Math.max(1, size * 0.07), MONEY_BADGE_RIM),
-      );
+      // A solid gold disc, no stroke. Drawn rather than an image: it is one
+      // shape at fifteen sizes, and an authored asset per denomination is what
+      // this replaces.
+      container.add(this.add.circle(0, 0, size / 2, MONEY_BADGE_FILL, MONEY_BADGE_ALPHA));
 
       /*
        * `Text`, not `BitmapText`: the figure is fixed for the life of the
@@ -3117,21 +3129,54 @@ export class GameplayScene extends Phaser.Scene {
        *
        * Sized off the badge so the longest figure still fits — `$1000` is five
        * characters on the largest disc, and the divisor is what keeps it
-       * inside the rim rather than a fixed point size that overflows the
+       * inside the disc rather than a fixed point size that overflows the
        * small denominations.
+       *
+       * ── Why it was blurry, and what `resolution` does ──────────────────
+       * `fontSize` here is in **design units**, and `Text` rasterises one
+       * texture pixel per unit. The camera then magnifies the whole world by
+       * `camera.zoom`, which is render pixels per design unit — 2 on an
+       * ordinary 1280-wide window, more on a phone — so a 7-unit figure was
+       * drawn into a 7-pixel-tall texture and blown up to 14 or more. Nothing
+       * about the geometry was wrong; there simply were not enough pixels in
+       * the texture to begin with, which is exactly what "blurry" looks like.
+       *
+       * `setResolution(zoom)` rasterises at `zoom` times the size, and
+       * `TextWebGLRenderer` divides the quad back down by the same figure
+       * (`width / src.style.resolution`), so the glyphs land at the intended
+       * size with the pixels to draw them. Read out of Phaser's own renderer
+       * rather than assumed — the naive reading is that it draws the text
+       * `zoom` times too large.
+       *
+       * The zoom is read once, at spawn. A coin lives a few seconds and a
+       * window resize mid-flight would leave one drop slightly soft, which is
+       * not worth a per-frame re-rasterise of every coin on the floor.
        */
-      container.add(
-        this.add
-          .text(0, 0, `$${coin.value}`, {
-            // The face by name, not `var(--font-display)`: this string goes to
-            // the canvas 2D `font` property, which knows nothing about CSS
-            // custom properties and would silently fall back to the default.
-            fontFamily: '"SWFMainFont", sans-serif',
-            fontSize: `${Math.max(7, Math.round(size * 0.46))}px`,
-            color: MONEY_BADGE_TEXT,
-          })
-          .setOrigin(0.5),
-      );
+      const zoom = Math.max(1, this.cameras.main.zoom);
+
+      const figure = this.add
+        .text(0, 0, `$${coin.value}`, {
+          // The face by name, not `var(--font-display)`: this string goes to
+          // the canvas 2D `font` property, which knows nothing about CSS
+          // custom properties and would silently fall back to the default.
+          fontFamily: '"SWFMainFont", sans-serif',
+          fontSize: `${Math.max(MONEY_FIGURE_MIN, Math.round(size * MONEY_FIGURE_SCALE))}px`,
+          color: MONEY_BADGE_TEXT,
+        })
+        .setResolution(zoom)
+        .setOrigin(0.5);
+
+      /*
+       * Measured, then fitted — `figureFit` in `items/money.ts`.
+       *
+       * `displayWidth` is real metrics off the rasterised text, so this holds
+       * for any denomination and any face rather than depending on an assumed
+       * character width. The rule lives in a module so it can be driven; the
+       * measurement is the half only the scene can supply.
+       */
+      figure.setScale(figureFit(figure.displayWidth, size));
+
+      container.add(figure);
 
       this.coinSprites.push(container);
     }

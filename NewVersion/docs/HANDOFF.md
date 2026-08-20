@@ -856,6 +856,14 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Canvas text is rasterised in design units, and the camera magnifies it
+(`A74`).** A `Text` at `fontSize: 7` gets a 7-pixel-tall texture and the camera
+blows it up by `camera.zoom` — that is what "blurry" was on the coin figures.
+`setResolution(camera.zoom)` is the fix, and `TextWebGLRenderer` divides the
+quad back down so the glyphs stay the intended size. **Anything new drawn as
+in-world `Text` needs the same call.** The coin is now gold and rimless, and
+its figure is measured and shrunk to fit by `figureFit` in `items/money.ts`.
+
 **There is one green now: `--green: #3fae53` (`A73`).** It replaced `#7dff8a`
 in the shop, `#4ade6a` on the HUD and `#00ff00` for `--ok`, all of which read
 as light rather than green. The value is the shop buy button's own midtone, so

@@ -18,6 +18,51 @@
  * `waves/levelDoneGate.ts`.
  */
 
+/**
+ * The figure's height on a coin, as a fraction of the disc — T222.
+ *
+ * Down from `0.46`, which was chosen when the disc still had a rim to compete
+ * with. Without one, the same ratio simply crowded the edge.
+ */
+export const MONEY_FIGURE_SCALE = 0.38;
+
+/**
+ * The smallest the figure may be, in design units.
+ *
+ * Deliberately **low**. It stopped being what keeps the figure readable —
+ * `Text.setResolution` is — and a high floor is what made the ratio inert: at
+ * `7`, every denomination below `$500` clamped to the same size and the ratio
+ * governed nothing at all.
+ */
+export const MONEY_FIGURE_MIN = 6;
+
+/** How much of the disc's width the figure may occupy. */
+export const MONEY_FIGURE_FIT = 0.86;
+
+/**
+ * How far to shrink a figure that overhangs its coin — 1 when it already fits.
+ *
+ * Measured and applied, not assumed. `$50` at the old floor came out **1.08x
+ * the diameter of its own disc**, driven rather than estimated, so the figure
+ * hung over both edges of the coin it was supposed to be on. Every
+ * denomination is a different string length on a different disc (`$1` on ten
+ * units, `$1000` on twenty-two), so no single font ratio fits them all.
+ *
+ * Shrinking costs nothing in sharpness: the raster already holds `camera.zoom`
+ * pixels per design unit, and minifying only adds to that.
+ *
+ * A non-finite or non-positive width returns 1 rather than a nonsense scale —
+ * that is the case where the face has not finished loading and the metrics are
+ * not yet real, and leaving the figure alone is the better failure.
+ */
+export function figureFit(displayWidth: number, size: number): number {
+  if (!Number.isFinite(displayWidth) || displayWidth <= 0) return 1;
+  if (!Number.isFinite(size) || size <= 0) return 1;
+
+  const room = size * MONEY_FIGURE_FIT;
+  return displayWidth > room ? room / displayWidth : 1;
+}
+
 /** `:374-446` — the denominations, largest first, as the AS3 tests them. */
 export const DENOMINATIONS: readonly number[] = [
   1000, 500, 250, 200, 150, 100, 75, 50, 25, 20, 15, 10, 5, 2, 1,

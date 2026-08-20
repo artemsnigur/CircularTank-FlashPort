@@ -79,21 +79,22 @@ describe('the arena draws in the right order', () => {
 });
 
 /**
- * The money badge borrows two colours from the stylesheet — T218, T221.
+ * The one green, and the coin that stopped sharing it — T218, T221, T222.
  *
- * A canvas cannot read `--hud-plate` or `--green`, so the values are restated
- * as hex in `GameplayScene`, and `healthColour.ts` restates the green a third
- * time. Three homes for one colour is exactly how the three glass tile
- * surfaces drifted apart in `A38`, so they are compared here rather than
- * trusted.
+ * `healthColour.ts` cannot read `--green`: it is a pure module, and resolving
+ * a custom property would mean a `getComputedStyle` call it has no document
+ * for. So the value is restated, and two homes for one colour is exactly how
+ * the three glass tile surfaces drifted apart in `A38`. This compares them
+ * rather than trusting them, and it earned its place — T221 moved the token
+ * and this failed by name before anything was driven.
  *
- * **What this proves**: that the numbers agree today. It cannot make them one
- * value — a `.ts` module has no access to a custom property, and resolving one
- * at runtime would mean a `getComputedStyle` call on a canvas colour. The
- * mechanism is this test failing, which is what it did when T221 moved the
- * token and left both restatements behind.
+ * The coin badge used to be a third home. T222 made it gold, so it shares no
+ * value with the stylesheet at all and there is nothing left to compare. What
+ * replaces the comparison is a set of **properties**: that the disc is a
+ * yellow, that the ink on it is legible, and that no rim is drawn. Those are
+ * the requirements; the exact hex is a taste call and is deliberately free.
  */
-describe('the money badge matches the currency styling', () => {
+describe('the one green, and the coin', () => {
   const CSS = readFileSync('src/styles/global.css', 'utf8');
 
   /** The `--green` declaration, without its `#`. */
@@ -114,21 +115,99 @@ describe('the money badge matches the currency styling', () => {
     return match![1].replace(/^'?(0x|#)/i, '').replace(/'$/, '').toLowerCase();
   };
 
-  it('fills with the HUD plate colour', () => {
-    const plate = /--hud-plate:\s*rgb\((\d+)\s+(\d+)\s+(\d+)/.exec(CSS);
-    expect(plate, '--hud-plate is not in the stylesheet in the expected form').not.toBeNull();
+  /** A `#rrggbb` or `0xrrggbb` constant, as three channels. */
+  const channels = (name: string): [number, number, number] => {
+    const hex = constant(name);
+    return [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
+  };
 
-    const [, r, g, b] = plate!;
-    const asHex = ((Number(r) << 16) | (Number(g) << 8) | Number(b)).toString(16).padStart(6, '0');
-    expect(constant('MONEY_BADGE_FILL')).toBe(asHex);
+  /** WCAG relative luminance, for the contrast pair below. */
+  const luminance = ([r, g, b]: [number, number, number]): number => {
+    const channel = (c: number): number => {
+      const v = c / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+  };
+
+  const contrast = (a: [number, number, number], b: [number, number, number]): number => {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+
+  it('fills the disc with a yellow, not with a plate grey', () => {
+    /*
+     * The requirement, as a property rather than as a copied literal: red and
+     * green both high and close, blue well below them. That is what "yellow"
+     * is, and it is what the old `#26282c` — three channels within six of each
+     * other — was not.
+     */
+    const [r, g, b] = channels('MONEY_BADGE_FILL');
+
+    expect(r, 'red is high').toBeGreaterThan(200);
+    expect(g, 'green is high').toBeGreaterThan(150);
+    expect(b, 'blue is well below both').toBeLessThan(Math.min(r, g) - 100);
+    expect(Math.abs(r - g), 'red and green are close, or it is orange or lime').toBeLessThan(80);
+
+    // Opaque. It was 0.92 while it borrowed the HUD's translucent plate; a
+    // coin lying on the floor is an object, not a panel.
+    expect(SCENE).toMatch(/const MONEY_BADGE_ALPHA = 1;/);
   });
 
-  it('writes the figure in the one green the UI uses', () => {
-    // `--green` — the same value the HUD counter, the shop balance and the
-    // buy price all resolve to, so a coin on the floor and its price in the
-    // shop are one currency.
-    expect(constant('MONEY_BADGE_TEXT')).toBe(token('green'));
-    expect(constant('MONEY_BADGE_RIM')).toBe(token('green'));
+  it('writes the figure in ink dark enough to read on that yellow', () => {
+    // The user-visible requirement — "high contrast against the yellow" — is a
+    // ratio, so it is asserted as one. 7:1 is AAA for small text, and the
+    // figure on a `$1` coin is about as small as text in this game gets.
+    const ratio = contrast(channels('MONEY_BADGE_TEXT'), channels('MONEY_BADGE_FILL'));
+    expect(ratio).toBeGreaterThan(7);
+
+    /*
+     * The counterpart, and the reason this is not a vacuous check: the green
+     * the figure used to be would *fail* it on the same disc. Without this
+     * line, "the ink contrasts" would pass for any dark-ish colour including
+     * one nobody chose.
+     */
+    const oldInk = [0x3f, 0xae, 0x53] as [number, number, number];
+    expect(contrast(oldInk, channels('MONEY_BADGE_FILL'))).toBeLessThan(7);
+  });
+
+  it('draws no rim on the coin', () => {
+    /*
+     * A source-shape check, and it proves only that no `setStrokeStyle` call
+     * is written in the coin's build block — not that nothing else strokes the
+     * disc. That is the whole claim available to a test that cannot
+     * instantiate the scene, and it is narrow on purpose.
+     *
+     * The constant is the stronger half: `MONEY_BADGE_RIM` is gone, so a stroke
+     * would have to invent a colour to draw in.
+     */
+    expect(SCENE).not.toMatch(/MONEY_BADGE_RIM/);
+
+    const build = /const clip = MONEY_CLIPS\[coin\.value\];[\s\S]{0,1200}/.exec(SCENE);
+    expect(build, "the coin's build block was not found").not.toBeNull();
+    expect(build![0]).toMatch(/MONEY_BADGE_FILL/);
+    expect(build![0], 'the coin strokes its disc').not.toMatch(/setStrokeStyle/);
+  });
+
+  it('rasterises the figure at the camera`s zoom, not at one pixel per unit', () => {
+    /*
+     * The blur fix, and the only part of it a test can hold. `fontSize` is in
+     * design units and `Text` gives it one texture pixel each, so the camera's
+     * magnification is what the figure was being blown up by;
+     * `setResolution(zoom)` is what puts the pixels there.
+     *
+     * This proves the call is *written* with the camera's own zoom, not that
+     * the glyphs are sharp. Sharpness is a frame.
+     */
+    const build = /const zoom = Math\.max\(1, this\.cameras\.main\.zoom\);[\s\S]{0,1200}/.exec(
+      SCENE,
+    );
+    expect(build, 'the coin does not read the camera zoom').not.toBeNull();
+    expect(build![0]).toMatch(/setResolution\(zoom\)/);
+
+    // And that the fit is applied from the measured width, which is the other
+    // half the scene owns. `figureFit` itself is driven in `money.test.ts`.
+    expect(build![0]).toMatch(/figureFit\(figure\.displayWidth, size\)/);
   });
 
   it('spends the token through `var(--green)`, not through a copy of it', () => {

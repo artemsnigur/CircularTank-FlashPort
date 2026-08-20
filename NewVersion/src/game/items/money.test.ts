@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
+  MONEY_FIGURE_FIT,
+  MONEY_FIGURE_MIN,
+  MONEY_FIGURE_SCALE,
+  figureFit,
   AS3_COIN_ATTRACTION,
   AS3_COIN_MAX_SPEED,
   COIN_ATTRACTION,
@@ -377,5 +381,80 @@ describe('coinRadius — reconciled against the SVG', () => {
 
   it('throws for a value with no art rather than defaulting', () => {
     expect(() => coinRadius(3)).toThrow();
+  });
+});
+
+/**
+ * The figure on a coin has to fit the coin — T222.
+ *
+ * Extracted from the scene so it can be driven at all: the measurement
+ * (`Text.displayWidth`) can only come from a live game object, but the
+ * *decision* made with it is arithmetic, and arithmetic in a scene is
+ * arithmetic no test can reach.
+ */
+describe('figureFit', () => {
+  it('leaves a figure that already fits completely alone', () => {
+    // Well inside the allowance: no scaling, exactly 1, not 0.999.
+    expect(figureFit(8, 22)).toBe(1);
+  });
+
+  it('shrinks one that overhangs to exactly the allowance', () => {
+    /*
+     * The case that motivated it, with the numbers from the run: `$50` came
+     * out 14 units wide on a 13-unit disc. Asserted as the computed value
+     * rather than "less than 1" — the figure is knowable here.
+     */
+    const scale = figureFit(14, 13);
+    expect(scale).toBeCloseTo((13 * MONEY_FIGURE_FIT) / 14, 10);
+    expect(14 * scale).toBeCloseTo(13 * MONEY_FIGURE_FIT, 10);
+  });
+
+  it('never grows a figure, however small it is', () => {
+    // The other direction, which a `room / width` written without the guard
+    // would get wrong: a 2-unit figure on a 22-unit disc must stay 2 units.
+    expect(figureFit(2, 22)).toBe(1);
+  });
+
+  it('lands exactly on the boundary without scaling', () => {
+    // A figure at precisely the allowance fits; `>` rather than `>=` is what
+    // this pins, and an off-by-one there would scale by 1 anyway — so the
+    // counterpart below is what gives it teeth.
+    const size = 20;
+    expect(figureFit(size * MONEY_FIGURE_FIT, size)).toBe(1);
+    expect(figureFit(size * MONEY_FIGURE_FIT + 0.001, size)).toBeLessThan(1);
+  });
+
+  it('returns 1 rather than a nonsense scale on metrics it cannot use', () => {
+    /*
+     * Zero width is the real case: a face that has not finished loading
+     * measures as nothing, and `room / 0` is `Infinity` — a figure scaled to
+     * infinity is a very visible bug, and it would happen exactly once, at
+     * boot, on a slow connection.
+     */
+    for (const width of [0, -3, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(figureFit(width, 20), `width ${width}`).toBe(1);
+    }
+    for (const size of [0, -1, Number.NaN]) {
+      expect(figureFit(14, size), `size ${size}`).toBe(1);
+    }
+  });
+
+  it('keeps the floor below the ratio`s own answer for a mid-sized coin', () => {
+    /*
+     * The floor is meant to catch only the smallest discs. It was `7`, which
+     * is above the ratio's answer for every denomination up to `$500` — so it
+     * clamped nearly all of them to one size and the ratio decided nothing.
+     *
+     * Pinned as the relationship on a real disc size (a `$50` coin is 13 units
+     * across) rather than as the two literals, so retuning either moves this
+     * deliberately.
+     */
+    const midDisc = 13;
+    expect(MONEY_FIGURE_MIN).toBeLessThanOrEqual(Math.round(midDisc * MONEY_FIGURE_SCALE) + 1);
+
+    // And the counterpart: it still catches the smallest coin, whose ratio
+    // answer is 4 units and would be unreadable.
+    const smallestDisc = 10;
+    expect(MONEY_FIGURE_MIN).toBeGreaterThan(Math.round(smallestDisc * MONEY_FIGURE_SCALE));
   });
 });
