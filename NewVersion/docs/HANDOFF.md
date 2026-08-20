@@ -856,6 +856,15 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Achievements: all 36 are reachable, and a loss is not a completion
+(`A65`).** `bankLevelOutcome` derives `completed` from `won` and takes
+`Omit<LevelRecord, 'completed'>` — **do not let a caller pass it again**, that
+is what let a lost level earn "Idle".
+`achievementReachability.test.ts` fires every achievement from a tailored
+input; a new one fails there until it is given a way to be earned. KABOOM!
+(`DefensiveBombs`) additionally needs **no damage taken** and **no secondary
+fired** — it is correct, just stricter than its title suggests.
+
 **Deleting a slot is verified end to end (`A64`).** It needed no fix. The
 interaction worth knowing: the menu deletes and then republishes, and
 republishing flushes-then-reloads — safe only because `clear()` sets

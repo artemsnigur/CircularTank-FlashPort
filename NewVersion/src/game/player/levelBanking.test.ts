@@ -64,7 +64,7 @@ describe('a real run writes', () => {
       level: 9,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
-      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
       kills: 0,
       earned: 0,
     });
@@ -83,7 +83,7 @@ describe('a real run writes', () => {
       level: 9,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
-      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
       kills: 0,
       earned: 0,
     });
@@ -118,7 +118,7 @@ describe('a sandbox run writes nothing', () => {
       level: 42,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
-      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
       kills: 0,
       earned: 0,
     });
@@ -139,7 +139,7 @@ describe('a sandbox run writes nothing', () => {
       level: 3,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
-      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
       kills: 0,
       earned: 0,
     });
@@ -156,7 +156,7 @@ describe('a sandbox run writes nothing', () => {
       level: 45,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
-      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
       kills: 0,
       earned: 0,
     });
@@ -174,7 +174,7 @@ describe('a sandbox run writes nothing', () => {
       level: 3,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
-      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
       kills: 0,
       earned: 0,
     });
@@ -188,7 +188,7 @@ describe('a sandbox run writes nothing', () => {
       level: 45,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
-      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
       kills: 0,
       earned: 0,
     });
@@ -211,7 +211,7 @@ describe('a sandbox run writes nothing', () => {
       level: 3,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
-      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
       kills: 0,
       earned: 0,
     });
@@ -226,7 +226,7 @@ describe('a sandbox run writes nothing', () => {
       level: 9,
       difficulty: 'Easy',
       hp: 0,
-      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
       kills: 0,
       earned: 0,
     });
@@ -246,7 +246,7 @@ describe('a sandbox run writes nothing', () => {
       level: 45,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
-      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
       kills: 0,
       earned: 0,
     });
@@ -303,7 +303,7 @@ describe('an equipped dev run cannot leak into the shop', () => {
       level: 45,
       difficulty: 'Easy',
       hp: TANK_MAX_HP,
-      levelRecord: { mode: 'Normal' as const, completed: true, flags: createLevelFlags() },
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
       kills: 0,
       earned: 0,
     });
@@ -349,7 +349,7 @@ describe('the level guide follows a finished level only when auto-select is on',
       level: 1,
       difficulty: 'Easy',
       hp: 100,
-      levelRecord: { mode: 'Normal', completed: true, flags: {} as never },
+      levelRecord: { mode: 'Normal', flags: {} as never },
       kills: 10,
       earned: 100,
     });
@@ -375,5 +375,52 @@ describe('the level guide follows a finished level only when auto-select is on',
     // The bounds still move — they are derived from progress on every read,
     // which is the `else` branch's `setMaxWorld`/`setMaxLevel`.
     expect(guide.maxLevel).toBe(2);
+  });
+});
+
+/**
+ * ── A loss is not a completion, T213 ──────────────────────────────────────
+ *
+ * `PartGameArea.levelDone` is set inside the wave-complete branch (`:2708`,
+ * `:2774`); a death goes down another path and never sets it. Four of the nine
+ * Boolean achievements test it.
+ *
+ * The scene used to pass `completed: true` for any finish. Three of the four
+ * were saved by accident — losing puts hp at 0 and the `hp < 95` rule clears
+ * their flags — but `Idle` reads `nothingPressed`, which that rule does not
+ * touch, so sitting still until the tank died awarded it.
+ */
+describe('a lost level completes nothing', () => {
+  const idleRun = (hp: number) => {
+    const store = new SaveStore('idle-run', new MemoryBackend());
+    const profile = new PlayerProfile(store);
+    return bankLevelOutcome(profile, {
+      sandbox: false,
+      autoSelect: false,
+      upgrades: profile.upgrades,
+      currency: 0,
+      world: 1,
+      level: 1,
+      difficulty: 'Easy',
+      hp,
+      // Never pressed anything — the flag starts true and nothing cleared it.
+      levelRecord: { mode: 'Normal' as const, flags: createLevelFlags() },
+      kills: 0,
+      earned: 0,
+    });
+  };
+
+  it('does not award Idle for dying without pressing anything', () => {
+    expect(idleRun(0).newAchievements).not.toContain('Idle');
+  });
+
+  it('still awards it for actually finishing that way', () => {
+    /*
+     * The counterpart, and the one that makes the negative mean something: on
+     * the *identical* input but a surviving hp, Idle is earned. Without this,
+     * "Idle is not awarded" would pass just as well if the achievement were
+     * unreachable.
+     */
+    expect(idleRun(TANK_MAX_HP).newAchievements).toContain('Idle');
   });
 });

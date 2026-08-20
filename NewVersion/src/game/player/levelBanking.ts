@@ -88,7 +88,12 @@ export interface LevelBankingInput {
    */
   hp: number;
   /** The level's mode and one-shot flags, for the nine Boolean achievements. */
-  levelRecord: LevelRecord;
+  /**
+   * The finished level, **without** `completed` — see the note at the call
+   * below. The caller supplies what it observed; whether that counts as
+   * completing the level is this module's to decide.
+   */
+  levelRecord: Omit<LevelRecord, 'completed'>;
   /** Enemies killed this level — `PartGameArea.tempEnemyKills`. */
   kills: number;
   /**
@@ -169,7 +174,26 @@ export function bankLevelOutcome(
       totals: profile.achievements.totals,
       upgrades: profile.upgrades,
       progress: profile.progress,
-      level: input.levelRecord,
+      /*
+       * ── `completed` is derived here, not accepted from the caller ──────
+       *
+       * `PartGameArea.levelDone` is set inside the wave-complete branch
+       * (`:2708`, `:2774`) — the AS3 marks a level done when it is *cleared*,
+       * and a death goes down a different path entirely. Four of the nine
+       * Boolean achievements test it.
+       *
+       * `GameplayScene` used to pass `completed: true` whenever the outcome
+       * finished, "however it went", which made a **loss** count as a
+       * completion. Three of the four were saved by accident — losing puts hp
+       * at 0, and the `hp < 95` rule clears their flags — but `Idle` tests
+       * `nothingPressed`, which that rule does not touch. So sitting still
+       * until the tank died awarded "Idle", a level the AS3 requires you to
+       * finish.
+       *
+       * Taking it as `Omit<..., 'completed'>` and filling it from `won` means
+       * no caller can assert a completion again: the type will not let them.
+       */
+      level: input.levelRecord && { ...input.levelRecord, completed: won },
     }),
     input.difficulty,
   );

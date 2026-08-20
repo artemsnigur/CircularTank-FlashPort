@@ -5076,11 +5076,11 @@ export class GameplayScene extends Phaser.Scene {
         // The medal count comes from remaining HP, and a loss ends at 0 — so
         // the win/lose result is derived there rather than passed alongside.
         hp: this.hp,
+        // No `completed` here: `bankLevelOutcome` derives it from whether the
+        // level was actually won. Passing `true` for any finish is what let a
+        // *lost* level earn "Idle" — see the note at its call site.
         levelRecord: {
           mode: this.levelSpec?.mode ?? 'Normal',
-          // `PartGameArea.levelDone` — the level reached its end, however it
-          // went. Quitting never reaches this block.
-          completed: true,
           flags: this.levelFlags,
         },
         kills: this.kills,
