@@ -154,15 +154,26 @@ describe('the nine per-level Booleans', () => {
     expect(won('FlagNoWeapons', level('Flag', { noWeaponsUsed: false }))).toBe(false);
   });
 
-  it('DefensiveBombs needs one flag TRUE and another FALSE', () => {
+  it('DefensiveBombs needs one flag TRUE and another FALSE, on a Tower level', () => {
     // The only achievement requiring a flag unset. Bombs and nothing else.
     const bombsOnly = { timedBombsFired: true, otherThanTimedBombsFired: false };
 
-    expect(won('DefensiveBombs', level('Defense', bombsOnly))).toBe(true);
+    expect(won('DefensiveBombs', level('Tower', bombsOnly))).toBe(true);
     expect(
-      won('DefensiveBombs', level('Defense', { ...bombsOnly, otherThanTimedBombsFired: true })),
+      won('DefensiveBombs', level('Tower', { ...bombsOnly, otherThanTimedBombsFired: true })),
     ).toBe(false);
-    expect(won('DefensiveBombs', level('Defense', { timedBombsFired: false }))).toBe(false);
+    expect(won('DefensiveBombs', level('Tower', { timedBombsFired: false }))).toBe(false);
+
+    /*
+     * ── Defense is the counterpart now, T215 ────────────────────────────
+     *
+     * `ScreenAchievements.as:547` says `levelMode == "Defense"` and this port
+     * asked for that until T215 changed it to Tower by request. So Defense is
+     * the interesting negative: it is both a real mode and the exact value
+     * someone restoring fidelity would put back, and this fails loudly if they
+     * do it without moving the description and the reachability input with it.
+     */
+    expect(won('DefensiveBombs', level('Defense', bombsOnly))).toBe(false);
     expect(won('DefensiveBombs', level('Normal', bombsOnly))).toBe(false);
   });
 

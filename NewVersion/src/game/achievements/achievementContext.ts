@@ -163,11 +163,31 @@ const BOOLEAN_SOURCES: Readonly<Record<string, (level: LevelRecord) => boolean>>
   // `:527` — a Flag level completed without firing a shot.
   FlagNoWeapons: (l) => l.completed && l.mode === 'Flag' && l.flags.noWeaponsUsed,
 
-  // `:544` — Timed Bombs and *nothing else*. The second flag must be false,
-  // which is the only place a flag is required unset.
+  /*
+   * `:544` — Timed Bombs and *nothing else*. The second flag must be false,
+   * which is the only place a flag is required unset.
+   *
+   * ── Divergence: Tower, where the AS3 says Defense (T215) ───────────────
+   * `ScreenAchievements.as:547` reads `levelMode == "Defense"`, and the port
+   * matched it. Changed to `Tower` by request — a design decision, not a
+   * correction, and worth being explicit about because everything around it
+   * checked out:
+   *
+   *   - the AS3 has both modes as distinct strings, 28 uses of "Defense" and
+   *     31 of "Tower", so this is not one name for one idea;
+   *   - the port's level table maps mode **row for row** with the AS3 —
+   *     world 1 level 7 is `Tower` (640x640) and level 11 is `Defense`
+   *     (640x960) in both — so no swap crept in at generation;
+   *   - every other mode-bearing achievement was re-checked against its own
+   *     `case` block and all eight agree with the original (T215).
+   *
+   * So this is the one place the port deliberately asks for a different mode
+   * than the original, and `achievementWording.ts` says "tower level" to
+   * match.
+   */
   DefensiveBombs: (l) =>
     l.completed &&
-    l.mode === 'Defense' &&
+    l.mode === 'Tower' &&
     l.flags.timedBombsFired &&
     !l.flags.otherThanTimedBombsFired,
 

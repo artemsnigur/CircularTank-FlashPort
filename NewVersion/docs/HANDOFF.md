@@ -856,6 +856,12 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**KABOOM! wants a Tower level (`A67`).** The AS3 says Defense; this is the one
+deliberate mode divergence in the achievements, and the description says
+"tower level" to match. Every other mode was re-checked against its own AS3
+`case` block and agrees. If you revert the predicate, move
+`achievementWording.ts` and the reachability input with it.
+
 **KABOOM! and its two siblings no longer need a flawless run (`A66`).** The
 `hp < 95` clean-run gate on the weapon flags is removed — measured, the tank
 loses 6 hp in four seconds, so a five-point budget across a Defense level was

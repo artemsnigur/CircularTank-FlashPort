@@ -156,9 +156,12 @@ const EARNING_INPUT: Readonly<Record<string, () => AchievementInputs>> = {
   // `nothingPressed` starts true, so the level-start set is already the case.
   Idle: () => ({ ...emptyInputs(), level: level('Normal') }),
   FlagNoWeapons: () => ({ ...emptyInputs(), level: level('Flag') }),
+  // Tower, not Defense — the T215 divergence. If this is ever changed back,
+  // the mode here and the predicate must move together or the sweep passes
+  // while the achievement is unreachable in the game.
   DefensiveBombs: () => ({
     ...emptyInputs(),
-    level: level('Defense', { timedBombsFired: true, otherThanTimedBombsFired: false }),
+    level: level('Tower', { timedBombsFired: true, otherThanTimedBombsFired: false }),
   }),
   BossOnlySpecial: () => ({
     ...emptyInputs(),

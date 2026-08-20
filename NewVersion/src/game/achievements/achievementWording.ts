@@ -27,12 +27,18 @@
  * weapons used.
  *
  * The rest of each string is the original's, verbatim.
+ *
+ * ── One of the three also changes mode (T215) ─────────────────────────────
+ * `DefensiveBombs` now requires a **Tower** level where the AS3 asks for a
+ * Defense one, by request. That is a rule change rather than a rewording, so
+ * the string here says "tower level" — a description naming the wrong mode
+ * would send a player to spend a level earning nothing.
  */
 
 /** Ids whose generated description no longer matches the rule. */
 export const REWORDED_ACHIEVEMENTS: Readonly<Record<string, string>> = Object.freeze({
   FlagNoWeapons: 'Win a flag level without using any weapons.',
-  DefensiveBombs: 'Win a defense level by using the timed bomb cannon and no special weapons.',
+  DefensiveBombs: 'Win a tower level by using the timed bomb cannon and no special weapons.',
   BossOnlySpecial: 'Win a boss level with 3 bosses, without using any primary weapons.',
 });
 
