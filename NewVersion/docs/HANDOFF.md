@@ -856,6 +856,11 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Deleting a slot is verified end to end (`A64`).** It needed no fix. The
+interaction worth knowing: the menu deletes and then republishes, and
+republishing flushes-then-reloads — safe only because `clear()` sets
+`dirty = false` as well as emptying `data`. A test pins that exact order.
+
 **Save slots re-read on every menu entry (`A63`).** `SaveStore` loads once in
 its constructor, and there are two instances over each slot key — the profile's
 (gameplay writes) and `MainMenuScene`'s (the menu reads). Phaser reuses scene

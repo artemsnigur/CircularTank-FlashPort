@@ -12,7 +12,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { MemoryBackend, SaveStores } from './SaveStore';
-import { summariseSlot, summariseSlots, SLOT_NUMBERS } from './slotSummary';
+import { summariseSlot, summariseSlots, SLOT_NUMBERS, deleteSlot } from './slotSummary';
 import { PlayerProfile } from '../player/playerProfile';
 import { saveSlotStoreName, SaveStore } from './SaveStore';
 
@@ -77,5 +77,54 @@ describe('the screen and the game agree about which slot is which', () => {
       expect(profileFor(backend, slot).slot.levelSelect.previousLevel, `slot ${slot}`)
         .toBe(slot + 1);
     }
+  });
+});
+
+/**
+ * ── `deleteSlot`, which had no test at all, T212 ──────────────────────────
+ *
+ * It is one line — `stores.slot(slot).clear()` — which is presumably why. But
+ * it is the only destructive control in the game reachable in two clicks from
+ * the title screen, and "the wrong slot was deleted" is the failure this whole
+ * file exists to guard against.
+ */
+describe('deleting a slot', () => {
+  it('empties the one named and leaves the others alone', () => {
+    const backend = new MemoryBackend();
+    const stores = new SaveStores(backend);
+    for (const slot of SLOT_NUMBERS) {
+      const profile = profileFor(backend, slot);
+      profile.recordLevel(1, slot, 'Easy', 1, true);
+      // `save` is what persists it — `recordLevel` only touches the profile.
+      profile.save(new Date('2026-02-03T04:05:06Z'));
+    }
+
+    expect(summariseSlots(stores).map((s) => s.hasData)).toEqual([true, true, true]);
+
+    deleteSlot(stores, 2);
+
+    // Driven through the summary the screen actually renders, not through the
+    // store — the screen and the storage have to agree, which is this file's
+    // whole subject.
+    expect(summariseSlots(stores).map((s) => s.hasData)).toEqual([true, false, true]);
+  });
+
+  it('is visible to a store that did not do the deleting', () => {
+    /*
+     * The menu deletes through its own `SaveStores`; a page reload builds
+     * another. If `clear()` only emptied memory, the save would come back —
+     * which is the shape of `A63`, one task earlier, in the other direction.
+     */
+    const backend = new MemoryBackend();
+    const menu = new SaveStores(backend);
+    const written = profileFor(backend, 1);
+    written.recordLevel(1, 1, 'Easy', 1, true);
+    written.save(new Date('2026-02-03T04:05:06Z'));
+    expect(summariseSlot(menu, 1).hasData).toBe(true);
+
+    deleteSlot(menu, 1);
+
+    const afterReload = new SaveStores(backend);
+    expect(summariseSlot(afterReload, 1).hasData).toBe(false);
   });
 });

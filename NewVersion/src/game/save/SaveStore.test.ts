@@ -238,3 +238,55 @@ describe('a second store over the same key', () => {
     expect(menu.slot(2).get('progress', '')).toBe('b');
   });
 });
+
+/**
+ * ── A deletion must survive the refresh that follows it, T212 ─────────────
+ *
+ * `MainMenuScene` deletes a slot and then republishes the list, and T211 made
+ * republishing call `reloadAll()` — which **flushes before it re-reads**, so
+ * that a pending write is persisted rather than dropped.
+ *
+ * Put those together and there is an obvious way to get it wrong: if `clear()`
+ * left the store dirty, or left its data in memory, the flush would write the
+ * old save straight back and the delete would silently undo itself. It does
+ * not — `clear()` empties `data`, sets `dirty = false` and removes the backend
+ * key — but nothing was holding that, and the two halves were written a task
+ * apart.
+ */
+describe('clearing a slot, then refreshing it', () => {
+  it('stays cleared when reloadAll runs straight afterwards', () => {
+    const stores = new SaveStores(backend);
+    stores.slot(1).set('money', 900);
+    stores.slot(1).flush();
+    expect(stores.slot(1).get('money', 0)).toBe(900);
+
+    // Exactly the order `MainMenuScene` uses.
+    stores.slot(1).clear();
+    stores.reloadAll();
+
+    expect(stores.slot(1).get('money', 0)).toBe(0);
+    // And on disk, not merely in this instance's copy — a fresh store is what
+    // a page reload would build.
+    expect(new SaveStore(saveSlotStoreName(1), backend).get('money', 0)).toBe(0);
+  });
+
+  it('clears only the slot named', () => {
+    /*
+     * The counterpart. A `clear()` that emptied the backend, or a `reloadAll`
+     * that rebuilt every store from the wrong key, would pass the test above
+     * and lose two saves doing it.
+     */
+    const stores = new SaveStores(backend);
+    for (const slot of [1, 2, 3]) {
+      stores.slot(slot).set('money', slot * 100);
+      stores.slot(slot).flush();
+    }
+
+    stores.slot(2).clear();
+    stores.reloadAll();
+
+    expect(stores.slot(1).get('money', 0)).toBe(100);
+    expect(stores.slot(2).get('money', 0)).toBe(0);
+    expect(stores.slot(3).get('money', 0)).toBe(300);
+  });
+});
