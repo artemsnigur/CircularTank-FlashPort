@@ -33,6 +33,7 @@
  */
 
 import { getAchievement } from '../achievements/achievementState';
+import { revealedTileLayers } from '../enemies/enemyKnowledge';
 import { BESTIARY } from '../enemies/bestiaryData';
 
 
@@ -63,6 +64,17 @@ export const ACHIEVEMENT_PAGE_EARNED = true;
 
 interface EnemyPage {
   type: 'Enemy';
+  /**
+   * The tile art's shape layers, resolved here rather than in the view.
+   *
+   * `EnemyTile` deliberately has no idea which enemy it draws — its docstring
+   * turns that into the guarantee that no edit there can leak an unmet
+   * enemy's glyph. Looking the art up in the overlay would break exactly that,
+   * so the page carries it. An enemy on this page has just been discovered, so
+   * frame 1 is the only correct frame, and `revealedTileLayers` is the only
+   * call available.
+   */
+  layers: readonly number[];
   /** Display name as `discoverEnemies` produced it — "Scared Ghost", not "ScaredGhost". */
   displayName: string;
   description: string;
@@ -88,7 +100,12 @@ export interface StatusPagesInput {
 function enemyPage(displayName: string): EnemyPage | null {
   const entry = BESTIARY.find((e) => e.displayName === displayName);
   if (!entry) return null;
-  return { type: 'Enemy', displayName: entry.displayName, description: entry.description };
+  return {
+    type: 'Enemy',
+    displayName: entry.displayName,
+    description: entry.description,
+    layers: revealedTileLayers(entry.id),
+  };
 }
 
 /**

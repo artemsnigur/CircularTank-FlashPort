@@ -1996,21 +1996,10 @@ code {
 }
 
 /*
- * The results title — `TitleVictory` / `TitleDefeat`, at the top of the panel.
- *
- * Sized by height like the screen titles, since the two words are different
- * widths (253.35 against 223.35) and a fixed width would letterbox one of them.
+ * `.level-outcome__art` removed in T208 with the VICTORY / DEFEAT banner it
+ * sized. `TitleVictory` and `TitleDefeat` stay in the chrome art tables — they
+ * are extracted data, and the clips are still in the library.
  */
-.level-outcome__art {
-  width: auto;
-  height: 2.25rem;
-  margin: 0 auto var(--space-3);
-}
-
-.level-outcome__art .chrome-art__layer {
-  height: 100%;
-  width: auto;
-}
 
 /* The heading text stays in the DOM under the art — the letters are paths, so
    the dialog would otherwise have no heading at all. */
@@ -2049,15 +2038,10 @@ code {
 }
 
 /*
- * The unlock line — T44. Sits under the actions on the results, and is the
- * record that survives the reveal pop-up being dismissed.
+ * `.level-outcome__unlocked` removed in T208 — the red "UNLOCKED: ..." line
+ * under the actions. The reveal pop-up carries the same news with the enemy's
+ * portrait, so the line was a second, worse copy of it.
  */
-.level-outcome__unlocked {
-  margin: 0.75rem 0 0;
-  font-size: var(--text-xs);
-  color: var(--accent);
-  opacity: 0.9;
-}
 
 /*
  * The reveal pop-up — T44, a deliberate divergence from `ScreenStatus`.
@@ -2086,6 +2070,22 @@ code {
   background: var(--hud-plate, rgb(38 40 44 / 72%));
   box-shadow: 0 1.75rem 3.5rem rgb(0 0 0 / 65%);
   text-align: center;
+
+  /*
+   * ── Centred as a column, T208 ─────────────────────────────────────────
+   * `text-align: center` centres *text inside* each child. It does nothing
+   * for a child that is narrower than the panel, which every constrained one
+   * here is — the body has a `max-width`, the button has its own width, the
+   * enemy portrait is a fixed square. They all sat at the left edge with
+   * their text neatly centred inside them, which is what read as off-centre.
+   *
+   * A flex column with `align-items: center` centres the *boxes*. The
+   * `text-align` stays for the text within them.
+   */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(0.45rem, 1.3vh, 0.8rem);
 }
 
 .level-outcome__title {
@@ -2159,6 +2159,25 @@ code {
 /* Status pages — ScreenStatus. The overlay opens on the last page and pages
    back to the results, so the pager is always visible when there is more than
    one page and the exit buttons only exist on the results page. */
+/*
+ * The unlocked enemy's portrait, above its name.
+ *
+ * A dark disc behind it, matching the medal sockets on the panel below, so the
+ * art has something to sit on — the tile shapes are drawn for a light-on-dark
+ * grid cell and float unanchored on a flat plate without it.
+ */
+.level-outcome__reveal .enemy-tile {
+  display: grid;
+  place-items: center;
+  padding: clamp(0.5rem, 1.4vh, 0.9rem);
+  border-radius: 50%;
+  background: rgb(0 0 0 / 30%);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 60%);
+  /* `box-sizing` so the inline `size` the component sets stays the *drawn*
+     size rather than growing by the padding. */
+  box-sizing: content-box;
+}
+
 .level-outcome__eyebrow {
   margin: 0;
   font-size: var(--text-2xs);
@@ -2225,7 +2244,13 @@ code {
 }
 
 .level-outcome__body {
-  margin: 0;
+  /*
+   * `margin: 0` with a `max-width` is a block pinned to the left of its
+   * container. The flex column above now centres it, and `margin-inline: auto`
+   * keeps it centred anywhere else this class is used — belt and braces on the
+   * exact declaration that caused the bug.
+   */
+  margin: 0 auto;
   max-width: 30ch;
   font-size: var(--text-sm);
   line-height: 1.5;

@@ -801,6 +801,13 @@ extracted file of the same name — the JPEXS export's `cmap` is malformed and
 Chrome rejects it. Do not delete it or "restore" the extracted one;
 `fontIntegrity.test.ts` fails if the broken bytes ship.
 
+**The results screen has no VICTORY/DEFEAT banner and no Menu button
+(`A60`).** The hidden `<h2>` stays so screen readers still get the outcome.
+The unlock reveal centres with a flex column, not `text-align` — that centres
+text inside boxes, not the boxes, which is what looked off-centre. The enemy
+portrait's art is resolved on the *page* via `revealedTileLayers`, never in the
+view: `EnemyTile` must stay ignorant of which enemy it draws.
+
 **The results screen is flat, with real medals (`A58`).** Both the panel and
 the unlock reveal use `--hud-plate`. Medals are `LevelModeIcon` in the shared
 `medal--*` tiers, and the tier is derived by feeding `medalTiers` rather than

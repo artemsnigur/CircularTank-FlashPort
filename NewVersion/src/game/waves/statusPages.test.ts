@@ -238,13 +238,22 @@ describe('the overlay, after the T44 divergence', () => {
     // Source-shape check, flagged as such — it proves the structure is
     // written, not that it renders. The frames are the driven proof.
     //
-    // The AS3 put the exits on the Standard page only (`:939-960`) so reveals
-    // could not be skipped. This port shows the results *underneath* and lets
-    // the pop-up be dismissed, with `unlockSummary` left behind so nothing is
-    // lost — which is the whole trade.
+    /*
+     * The AS3 put the exits on the Standard page only (`:939-960`) so reveals
+     * could not be skipped. This port shows the results *underneath* and lets
+     * the pop-up be dismissed — which is the trade.
+     *
+     * **What backs the trade changed in T208.** It used to be a red
+     * `unlockSummary` line left on the results panel; that was removed, and
+     * what keeps nothing from being lost is the *Show what you unlocked*
+     * button, which reopens the pop-up. Asserted here in place of the line,
+     * because the guarantee is the same and only its mechanism moved.
+     */
     expect(HUD).toContain('{revealsOpen && current && (');
     expect(HUD).toContain('level-outcome__reveal');
-    expect(HUD).toContain('{unlocked && <p className="level-outcome__unlocked">');
+    expect(HUD).toContain('Show what you unlocked');
+    // And the line it replaced is really gone, not merely unreferenced.
+    expect(HUD).not.toContain('level-outcome__unlocked');
   });
 
   it('offers a level-select route the AS3 does not have', () => {

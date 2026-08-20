@@ -184,6 +184,19 @@ function tileLayers(id: string, met: boolean): readonly number[] {
   return clip.frames[frame - 1] ?? [];
 }
 
+/**
+ * The layers for an enemy the player has just met — always frame 1.
+ *
+ * Exported for the results screen's unlock reveal, which draws an enemy it has
+ * by definition *just discovered*, so there is no locked case to get wrong.
+ * Named for that rather than exposing `tileLayers(id, met)`: a caller that
+ * cannot pass `met` cannot pass it wrongly, and the one thing this module
+ * guards is that an unmet enemy's glyph never escapes.
+ */
+export function revealedTileLayers(id: string): readonly number[] {
+  return tileLayers(id, true);
+}
+
 export function buildBestiaryListing(
   known: readonly string[],
   view: BestiaryView = DEFAULT_BESTIARY_VIEW,

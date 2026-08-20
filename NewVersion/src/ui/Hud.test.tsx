@@ -47,13 +47,6 @@ function block(selector: string): string {
   return cssCode.slice(at, cssCode.indexOf('}', at));
 }
 
-/*
- * ── The layout, T194 ─────────────────────────────────────────────────────
- *
- * The HUD was two full-width rows; it is now three corner clusters with the
- * centre band left clear. These pin *where things are*, because the arena is
- * underneath and a readout drifting into the middle is the failure.
- */
 /**
  * The results screen — T206.
  *
@@ -141,12 +134,82 @@ describe('the results screen', () => {
     expect(reveal).toMatch(/background:\s*var\(--hud-plate/);
   });
 
+  /*
+   * ── The enemy reveal's portrait, T208 ─────────────────────────────────
+   *
+   * Driven here rather than in the browser, and that is a limitation worth
+   * stating: `reveal.mjs` reached the results five times and every reveal it
+   * opened was an *achievement*, so its portrait checks never ran — and
+   * printed OK anyway, because they were guarded on the tile existing. Level
+   * 1-1 only fields Basic, which `INITIAL_KNOWN_ENEMIES` already contains, so
+   * a newly discovered enemy is not reachable by playing the first level.
+   *
+   * Here the discovery is a payload, so it is reachable exactly.
+   */
+  const finishWithEnemy = (name: string) => {
+    enterGameplay();
+    const view = render(<Hud />);
+    act(() => {
+      GameEvents.emit('level:ended', {
+        result: 'won',
+        world: 1,
+        level: 1,
+        kills: 10,
+        currency: 25,
+        nextLevel: null,
+        medals: 3,
+        mode: 'Normal',
+        newAchievements: [],
+        newEnemies: [name],
+      });
+    });
+    return view;
+  };
+
+  it('draws the unlocked enemy above its name', () => {
+    const { container } = finishWithEnemy('Fast');
+
+    const reveal = container.querySelector('.level-outcome__reveal');
+    expect(reveal, 'no reveal opened for a new enemy').not.toBeNull();
+
+    const tile = reveal!.querySelector('.enemy-tile');
+    expect(tile, 'the reveal has no enemy portrait').not.toBeNull();
+
+    // The art is real layers, not an empty box — `EnemyTile` renders null when
+    // it is handed none, so an unresolved lookup would show as zero here.
+    expect(reveal!.querySelectorAll('.enemy-tile__layer').length).toBeGreaterThan(0);
+
+    /*
+     * Above the name, as document order — jsdom computes no layout, so this is
+     * the honest form of the claim. The visual stacking is the flex column,
+     * which is measured in the browser.
+     */
+    const name = reveal!.querySelector('.level-outcome__title')!;
+    expect(tile!.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('names the portrait for a screen reader', () => {
+    // The tile is a picture with no text in it, so the name has to come from
+    // outside the art — and it must be the enemy, not a generic label.
+    const { container } = finishWithEnemy('Fast');
+    const tile = container.querySelector('.enemy-tile')!;
+    expect(tile.getAttribute('role')).toBe('img');
+    expect(tile.getAttribute('aria-label')).toBe('Fast');
+  });
+
   it('lays the stats out in three equal columns', () => {
     // Content-width columns shifted the row as the figures grew.
     expect(block('.level-outcome__stats')).toMatch(/grid-template-columns:\s*repeat\(3,\s*1fr\)/);
   });
 });
 
+/*
+ * ── The layout, T194 ─────────────────────────────────────────────────────
+ *
+ * The HUD was two full-width rows; it is now three corner clusters with the
+ * centre band left clear. These pin *where things are*, because the arena is
+ * underneath and a readout drifting into the middle is the failure.
+ */
 describe('the HUD layout', () => {
   it('puts money top-left, health bottom-left and weapons on the bottom', () => {
     enterGameplay();
@@ -740,10 +803,18 @@ describe('Hud', () => {
     rerender(<Hud />);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    // T161: the heading is `TitleVictory` art with the word under it, so the
-    // assertion moved from the old prose to what the art actually says.
+    /*
+      ── The banner is gone, the heading is not (T208) ──────────────────────
+      T161 asserted `TitleVictory` art with the word hidden under it. The art
+      was removed by request — the medals, stats and buttons already say which
+      happened — but the `<h2>` stays, visually hidden, so a screen reader
+      still meets the outcome as a heading.
+
+      So the pair below is the rule now: the word is in the document, and the
+      art is not. Asserting only the first would pass with the banner back.
+    */
     expect(screen.getByText('Victory')).toBeInTheDocument();
-    expect(document.querySelector('[data-clip="TitleVictory"]')).not.toBeNull();
+    expect(document.querySelector('[data-clip="TitleVictory"]')).toBeNull();
     expect(screen.getByText('12')).toBeInTheDocument();
     expect(screen.getByText('240')).toBeInTheDocument();
   });
@@ -896,11 +967,16 @@ describe('Hud', () => {
     rerender(<Hud />);
 
     expect(screen.getByText('Defeat')).toBeInTheDocument();
-    // The counterpart to the win above, on the same mechanism: a panel wired to
-    // one clip would pass whichever of the two was asserted alone.
-    expect(document.querySelector('[data-clip="TitleDefeat"]')).not.toBeNull();
+    // Neither banner, on either outcome — the counterpart to the win above.
+    expect(document.querySelector('[data-clip="TitleDefeat"]')).toBeNull();
     expect(document.querySelector('[data-clip="TitleVictory"]')).toBeNull();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+
+    // And no Menu button: the title bar's crest goes home now (`A59`).
+    expect(screen.queryByRole('button', { name: 'Menu' })).not.toBeInTheDocument();
+    // Its counterpart, so this is not just "no button called Menu on a screen
+    // with no buttons" — the other exits are still here.
+    expect(screen.getByRole('button', { name: 'Level select' })).toBeInTheDocument();
   });
 
   it('keeps the enemy counter clear of coin pickups', () => {

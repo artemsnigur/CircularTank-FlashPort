@@ -13,7 +13,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from '../state/gameStore';
 import { buildStatusPages, initialPageIndex,
   revealPages,
-  unlockSummary,
 } from '../game/waves/statusPages';
 import { GameEvents } from '../game/events/GameEvents';
 import { usePauseControl } from './usePauseControl';
@@ -26,6 +25,7 @@ import {
   SLIDE_OUT_MS,
 } from '../game/waves/countdownPanel';
 import { WeaponIcon } from './WeaponIcon';
+import { EnemyTile } from './EnemyTile';
 import {
   ICON_SCALE,
   UNUSED_ICON_SCALE,
@@ -43,7 +43,6 @@ import { medalTiers } from '../game/levels/medalTiers';
 import { LevelModeIcon } from './LevelModeIcon';
 import type { AchievementPage } from '../game/waves/statusPages';
 import { siteCorner } from '../game/ui/infoTextSites';
-import { ChromeArt } from './ChromeArt';
 import { useInfoText } from './useInfoText';
 import type { LevelRef } from '../game/levels/levelProgress';
 import type { Difficulty } from '../game/config/constants';
@@ -507,7 +506,6 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
   const [revealsOpen, setRevealsOpen] = useState(false);
 
   const reveals = useMemo(() => revealPages(pages), [pages]);
-  const unlocked = useMemo(() => unlockSummary(pages), [pages]);
 
   // Reset whenever a new result arrives, not on every render: paging back and
   // forth must not be undone by an unrelated update.
@@ -551,31 +549,23 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
     GameEvents.emit('ui:goto', { key: 'LevelSelect' });
   };
 
-  const toMenu = (): void => {
-    clearLevelOutcome();
-    GameEvents.emit('ui:goto', { key: 'MainMenu' });
-  };
-
   return (
     <div className="level-outcome" role="dialog" aria-label="Level results">
       <div className="level-outcome__panel">
         {(
           <>
             {/*
-              `ScreenStatus.as:446-457` heads the results with art, picked by
-              outcome: `TitleDefeat` or `TitleVictory`, both at x 320 — the
-              stage centre — and 0.9 scale. Both were extracted in T154 and had
-              no consumer until now.
+              ── No VICTORY / DEFEAT banner, T208 ────────────────────────────
+              `ScreenStatus.as:446-457` heads the results with `TitleVictory`
+              or `TitleDefeat` art. Removed by request: the medals, the stats
+              and the buttons already say which happened, and a word in
+              48-point type over the top of them says it a second time.
 
-              The `<h2>` stays underneath it, visually hidden. The letters are
-              paths, so the art needs a name; and this is the page's heading,
-              which a screen reader should meet as a heading rather than as an
-              image that happens to sit at the top.
+              **The heading itself stays**, visually hidden. It is the dialog's
+              `<h2>`, so a screen reader still meets the outcome as a heading
+              rather than inferring it from the buttons — the word is gone from
+              the screen, not from the page.
             */}
-            <ChromeArt
-              clip={outcome.result === 'won' ? 'TitleVictory' : 'TitleDefeat'}
-              className="level-outcome__art"
-            />
             <h2 className="level-outcome__title visually-hidden">
               {outcome.result === 'won' ? 'Victory' : 'Defeat'}
             </h2>
@@ -594,9 +584,6 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
                 <dd>{outcome.currency}</dd>
               </div>
             </dl>
-            {/* Survives the pop-up being dismissed — see the note above. */}
-            {unlocked && <p className="level-outcome__unlocked">{unlocked}</p>}
-
             <div className="level-outcome__actions">
               {outcome.nextLevel !== null && (
                 <NextLevelButton
@@ -608,11 +595,13 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
               <button type="button" className="hud__button" onClick={retry}>
                 {outcome.result === 'won' ? 'Replay' : 'Retry'}
               </button>
+              {/*
+                Menu was here until T208. The title bar's crest goes home from
+                every screen now (`A59`), so a fourth button repeating it made
+                the row longer without making anything reachable.
+              */}
               <button type="button" className="hud__button" onClick={toLevelSelect}>
                 Level select
-              </button>
-              <button type="button" className="hud__button" onClick={toMenu}>
-                Menu
               </button>
             </div>
             {reveals.length > 0 && !revealsOpen && (
@@ -640,6 +629,21 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
 
           {current.type === 'Enemy' && (
             <>
+              {/*
+                The enemy itself, above its name — T208.
+
+                The overlay announced a discovery and then showed no picture of
+                what was discovered, which is the one thing a player wants from
+                it. `layers` is resolved when the page is built, so this never
+                touches the art table: `EnemyTile` has no idea which enemy it
+                draws, and that is what stops any edit here leaking an unmet
+                enemy's glyph.
+              */}
+              <EnemyTile
+                layers={current.layers}
+                label={current.displayName}
+                size="clamp(3.5rem, 9vh, 5.5rem)"
+              />
               <p className="level-outcome__eyebrow">New Enemy</p>
               <h2 className="level-outcome__title">{current.displayName}</h2>
               <p className="level-outcome__body">{current.description}</p>
