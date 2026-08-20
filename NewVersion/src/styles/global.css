@@ -92,7 +92,29 @@
   --danger-soft: #cc0000;
   --danger-deep: #660000;
   --danger-ink: #ffffff;
-  --ok: #00ff00;
+  /*
+   * The one green in the UI — currency, full health, prices, the coins that
+   * drop off an enemy, and every status lamp.
+   *
+   * It used to be three: `#7dff8a` in the shop, `#4ade6a` on the HUD and
+   * `#00ff00` for `--ok`. All three read as neon — pale, lit-from-behind
+   * greens rather than green — and the stylesheet already carried a note
+   * saying unifying them was "a palette decision rather than a currency one".
+   * This is that decision.
+   *
+   * `#3fae53` is not invented: it is the midtone the shop's buy button has
+   * always used (`.gloss-pill.shop-buy`), so the price now matches the button
+   * it sits on. Hue 131 degrees is a true green rather than the spring green
+   * the old values leaned toward, and it holds 5.2:1 against `--hud-plate`
+   * and 6.9:1 against the panel backgrounds — above 4.5:1 for the smallest
+   * text that uses it, which is the figure on a dropped coin.
+   *
+   * Two homes cannot read a custom property and restate it: `healthColour.ts`
+   * and the coin badge in `GameplayScene`. Both are pinned against this
+   * declaration by `layerDepths.test.ts` rather than trusted.
+   */
+  --green: #3fae53;
+  --ok: var(--green);
   --ok-ink: #000000;
   --warn: #ffff00;
   --warn-ink: #000000;
@@ -602,7 +624,7 @@ body {
 }
 
 .cursor-tip__amount {
-  color: #7dff8a;
+  color: var(--green);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1505,7 +1527,7 @@ code {
    * while the stylesheet plainly said green. Sixth time this stylesheet has
    * been bitten by an equal-specificity override placed above its rival.
    */
-  color: #4ade6a;
+  color: var(--green);
 }
 
 .hud-stat__value {
@@ -3096,9 +3118,12 @@ code {
   font-size: calc(var(--pane) * 0.1);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
-  color: #7dff8a;
+  color: var(--green);
+  /* The glow was `rgb(0 255 90 / 45%)` — a neon halo, which is most of what
+     made the old green read as a light rather than a colour. Kept as a soft
+     lift off the panel, tinted from the token so it cannot drift. */
   text-shadow:
-    0 0 0.35em rgb(0 255 90 / 45%),
+    0 0 0.3em color-mix(in srgb, var(--green) 40%, transparent),
     0 2px 2px rgb(0 0 0 / 85%);
 }
 
@@ -3192,11 +3217,15 @@ code {
   /* The split is a hard stop at the midline: green above, near-black below.
      Each half keeps its own top-lit ramp so it reads as two surfaces rather
      than as one surface with a stripe. */
+  /* The green half is now three mixes of `--green` rather than three
+     hand-picked hexes, so the button and the price on it move together. The
+     middle stop *is* the token — it always was, which is where the token's
+     value came from. */
   background-image: linear-gradient(
     180deg,
-    #7ee08a 0%,
-    #3fae53 22%,
-    #1f7c33 49%,
+    color-mix(in srgb, var(--green) 68%, #ffffff) 0%,
+    var(--green) 22%,
+    color-mix(in srgb, var(--green) 62%, #000000) 49%,
     #171a17 50%,
     #0b0d0b 74%,
     #23282a 100%
@@ -3241,7 +3270,7 @@ code {
  * unifying them is a palette decision rather than a currency one.
  */
 .shop-buy__price {
-  color: #7dff8a;
+  color: var(--green);
   font-variant-numeric: tabular-nums;
 }
 
@@ -3274,8 +3303,8 @@ code {
 }
 
 .shop-stat__value {
-  color: #7dff8a;
-  text-shadow: 0 0 0.3em rgb(0 255 90 / 35%);
+  color: var(--green);
+  text-shadow: 0 0 0.25em color-mix(in srgb, var(--green) 35%, transparent);
 }
 
 /* Equip controls, in the window under the buy button. */
@@ -5895,7 +5924,9 @@ code {
 
 .guide-auto--on {
   border-color: color-mix(in srgb, var(--ok) 55%, transparent);
-  color: #dfffe4;
+  /* Was `#dfffe4`, which is white with a hint of green. Tinted from the token
+     so the label reads as the same green the lamp beside it is lit in. */
+  color: color-mix(in srgb, var(--green) 45%, #ffffff);
 }
 
 .guide-auto--on .guide-auto__dot {

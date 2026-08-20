@@ -381,14 +381,18 @@ const MONEY_DEPTH = 6;
  *
  * The same grey the HUD readouts paint with and the same green the shop's
  * balance uses, so a coin on the floor, the counter top-left and the price in
- * the shop are visibly the same currency. `--hud-plate` and `#7dff8a` cannot
+ * the shop are visibly the same currency. `--hud-plate` and `--green` cannot
  * be read from CSS inside the canvas, so the values are restated here; a test
  * parses the stylesheet and requires them to agree.
+ *
+ * The green was `#7dff8a` until T221 — pale enough to read as a light rather
+ * than a colour, which is what a badge sitting on a dark disc could least
+ * afford.
  */
 const MONEY_BADGE_FILL = 0x26282c;
 const MONEY_BADGE_ALPHA = 0.92;
-const MONEY_BADGE_RIM = 0x7dff8a;
-const MONEY_BADGE_TEXT = '#7dff8a';
+const MONEY_BADGE_RIM = 0x3fae53;
+const MONEY_BADGE_TEXT = '#3fae53';
 /** `:3366` — `poisonParticleTimerMax`. */
 const POISON_PARTICLE_FRAMES = 3;
 /** Just above the ground tile, below anything that moves. */

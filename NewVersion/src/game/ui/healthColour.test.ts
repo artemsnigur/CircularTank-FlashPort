@@ -12,7 +12,7 @@ describe('healthColour', () => {
   it('is the green stop at full health and the red stop at empty', () => {
     // Stated as the source values rather than read back from the function, so
     // a change to the palette is a deliberate act and not a silent one.
-    expect(healthColour(1)).toBe('rgb(74, 222, 106)'); // #4ade6a
+    expect(healthColour(1)).toBe('rgb(63, 174, 83)'); // #3fae53, `--green`
     expect(healthColour(0)).toBe('rgb(180, 35, 29)'); // #b4231d
 
     // And the counterpart that makes the two above mean something: they are

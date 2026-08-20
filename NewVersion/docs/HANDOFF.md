@@ -856,6 +856,14 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**There is one green now: `--green: #3fae53` (`A73`).** It replaced `#7dff8a`
+in the shop, `#4ade6a` on the HUD and `#00ff00` for `--ok`, all of which read
+as light rather than green. The value is the shop buy button's own midtone, so
+it has a provenance. **Two homes cannot read a custom property** —
+`healthColour.ts`'s top stop and `GameplayScene`'s `MONEY_BADGE_*` — and
+`layerDepths.test.ts` is what keeps all three in step; it failed by name the
+moment the token moved, which is how it should be.
+
 **Impact bursts had three wiring gaps, all fixed (`A72`).** A hit *does*
 throw debris — `effects/impactCue.ts`, called from `hitEnemy` — but it landed
 at the round rather than on the enemy's rim (`:5654`); `BulletFire` and

@@ -22,6 +22,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import { healthColour } from '../ui/healthColour';
+
 const SCENE = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
 const ENEMY = readFileSync('src/game/entities/Enemy.ts', 'utf8');
 const TANK = readFileSync('src/game/entities/PlayerTank.ts', 'utf8');
@@ -77,15 +79,29 @@ describe('the arena draws in the right order', () => {
 });
 
 /**
- * The money badge borrows two colours from the stylesheet — T218.
+ * The money badge borrows two colours from the stylesheet — T218, T221.
  *
- * A canvas cannot read `--hud-plate`, so the values are restated as hex in
- * `GameplayScene`. That is two homes for one colour, which is exactly how the
- * three glass tile surfaces drifted apart in `A38`, so the pair is compared
- * here rather than trusted.
+ * A canvas cannot read `--hud-plate` or `--green`, so the values are restated
+ * as hex in `GameplayScene`, and `healthColour.ts` restates the green a third
+ * time. Three homes for one colour is exactly how the three glass tile
+ * surfaces drifted apart in `A38`, so they are compared here rather than
+ * trusted.
+ *
+ * **What this proves**: that the numbers agree today. It cannot make them one
+ * value — a `.ts` module has no access to a custom property, and resolving one
+ * at runtime would mean a `getComputedStyle` call on a canvas colour. The
+ * mechanism is this test failing, which is what it did when T221 moved the
+ * token and left both restatements behind.
  */
 describe('the money badge matches the currency styling', () => {
   const CSS = readFileSync('src/styles/global.css', 'utf8');
+
+  /** The `--green` declaration, without its `#`. */
+  const token = (name: string): string => {
+    const match = new RegExp(`--${name}:\\s*#([0-9a-f]{6})`, 'i').exec(CSS);
+    expect(match, `--${name} is not declared as a hex literal`).not.toBeNull();
+    return match![1].toLowerCase();
+  };
 
   const constant = (name: string): string => {
     const match = new RegExp(`const ${name} = (0x[0-9a-f]+|'#[0-9a-f]+')`, 'i').exec(SCENE);
@@ -107,13 +123,63 @@ describe('the money badge matches the currency styling', () => {
     expect(constant('MONEY_BADGE_FILL')).toBe(asHex);
   });
 
-  it('writes the figure in the shop balance green', () => {
-    // The same green `.shop-buy__price` and `.shop-detail__balance` use, so a
-    // coin on the floor and its price in the shop are one currency.
-    const balance = /\.shop-detail__balance\s*\{[^}]*color:\s*#([0-9a-f]{6})/i.exec(CSS);
-    expect(balance, 'the shop balance colour was not found').not.toBeNull();
+  it('writes the figure in the one green the UI uses', () => {
+    // `--green` — the same value the HUD counter, the shop balance and the
+    // buy price all resolve to, so a coin on the floor and its price in the
+    // shop are one currency.
+    expect(constant('MONEY_BADGE_TEXT')).toBe(token('green'));
+    expect(constant('MONEY_BADGE_RIM')).toBe(token('green'));
+  });
 
-    expect(constant('MONEY_BADGE_TEXT')).toBe(balance![1].toLowerCase());
-    expect(constant('MONEY_BADGE_RIM')).toBe(balance![1].toLowerCase());
+  it('spends the token through `var(--green)`, not through a copy of it', () => {
+    /*
+     * The other half of "one green": the currency rules must *reference* the
+     * token rather than restate its value, or the declaration agrees with the
+     * badge while the screen shows something else.
+     *
+     * Pinned as the pair — the rules exist, and none of them carries a hex.
+     */
+    const rules = ['.shop-detail__balance', '.shop-buy__price', '.hud-stat__value.hud-money__value'];
+    for (const rule of rules) {
+      /*
+       * Every rule with this selector, not the first — `.shop-buy__price`
+       * appears twice, and the first is a shared layout rule that sets no
+       * colour at all. Taking `exec`'s first match reported that rule as
+       * having lost its colour, on a stylesheet that was correct.
+       */
+      const bodies = [
+        ...CSS.matchAll(new RegExp(`\\${rule}[^{]*\\{([^}]*)\\}`, 'g')),
+      ].map((m) => m[1]);
+      expect(bodies.length, `${rule} was not found in the stylesheet`).toBeGreaterThan(0);
+
+      const coloured = bodies.filter((b) => /(?:^|[;\s])color:/.test(b));
+      expect(coloured.length, `${rule} sets a colour somewhere`).toBeGreaterThan(0);
+      for (const body of coloured) {
+        expect(body, `${rule} restates a hex instead of using var(--green)`).not.toMatch(
+          /(?:^|[;\s])color:\s*#/,
+        );
+        expect(body, `${rule} spends the token`).toMatch(/color:\s*var\(--green\)/);
+      }
+    }
+  });
+
+  it('ends the health ramp on that same green', () => {
+    /*
+     * The third home. `healthColour.ts` is a `.ts` module and cannot read the
+     * property either, so the top stop is a restatement — and it was a
+     * different green entirely (`#4ade6a`) until T221 unified them.
+     *
+     * Asserted against the token rather than against a literal, so retuning
+     * the palette moves one value and this follows it.
+     */
+    const full = healthColour(1);
+    const [r, g, b] = [...full.matchAll(/\d+/g)].map((m) => Number(m[0]));
+    const asHex = ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+    expect(asHex).toBe(token('green'));
+
+    // The counterpart: the ramp's other end is emphatically *not* the token.
+    // Without it, a `healthColour` that returned one constant would pass.
+    const empty = healthColour(0);
+    expect(empty).not.toBe(full);
   });
 });

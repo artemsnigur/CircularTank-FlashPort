@@ -16,10 +16,10 @@
  * stylesheet is not.
  *
  * ── The stops ────────────────────────────────────────────────────────────
- * The same three colours, at the same three positions, as the gradient this
- * replaced (`0%`, `45%`, `100%`). So the colour shown at a given health level
- * is the colour the old bar showed at that point along its length — the
- * mapping changed, the palette did not.
+ * The same three positions as the gradient this replaced (`0%`, `45%`,
+ * `100%`), so the colour shown at a given health level is the colour the old
+ * bar showed at that point along its length. The green stop moved in T221 —
+ * see the note on it.
  */
 
 /** A stop on the ramp: `at` is the fraction of health it applies to. */
@@ -35,7 +35,11 @@ interface Stop {
 export const HEALTH_STOPS: readonly Stop[] = [
   { at: 0, rgb: [180, 35, 29] }, // #b4231d
   { at: 0.45, rgb: [232, 178, 58] }, // #e8b23a
-  { at: 1, rgb: [74, 222, 106] }, // #4ade6a
+  // `--green` in the stylesheet (T221). It was `#4ade6a`, a pale green that
+  // sat oddly beside the deep red and amber below it; the bar now ends on the
+  // same green the money and the shop use. `layerDepths.test.ts` requires this
+  // to equal the token, since a `.ts` file cannot read a custom property.
+  { at: 1, rgb: [63, 174, 83] }, // #3fae53
 ];
 
 /**
