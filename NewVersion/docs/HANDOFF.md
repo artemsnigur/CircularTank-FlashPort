@@ -801,6 +801,12 @@ extracted file of the same name — the JPEXS export's `cmap` is malformed and
 Chrome rejects it. Do not delete it or "restore" the extracted one;
 `fontIntegrity.test.ts` fails if the broken bytes ship.
 
+**The pre-level briefing is flat and ordered (`A57`).** `--hud-plate`, no
+border, and it reads mode -> objective -> count. The digit line is reserved by
+`min-height` so the text above cannot jump; the asymmetric bottom padding is
+load-bearing (the display face descends outside its line box). No Start button
+exists — the AS3 countdown runs automatically.
+
 **The dock has no Main menu button (`A56`).** It was removed from the bar
 entirely — the route to the title screen is Options -> Exit to Menu, two clicks
 from any screen. The main menu itself has never had a dock. `MENU_FRAMES` is

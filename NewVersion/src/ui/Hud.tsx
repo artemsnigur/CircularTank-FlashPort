@@ -730,10 +730,19 @@ function CountdownPanel(): React.ReactElement | null {
       // noise, and the objective line below carries the meaning.
       aria-hidden="true"
     >
+      {/*
+        Read top to bottom: what kind of level, what you must do, how long
+        until it starts. The digit was first and largest, which put a number
+        that means "wait" above the sentence that means "here is the level".
+
+        The digit still ends up the biggest thing on the panel — it is a
+        countdown — but it sits under the text it is counting towards, and its
+        reserved height no longer pushes the briefing around as it changes.
+      */}
       <div className="hud-countdown__panel">
-        <span className="hud-countdown__digit">{countdown.label}</span>
         <span className="hud-countdown__mode">{countdown.mode}</span>
         <span className="hud-countdown__objective">{countdown.objective}</span>
+        <span className="hud-countdown__digit">{countdown.label}</span>
       </div>
     </div>
   );
@@ -748,8 +757,10 @@ function CountdownPanel(): React.ReactElement | null {
  * left the level directly was a way to lose a run to a misclick, with no
  * confirmation in front of it.
  *
- * The main menu is still reachable — Quit Level lands on level select, whose
- * dock has it — which is the same two steps the original takes.
+ * The main menu is still reachable, in two steps: Quit Level lands on level
+ * select, and its dock reaches Options, which carries Exit to Menu. This used
+ * to say "whose dock has it", which was true until T204 took the Main menu
+ * button out of the bar — the route survived the change, the sentence did not.
  */
 function PauseButton(): React.ReactElement {
   const paused = useGameStore((s) => s.paused);

@@ -199,6 +199,71 @@ describe('the HUD layout', () => {
     expect(block('.hud-health__fill')).toMatch(/border-radius:\s*inherit/);
   });
 
+  /*
+   * ── The pre-level briefing, T205 ──────────────────────────────────────
+   *
+   * It was a 72%-black box with a 3px border and two lines at the same size.
+   * These pin the hierarchy and the surface, because the panel shows for about
+   * two seconds at the start of a level and is the easiest thing in the game
+   * to regress without anyone seeing it.
+   */
+  it('reads mode, then objective, then the count', () => {
+    enterGameplay();
+    const { container } = render(<Hud />);
+
+    act(() => {
+      GameEvents.emit('countdown:changed', {
+        label: '3',
+        mode: 'Flag Mode',
+        objective: 'Capture 5 Flags',
+        running: true,
+      });
+    });
+
+    const panel = container.querySelector('.hud-countdown__panel');
+    expect(panel, 'no briefing panel').not.toBeNull();
+
+    // Order asserted as the rendered sequence, which is what a player reads.
+    const lines = [...panel!.children].map((el) => el.className.replace('hud-countdown__', ''));
+    expect(lines).toEqual(['mode', 'objective', 'digit']);
+  });
+
+  it('paints the briefing on the same plate as everything else', () => {
+    const panel = block('.hud-countdown__panel');
+    expect(panel).toMatch(/background:\s*var\(--hud-plate/);
+    expect(panel).toMatch(/border:\s*none/);
+    // The 3px frame is gone and a shadow does its job.
+    expect(panel).not.toMatch(/border:\s*3px/);
+    expect(panel).toMatch(/box-shadow:/);
+  });
+
+  it('makes the objective the largest text and the mode the smallest', () => {
+    /*
+     * Hierarchy as a relationship between the two vh coefficients, not as
+     * absolute sizes — the panel is fluid, so comparing rendered pixels would
+     * need a browser and comparing rem literals would break on the next tune.
+     */
+    const coefficient = (selector: string): number => {
+      const m = /font-size:\s*clamp\([^,]+,\s*([\d.]+)vh/.exec(block(selector));
+      expect(m, selector + ' does not size its font in vh').not.toBeNull();
+      return Number(m![1]);
+    };
+
+    const mode = coefficient('.hud-countdown__mode');
+    const objective = coefficient('.hud-countdown__objective');
+    const digit = coefficient('.hud-countdown__digit');
+
+    expect(objective).toBeGreaterThan(mode);
+    // And the digit is bigger still — it is a countdown, it just does not lead.
+    expect(digit).toBeGreaterThan(objective);
+  });
+
+  it('reserves the digit line so the briefing cannot jump', () => {
+    // Empty until the first cue at frame 54. Without a reserved line the two
+    // lines above would move as the count appeared.
+    expect(block('.hud-countdown__digit')).toMatch(/min-height:/);
+  });
+
   it('scales the surface off the viewport height, with no fixed px', () => {
     // The arena's useful scale is the window's height, and the HUD's parent is
     // the full overlay rather than a sized container — so `vh`, not `cqh`,

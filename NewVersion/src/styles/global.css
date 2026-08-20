@@ -1775,46 +1775,86 @@ code {
     transform var(--countdown-slide-ms) ease-in-out;
 }
 
+/*
+ * The briefing panel.
+ *
+ * ── What it stopped being (T205) ─────────────────────────────────────────
+ * A 72%-black box with a **3px** `--steel-900` border and three lines at two
+ * fixed sizes. Same fault as the pause panel before its overhaul: a heavy
+ * frame doing the job a change of tone does better, and no hierarchy — the
+ * mode and the objective were the same size, so neither led.
+ *
+ * It is `--hud-plate` now, borderless, with one soft shadow, matching the
+ * readouts, the minimap and the pause panel. Everything scales in `vh`, so the
+ * briefing is the same share of the screen on a laptop and a 4K monitor
+ * instead of a fixed block that shrinks into one.
+ */
 .hud-countdown__panel {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.2rem;
-  /* Extra bottom padding: the display face's descenders sat outside the
-     background box, so the red objective line was clipped by the panel edge.
-     Found by looking at a frame — the digit sequence logged correctly
-     throughout. */
-  padding: 0.6rem 2.5rem 1rem;
-  /* Was a bare 55% black scrim. The plate reads as the game's own furniture
-     over an arena that is already dark, where the scrim read as a shadow. */
-  background: rgb(0 0 0 / 72%);
-  border: 3px solid var(--steel-900);
-  border-radius: 8px;
+  gap: clamp(0.15rem, 0.5vh, 0.35rem);
+  /*
+   * The asymmetric bottom padding is kept and is not a rounding artefact: the
+   * display face's descenders sit outside its line box, and without the extra
+   * room the bottom line was clipped by the panel edge. Found in a frame — the
+   * text itself logged correctly throughout.
+   */
+  padding: clamp(0.7rem, 2vh, 1.3rem) clamp(1.4rem, 4vh, 2.8rem) clamp(0.9rem, 2.4vh, 1.6rem);
+  border: none;
+  border-radius: clamp(0.5rem, 1.4vh, 0.9rem);
+  background: var(--hud-plate, rgb(38 40 44 / 72%));
+  box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 55%);
+  text-align: center;
 }
 
-.hud-countdown__digit {
-  font-family: var(--font-display);
-  font-size: var(--text-4xl);
-  /* Room for the face's own ascender/descender rather than a tight ratio. */
-  line-height: 1.15;
-  color: var(--on-strong);
-  /* Empty until the first cue at frame 54, so the panel must not collapse. */
-  min-height: 4rem;
-}
-
+/*
+ * The mode, as an eyebrow — "Flag Mode" is a category, not a headline. Small,
+ * letterspaced and dim is what makes the objective below it read as the line
+ * that matters.
+ */
 .hud-countdown__mode {
   font-family: var(--font-display);
-  font-size: var(--text-md);
+  font-size: clamp(0.55rem, 1.2vh, 0.72rem);
   line-height: 1.3;
-  color: var(--on-strong);
+  letter-spacing: 0.3em;
+  /* The tracking is applied to the right of each glyph including the last, so
+     a centred line sits half a space left without this. */
+  text-indent: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 
-/* `:307` passes 16711680 — red. */
+/*
+ * The objective — the one sentence the panel exists to deliver, so it is the
+ * largest text and the only coloured one.
+ *
+ * `:307` passes 16711680, and the red is kept: it is the AS3's own emphasis
+ * and it is the line a player must act on. Set in `--font-body`, which is the
+ * face repaired in `A55` — before that it silently rendered in `system-ui`.
+ */
 .hud-countdown__objective {
   font-family: var(--font-body);
-  font-size: var(--text-md);
-  line-height: 1.4;
+  font-size: clamp(0.95rem, 2.4vh, 1.45rem);
+  line-height: 1.35;
   color: var(--danger);
+}
+
+/*
+ * The digit, last and largest.
+ *
+ * `min-height` rather than a height: it is empty until the first cue at frame
+ * 54, and a panel that collapses and then grows would move the briefing text
+ * as it counted. Reserving the line keeps everything above it still.
+ */
+.hud-countdown__digit {
+  margin-top: clamp(0.1rem, 0.4vh, 0.3rem);
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 6.5vh, 4rem);
+  /* Room for the face's own ascender/descender rather than a tight ratio. */
+  line-height: 1.15;
+  min-height: clamp(2.3rem, 7.5vh, 4.6rem);
+  color: var(--steel-000);
 }
 
 @media (prefers-reduced-motion: reduce) {
