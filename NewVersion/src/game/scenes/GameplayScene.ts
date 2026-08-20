@@ -233,7 +233,6 @@ import {
 import { tankStartPosition } from '../player/tankMovement';
 import { bankLevelOutcome } from '../player/levelBanking';
 import type { LevelBankingResult } from '../player/levelBanking';
-import { MEDAL_HP_GOLD } from '../waves/medals';
 import { applyViewportToScene, getViewportController } from '../systems/ViewportController';
 import {
   centredCameraBounds,
@@ -3404,6 +3403,22 @@ export class GameplayScene extends Phaser.Scene {
        * somewhere else" look identical from outside, and only the live numbers
        * separate them. Counts and the first marker's placement.
        */
+      /**
+       * DEV-AID: the achievement flags, the weapon that would set them, and
+       * the hp the clean-run rule reads — for T214.
+       *
+       * "KABOOM! never unlocks" was reported twice and could not be found by
+       * reading: every layer is individually correct, so the failure is in a
+       * value nobody can see. These are the exact four inputs to
+       * `DefensiveBombs`, plus the weapon name the flag test compares against,
+       * which is a string equality across two tables.
+       */
+      achievements: {
+        mode: this.levelSpec?.mode ?? null,
+        primary: this.weapon?.name ?? null,
+        hp: this.hp,
+        flags: { ...this.levelFlags },
+      },
       markers: {
         room: { w: this.roomWidth, h: this.roomHeight },
         view: {
@@ -5052,17 +5067,29 @@ export class GameplayScene extends Phaser.Scene {
       // `bankLevelOutcome` so they can be tested against a real profile — the
       // scene cannot be instantiated, and a regex over this file cannot tell
       // whether the guard is actually reached.
-      // `:2764-2770` — completing with any damage taken clears the four
-      // "did it cleanly" flags, so FlagNoWeapons, DefensiveBombs and
-      // BossOnlySpecial each additionally require a flawless run. A
-      // completion-time rule, so it is applied here rather than at each set
-      // site.
-      if (this.hp < MEDAL_HP_GOLD) {
-        this.levelFlags.noWeaponsUsed = false;
-        this.levelFlags.timedBombsFired = false;
-        this.levelFlags.otherThanTimedBombsFired = false;
-        this.levelFlags.onlySpecialWeapons = false;
-      }
+      /*
+       * ── Divergence: no clean-run gate on the weapon flags (T214) ────────
+       *
+       * `:2764-2770` clears the four "did it cleanly" flags when
+       * `ScreenGame.hp < 95`, so FlagNoWeapons, DefensiveBombs and
+       * BossOnlySpecial each *also* demanded a near-flawless run. That is what
+       * their descriptions mean by "and get 3 medals".
+       *
+       * Removed by request, and the measurement is why it is not merely
+       * strict: driven on level 1-1, standing still and firing, the tank goes
+       * from 100 hp to **94 in four seconds**. Contact damage is continuous,
+       * so holding a whole Defense level inside a five-point budget is close
+       * to impossible — the achievement was reachable in principle and not in
+       * practice. Two separate reports of "KABOOM never unlocks" came from
+       * exactly this.
+       *
+       * The three are now about the thing their titles are about: which
+       * weapons were used. `achievementWording.ts` corrects the descriptions
+       * to match, since the generated strings still describe the old rule.
+       *
+       * `Idle` is unaffected either way — `nothingPressed` was never in this
+       * list, which is what let a *lost* level earn it before T213.
+       */
 
       this.banking = bankLevelOutcome(this.profile, {
         sandbox: this.sandbox,

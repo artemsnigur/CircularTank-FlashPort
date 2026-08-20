@@ -19,6 +19,7 @@
  * `description` is always populated and only `earned` varies.
  */
 
+import { describeAchievement } from './achievementWording';
 import { ACHIEVEMENTS } from './achievementData';
 import type { AchievementSpec } from './achievementData';
 import type { AchievementStates } from './achievementState';
@@ -62,7 +63,7 @@ function toEntry(spec: AchievementSpec, state: number | undefined): AchievementE
   return {
     id: spec.id,
     title: spec.title,
-    description: spec.description,
+    description: describeAchievement(spec.id, spec.description),
     x: spec.x,
     y: spec.y,
     earned,

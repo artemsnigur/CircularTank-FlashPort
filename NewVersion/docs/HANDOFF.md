@@ -856,6 +856,13 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**KABOOM! and its two siblings no longer need a flawless run (`A66`).** The
+`hp < 95` clean-run gate on the weapon flags is removed — measured, the tank
+loses 6 hp in four seconds, so a five-point budget across a Defense level was
+unreachable. `achievementWording.ts` corrects the three descriptions, which
+still say "and get 3 medals" in the generated data. `__arena.achievements`
+publishes the flags, weapon name and hp for diagnosing this class again.
+
 **Achievements: all 36 are reachable, and a loss is not a completion
 (`A65`).** `bankLevelOutcome` derives `completed` from `won` and takes
 `Omit<LevelRecord, 'completed'>` — **do not let a caller pass it again**, that

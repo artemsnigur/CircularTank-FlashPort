@@ -273,10 +273,34 @@ describe('each flag is set somewhere in gameplay', () => {
     expect(SCENE).toContain('this.levelFlags.threeBosses = this.wave.bossAmount >= 3;');
   });
 
-  it('the damage clear at completion', () => {
-    // `:2764-2770` — finishing with any damage taken clears the four "did it
-    // cleanly" flags, so three achievements additionally need a flawless run.
-    expect(SCENE).toContain('if (this.hp < MEDAL_HP_GOLD) {');
+  it('no longer clears the weapon flags on damage', () => {
+    /*
+     * ── Replaced in T214, not repaired ──────────────────────────────────
+     *
+     * This asserted `:2764-2770` was ported: finishing with any damage cleared
+     * the four "did it cleanly" flags, so three weapon-choice achievements
+     * also needed a near-flawless run. It was an accurate description of both
+     * the AS3 and the port.
+     *
+     * The rule was dropped by request. Measured on level 1-1, standing still
+     * and firing, the tank goes from 100 hp to 94 in four seconds — contact
+     * damage is continuous, so a five-point budget across a whole Defense
+     * level made "KABOOM!" unreachable in practice.
+     *
+     * Asserted as absent rather than deleted, because reinstating it would
+     * silently make three achievements unearnable again and nothing else here
+     * would notice.
+     */
+    expect(SCENE).not.toContain('if (this.hp < MEDAL_HP_GOLD) {');
+    expect(SCENE).not.toContain('MEDAL_HP_GOLD');
+
+    /*
+     * The counterpart, and the reason the absence means something: the flags
+     * are still *set* by the firing path. "The gate is gone" would also pass
+     * if the whole mechanism had been deleted.
+     */
+    expect(SCENE).toContain('this.levelFlags.timedBombsFired = true;');
+    expect(SCENE).toContain('this.levelFlags.otherThanTimedBombsFired = true;');
   });
 
   it('temperamentalFrozen, now that something deals Ice damage', () => {

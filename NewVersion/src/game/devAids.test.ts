@@ -36,6 +36,10 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     // how the difference is measured. Remove them together.
     'hold the countdown flag false via ?countdown=0',
     'spawn placement recorder',
+    // T214: the achievement flags, the weapon name they key off, and the hp
+    // the clean-run rule reads. Added because 'KABOOM! never unlocks' could
+    // not be diagnosed by reading — every layer was individually correct.
+    'achievement flag probe',
     // T69: the sweep aimed at a hard-coded screen point. This is how it finds
     // the tank instead.
     'live tank screen position',
@@ -163,6 +167,6 @@ describe('dev aids are enumerable', () => {
     // files. Taken out at the maintainer's request rather than because it was
     // broken — a dev affordance that ships behind `import.meta.env.DEV` still
     // shows up in every development session, which is where it was unwanted.
-    expect(total).toBe(32);
+    expect(total).toBe(33);
   });
 });

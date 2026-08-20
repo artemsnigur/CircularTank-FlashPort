@@ -30,6 +30,7 @@ import { ACHIEVEMENTS } from './achievementData';
 import { achievementValueSource, createLevelFlags } from './achievementContext';
 import type { AchievementInputs, LevelAchievementFlags, LevelRecord } from './achievementContext';
 import { updateAchievements } from './achievementState';
+import { REWORDED_ACHIEVEMENTS, describeAchievement } from './achievementWording';
 import { createInitialUpgradeState, maxedUpgradeState } from '../upgrades/upgradeState';
 
 import { createEmptyProgress, recordLevelResult } from '../levels/levelProgress';
@@ -222,5 +223,40 @@ describe('every achievement is reachable', () => {
     // (`:443`), so it still fires here. That is what makes the four above a
     // real rule rather than "nothing fires when completed is false".
     expect(ids).toContain('Racing');
+  });
+});
+
+/**
+ * The descriptions must not describe a rule the game no longer has — T214.
+ *
+ * `achievementData.ts` is generated from the AS3, so its strings still say
+ * "and get 3 medals" for the three weapon-choice achievements. That clause was
+ * the `hp < 95` gate, which is gone. A description that overstates the
+ * requirement is worse than none: a player who reads it will not attempt the
+ * thing they would actually be rewarded for.
+ */
+describe('the wording matches the rule', () => {
+  it('drops the medal clause from the three that no longer need it', () => {
+    for (const id of ['FlagNoWeapons', 'DefensiveBombs', 'BossOnlySpecial']) {
+      const spec = ACHIEVEMENTS.find((a) => a.id === id)!;
+      // The generated string still carries it — if that ever stops being true
+      // this override is obsolete and should go.
+      expect(spec.description, id + ' generated').toMatch(/3 medals/);
+      expect(describeAchievement(id, spec.description), id + ' shown').not.toMatch(/3 medals/);
+    }
+  });
+
+  it('leaves every other description exactly as generated', () => {
+    // The counterpart: an override that rewrote everything would pass above.
+    const changed = ACHIEVEMENTS.filter(
+      (a) => describeAchievement(a.id, a.description) !== a.description,
+    ).map((a) => a.id);
+    expect(changed.sort()).toEqual(['BossOnlySpecial', 'DefensiveBombs', 'FlagNoWeapons']);
+  });
+
+  it('overrides nothing that is not an achievement', () => {
+    for (const id of Object.keys(REWORDED_ACHIEVEMENTS)) {
+      expect(ACHIEVEMENTS.some((a) => a.id === id), id).toBe(true);
+    }
   });
 });
