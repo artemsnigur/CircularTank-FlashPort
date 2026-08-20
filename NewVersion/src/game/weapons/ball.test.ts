@@ -23,9 +23,11 @@ import {
   BALL_MUZZLE_OFFSET,
   BALL_RADIUS,
   BALL_SPEED,
+  BALL_TRAIL_SPACING,
   advanceBall,
   ballIsOutOfBounds,
   throwBall,
+  trailDue,
 } from './ball';
 import {
   createHazard,
@@ -342,5 +344,70 @@ describe('the trail is laid every frame, not on impact', () => {
     // The counter must not appear in the per-frame lay path.
     const lay = SCENE.slice(SCENE.indexOf('private layHazard'));
     expect(lay.slice(0, 500)).not.toContain('iceTrailId += 1');
+  });
+});
+
+/**
+ * ── Trail spacing, T217 ───────────────────────────────────────────────────
+ *
+ * `:1784` lays a patch every frame; the port spaces them by distance instead,
+ * by request. Distance rather than frames so the trail is identical however
+ * the frame rate wanders — a frame counter thins it on a fast machine.
+ */
+describe('trailDue', () => {
+  it('withholds a patch until the ball has gone far enough', () => {
+    expect(trailDue(0).due).toBe(false);
+    expect(trailDue(BALL_TRAIL_SPACING - 0.001).due).toBe(false);
+    expect(trailDue(BALL_TRAIL_SPACING).due).toBe(true);
+  });
+
+  it('carries the remainder rather than resetting to zero', () => {
+    /*
+     * A single step can cover more than one spacing at a low frame rate.
+     * Resetting to zero would swallow the excess and thin the trail exactly
+     * when the ball is moving fastest on screen.
+     */
+    const { due, carry } = trailDue(BALL_TRAIL_SPACING * 1.5);
+    expect(due).toBe(true);
+    expect(carry).toBeCloseTo(BALL_TRAIL_SPACING * 0.5, 6);
+  });
+
+  it('never returns a non-finite carry, however it is seeded', () => {
+    /*
+     * The bug this guard exists for, and it was found by measurement rather
+     * than by reading. Seeding with `Infinity` to force the first patch made
+     * `carry` NaN, and `NaN < spacing` is false — so every later call reported
+     * *due* and the trail reverted to one patch per frame. 64 patches from one
+     * ball where about 20 were expected.
+     *
+     * It fails towards laying everything rather than nothing, so a trail was
+     * still drawn and nothing looked broken.
+     */
+    for (const seed of [Number.POSITIVE_INFINITY, Number.NaN]) {
+      const { due, carry } = trailDue(seed);
+      expect(due, String(seed)).toBe(true);
+      expect(Number.isFinite(carry), `carry from ${seed}`).toBe(true);
+
+      // And the value it hands back must itself be usable — feeding it
+      // straight back in is exactly what the caller does next frame.
+      expect(trailDue(carry).due).toBe(false);
+    }
+  });
+
+  it('keeps the distance when nothing is due', () => {
+    // The counterpart: a rule that reset on every call would drop the trail
+    // entirely, and "withholds a patch" alone would still pass.
+    expect(trailDue(10).carry).toBe(10);
+  });
+
+  it('is thinner than the original but still overlapping', () => {
+    /*
+     * The two numbers that make this a thinning rather than a gapped dotted
+     * line: the AS3 lays one every `BALL_SPEED` units, and a patch is
+     * `BALL_RADIUS` across the centre. Spacing below the diameter keeps the
+     * path continuous.
+     */
+    expect(BALL_TRAIL_SPACING).toBeGreaterThan(BALL_SPEED);
+    expect(BALL_TRAIL_SPACING).toBeLessThanOrEqual(BALL_RADIUS * 2);
   });
 });

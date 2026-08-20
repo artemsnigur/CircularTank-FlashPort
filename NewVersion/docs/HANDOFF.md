@@ -856,6 +856,13 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Ice/lava trails sit at depth 0.75 and are spaced by distance (`A69`).**
+`HAZARD_DEPTH` was 0, below `PROP_DEPTH` 0.5, so props drew over the trail;
+`layerDepths.test.ts` now asserts the *ordering* rather than the numbers.
+Density is `BALL_TRAIL_SPACING` world units, not per-frame — do not seed the
+accumulator with `Infinity`, since `Infinity % n` is NaN and NaN reports
+"due" forever.
+
 **The Cake burst is a death effect (`A68`).** `:6132`'s spawn block is the
 `else` of `:5981`, whose condition is the enemy *surviving* — so cakes only
 shatter on a kill. The port burst on every hit until T216. `hitEnemy` returns

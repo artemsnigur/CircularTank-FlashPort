@@ -18,6 +18,52 @@ import type { HazardType } from './groundHazard';
 /** `:4185`, `:4193` — both balls, and it does not scale with level. */
 export const BALL_SPEED = 12;
 
+/**
+ * ── Divergence: patches are spaced, not laid every frame ─────────────────
+ *
+ * `:1784` drops a hazard on **every frame the ball lives**, so at speed 12
+ * with radius-18 patches they overlap about 3:1 and the trail is a dense
+ * smear. Requested thinner.
+ *
+ * Spacing is in **world units travelled**, not frames, so the trail looks the
+ * same however the frame rate wanders — a frame counter would thin the trail
+ * on a fast machine and thicken it on a slow one, which is the sort of thing
+ * that only shows up on someone else's hardware.
+ *
+ * 36 is three of the AS3's steps: patches sit about a radius apart and still
+ * read as a continuous path, where 3:1 overlap read as a blob.
+ */
+export const BALL_TRAIL_SPACING = 36;
+
+/**
+ * Whether a patch is due, and the distance to carry forward.
+ *
+ * Returns the *remainder* rather than resetting to zero, so a step longer than
+ * the spacing does not silently swallow the excess — at low frame rates a
+ * single move can cover more than one patch's worth of ground, and dropping
+ * the surplus would thin the trail exactly when the ball is moving fastest on
+ * screen.
+ */
+export function trailDue(distanceSinceLast: number): { due: boolean; carry: number } {
+  /*
+   * ── The non-finite guard is the whole reason this is a function ────────
+   *
+   * A caller wanting the first patch immediately reaches for `Infinity`, and
+   * `Infinity % 36` is **NaN**. `NaN < 36` is `false`, so the next call reports
+   * *due* — and so does every call after it, because NaN never compares less
+   * than anything. The trail silently reverts to one patch per frame, which is
+   * exactly the behaviour being removed and looks like the rule was never
+   * wired up.
+   *
+   * Measured: 64 patches from one ball where ~20 were expected. Failing
+   * towards "lay everything" rather than "lay nothing" is what made it
+   * invisible to a glance — a trail was still drawn.
+   */
+  if (!Number.isFinite(distanceSinceLast)) return { due: true, carry: 0 };
+  if (distanceSinceLast < BALL_TRAIL_SPACING) return { due: false, carry: distanceSinceLast };
+  return { due: true, carry: distanceSinceLast % BALL_TRAIL_SPACING };
+}
+
 /** `:4184`, `:4192`. */
 export const BALL_RADIUS = 20;
 

@@ -179,7 +179,7 @@ import {
   hazardAlpha,
 } from '../weapons/groundHazard';
 import type { GroundHazard, HazardType } from '../weapons/groundHazard';
-import { advanceBall, ballIsOutOfBounds, throwBall } from '../weapons/ball';
+import { advanceBall, ballIsOutOfBounds, throwBall , trailDue, BALL_TRAIL_SPACING} from '../weapons/ball';
 import type { BallState } from '../weapons/ball';
 import {
   nearestTargets,
@@ -305,8 +305,19 @@ const GRENADE_CLASS: Readonly<Record<string, string>> = {
 };
 
 const GRENADE_DEPTH = 1;
-/** Below everything — the AS3 keeps trails in their own `groundLayer`. */
-const HAZARD_DEPTH = 0;
+/**
+ * Above the ground and its props, below anything that moves.
+ *
+ * Was `0`, which is **below** `PROP_DEPTH` — so background props drew over the
+ * ice and lava, and a trail crossing scenery disappeared under it. The AS3
+ * keeps trails in their own `groundLayer`, which sits above the background in
+ * the original's display list; `0` reproduced the name and not the order.
+ *
+ * `0.75` puts it over the props at `0.5` and under the grenades at `1`, so
+ * everything that moves — mines, money, enemies at `8`, the tank at `10` —
+ * still reads in front of the patch it is standing on.
+ */
+const HAZARD_DEPTH = 0.75;
 /** Above the tank and enemies — debris reads as being in front. */
 const PARTICLE_DEPTH = 14;
 /** `:2506` — `indicatorLayer`, above enemies and below particles. */
@@ -745,6 +756,17 @@ export class GameplayScene extends Phaser.Scene {
   private balls: Array<{
     state: BallState;
     sprite: Phaser.GameObjects.Image;
+    /**
+     * World units travelled since the last trail patch.
+     *
+     * Seeded at exactly `BALL_TRAIL_SPACING` so the first check is due and the
+     * trail begins at the muzzle, which is where `:1784` puts it. **Not
+     * `Infinity`**: that made `carry` NaN and every later check reported due,
+     * reverting the trail to one patch per frame. `trailDue` guards it now as
+     * well, but seeding with a real number means the guard is a backstop rather
+     * than the mechanism.
+     */
+    trailSince: number;
   }> = [];
   /** Ground hazards left by those balls, with the sprite drawn for each. */
   private hazards: Array<{
@@ -2816,15 +2838,17 @@ export class GameplayScene extends Phaser.Scene {
       .setDisplaySize(ballArt.width, ballArt.height)
       .setDepth(GRENADE_DEPTH);
 
-    this.balls.push({ state, sprite });
+    this.balls.push({ state, sprite, trailSince: BALL_TRAIL_SPACING });
     return true;
   }
 
   /**
-   * Flies every ball, laying a patch per frame — `:1784-1810`.
+   * Flies every ball, laying a patch every `BALL_TRAIL_SPACING` units.
    *
-   * The hazard is spawned *before* the move, matching where the AS3 does it, so
-   * the first patch sits at the muzzle rather than one step out.
+   * `:1784-1810` lays one on every frame; this spaces them, which is a
+   * declared divergence — see `ball.ts`. The **first** patch is still laid
+   * unconditionally before the first move, so the trail starts at the muzzle
+   * rather than a spacing-length out, which is where the AS3 puts it.
    */
   private updateBalls(deltaMs: number): void {
     if (this.balls.length === 0) return;
@@ -2833,9 +2857,17 @@ export class GameplayScene extends Phaser.Scene {
     const surviving: typeof this.balls = [];
 
     for (const entry of this.balls) {
-      this.layHazard(entry.state);
+      // The muzzle patch, once per ball: `trailSince` starts at Infinity so
+      // the first pass is always due, and every later one waits for distance.
+      const { due, carry } = trailDue(entry.trailSince);
+      if (due) {
+        this.layHazard(entry.state);
+        entry.trailSince = carry;
+      }
 
+      const before = { x: entry.state.x, y: entry.state.y };
       const moved = advanceBall(entry.state, frames);
+      entry.trailSince += Math.hypot(moved.x - before.x, moved.y - before.y);
       const hit = this.enemies.find(
         (enemy) =>
           enemy.targetable &&
@@ -3455,6 +3487,19 @@ export class GameplayScene extends Phaser.Scene {
         cakeParents: this.bullets.filter((b) => b.isCakeParent).length,
         impacts: this.cakeImpacts,
         bursts: this.cakeBursts,
+      },
+      /**
+       * DEV-AID: ground-hazard count and depth, for T217.
+       *
+       * Two claims neither a unit test nor a frame settles alone: how many
+       * patches a trail actually lays (the spacing rule is pure and tested,
+       * but whether the scene *calls* it is wiring), and what depth they end
+       * up at, which is the ordering bug that started this.
+       */
+      hazards: {
+        count: this.hazards.length,
+        depth: this.hazards[0]?.sprite.depth ?? null,
+        balls: this.balls.length,
       },
       enemyCount: this.enemies.length,
       achievements: {
