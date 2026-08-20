@@ -551,6 +551,88 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
 
   return (
     <div className="level-outcome" role="dialog" aria-label="Level results">
+      {/*
+        ── Above the results, in flow, T209 ──────────────────────────────
+        This was absolutely positioned at `top: 12%` so it would sit *above*
+        the panel rather than over it. That offset was tuned against the panel
+        as it was; T206 grew the panel — a stats grid with its own padding,
+        medal sockets, and the buttons stacked onto two rows — and the reveal
+        did not move, so the two began to overlap.
+
+        A percentage cannot be re-tuned into a guarantee, because the panel's
+        height depends on the outcome: how many medals, whether there is a next
+        level, how long the enemy's description runs. So the reveal is a normal
+        flex child now and the container spaces the two. They cannot intersect,
+        whatever either one measures.
+
+        First in the DOM as well as on screen: it is the thing demanding
+        attention, so a screen reader should reach it before the score.
+      */}
+      {revealsOpen && current && (
+        <div className="level-outcome__reveal" role="dialog" aria-label="New unlocks">
+          {current.type === 'Achievement' && (
+            <AchievementReveal page={current} difficulty={difficulty} />
+          )}
+
+          {current.type === 'Enemy' && (
+            <>
+              {/*
+                The enemy itself, above its name — T208.
+
+                The overlay announced a discovery and then showed no picture of
+                what was discovered, which is the one thing a player wants from
+                it. `layers` is resolved when the page is built, so this never
+                touches the art table: `EnemyTile` has no idea which enemy it
+                draws, and that is what stops any edit here leaking an unmet
+                enemy's glyph.
+              */}
+              <EnemyTile
+                layers={current.layers}
+                label={current.displayName}
+                size="clamp(3.5rem, 9vh, 5.5rem)"
+              />
+              <p className="level-outcome__eyebrow">New Enemy</p>
+              <h2 className="level-outcome__title">{current.displayName}</h2>
+              <p className="level-outcome__body">{current.description}</p>
+            </>
+          )}
+
+          <button
+            type="button"
+            className="hud__button hud__button--primary"
+            onClick={() => setRevealsOpen(false)}
+          >
+            Continue
+          </button>
+
+        {reveals.length > 1 && (
+          <nav className="level-outcome__pager" aria-label="Results pages">
+            <button
+              type="button"
+              className="level-outcome__arrow"
+              disabled={atFirst}
+              aria-label="Previous page"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              ‹
+            </button>
+            <span className="level-outcome__count">
+              {page + 1} / {reveals.length}
+            </span>
+            <button
+              type="button"
+              className="level-outcome__arrow"
+              disabled={atLast}
+              aria-label="Next page"
+              onClick={() => setPage((p) => Math.min(reveals.length - 1, p + 1))}
+            >
+              ›
+            </button>
+          </nav>
+        )}
+        </div>
+      )}
+
       <div className="level-outcome__panel">
         {(
           <>
@@ -621,70 +703,6 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
 
       </div>
 
-      {revealsOpen && current && (
-        <div className="level-outcome__reveal" role="dialog" aria-label="New unlocks">
-          {current.type === 'Achievement' && (
-            <AchievementReveal page={current} difficulty={difficulty} />
-          )}
-
-          {current.type === 'Enemy' && (
-            <>
-              {/*
-                The enemy itself, above its name — T208.
-
-                The overlay announced a discovery and then showed no picture of
-                what was discovered, which is the one thing a player wants from
-                it. `layers` is resolved when the page is built, so this never
-                touches the art table: `EnemyTile` has no idea which enemy it
-                draws, and that is what stops any edit here leaking an unmet
-                enemy's glyph.
-              */}
-              <EnemyTile
-                layers={current.layers}
-                label={current.displayName}
-                size="clamp(3.5rem, 9vh, 5.5rem)"
-              />
-              <p className="level-outcome__eyebrow">New Enemy</p>
-              <h2 className="level-outcome__title">{current.displayName}</h2>
-              <p className="level-outcome__body">{current.description}</p>
-            </>
-          )}
-
-          <button
-            type="button"
-            className="hud__button hud__button--primary"
-            onClick={() => setRevealsOpen(false)}
-          >
-            Continue
-          </button>
-
-        {reveals.length > 1 && (
-          <nav className="level-outcome__pager" aria-label="Results pages">
-            <button
-              type="button"
-              className="level-outcome__arrow"
-              disabled={atFirst}
-              aria-label="Previous page"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              ‹
-            </button>
-            <span className="level-outcome__count">
-              {page + 1} / {reveals.length}
-            </span>
-            <button
-              type="button"
-              className="level-outcome__arrow"
-              disabled={atLast}
-              aria-label="Next page"
-              onClick={() => setPage((p) => Math.min(reveals.length - 1, p + 1))}
-            >
-              ›
-            </button>
-          </nav>
-        )}
-        </div>
-      )}
     </div>
   );
 }

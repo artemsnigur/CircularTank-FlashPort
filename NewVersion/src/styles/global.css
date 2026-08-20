@@ -1984,15 +1984,43 @@ code {
 }
 
 /* End-of-level results. Placeholder until ScreenStatus is ported. */
+/*
+ * The results layer: the unlock reveal, then the panel, stacked.
+ *
+ * It was `place-items: center` with the reveal floated over the top on an
+ * absolute `top: 12%`. A flex column with a gap makes overlap impossible by
+ * construction rather than by choosing a percentage that happens to clear a
+ * panel whose height varies with the outcome.
+ *
+ * `overflow-y: auto` because the pair can genuinely exceed a short viewport —
+ * 600px tall with both open is the case — and `justify-content: center` only
+ * centres while there is room. Without the scroll the top of the reveal would
+ * be cut off with no way to reach it.
+ */
 .level-outcome {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.6rem, 2vh, 1.2rem);
+  overflow-y: auto;
   background: rgb(0 0 0 / 62%);
   pointer-events: auto;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding: calc(env(safe-area-inset-top) + clamp(0.5rem, 2vh, 1.25rem))
+    calc(env(safe-area-inset-right) + 0.75rem)
+    calc(env(safe-area-inset-bottom) + clamp(0.5rem, 2vh, 1.25rem))
+    calc(env(safe-area-inset-left) + 0.75rem);
+}
+
+/*
+ * Neither panel may be squeezed by the other. A flex item's default
+ * `min-height: auto` lets it shrink below its content when the column
+ * overflows, which would clip the buttons rather than scroll to them.
+ */
+.level-outcome > * {
+  flex: none;
 }
 
 /*
@@ -2051,17 +2079,19 @@ code {
  * full-screen dimmed layer.
  */
 .level-outcome__reveal {
-  position: absolute;
   /*
-   * Sits ABOVE the results panel, not over it. Centring it covered the title
-   * and the stats, which defeats the whole reason for the divergence — the
-   * score is supposed to stay readable behind the reveal. Found by looking at
-   * the frame rather than by reasoning about the layout.
+   * ── In flow, and smaller, T209 ──────────────────────────────────────────
+   * It used to be `position: absolute` at `top: 12%`, which was how it sat
+   * above the results rather than over them — until T206 grew the panel and
+   * the two met. The container is a flex column now, so this needs no
+   * positioning of its own and cannot intersect its neighbour.
+   *
+   * Narrower and tighter than the panel below it as well: it is an interruption
+   * rather than the screen's subject, and it now shares the viewport with the
+   * results instead of covering them.
    */
-  inset: 12% auto auto 50%;
-  transform: translateX(-50%);
-  width: min(24rem, 82vw);
-  padding: clamp(1.2rem, 3.2vh, 2rem) clamp(1.1rem, 2.8vh, 1.8rem);
+  width: min(20rem, 76vw);
+  padding: clamp(0.9rem, 2.4vh, 1.4rem) clamp(0.9rem, 2.2vh, 1.4rem);
   border: none;
   border-radius: clamp(0.5rem, 1.4vh, 0.9rem);
   /* The same plate as the panel it sits above, and a deeper shadow so the two

@@ -801,6 +801,12 @@ extracted file of the same name — the JPEXS export's `cmap` is malformed and
 Chrome rejects it. Do not delete it or "restore" the extracted one;
 `fontIntegrity.test.ts` fails if the broken bytes ship.
 
+**The unlock reveal stacks above the results, it does not float (`A61`).**
+`.level-outcome` is a flex column with a gap and `overflow-y: auto`; the reveal
+is a normal child, first in the DOM. **Do not give it `position: absolute`
+again** — the panel's height varies with the outcome, so no offset clears it in
+every case, which is how T206 broke it.
+
 **The results screen has no VICTORY/DEFEAT banner and no Menu button
 (`A60`).** The hidden `<h2>` stays so screen readers still get the outcome.
 The unlock reveal centres with a flex column, not `text-align` — that centres

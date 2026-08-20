@@ -188,6 +188,45 @@ describe('the results screen', () => {
     expect(tile!.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  /*
+   * ── The reveal cannot overlap the results, T209 ───────────────────────
+   *
+   * It floated over them on `position: absolute; top: 12%`, an offset tuned
+   * against the panel as it was before T206 grew it. jsdom computes no layout,
+   * so these pin the **mechanism** that makes overlap impossible rather than
+   * the pixels — the geometry is measured in the browser.
+   */
+  it('stacks the reveal above the results rather than floating it', () => {
+    const { container } = finishWithEnemy('Fast');
+
+    const layer = container.querySelector('.level-outcome')!;
+    const reveal = layer.querySelector('.level-outcome__reveal')!;
+    const panel = layer.querySelector('.level-outcome__panel')!;
+
+    // Both are children of the same flex column, in that order.
+    expect(reveal.parentElement).toBe(layer);
+    expect(panel.parentElement).toBe(layer);
+    expect(reveal.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('takes the reveal out of absolute positioning', () => {
+    /*
+     * The specific declaration that caused the overlap. Asserted as absent
+     * because re-tuning the percentage was the tempting fix and would have
+     * broken again the next time either panel changed height.
+     */
+    const reveal = block('.level-outcome__reveal');
+    expect(reveal).not.toMatch(/position:\s*absolute/);
+    expect(reveal).not.toMatch(/inset:/);
+
+    // And the container is what spaces them, with room to scroll when the
+    // pair is taller than a short viewport.
+    const layer = block('.level-outcome');
+    expect(layer).toMatch(/flex-direction:\s*column/);
+    expect(layer).toMatch(/gap:/);
+    expect(layer).toMatch(/overflow-y:\s*auto/);
+  });
+
   it('names the portrait for a screen reader', () => {
     // The tile is a picture with no text in it, so the name has to come from
     // outside the art — and it must be the enemy, not a generic label.
