@@ -4215,9 +4215,76 @@ code {
   border-bottom: 2px solid var(--steel-700);
 }
 
-.screen-shell__shield {
-  width: 2.25rem;
+/*
+ * The crest, which is also the way home (T207).
+ *
+ * ── Bigger, because it is a control now ──────────────────────────────────
+ * It was a fixed `2.25rem` ornament. As a button that needs to read as one it
+ * is larger and fluid — `clamp` in `vh` so it grows with the bar rather than
+ * shrinking into a corner on a 4K screen, and never smaller than the 44px
+ * touch floor every other control in this project holds.
+ */
+.screen-shell__shield-button {
+  display: grid;
+  place-items: center;
   flex: none;
+  width: clamp(2.75rem, 6vh, 4rem);
+  height: clamp(2.75rem, 6vh, 4rem);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: clamp(0.4rem, 1.1vh, 0.7rem);
+  background: transparent;
+  cursor: pointer;
+  /* Colour and scale only, and the scale is on the art rather than the button
+     — a button that changes its own size reflows the bar under the title. */
+  transition: background-color 130ms ease-out;
+}
+
+.screen-shell__shield-button:hover {
+  background: rgb(255 255 255 / 10%);
+}
+
+.screen-shell__shield-button:focus-visible {
+  outline: 2px solid var(--steel-000);
+  outline-offset: 2px;
+}
+
+.screen-shell__shield {
+  width: 100%;
+  flex: none;
+  /*
+   * The lift lives here, on the art, so the button's own box never changes
+   * size. `transform` and `filter` rather than a size change for the same
+   * reason the HUD's controls only brighten: furniture that resizes under the
+   * pointer moves everything beside it.
+   */
+  transition:
+    transform 130ms ease-out,
+    filter 130ms ease-out;
+}
+
+.screen-shell__shield-button:hover .screen-shell__shield {
+  transform: scale(1.08);
+  filter: brightness(1.15);
+}
+
+.screen-shell__shield-button:active .screen-shell__shield {
+  transform: scale(0.96);
+  filter: brightness(0.95);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-shell__shield,
+  .screen-shell__shield-button {
+    transition: none;
+  }
+
+  .screen-shell__shield-button:hover .screen-shell__shield,
+  .screen-shell__shield-button:active .screen-shell__shield {
+    transform: none;
+  }
 }
 
 /*

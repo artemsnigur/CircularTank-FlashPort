@@ -7,6 +7,8 @@
  * draws, which one marks itself, and whether a screen reader can tell one
  * button from another when every label is a picture.
  */
+import { readFileSync } from 'node:fs';
+
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 
@@ -69,6 +71,59 @@ describe('ScreenShell', () => {
       </ScreenShell>,
     );
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The crest, which is the way home — T207.
+ *
+ * It was `IconShield` drawn at the bar's left and nothing else. T204 had
+ * removed the dock's Main menu button, so this is now the only one-click route
+ * to the title screen, which makes it worth pinning properly.
+ */
+describe('the shield goes home', () => {
+  it('is a button, and asks to go to the main menu', () => {
+    const seen: string[] = [];
+    GameEvents.subscribe('ui:goto', ({ key }) => seen.push(key));
+
+    render(
+      <ScreenShell title="Options" titleClip="TitleOptions" nav="Options">
+        <p>body</p>
+      </ScreenShell>,
+    );
+
+    const crest = screen.getByRole('button', { name: 'Main menu' });
+    crest.click();
+    expect(seen).toEqual(['MainMenu']);
+  });
+
+  it('is absent when the shell is asked for no shield', () => {
+    /*
+     * The counterpart, on the same component: `shield={false}` is the main
+     * menu's own setting, and a home button on the home screen would be a
+     * button that does nothing. Without this, "there is a crest" would pass
+     * even if the prop had stopped being read.
+     */
+    render(
+      <ScreenShell title="Options" titleClip="TitleOptions" nav={null} shield={false}>
+        <p>body</p>
+      </ScreenShell>,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Main menu' })).not.toBeInTheDocument();
+  });
+
+  it('holds the touch floor and says it is clickable', () => {
+    const CSS = readFileSync('src/styles/global.css', 'utf8');
+    const code = CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+    const at = code.indexOf('.screen-shell__shield-button {');
+    expect(at, 'the shield button has no rule').toBeGreaterThan(-1);
+    const rule = code.slice(at, code.indexOf('}', at));
+
+    expect(rule).toMatch(/cursor:\s*pointer/);
+    expect(rule).toMatch(/min-height:\s*44px/);
+    // Fluid, so it grows with the bar rather than shrinking on a large screen.
+    expect(rule).toMatch(/clamp\([^)]*vh[^)]*\)/);
   });
 });
 

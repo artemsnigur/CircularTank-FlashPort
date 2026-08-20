@@ -813,6 +813,12 @@ border, and it reads mode -> objective -> count. The digit line is reserved by
 load-bearing (the display face descends outside its line box). No Start button
 exists — the AS3 countdown runs automatically.
 
+**The title-bar crest is the home button (`A59`).** `IconShield` is a real
+button on every screen that shows it — `shield={false}` turns it off, which is
+the main menu's own setting. It is the one-click route home now that the dock
+has none. Options deliberately has *both* it and Exit to Menu: chrome and a
+settings action, recorded in `A59` rather than being a mistake.
+
 **The dock has no Main menu button (`A56`).** It was removed from the bar
 entirely — the route to the title screen is Options -> Exit to Menu, two clicks
 from any screen. The main menu itself has never had a dock. `MENU_FRAMES` is

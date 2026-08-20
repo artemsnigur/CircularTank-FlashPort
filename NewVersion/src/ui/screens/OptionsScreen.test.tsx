@@ -300,24 +300,35 @@ describe('exit to menu', () => {
     expect(seen).toEqual([{ key: 'MainMenu' }]);
   });
 
-  it('appears exactly once on the screen', () => {
+  it('appears exactly once in the panel, and the shield is the other one', () => {
     /*
-     * The point of the whole change. The dock draws a Main menu button on
-     * every other screen; this one turns it off because the panel has the
-     * action. If the suppression ever stops working the screen shows two
-     * controls doing the same thing, which no other assertion here would
-     * notice — each would still find its own.
+     * ── Two routes home, and that is deliberate (T207) ──────────────────
+     *
+     * This asserted exactly one control on the whole screen named for the main
+     * menu. T207 made the title bar's crest a home button, so there are two:
+     * the crest, which is **global chrome** on every screen, and this panel's
+     * Exit to Menu, which is a settings action.
+     *
+     * The distinction is the assertion. The panel must carry exactly one — a
+     * second copy inside the list would be the duplication A52 is about —
+     * and the crest must be outside it, in the shell's bar.
      */
     mount();
 
-    const toMenu = [...document.querySelectorAll('button')].filter((b) => {
-      const name = `${b.getAttribute('aria-label') ?? ''} ${b.textContent ?? ''}`;
-      return /main menu|exit to menu/i.test(name);
-    });
+    const named = (root: ParentNode) =>
+      [...root.querySelectorAll('button')].filter((b) => {
+        const name = `${b.getAttribute('aria-label') ?? ''} ${b.textContent ?? ''}`;
+        return /main menu|exit to menu/i.test(name);
+      });
 
-    expect(toMenu.map((b) => b.textContent?.trim() || b.getAttribute('aria-label'))).toEqual([
-      'Exit to Menu',
-    ]);
+    const panel = document.querySelector('.options');
+    expect(panel, 'no options panel').not.toBeNull();
+    expect(named(panel!).map((b) => b.textContent?.trim())).toEqual(['Exit to Menu']);
+
+    // And the crest, which is chrome rather than a panel control.
+    const shield = document.querySelector('.screen-shell__shield-button');
+    expect(shield, 'the title bar has no home button').not.toBeNull();
+    expect(shield!.closest('.options'), 'the crest leaked into the panel').toBeNull();
   });
 
   /*

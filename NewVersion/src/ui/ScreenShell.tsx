@@ -22,6 +22,7 @@
  * scaling rule for no gain.
  */
 import { BottomNav } from './BottomNav';
+import { GameEvents } from '../game/events/GameEvents';
 import { TypeTitle } from './TypeTitle';
 import { ChromeArt } from './ChromeArt';
 import type { ChromeClipName } from './ChromeArt';
@@ -66,9 +67,30 @@ export function ScreenShell({
   return (
     <div className={className ? `screen-shell ${className}` : 'screen-shell'}>
       <header className="screen-shell__bar">
-        {/* Frame 1 is its resting state; the other two are the states
-            `ScreenLevelSelect` drives from world progress. */}
-        {shield && <ChromeArt clip="IconShield" frame={1} className="screen-shell__shield" />}
+        {/*
+          ── The shield is the way home, T207 ──────────────────────────────
+          It was decoration — `IconShield` at the bar's left, drawn and no
+          more. T204 took the Main menu button out of the dock, which left the
+          crest as the one thing on every screen that *looks* like a badge and
+          does nothing, while the route home lived two clicks away in options.
+
+          So the crest is the button. It is the top-left corner of a game,
+          which is where a player already reaches to go home, and it needs no
+          room in the layout because it was already there.
+
+          Frame 1 is its resting state; the other two are the states
+          `ScreenLevelSelect` drives from world progress.
+        */}
+        {shield && (
+          <button
+            type="button"
+            className="screen-shell__shield-button"
+            aria-label="Main menu"
+            onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
+          >
+            <ChromeArt clip="IconShield" frame={1} className="screen-shell__shield" />
+          </button>
+        )}
         {typeTitle ? (
           <TypeTitle text={title} as="h1" className="screen-shell__type" />
         ) : (
