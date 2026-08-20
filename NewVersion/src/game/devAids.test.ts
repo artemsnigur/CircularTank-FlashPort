@@ -46,6 +46,7 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     'cake fragment probe',
     'cake impact and burst counters',
     'ground hazard count and depth',
+    'particle count and untextured fallbacks',
     // T69: the sweep aimed at a hard-coded screen point. This is how it finds
     // the tank instead.
     'live tank screen position',
@@ -173,6 +174,6 @@ describe('dev aids are enumerable', () => {
     // files. Taken out at the maintainer's request rather than because it was
     // broken — a dev affordance that ships behind `import.meta.env.DEV` still
     // shows up in every development session, which is where it was unwanted.
-    expect(total).toBe(36);
+    expect(total).toBe(37);
   });
 });

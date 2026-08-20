@@ -856,6 +856,15 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Death debris was never broken (`A71`).** All 19 enemy particle colours
+resolve, ship and register; driven, 0 fall back to `particle-dot`. It was
+small, so `DEBRIS_SCALE` raises velocity and lifetime together and
+`DEBRIS_COUNT_SCALE` raises the count — friction stays at the AS3 value, and
+the count scale is the one to lower if a crowded wave drops frames.
+**Known gap:** `particleShape(clip, 1)` always draws frame 1, so Magic, Poison
+and the muzzle flares lose their variants; harmless for debris, noted at the
+call site.
+
 **Money drops are green $-badges and fly faster (`A70`).** `COIN_SPEED_SCALE`
 multiplies the AS3's attraction and cap; friction is deliberately unscaled.
 The originals are kept as `AS3_*` and still pinned against their source lines

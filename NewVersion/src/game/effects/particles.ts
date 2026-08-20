@@ -7,7 +7,8 @@
  * strength/weakness cue in the game runs through it.
  *
  * ── This one draws from `Math.random`, not `PM_PRNG` ──────────────────────
- * Every randomised term — velocity, lifetime, spawn angle, the variant frame —
+ * Every randomised term — velocity, lifetime, spawn angle, and in the original
+ * the variant frame —
  * uses the unseeded generator. **Particles are not inside any stream**, so
  * unlike the background props there is no draw order to preserve and nothing
  * shifts if a spawn is added or removed. Established by reading every
@@ -54,7 +55,41 @@ export interface ParticlePreset {
  * != "Poison" && …`) with a colour switch inside. Same rule, stated positively:
  * anything not named below is debris.
  */
-export const DEBRIS_PRESET: Omit<ParticlePreset, 'sprite'> = {
+/**
+ * ── Divergence: death debris carries further and lasts longer (T219) ──────
+ *
+ * The AS3's figures are kept below as `AS3_DEBRIS` and this scales two of
+ * them. Nothing here was wrong — the port matched `:820-825` exactly — it was
+ * simply a small effect:
+ *
+ *   velocity `1.5 + random()` against friction `0.2` is spent in about a
+ *   dozen frames, and `lifeTime` is `5 + random() * 10` — between **6 and 17
+ *   hundredths of a second** at 30fps. Debris travelled roughly 10 to 15
+ *   units and was gone before the eye found it.
+ *
+ * Velocity and lifetime are scaled together, because scaling either alone
+ * looks wrong in a specific way: more speed with the same life is a flicker
+ * that ends mid-flight, and more life at the same speed is debris hanging
+ * still. Friction is **not** scaled — it is what makes the burst decelerate
+ * and settle, and raising it with the rest would flatten the arc back out.
+ *
+ * The scale is deliberately modest. This fires on every kill, so the failure
+ * mode of overdoing it is a screen of confetti during an ordinary wave, which
+ * is worse than the understatement being fixed.
+ */
+export const DEBRIS_SCALE = 1.9;
+
+/**
+ * How many more pieces a body breaks into — `:6837` passes `radius / 1.5`.
+ *
+ * Separate from `DEBRIS_SCALE` because they fail differently: too much speed
+ * or life looks *wrong*, too many pieces costs frames. This is the one to
+ * lower first if a crowded wave ever drops frames.
+ */
+export const DEBRIS_COUNT_SCALE = 1.55;
+
+/** `:820-825` — the original's own numbers, kept for the source-pinning test. */
+export const AS3_DEBRIS = {
   velocity: 1.5,
   velocityRandom: 1,
   friction: 0.2,
@@ -63,6 +98,17 @@ export const DEBRIS_PRESET: Omit<ParticlePreset, 'sprite'> = {
   scaleMax: 2,
   scaleMin: 0.2,
   killVelocity: 0,
+} as const;
+
+export const DEBRIS_PRESET: Omit<ParticlePreset, 'sprite'> = {
+  velocity: AS3_DEBRIS.velocity * DEBRIS_SCALE,
+  velocityRandom: AS3_DEBRIS.velocityRandom * DEBRIS_SCALE,
+  friction: AS3_DEBRIS.friction,
+  lifeTime: Math.round(AS3_DEBRIS.lifeTime * DEBRIS_SCALE),
+  lifeTimeRandom: Math.round(AS3_DEBRIS.lifeTimeRandom * DEBRIS_SCALE),
+  scaleMax: AS3_DEBRIS.scaleMax,
+  scaleMin: AS3_DEBRIS.scaleMin,
+  killVelocity: AS3_DEBRIS.killVelocity,
 };
 
 export const PARTICLE_PRESETS: Readonly<Record<string, ParticlePreset>> = {

@@ -164,7 +164,7 @@ import { planBlastOn } from '../weapons/blastPlan';
 import { sweepHazards } from '../weapons/hazardSweep';
 import { displayFrame, layoutLevelProps, propScale } from '../levels/backgroundProps';
 import { propShape, shapeSize } from '../levels/propArt';
-import { presetFor, spawnParticles, tickParticles } from '../effects/particles';
+import { presetFor, spawnParticles, tickParticles , DEBRIS_COUNT_SCALE} from '../effects/particles';
 import type { Particle, SpawnInput } from '../effects/particles';
 import { particleShape } from '../effects/particleArt';
 import { PARTICLE_RASTER_SCALE } from '../../assets/manifest';
@@ -3548,6 +3548,21 @@ export class GameplayScene extends Phaser.Scene {
        * but whether the scene *calls* it is wiring), and what depth they end
        * up at, which is the ordering bug that started this.
        */
+      /**
+       * DEV-AID: live particles and how many fell back to `particle-dot`, for
+       * T219.
+       *
+       * "Fix the death particles" came with no symptom, and the two
+       * possibilities look identical from a description: debris that is
+       * *small* and debris that is drawing the untextured fallback because a
+       * shape never loaded. Only the texture key separates them.
+       */
+      particles: {
+        count: this.particles.length,
+        untextured: this.particleSprites.filter(
+          (sprite) => sprite.visible && sprite.texture.key === 'particle-dot',
+        ).length,
+      },
       hazards: {
         count: this.hazards.length,
         depth: this.hazards[0]?.sprite.depth ?? null,
@@ -4054,6 +4069,23 @@ export class GameplayScene extends Phaser.Scene {
         continue;
       }
       const clip = presetFor(particle.type).sprite;
+      /*
+       * ── Gap: always frame 1, where the AS3 picks a variant (T219) ───────
+       *
+       * `:846`/`:852` call `gotoAndStop` with a drawn frame, and
+       * `particles.ts`'s own docstring lists "the variant frame" among the
+       * randomised terms — but `Particle` carries no frame field, so nothing
+       * chooses one and this asks for 1 every time.
+       *
+       * **Harmless for enemy debris**, which is why it was not fixed here:
+       * every `Enemy*` clip has exactly one frame. It costs variety on the
+       * five clips that have more — Magic (3), Poison (2) and the three muzzle
+       * flares (4 each), which always draw their first.
+       *
+       * Fixing it means a `frame` on the particle, chosen at spawn from
+       * `PARTICLE_CLIPS[clip].frames.length`, and re-reading `:846` to see
+       * whether the choice is uniform or per-type.
+       */
       const shape = particleShape(clip, 1);
       // Flash anchors a clip at its **registration point**; Phaser defaults to
       // the centre. Identical for 33 of the 44 particle shapes, and not for the
@@ -5595,13 +5627,21 @@ export class GameplayScene extends Phaser.Scene {
    * so every other caller keeps the ordinary death sound.
    */
   private removeEnemy(enemy: Enemy, payMoney: boolean, bottomCollision = false): void {
-    // `:6837` — the body bursts into debris of its own colour. Count and reach
-    // both scale with the enemy's radius, so a boss showers and a small enemy
-    // puffs; the remaining arguments are `spawnParticle`'s defaults, which put
-    // it in a full circle at rest.
+    /*
+     * `:6837` — the body bursts into debris of its own colour. Count and reach
+     * both scale with the enemy's radius, so a boss showers and a small enemy
+     * puffs; the remaining arguments are `spawnParticle`'s defaults, which put
+     * it in a full circle at rest.
+     *
+     * The divisor is the AS3's, scaled by `DEBRIS_COUNT_SCALE` (T219) — a
+     * radius-14 enemy went from 9 pieces to 14, which is enough to read as a
+     * burst rather than a handful without becoming confetti on a busy wave.
+     * Kept as a division so the shape of the rule survives: a boss still
+     * showers in proportion to its size.
+     */
     this.burst({
       type: enemy.particle,
-      count: Math.round(enemy.radius / 1.5),
+      count: Math.round((enemy.radius / 1.5) * DEBRIS_COUNT_SCALE),
       x: enemy.x,
       y: enemy.y,
       distance: enemy.radius,
