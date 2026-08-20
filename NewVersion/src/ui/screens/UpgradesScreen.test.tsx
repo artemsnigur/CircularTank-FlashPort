@@ -297,11 +297,17 @@ describe('the slot summary and the balance — T158', () => {
     publish([row()]);
     render(<UpgradesScreen />);
 
-    // `$` and the accessible name, because the figure is read as a resource
-    // and the glyph alone says nothing to a screen reader.
+    /*
+     * `$` and an accessible name, because the figure is read as a resource and
+     * the glyph alone says nothing to a screen reader.
+     *
+     * The name said "5000 coins" until T210 made the whole screen speak in
+     * dollars. Same reasoning, new wording — and it now carries the grouped
+     * figure rather than a raw one, so what is heard matches what is shown.
+     */
     const balance = document.querySelector('.shop__balance');
     expect(balance).toHaveTextContent('$5,000');
-    expect(balance).toHaveAttribute('aria-label', '5000 coins');
+    expect(balance).toHaveAttribute('aria-label', 'Balance: $5,000');
   });
 });
 
@@ -458,7 +464,33 @@ describe('the detail window', () => {
     render(<UpgradesScreen />);
 
     expect(document.querySelector('.shop-buy__verb')).toHaveTextContent('Upgrade');
-    expect(document.querySelector('.shop-buy__price')).toHaveTextContent('1,600');
+    expect(document.querySelector('.shop-buy__price')).toHaveTextContent('$1,600');
+  });
+
+  /*
+   * ── Dollars, not coins, T210 ──────────────────────────────────────────
+   *
+   * The price carried a `◉` disc. Two things were wrong with it: the screen
+   * already showed the balance directly above as `$5,000`, so one screen spoke
+   * two currencies; and `--font-display` is `SWFMainFont`, 581 glyphs with no
+   * U+25C9 among them, so the disc came from whatever fallback the browser
+   * reached for rather than from the game's own face.
+   */
+  it('prices in dollars, with no coin glyph anywhere', () => {
+    publish([row({ cost: 1600, affordable: true })]);
+    render(<UpgradesScreen />);
+
+    const price = document.querySelector('.shop-buy__price')!;
+    expect(price.textContent).toBe('$1,600');
+    // The specific glyph, asserted absent across the whole screen rather than
+    // just this node — it is the thing being removed.
+    expect(document.body.textContent).not.toContain('◉');
+
+    // What a screen reader hears agrees with what is drawn, and says neither
+    // "coins" nor a raw ungrouped figure.
+    const buy = document.querySelector('.shop-buy')!;
+    expect(buy.getAttribute('aria-label')).toContain('$1,600');
+    expect(buy.getAttribute('aria-label')).not.toContain('coins');
   });
 });
 

@@ -337,7 +337,10 @@ function DetailWindow({ row, money }: { row: ShopRow | null; money: number }): R
     <aside className="shop-detail" aria-live="polite">
       {/* `addText(moneyText, …, 65280, …)` at `:581` — green, at the window's
           top edge, which is where the AS3 puts it too. */}
-      <p className="shop-detail__balance shop__balance" aria-label={`${money} coins`}>
+      <p
+        className="shop-detail__balance shop__balance"
+        aria-label={`Balance: $${formatNumber(money)}`}
+      >
         ${formatNumber(money)}
       </p>
 
@@ -402,7 +405,9 @@ function DetailWindow({ row, money }: { row: ShopRow | null; money: number }): R
             aria-label={
               maxed
                 ? `${row.name} fully upgraded`
-                : `${row.owned ? 'Upgrade' : 'Buy'} ${row.name} for ${row.cost} coins`
+                : `${row.owned ? 'Upgrade' : 'Buy'} ${row.name} for $${formatNumber(
+                    row.cost ?? 0,
+                  )}`
             }
             onClick={() => GameEvents.emit('ui:buy-upgrade', { id: row.id })}
           >
@@ -411,7 +416,17 @@ function DetailWindow({ row, money }: { row: ShopRow | null; money: number }): R
             ) : (
               <>
                 <span className="shop-buy__verb">{row.owned ? 'Upgrade' : 'Buy'}</span>
-                <span className="shop-buy__price">◉ {formatNumber(row.cost ?? 0)}</span>
+                {/*
+                  `$`, not the `◉` this carried until T210 — the HUD, the
+                  balance directly above and this price are the same currency
+                  and now say so the same way.
+
+                  The glyph had a second problem: `--font-display` is
+                  `SWFMainFont`, which has 581 glyphs and no U+25C9 among them,
+                  so the disc was being drawn by whatever fallback the browser
+                  reached for. A `$` is in the face.
+                */}
+                <span className="shop-buy__price">${formatNumber(row.cost ?? 0)}</span>
               </>
             )}
           </button>
@@ -504,7 +519,7 @@ export function UpgradesScreen(): React.ReactElement | null {
       {(shop?.withheld ?? 0) > 0 && (
         <p className="screen__hint">
           {shop!.withheld} more upgrades exist in the original but are not sold yet — their
-          effects are unported, so buying one would take your coins and change nothing.
+          effects are unported, so buying one would take your money and change nothing.
         </p>
       )}
 

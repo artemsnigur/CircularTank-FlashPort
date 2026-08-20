@@ -845,6 +845,11 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**The shop prices in dollars (`A62`).** The `◉` glyph is gone — it was not in
+`SWFMainFont`'s 581 glyphs and came from a browser fallback. Price, balance and
+both accessible names all say `$`. The price green is the shop balance's
+`#7dff8a`, deliberately not the HUD's `#4ade6a`.
+
 **Shop blurbs are hand-authored (`A53`).** `upgradeDescriptionData.ts` is
 generated from the AS3 and must not be edited; the one-line shop copy lives in
 `upgradeBlurbs.ts`, with tests requiring the two to cover each other exactly.

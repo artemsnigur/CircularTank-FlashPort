@@ -3227,8 +3227,21 @@ code {
   color: #f4fff5;
 }
 
+/*
+ * The price, green — T210.
+ *
+ * `.gloss-pill.shop-buy` is a hard split: green above the midline for the verb,
+ * near-black below for the price. Green on that lower half reads well and
+ * echoes the half above it, and it is the same green as
+ * `.shop-detail__balance` directly above — one screen, one colour for money,
+ * which is what stopped three glass tile surfaces agreeing in `A38`.
+ *
+ * Note this is *not* the HUD's `#4ade6a`. The two greens predate this change
+ * and matching the figure on the same screen was the stronger consistency;
+ * unifying them is a palette decision rather than a currency one.
+ */
 .shop-buy__price {
-  color: #dfe7ea;
+  color: #7dff8a;
   font-variant-numeric: tabular-nums;
 }
 
