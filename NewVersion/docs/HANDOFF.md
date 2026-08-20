@@ -768,6 +768,17 @@ decisive, wrong result and was believed.*
     in one run. **Collect console output in every driven harness** — it is free,
     and it is the only channel a working self-test has.
 
+25. **A *failed* build serves the previous bundle.** `npm run build` is
+    typecheck-then-build; when the typecheck fails, `dist/` is not rewritten
+    and `vite preview` serves the last good one. A driven harness then measures
+    **old code** and reports the bug still present. This happened on T211 and
+    the fix was already correct.
+
+    Vitest does not typecheck, so a type error can pass every test and only
+    `tsc` objects. **Confirm the build succeeded before believing a driven
+    result**, and do not let a harness's output start where the build's output
+    ends — the `tsc` error was one line above `at boot:`.
+
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
 be checked against a second mode on the same build before it is believed.
@@ -844,6 +855,13 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `margin-top: auto` that pins the block to the card bottom lives on
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
+
+**Save slots re-read on every menu entry (`A63`).** `SaveStore` loads once in
+its constructor, and there are two instances over each slot key — the profile's
+(gameplay writes) and `MainMenuScene`'s (the menu reads). Phaser reuses scene
+instances, so the menu's copy was built at boot. `publishSlots()` calls
+`reloadAll()` first; **do not remove it**, or the slot list goes stale again
+until a page reload.
 
 **The shop prices in dollars (`A62`).** The `◉` glyph is gone — it was not in
 `SWFMainFont`'s 581 glyphs and came from a browser fallback. Price, balance and

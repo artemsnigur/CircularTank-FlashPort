@@ -176,6 +176,19 @@ export class SaveStore {
    * `SharedObject.flush()`. Returns false rather than throwing when the quota
    * is exceeded, because every AS3 caller treats saving as best-effort.
    */
+  /**
+   * Re-read this store from the backend, keeping any unflushed writes.
+   *
+   * Flushes before reading so a pending change is persisted rather than
+   * thrown away: this is called to *refresh* a stale view, and losing a
+   * write on the way would be a far worse bug than the one it fixes.
+   */
+  reload(): void {
+    this.flush();
+    this.data = SaveStore.load(this.name, this.backend);
+    this.dirty = false;
+  }
+
   flush(): boolean {
     if (!this.dirty) return true;
     try {
@@ -228,5 +241,31 @@ export class SaveStores {
     let ok = this.options.flush();
     for (const store of this.slots.values()) ok = store.flush() && ok;
     return ok;
+  }
+
+  /**
+   * Re-read every cached store from the backend.
+   *
+   * ── Why this has to exist ────────────────────────────────────────────
+   * A `SaveStore` loads once in its constructor and answers every read from
+   * that copy. That is the AS3's `SharedObject` shape and it is fine for one
+   * owner — but **two instances over the same key diverge silently**, and this
+   * game has exactly that: `getPlayerProfile` builds its own store for the
+   * active slot and gameplay writes through it, while `MainMenuScene` holds a
+   * separate `SaveStores` for listing all three.
+   *
+   * The menu's copy is built once, when Phaser constructs the scene at boot,
+   * and Phaser reuses scene instances across `start`. So the menu kept showing
+   * the slots as they were at page load: play a level, come back, and the slot
+   * still read "New game" until the page was reloaded and every instance was
+   * rebuilt.
+   *
+   * Pending writes are flushed first rather than discarded — the menu itself
+   * writes when a slot is deleted, and a reload that dropped that would turn a
+   * display bug into a data-loss one.
+   */
+  reloadAll(): void {
+    this.options.reload();
+    for (const store of this.slots.values()) store.reload();
   }
 }

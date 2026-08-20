@@ -178,8 +178,19 @@ export class MainMenuScene extends Phaser.Scene {
     GameEvents.emit('menu:resume-point', resume);
   }
 
-  /** One row per save slot — `ButtonGameSave` reads the same four facts. */
+  /**
+   * One row per save slot — `ButtonGameSave` reads the same four facts.
+   *
+   * **Re-read first.** `this.saveStores` is a field initialiser, so it is
+   * built once when Phaser constructs this scene and survives every
+   * `scene.start`; its stores load their data in their own constructors and
+   * answer from that copy forever. Gameplay writes through a *different*
+   * instance — `getPlayerProfile`'s, cached in the game registry — so without
+   * this the menu showed the slots as they were at page load. Play a level,
+   * come back, and the slot still said "New game" until a reload.
+   */
   private publishSlots(): void {
+    this.saveStores.reloadAll();
     GameEvents.emit('save:slots', { slots: summariseSlots(this.saveStores) });
   }
 
