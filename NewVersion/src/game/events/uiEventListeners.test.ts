@@ -208,9 +208,24 @@ describe('the shop', () => {
     expect(read('src/ui/screens/UpgradesScreen.tsx')).toContain('<ScreenShell');
   });
 
-  it('and the bar it moved into carries a route to the menu', () => {
-    // The counterpart: a layout that reserves a row for navigation proves
-    // nothing if the navigation has no way out of the shop.
-    expect(read('src/ui/BottomNav.tsx')).toContain("key: 'MainMenu'");
+  it('and the bar it moved into carries a route out of the shop', () => {
+    /*
+     * The counterpart: a layout that reserves a row for navigation proves
+     * nothing if the navigation has no way out of the shop.
+     *
+     * This read `BottomNav.tsx` for `key: 'MainMenu'` until T204, which took
+     * the Main menu button out of the bar — the action lives in the options
+     * panel now (`A54`, `A56`). So the route being checked is the one to
+     * options, which is what the bar actually offers.
+     *
+     * **This proves the string is written, not that the button is reachable**
+     * — it is a source scan over a component this file cannot render. The
+     * behavioural version lives in `ScreenShell.test.tsx`, which clicks the
+     * real button and reads the event.
+     */
+    const bar = read('src/ui/BottomNav.tsx');
+    expect(bar).toContain("'Options'");
+    // And the thing that moved is genuinely gone from here, not just unused.
+    expect(bar).not.toContain("key: 'MainMenu'");
   });
 });

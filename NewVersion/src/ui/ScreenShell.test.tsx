@@ -75,9 +75,13 @@ describe('ScreenShell', () => {
 describe('BottomNav', () => {
   it('gives every button a name, since all of them are pictures', () => {
     render(<BottomNav current="LevelSelect" />);
-    for (const name of ['Upgrades', 'Level select', 'Achievements', 'Enemies', 'Options', 'Main menu']) {
+    for (const name of ['Upgrades', 'Level select', 'Achievements', 'Enemies', 'Options']) {
       expect(screen.getByRole('button', { name }), name).toBeInTheDocument();
     }
+
+    // `Main menu` was in this list until T204 removed it from the bar. Asserted
+    // absent rather than just dropped, so the list cannot silently regrow.
+    expect(screen.queryByRole('button', { name: 'Main menu' })).not.toBeInTheDocument();
   });
 
   it('marks exactly one tab as current', () => {
@@ -104,11 +108,17 @@ describe('BottomNav', () => {
     render(<BottomNav current="LevelSelect" />);
     screen.getByRole('button', { name: 'Upgrades' }).click();
     screen.getByRole('button', { name: 'Enemies' }).click();
-    screen.getByRole('button', { name: 'Main menu' }).click();
+    screen.getByRole('button', { name: 'Options' }).click();
 
-    // `Enemies` opens `Bestiary`: the player-facing screen keeps the AS3's
-    // title and the port's own scene name, and this is where the two meet.
-    expect(seen).toEqual(['Upgrades', 'Bestiary', 'MainMenu']);
+    /*
+     * `Enemies` opens `Bestiary`: the player-facing screen keeps the AS3's
+     * title and the port's own scene name, and this is where the two meet.
+     *
+     * The third click was `Main menu` until T204 took that button out of the
+     * bar. `Options` replaces it here deliberately — it is now the bar's route
+     * *towards* the title screen, since the options panel carries Exit to Menu.
+     */
+    expect(seen).toEqual(['Upgrades', 'Bestiary', 'Options']);
   });
 
   it('does not navigate from the tab you are already on', () => {

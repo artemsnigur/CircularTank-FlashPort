@@ -320,24 +320,42 @@ describe('exit to menu', () => {
     ]);
   });
 
-  it('leaves the dock alone on every other screen', () => {
-    /*
-     * The counterpart, and the one that matters most: this is a per-screen
-     * opt-out, not a removal. Driven through `BottomNav` directly on its
-     * default, because the claim is about the default rather than about any
-     * particular screen.
-     */
-    const { container } = render(<BottomNav current="Upgrades" />);
-    const menu = [...container.querySelectorAll('button')].filter(
-      (b) => b.getAttribute('aria-label') === 'Main menu',
-    );
-    expect(menu).toHaveLength(1);
+  /*
+   * ── The rule changed in T204, and this test changed with it ───────────
+   *
+   * T202 made the dock's Main menu button a **per-screen opt-out**, and this
+   * asserted exactly that: present by default, absent on options. T204 removed
+   * the button from the bar entirely, so the old assertion would now be
+   * testing a `showMenu` prop that no longer exists.
+   *
+   * Replaced rather than deleted, because the underlying claim still matters
+   * and got stronger: the bar carries no route to the title screen at all, and
+   * the options panel is the only one.
+   */
+  it('leaves no menu button in the dock, on any screen', () => {
+    for (const current of ['Upgrades', 'LevelSelect', 'Enemies', 'Achievements', 'Options']) {
+      const { container, unmount } = render(<BottomNav current={current as never} />);
+      const menu = [...container.querySelectorAll('button')].filter((b) =>
+        /main menu/i.test(b.getAttribute('aria-label') ?? ''),
+      );
+      expect(menu, `${current} still has a dock menu button`).toHaveLength(0);
+      unmount();
+    }
+  });
 
-    // And the opt-out actually opts out, on the same component.
-    const off = render(<BottomNav current="Options" showMenu={false} />);
-    const gone = [...off.container.querySelectorAll('button')].filter(
-      (b) => b.getAttribute('aria-label') === 'Main menu',
+  it('still leaves a route to the title screen, from the dock, everywhere', () => {
+    /*
+     * The counterpart, and the reason the removal above is safe rather than a
+     * dead end: every screen's bar reaches **Options**, and options carries
+     * *Exit to Menu*. Two clicks from anywhere.
+     *
+     * Asserted because "remove the button" and "strand the player" differ only
+     * by this one fact, and nothing else in the suite covers it.
+     */
+    const { container } = render(<BottomNav current="LevelSelect" />);
+    const options = [...container.querySelectorAll('button')].filter(
+      (b) => b.getAttribute('aria-label') === 'Options',
     );
-    expect(gone).toHaveLength(0);
+    expect(options, 'the dock cannot reach options').toHaveLength(1);
   });
 });

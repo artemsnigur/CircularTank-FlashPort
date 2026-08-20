@@ -66,6 +66,17 @@ export function navFrames(destination: NavDestination, affordable = false): NavF
 }
 
 /** `ButtonMenu`'s frames, kept separate because it is not a destination. */
+/**
+ * `ButtonMenu`'s frames.
+ *
+ * **Nothing renders this since T204**, which removed the bar's Main menu
+ * button — the action moved into the options panel as *Exit to Menu* (`A54`,
+ * `A56`). Kept because it is extracted data rather than code: it records the
+ * AS3 clip's 3-frame layout, and the clip is still in the library. Deleting it
+ * would throw away a fact about the original to tidy an unused export.
+ *
+ * If the bar ever regains a menu button, this is what it draws with.
+ */
 export const MENU_FRAMES = MENU;
 
 /**

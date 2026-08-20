@@ -130,9 +130,6 @@ export function OptionsScreen(): React.ReactElement | null {
       titleClip="TitleOptions"
       typeTitle
       nav="Options"
-      // The dock's own Main menu button is suppressed here; this screen puts
-      // the same action in the panel instead. T202.
-      navMenuButton={false}
       className="screen--options"
     >
       <div className="options">

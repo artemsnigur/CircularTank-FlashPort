@@ -19,7 +19,7 @@ import { GameEvents } from '../game/events/GameEvents';
 import { useGameStore } from '../state/gameStore';
 import { ChromeArt } from './ChromeArt';
 import type { ChromeClipName } from './ChromeArt';
-import { MENU_FRAMES, isNavigable, navFrames } from '../game/ui/navTabs';
+import { isNavigable, navFrames } from '../game/ui/navTabs';
 import type { NavDestination } from '../game/ui/navTabs';
 import type { SceneKey } from '../game/config/constants';
 
@@ -88,18 +88,9 @@ function NavButton({
 
 export function BottomNav({
   current,
-  showMenu = true,
 }: {
   /** The destination the player is on, so exactly one tab marks itself. */
   current: NavDestination | null;
-  /**
-   * Whether the bar draws its own Main menu button.
-   *
-   * Defaults to true, so the dock is identical on every screen unless a screen
-   * says otherwise — and only one does. The options screen carries the same
-   * action in its panel (T202) and would otherwise show it twice.
-   */
-  showMenu?: boolean;
 }): React.ReactElement {
   /*
    * Read here rather than passed in. Every screen that shows this bar
@@ -131,26 +122,24 @@ export function BottomNav({
         {tab('LevelSelect', 'Level select', true)}
       </div>
 
-      <div className="bottom-nav__icons">
-        {ICONS.map((destination) => tab(destination, destination))}
-        {/* Menu is last in the port and third-from-last in the AS3, where
-            Premium sat between. It leads out of the bar rather than across it,
-            so it has no current state to draw — `ButtonMenu` has 3 frames.
+      {/*
+        ── No Main menu button here, T204 ─────────────────────────────────
+        The AS3 puts `ButtonMenu` in this bar, third-from-last, and so did this
+        port — first everywhere, then everywhere but options (T202), and now
+        nowhere.
 
-            Suppressed on the options screen (T202), which carries its own
-            **Exit to Menu** in the panel. The dock is otherwise identical on
-            every screen and should stay that way: this is an opt-out for the
-            one screen that duplicates the action, not a general switch. */}
-        {showMenu ? (
-          <NavButton
-            clip="ButtonMenu"
-            label="Main menu"
-            frames={MENU_FRAMES}
-            current={false}
-            onClick={() => GameEvents.emit('ui:goto', { key: 'MainMenu' })}
-          />
-        ) : null}
-      </div>
+        **The action did not disappear; it moved.** Options carries *Exit to
+        Menu* in its own panel (`A54`), and the options button is in this bar
+        on every screen, so the title screen is two clicks from anywhere. What
+        is gone is a second control doing the same thing in a corner, which is
+        the duplication `A52` is about.
+
+        Kept as a comment rather than a dead prop: the previous shape was a
+        `showMenu` flag defaulting to true, which became a switch nobody could
+        turn on once the button was gone. An unreachable option is worse than
+        no option.
+      */}
+      <div className="bottom-nav__icons">{ICONS.map((destination) => tab(destination, destination))}</div>
     </nav>
   );
 }

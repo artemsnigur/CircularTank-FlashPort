@@ -801,6 +801,11 @@ extracted file of the same name — the JPEXS export's `cmap` is malformed and
 Chrome rejects it. Do not delete it or "restore" the extracted one;
 `fontIntegrity.test.ts` fails if the broken bytes ship.
 
+**The dock has no Main menu button (`A56`).** It was removed from the bar
+entirely — the route to the title screen is Options -> Exit to Menu, two clicks
+from any screen. The main menu itself has never had a dock. `MENU_FRAMES` is
+kept as extracted data although nothing renders it.
+
 **Exit to Menu is on the options panel, not the dock, and only there
 (`A54`).** `BottomNav` takes `showMenu`, defaulting to **true**; only Options
 passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
