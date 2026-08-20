@@ -11,10 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ALPHA_LINEAR,
   ALPHA_SQUARED,
-  AS3_DEBRIS,
-  DEBRIS_COUNT_SCALE,
   DEBRIS_PRESET,
-  DEBRIS_SCALE,
   PARTICLE_PRESETS,
   alphaFor,
   isDead,
@@ -139,35 +136,23 @@ describe('the preset table', () => {
     const green = presetFor('EnemyGreen');
     expect(green.sprite).toBe('Green');
     expect(green.killVelocity).toBe(0);
-
-    // Derived, not restated: T219 scales the flight and this follows it.
-    expect(green.velocity).toBeCloseTo(AS3_DEBRIS.velocity * DEBRIS_SCALE, 6);
+    expect(green.velocity).toBe(1.5);
   });
 
-  it('keeps the AS3 debris figures, and scales the flight off them', () => {
+  it('carries the AS3 debris figures unscaled', () => {
     /*
-     * `:820-825`. The originals are still asserted against their source line
-     * after T219 made the burst bigger — a divergence that deletes the number
-     * it diverged from is how a tuning change becomes an invented constant.
+     * `:820-825`, stated from the source rather than read back out of the
+     * module — T219 scaled velocity and lifetime and T220 reverted it, so
+     * these are the numbers that say which of the two is in force. A future
+     * retune has to edit this test deliberately, which is the point.
      */
-    expect(AS3_DEBRIS.velocity).toBe(1.5);
-    expect(AS3_DEBRIS.friction).toBe(0.2);
-    expect(AS3_DEBRIS.lifeTime).toBe(5);
-    expect(AS3_DEBRIS.lifeTimeRandom).toBe(10);
-    expect(AS3_DEBRIS.scaleMax).toBe(2);
-
-    // Friction is deliberately *not* scaled: it is what makes the burst
-    // decelerate, and raising it with the rest would flatten the arc back out.
-    expect(DEBRIS_PRESET.friction).toBe(AS3_DEBRIS.friction);
-
-    // Velocity and lifetime move together — speed without life is a flicker
-    // that ends mid-flight, life without speed is debris hanging still.
-    expect(DEBRIS_PRESET.velocity).toBeCloseTo(AS3_DEBRIS.velocity * DEBRIS_SCALE, 6);
-    expect(DEBRIS_PRESET.lifeTime).toBe(Math.round(AS3_DEBRIS.lifeTime * DEBRIS_SCALE));
-
-    // And the direction of the change, so a scale of 1 fails.
-    expect(DEBRIS_SCALE).toBeGreaterThan(1);
-    expect(DEBRIS_COUNT_SCALE).toBeGreaterThan(1);
+    expect(DEBRIS_PRESET.velocity).toBe(1.5);
+    expect(DEBRIS_PRESET.velocityRandom).toBe(1);
+    expect(DEBRIS_PRESET.friction).toBe(0.2);
+    expect(DEBRIS_PRESET.lifeTime).toBe(5);
+    expect(DEBRIS_PRESET.lifeTimeRandom).toBe(10);
+    expect(DEBRIS_PRESET.scaleMax).toBe(2);
+    expect(DEBRIS_PRESET.scaleMin).toBe(0.2);
   });
 
   it('muzzle flares and Reflect face the angle they were given', () => {

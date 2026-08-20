@@ -37,8 +37,18 @@ import type { DamageType } from '../enemies/enemyStatsData';
  *
  * `Standard` is the common shape (`BulletShotgun`, the three food rounds and
  * `BulletPoison`): three debris at `-0.25`, an ungated cue at full size.
+ *
+ * `None` is the other real answer, and it covers two classes the AS3's branch
+ * chain never reaches. See the table below.
  */
-export type ImpactClass = 'Small' | 'Standard' | 'Spike' | 'Magic';
+export type ImpactClass =
+  | 'Small'
+  | 'Standard'
+  | 'Spike'
+  | 'Magic'
+  | 'Cheese'
+  | 'Bomb'
+  | 'None';
 
 /** `:3373` — the cue's cooldown, in frames. Only `BulletSmall` uses it. */
 export const STRONG_WEAK_TIMER_MAX = 5;
@@ -65,17 +75,70 @@ interface ImpactShape {
   immuneScale: number;
   /** Whether the cue respects `strongWeakTimer`. Only `BulletSmall` does. */
   cooldown: boolean;
+  /**
+   * Whether the class shows `Strength`/`Weakness`/`Immune` at all.
+   *
+   * False is a real answer rather than a gap, and it is the answer for three
+   * classes: `BulletFire` and `BulletPenetrate` appear in **none** of the
+   * `:5684-5792` branches, and `BulletBomb`'s burst at `:5828` is debris and a
+   * sound with no cue beside it.
+   */
+  cues: boolean;
+  /**
+   * Whether the burst survives an immune enemy — `BulletBomb` only.
+   *
+   * `:5828` is guarded on `!theEnemy.gotBomb` and on nothing else: the bomb
+   * sticks to an enemy that takes no damage from it, and throws its debris
+   * either way. Every other class puts the whole burst inside
+   * `if(multiplier > 0)`.
+   */
+  ignoresImmunity: boolean;
 }
+
+const CUED = { cues: true, ignoresImmunity: false } as const;
 
 const SHAPES: Record<ImpactClass, ImpactShape> = {
   // `:5689-5705`.
-  Small: { debris: 1, debrisMaxScale: -0.75, cueSizeOffset: -0.3, immuneScale: 1, cooldown: true },
+  Small: { debris: 1, debrisMaxScale: -0.75, cueSizeOffset: -0.3, immuneScale: 1, cooldown: true, ...CUED },
   // `:5712-5738`, `:5777-5790`.
-  Standard: { debris: 3, debrisMaxScale: -0.25, cueSizeOffset: 0, immuneScale: 2, cooldown: false },
+  Standard: { debris: 3, debrisMaxScale: -0.25, cueSizeOffset: 0, immuneScale: 2, cooldown: false, ...CUED },
   // `:5745-5772` — Icicle and Poison Spike throw one, not three.
-  Spike: { debris: 1, debrisMaxScale: -0.25, cueSizeOffset: 0, immuneScale: 2, cooldown: false },
+  Spike: { debris: 1, debrisMaxScale: -0.25, cueSizeOffset: 0, immuneScale: 2, cooldown: false, ...CUED },
   // `:5806-5818` — the magic rounds show a cue and no debris at all.
-  Magic: { debris: 0, debrisMaxScale: -0.25, cueSizeOffset: 0, immuneScale: 2, cooldown: false },
+  Magic: { debris: 0, debrisMaxScale: -0.25, cueSizeOffset: 0, immuneScale: 2, cooldown: false, ...CUED },
+  /*
+   * `:5966-5978` — Crazy Cheese. One debris at `-0.75` like `BulletSmall`, but
+   * a full-size cue, an `Immune` at 2 and no cooldown, so it is its own shape
+   * rather than either of the two it half resembles. It reached `Standard` by
+   * fall-through before T220, which gave it three pieces instead of one.
+   */
+  Cheese: { debris: 1, debrisMaxScale: -0.75, cueSizeOffset: 0, immuneScale: 2, cooldown: false, ...CUED },
+  /*
+   * `:5828` — the timed bomb, thrown as the round sticks. No cue of any kind,
+   * and the AS3 does not gate it on a multiplier: see `ignoresImmunity`.
+   */
+  Bomb: {
+    debris: 3, debrisMaxScale: -0.25, cueSizeOffset: 0, immuneScale: 2,
+    cooldown: false, cues: false, ignoresImmunity: true,
+  },
+  /*
+   * Nothing at all — `BulletFire` and `BulletPenetrate`.
+   *
+   * **Not found by grep, and by this method**: all 65 `spawnParticle` sites in
+   * `PartGameArea.as` were listed, and neither class appears in any of them.
+   * The `:5684-5792` chain tests `BulletSmall`, then the four food rounds and
+   * the shotgun, then the two spikes, then `BulletPoison`, and stops — a fire
+   * or penetrating round falls off the end of it.
+   *
+   * This matters most for fire, which overlaps its target *every frame it
+   * burns*: on the fall-through it was throwing three pieces and a cue per
+   * enemy per frame, which is the one place in the scene where a wrong shape
+   * compounds instead of just looking wrong once.
+   */
+  None: {
+    debris: 0, debrisMaxScale: 0, cueSizeOffset: 0, immuneScale: 0,
+    cooldown: false, cues: false, ignoresImmunity: false,
+  },
 };
 
 /**
@@ -93,6 +156,11 @@ const IMPACT_CLASSES: Readonly<Record<string, ImpactClass>> = {
   BulletPoisonSpike: 'Spike',
   BulletMagic: 'Magic',
   BulletMagicBunny: 'Magic',
+  BulletCrazyCheese: 'Cheese',
+  BulletBomb: 'Bomb',
+  // The two the source gives no burst — see `None` above.
+  BulletFire: 'None',
+  BulletPenetrate: 'None',
 };
 
 /** The impact shape for an AS3 bullet class name. */
@@ -145,9 +213,23 @@ export interface ImpactInput {
   impactClass: ImpactClass;
   /** AS3 class name, for the sound table. */
   bulletClass: string;
-  /** Where the bullet met the enemy. */
-  x: number;
-  y: number;
+  /**
+   * The enemy's centre and radius — **not** the bullet's position.
+   *
+   * `:5654` puts every particle in the burst on the enemy's rim, at
+   * `enemy + cos/sin(angleToBullet) * enemy.radius`, and the port passed the
+   * bullet's own coordinates instead until T220. Those agree only when the
+   * round stops exactly on the surface: a fast one steps well inside before
+   * the overlap is noticed, and its debris appeared *within* the body rather
+   * than off the face it struck.
+   *
+   * Taken as centre-plus-radius rather than as a point so the rim is derived
+   * here and can be driven, instead of being a convention each call site is
+   * trusted to have applied.
+   */
+  enemyX: number;
+  enemyY: number;
+  enemyRadius: number;
   /** Bearing from enemy to bullet, in degrees — `angleToBullet * 180 / PI`. */
   angleToBullet: number;
   /** The enemy's own debris type — `theEnemy.particle`. */
@@ -191,13 +273,24 @@ export function impactBurst(input: ImpactInput): ImpactBurst {
   const sound = impactSoundFor(input.bulletClass);
   const spawns: SpawnInput[] = [];
 
-  if (feedback === 'Immune') {
+  // `:5654-5655` — the point on the enemy's rim facing the round. Radians
+  // here and degrees in `startAngle`, exactly as the AS3 has it: `angleBetween`
+  // returns radians and only `spawnParticle` wants degrees.
+  const bearing = (input.angleToBullet * Math.PI) / 180;
+  const x = input.enemyX + Math.cos(bearing) * input.enemyRadius;
+  const y = input.enemyY + Math.sin(bearing) * input.enemyRadius;
+
+  if (feedback === 'Immune' && !shape.ignoresImmunity) {
     // `:5705` etc. — immunity replaces the burst; no debris, no cue.
+    // A class that shows no cues shows no `Immune` either: `BulletFire` has
+    // no branch at all, so an immune enemy in a flame gets nothing.
+    if (!shape.cues) return { spawns, armCooldown: false, sound: null };
+
     spawns.push({
       type: 'Immune',
       count: 1,
-      x: input.x,
-      y: input.y,
+      x,
+      y,
       distance: 0,
       startAngle: 0,
       randAngle: 0,
@@ -213,8 +306,8 @@ export function impactBurst(input: ImpactInput): ImpactBurst {
     spawns.push({
       type: input.enemyParticle,
       count: shape.debris,
-      x: input.x,
-      y: input.y,
+      x,
+      y,
       distance: 0,
       // `- 15` with a `30` spread makes the fan symmetric about the bearing.
       startAngle: input.angleToBullet - 15,
@@ -228,7 +321,10 @@ export function impactBurst(input: ImpactInput): ImpactBurst {
   // untyped-round case: debris, no cue. That is the AS3's behaviour for a
   // round whose multiplier is exactly 1, and the port's untyped rounds are
   // indistinguishable from it at this seam.
-  if (feedback === null) return { spawns, armCooldown: false, sound };
+  //
+  // `!shape.cues` is the other way to arrive with debris and nothing else:
+  // the bomb throws its three pieces and shows no marker beside them.
+  if (feedback === null || !shape.cues) return { spawns, armCooldown: false, sound };
 
   // `:5691` — only `BulletSmall` checks the cooldown, and only it arms one.
   if (shape.cooldown && input.strongWeakTimer > 0) {
@@ -238,8 +334,8 @@ export function impactBurst(input: ImpactInput): ImpactBurst {
   spawns.push({
     type: feedback,
     count: 1,
-    x: input.x,
-    y: input.y,
+    x,
+    y,
     distance: 8,
     startAngle: 0,
     randAngle: 360,

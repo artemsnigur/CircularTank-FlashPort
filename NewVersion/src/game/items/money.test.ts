@@ -157,6 +157,26 @@ describe('spawnMoney — placement', () => {
     expect(Math.hypot(placed[0].xVel, placed[0].yVel)).toBe(0);
   });
 
+  it('keeps a scattered coin`s launch above friction, however it is retuned', () => {
+    /*
+     * The floor under `COIN_SPEED_SCALE`, and the reason the AS3's own numbers
+     * looked broken: `1.2 + random()` is **below** friction's 2.15, so the
+     * launch is erased in the frame it happens and a drop never visibly leaves
+     * the enemy. T220 eased the scale from 2.4 to 1.8, which is the direction
+     * that runs at this floor — a further slowdown has to fail here rather
+     * than quietly reverting the scatter.
+     *
+     * `random: () => 0` is the slowest coin the launch can produce, so this is
+     * the worst case and not an average one.
+     */
+    const slowest = spawnMoney({ amount: 1, x: 0, y: 0, radiusFor, random: () => 0 });
+    expect(Math.hypot(slowest[0].xVel, slowest[0].yVel)).toBeGreaterThan(COIN_FRICTION);
+
+    // The counterpart, on the same call: at the AS3's unscaled figures the
+    // launch is under friction, which is the bug the scale exists to fix.
+    expect(1.2).toBeLessThan(COIN_FRICTION);
+  });
+
   it('gives each coin the radius of its own denomination', () => {
     const coins = spawnMoney({ amount: 1002, x: 0, y: 0, radiusFor: coinRadius });
     // 1000 + 2 — the largest disc and one of the smallest, in one drop.

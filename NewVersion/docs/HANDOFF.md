@@ -856,6 +856,19 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Impact bursts had three wiring gaps, all fixed (`A72`).** A hit *does*
+throw debris — `effects/impactCue.ts`, called from `hitEnemy` — but it landed
+at the round rather than on the enemy's rim (`:5654`); `BulletFire` and
+`BulletPenetrate` fell through to the common shape where the AS3 gives them
+none, which for fire meant three pieces **per enemy per frame**; and the timed
+bomb never reached the burst at all. The `lastImpact` dev aid records empty
+bursts too, because "spawned nothing" and "was never called" read the same.
+**Known gap:** the laser's own cue at `:5633` is still missing.
+
+**T219's death-debris scale is reverted (`A72`) — the small puff is intended,
+and the constant says so.** Coins eased from 2.4x to 1.8x, with the friction
+floor now a test rather than a comment.
+
 **Death debris was never broken (`A71`).** All 19 enemy particle colours
 resolve, ship and register; driven, 0 fall back to `particle-dot`. It was
 small, so `DEBRIS_SCALE` raises velocity and lifetime together and

@@ -47,6 +47,12 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     'cake impact and burst counters',
     'ground hazard count and depth',
     'particle count and untextured fallbacks',
+    // T220: the impact burst is pure and fully tested, and every remaining
+    // question about it is wiring — is it called, on what, and where does it
+    // land. An empty burst is recorded too, since that is the right answer for
+    // fire and penetrating rounds and is otherwise indistinguishable from the
+    // call never happening.
+    'last impact burst placement',
     // T69: the sweep aimed at a hard-coded screen point. This is how it finds
     // the tank instead.
     'live tank screen position',
@@ -174,6 +180,7 @@ describe('dev aids are enumerable', () => {
     // files. Taken out at the maintainer's request rather than because it was
     // broken — a dev affordance that ships behind `import.meta.env.DEV` still
     // shows up in every development session, which is where it was unwanted.
-    expect(total).toBe(37);
+    // 38 with T220's impact-burst probe.
+    expect(total).toBe(38);
   });
 });

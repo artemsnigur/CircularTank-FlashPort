@@ -164,7 +164,7 @@ import { planBlastOn } from '../weapons/blastPlan';
 import { sweepHazards } from '../weapons/hazardSweep';
 import { displayFrame, layoutLevelProps, propScale } from '../levels/backgroundProps';
 import { propShape, shapeSize } from '../levels/propArt';
-import { presetFor, spawnParticles, tickParticles , DEBRIS_COUNT_SCALE} from '../effects/particles';
+import { presetFor, spawnParticles, tickParticles } from '../effects/particles';
 import type { Particle, SpawnInput } from '../effects/particles';
 import { particleShape } from '../effects/particleArt';
 import { PARTICLE_RASTER_SCALE } from '../../assets/manifest';
@@ -682,6 +682,25 @@ export class GameplayScene extends Phaser.Scene {
    */
   private cakeImpacts = 0;
   private cakeBursts = 0;
+
+  /**
+   * DEV-AID: the last impact burst, for T220.
+   *
+   * Every claim about the impact burst is a wiring claim, and `impactCue.ts`
+   * is pure — its tests cannot see whether the scene calls it, with what, or
+   * for which round. Three things are unreadable from outside without this:
+   * that a hit on an enemy produces a burst at all, that the burst sits on the
+   * enemy's **rim** rather than at the round's own position, and that the
+   * classes the AS3 gives nothing (`BulletFire`, `BulletPenetrate`) really
+   * spawn nothing when they land.
+   */
+  private lastImpact: {
+    bulletClass: string;
+    spawns: number;
+    /** Distance from the enemy's centre to the burst — should be its radius. */
+    offset: number;
+    radius: number;
+  } | null = null;
 
   /** DEV-AID: fills painted by the last `drawMinimap`, for `__arena`. */
   private minimapFills = 0;
@@ -2539,7 +2558,11 @@ export class GameplayScene extends Phaser.Scene {
           explosionRadius: bullet.explosionRadius,
           damage: bullet.damage,
         });
-        getSoundManager(this)?.queue('ImpactTimedBomb');
+        // `:5828` — the sound *and* three pieces of the enemy, thrown as the
+        // round sticks. Both come out of `impactBurst`, whose `Bomb` shape is
+        // the one that survives an immune enemy: the bomb attaches to anything
+        // it can reach, so the AS3 guards this on `!gotBomb` alone.
+        this.spawnImpactBurst(struck, bullet);
       }
       // An exploding round deals no direct damage — the AS3 branches on
       // `theBullet.explosion == false` for the direct path and only queues a
@@ -3557,6 +3580,7 @@ export class GameplayScene extends Phaser.Scene {
        * *small* and debris that is drawing the untextured fallback because a
        * shape never loaded. Only the texture key separates them.
        */
+      lastImpact: this.lastImpact,
       particles: {
         count: this.particles.length,
         untextured: this.particleSprites.filter(
@@ -5543,6 +5567,61 @@ export class GameplayScene extends Phaser.Scene {
     this.hitEnemy(enemy, bullet);
   }
 
+  /**
+   * The burst a round makes on an enemy — `:5654-5828`, via `impactCue.ts`.
+   *
+   * Shared by the two places a round lands: the ordinary damage path, and the
+   * timed bomb, which deals no damage at all and so never reaches `hitEnemy`.
+   * Before T220 that second call site did not exist, and the bomb stuck to an
+   * enemy with no visible impact — `:5828` throws three pieces as it attaches.
+   */
+  private spawnImpactBurst(enemy: Enemy, bullet: Bullet): void {
+    const burst = impactBurst({
+      impactClass: impactClassOf(bullet.as3Class),
+      bulletClass: bullet.as3Class,
+      // `:5654` places the burst on the enemy's rim, not at the round. The
+      // rim is derived inside `impactBurst` from these three, so the two call
+      // sites cannot disagree about where an impact is.
+      enemyX: enemy.x,
+      enemyY: enemy.y,
+      enemyRadius: enemy.radius,
+      // The AS3's `angleToBullet` points from the enemy to the round, and the
+      // debris is thrown back along it — away from the impact, not through it.
+      angleToBullet: Phaser.Math.RadToDeg(
+        Phaser.Math.Angle.Between(enemy.x, enemy.y, bullet.x, bullet.y),
+      ),
+      enemyParticle: enemy.particle,
+      multipliers: enemy.damageMultipliers,
+      damageType: bullet.damageType,
+      isBoss: enemy.enemyLevel === 'B',
+      strongWeakTimer: enemy.strongWeakTimer,
+    });
+
+    if (import.meta.env.DEV) {
+      // See `lastImpact` above. Recorded before the spawns are consumed,
+      // and *outside* the `spawns.length > 0` case on purpose — an empty
+      // burst is the answer for fire and penetrating rounds, and a probe that
+      // only recorded non-empty ones could not tell that from never being
+      // called at all.
+      const first = burst.spawns[0];
+      this.lastImpact = {
+        bulletClass: bullet.as3Class,
+        spawns: burst.spawns.length,
+        offset:
+          first === undefined
+            ? -1
+            : Math.round(Phaser.Math.Distance.Between(enemy.x, enemy.y, first.x, first.y)),
+        radius: Math.round(enemy.radius),
+      };
+    }
+
+    for (const spawn of burst.spawns) this.burst(spawn);
+    // `:5656-5965` — the impact sound rides on the same immunity check the
+    // cue does, so an immune hit is silent as well as debris-less.
+    if (burst.sound) getSoundManager(this)?.queue(burst.sound);
+    if (burst.armCooldown) enemy.strongWeakTimer = STRONG_WEAK_TIMER_MAX;
+  }
+
   /** @returns whether the hit killed the enemy — the Cake burst needs it. */
   private hitEnemy(enemy: Enemy, bullet: Bullet): boolean {
     // Poison lands before the direct hit is resolved, matching the AS3 order
@@ -5584,27 +5663,7 @@ export class GameplayScene extends Phaser.Scene {
     // `:5685-5820` — debris in the enemy's colour, plus a Strength, Weakness
     // or Immune cue. The rule lives in `effects/impactCue.ts`; forty of the
     // AS3's sixty-four spawn sites are copies of it, one per bullet class.
-    const burst = impactBurst({
-      impactClass: impactClassOf(bullet.as3Class),
-      bulletClass: bullet.as3Class,
-      x: bullet.x,
-      y: bullet.y,
-      // The AS3's `angleToBullet` points from the enemy to the round, and the
-      // debris is thrown back along it — away from the impact, not through it.
-      angleToBullet: Phaser.Math.RadToDeg(
-        Phaser.Math.Angle.Between(enemy.x, enemy.y, bullet.x, bullet.y),
-      ),
-      enemyParticle: enemy.particle,
-      multipliers: enemy.damageMultipliers,
-      damageType: bullet.damageType,
-      isBoss: enemy.enemyLevel === 'B',
-      strongWeakTimer: enemy.strongWeakTimer,
-    });
-    for (const spawn of burst.spawns) this.burst(spawn);
-    // `:5656-5965` — the impact sound rides on the same immunity check the
-    // cue does, so an immune hit is silent as well as debris-less.
-    if (burst.sound) getSoundManager(this)?.queue(burst.sound);
-    if (burst.armCooldown) enemy.strongWeakTimer = STRONG_WEAK_TIMER_MAX;
+    this.spawnImpactBurst(enemy, bullet);
 
     if (!result.killed) {
       enemy.flashDamage(impactFeedback(enemy.damageMultipliers, bullet.damageType));
@@ -5627,21 +5686,14 @@ export class GameplayScene extends Phaser.Scene {
    * so every other caller keeps the ordinary death sound.
    */
   private removeEnemy(enemy: Enemy, payMoney: boolean, bottomCollision = false): void {
-    /*
-     * `:6837` — the body bursts into debris of its own colour. Count and reach
-     * both scale with the enemy's radius, so a boss showers and a small enemy
-     * puffs; the remaining arguments are `spawnParticle`'s defaults, which put
-     * it in a full circle at rest.
-     *
-     * The divisor is the AS3's, scaled by `DEBRIS_COUNT_SCALE` (T219) — a
-     * radius-14 enemy went from 9 pieces to 14, which is enough to read as a
-     * burst rather than a handful without becoming confetti on a busy wave.
-     * Kept as a division so the shape of the rule survives: a boss still
-     * showers in proportion to its size.
-     */
+    // `:6837` — the body bursts into debris of its own colour. Count and reach
+    // both scale with the enemy's radius, so a boss showers and a small enemy
+    // puffs; the remaining arguments are `spawnParticle`'s defaults, which put
+    // it in a full circle at rest. The divisor is the AS3's, unscaled — T219
+    // raised it and T220 put it back.
     this.burst({
       type: enemy.particle,
-      count: Math.round((enemy.radius / 1.5) * DEBRIS_COUNT_SCALE),
+      count: Math.round(enemy.radius / 1.5),
       x: enemy.x,
       y: enemy.y,
       distance: enemy.radius,

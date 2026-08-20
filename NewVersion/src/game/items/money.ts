@@ -46,8 +46,15 @@ export const COIN_FRICTION = 2.15;
  *
  * Friction is deliberately **not** scaled: it is what stops a coin that has
  * bounced off a wall, and raising it with the rest would cancel the change.
+ *
+ * **T220 eased it from 2.4 to 1.8** — the drops read as thrown at 2.4 but
+ * arrived faster than the eye could follow the figure on them, and a coin that
+ * cannot be read is the same as no badge at all. The floor this cannot go
+ * under is friction: `COIN_SPEED_BASE` below has to stay above `2.15`, or the
+ * launch is erased in the frame it happens and the scatter disappears again.
+ * `keeps a scattered coin's launch above friction` is that floor as a test.
  */
-export const COIN_SPEED_SCALE = 2.4;
+export const COIN_SPEED_SCALE = 1.8;
 
 /** `:2155` — the pull toward the tank, added to velocity every frame. */
 export const AS3_COIN_ATTRACTION = 2.5;
