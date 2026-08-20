@@ -856,10 +856,18 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Before believing a "the world got smaller" report, print the scale chain
+(`A75`).** dpr, canvas CSS box, backing store, scale-manager size, camera zoom,
+`worldView`. The contract is a fixed 640-unit design width, so `worldView.width
+== 640` settles it without a baseline build — it was 640, and the commit blamed
+for shrinking it touched no camera or scale. A tall narrow window legitimately
+shows more world (`MAX_LOGICAL_HEIGHT` runs to 1440) and looks identical to the
+bug.
+
 **Canvas text is rasterised in design units, and the camera magnifies it
 (`A74`).** A `Text` at `fontSize: 7` gets a 7-pixel-tall texture and the camera
 blows it up by `camera.zoom` — that is what "blurry" was on the coin figures.
-`setResolution(camera.zoom)` is the fix, and `TextWebGLRenderer` divides the
+`MONEY_FIGURE_OVERSAMPLE` (a fixed 3x font, undone by the sprite scale) is the fix, and `TextWebGLRenderer` divides the
 quad back down so the glyphs stay the intended size. **Anything new drawn as
 in-world `Text` needs the same call.** The coin is now gold and rimless, and
 its figure is measured and shrunk to fit by `figureFit` in `items/money.ts`.

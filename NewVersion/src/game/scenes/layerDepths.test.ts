@@ -189,25 +189,35 @@ describe('the one green, and the coin', () => {
     expect(build![0], 'the coin strokes its disc').not.toMatch(/setStrokeStyle/);
   });
 
-  it('rasterises the figure at the camera`s zoom, not at one pixel per unit', () => {
+  it('oversamples the figure locally, and reads no global scale to do it', () => {
     /*
-     * The blur fix, and the only part of it a test can hold. `fontSize` is in
-     * design units and `Text` gives it one texture pixel each, so the camera's
-     * magnification is what the figure was being blown up by;
-     * `setResolution(zoom)` is what puts the pixels there.
+     * The blur fix, and the part of it a test can hold.
      *
-     * This proves the call is *written* with the camera's own zoom, not that
-     * the glyphs are sharp. Sharpness is a frame.
+     * T222 read `camera.zoom` for the oversample. T224 replaced that with a
+     * fixed factor — the appearance of a coin should not depend on a global
+     * the rest of the scene owns. **This is the assertion that keeps it that
+     * way**, and it is a negative, so it is pinned beside its positive: the
+     * build block must contain the oversample and must *not* reach for the
+     * camera.
+     *
+     * Source-shape, and narrow on purpose: it proves what is written in the
+     * coin's build block, not that no other line in the scene reads the zoom
+     * (`applyRoomFillZoom` legitimately does) and not that the glyphs are
+     * sharp. Sharpness is a frame.
      */
-    const build = /const zoom = Math\.max\(1, this\.cameras\.main\.zoom\);[\s\S]{0,1200}/.exec(
-      SCENE,
-    );
-    expect(build, 'the coin does not read the camera zoom').not.toBeNull();
-    expect(build![0]).toMatch(/setResolution\(zoom\)/);
+    const build = /const figure = this\.add[\s\S]{0,1800}/.exec(SCENE);
+    expect(build, "the coin's figure is not built where expected").not.toBeNull();
 
-    // And that the fit is applied from the measured width, which is the other
-    // half the scene owns. `figureFit` itself is driven in `money.test.ts`.
-    expect(build![0]).toMatch(/figureFit\(figure\.displayWidth, size\)/);
+    expect(build![0], 'the figure is not oversampled').toMatch(/MONEY_FIGURE_OVERSAMPLE/);
+    expect(build![0], 'the coin reads the camera zoom').not.toMatch(/cameras\.main\.zoom/);
+    expect(build![0], 'the coin sets a text resolution').not.toMatch(/setResolution/);
+
+    // And the fit, measured at the oversampled size and divided back down —
+    // feeding the raw width in would make every coin think it overflowed.
+    expect(build![0]).toMatch(
+      /figureFit\(figure\.displayWidth \/ MONEY_FIGURE_OVERSAMPLE, size\)/,
+    );
+    expect(build![0]).toMatch(/setScale\(fit \/ MONEY_FIGURE_OVERSAMPLE\)/);
   });
 
   it('spends the token through `var(--green)`, not through a copy of it', () => {

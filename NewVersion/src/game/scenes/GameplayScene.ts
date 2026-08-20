@@ -78,6 +78,7 @@ import type { ActiveStep } from '../tutorial/tutorialExit';
 import { bombIndicatorView, medicRingScale } from '../effects/indicators';
 import {
   MONEY_FIGURE_MIN,
+  MONEY_FIGURE_OVERSAMPLE,
   MONEY_FIGURE_SCALE,
   dropAmount,
   figureFit,
@@ -3132,38 +3133,30 @@ export class GameplayScene extends Phaser.Scene {
        * inside the disc rather than a fixed point size that overflows the
        * small denominations.
        *
-       * ── Why it was blurry, and what `resolution` does ──────────────────
-       * `fontSize` here is in **design units**, and `Text` rasterises one
-       * texture pixel per unit. The camera then magnifies the whole world by
-       * `camera.zoom`, which is render pixels per design unit — 2 on an
-       * ordinary 1280-wide window, more on a phone — so a 7-unit figure was
-       * drawn into a 7-pixel-tall texture and blown up to 14 or more. Nothing
-       * about the geometry was wrong; there simply were not enough pixels in
-       * the texture to begin with, which is exactly what "blurry" looks like.
+       * ── Why it was blurry, and what the oversample does ────────────────
+       * `fontSize` is in **design units**, and `Text` rasterises one texture
+       * pixel per unit. The camera then magnifies the world — 2 render pixels
+       * per design unit on an ordinary 1280-wide window, more on a phone — so
+       * a 7-unit figure was drawn into a 7-pixel-tall texture and blown up.
+       * Nothing about the geometry was wrong; there were not enough pixels in
+       * the texture to begin with, which is what "blurry" is.
        *
-       * `setResolution(zoom)` rasterises at `zoom` times the size, and
-       * `TextWebGLRenderer` divides the quad back down by the same figure
-       * (`width / src.style.resolution`), so the glyphs land at the intended
-       * size with the pixels to draw them. Read out of Phaser's own renderer
-       * rather than assumed — the naive reading is that it draws the text
-       * `zoom` times too large.
-       *
-       * The zoom is read once, at spawn. A coin lives a few seconds and a
-       * window resize mid-flight would leave one drop slightly soft, which is
-       * not worth a per-frame re-rasterise of every coin on the floor.
+       * So the figure is built at `MONEY_FIGURE_OVERSAMPLE` times its intended
+       * size and the sprite is scaled back down by the same factor. **Entirely
+       * local**: a bigger font on one `Text`, undone by that `Text`'s own
+       * scale. Nothing reads `camera.zoom`, and nothing touches `game.scale`
+       * or the renderer — see `MONEY_FIGURE_OVERSAMPLE` for why that
+       * independence is worth a fixed factor.
        */
-      const zoom = Math.max(1, this.cameras.main.zoom);
-
       const figure = this.add
         .text(0, 0, `$${coin.value}`, {
           // The face by name, not `var(--font-display)`: this string goes to
           // the canvas 2D `font` property, which knows nothing about CSS
           // custom properties and would silently fall back to the default.
           fontFamily: '"SWFMainFont", sans-serif',
-          fontSize: `${Math.max(MONEY_FIGURE_MIN, Math.round(size * MONEY_FIGURE_SCALE))}px`,
+          fontSize: `${Math.max(MONEY_FIGURE_MIN, Math.round(size * MONEY_FIGURE_SCALE)) * MONEY_FIGURE_OVERSAMPLE}px`,
           color: MONEY_BADGE_TEXT,
         })
-        .setResolution(zoom)
         .setOrigin(0.5);
 
       /*
@@ -3171,10 +3164,14 @@ export class GameplayScene extends Phaser.Scene {
        *
        * `displayWidth` is real metrics off the rasterised text, so this holds
        * for any denomination and any face rather than depending on an assumed
-       * character width. The rule lives in a module so it can be driven; the
-       * measurement is the half only the scene can supply.
+       * character width. It is measured at the oversampled size, so it is
+       * divided back down before being compared against the disc — feeding the
+       * raw figure in would make every coin think it overflowed by 3x.
+       *
+       * The final scale carries both: the fit, and undoing the oversample.
        */
-      figure.setScale(figureFit(figure.displayWidth, size));
+      const fit = figureFit(figure.displayWidth / MONEY_FIGURE_OVERSAMPLE, size);
+      figure.setScale(fit / MONEY_FIGURE_OVERSAMPLE);
 
       container.add(figure);
 

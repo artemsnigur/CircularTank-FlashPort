@@ -40,6 +40,28 @@ export const MONEY_FIGURE_MIN = 6;
 export const MONEY_FIGURE_FIT = 0.86;
 
 /**
+ * How many texture pixels the figure is drawn with per design unit — T224.
+ *
+ * ── Why this is a constant and not the camera's zoom ──────────────────────
+ * T222 read `camera.zoom` for this. It was a *read* and it fed one `Text`
+ * object, but it made a coin's appearance depend on a global the rest of the
+ * scene owns, and that is a dependency worth not having: anyone reading the
+ * coin code has to go and establish what the camera is doing, and anyone
+ * changing the camera has to know a coin was listening.
+ *
+ * A fixed oversample does the same job. The figure is built at `3x` the size
+ * it will be drawn at and the sprite is scaled back down by the same factor,
+ * so the raster holds three pixels per design unit whatever the window is
+ * doing. Above about a 3x zoom the glyphs soften again, which is the trade —
+ * and 3 covers every desktop window and the phone viewports this ships to.
+ *
+ * Nothing here touches `camera.zoom`, `game.scale` or the renderer. The
+ * oversample lives on the one `Text` and is undone by that `Text`'s own
+ * scale.
+ */
+export const MONEY_FIGURE_OVERSAMPLE = 3;
+
+/**
  * How far to shrink a figure that overhangs its coin — 1 when it already fits.
  *
  * Measured and applied, not assumed. `$50` at the old floor came out **1.08x
