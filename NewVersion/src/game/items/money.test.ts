@@ -2,9 +2,12 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
+  AS3_COIN_ATTRACTION,
+  AS3_COIN_MAX_SPEED,
   COIN_ATTRACTION,
   COIN_FRICTION,
   COIN_MAX_SPEED,
+  COIN_SPEED_SCALE,
   DENOMINATIONS,
   decomposeMoney,
   dropAmount,
@@ -144,7 +147,13 @@ describe('spawnMoney — placement', () => {
       radiusFor,
       random: () => 0.5,
     });
-    expect(Math.hypot(launched[0].xVel, launched[0].yVel)).toBeCloseTo(1.7, 6);
+    // `1.2 + 0.5` at the AS3's numbers, times T218's launch scale. Derived
+    // rather than restated, so retuning the scale does not need a new literal
+    // here — and a change that broke the relationship still fails.
+    expect(Math.hypot(launched[0].xVel, launched[0].yVel)).toBeCloseTo(
+      1.7 * COIN_SPEED_SCALE * 1.5,
+      6,
+    );
     expect(Math.hypot(placed[0].xVel, placed[0].yVel)).toBe(0);
   });
 
@@ -228,7 +237,20 @@ describe('tickCoin', () => {
     // Started past the wall rather than driven into it: the attraction always
     // pulls toward the tank, so a coin cannot be made to chase a wall. This
     // exercises the clamp itself, which is the part that can be wrong.
-    const outside = coin({ x: 638, y: 480, xVel: 6, yVel: 0 });
+    /*
+     * The velocity is derived from the constants, not a literal. At `6` this
+     * used to work and stopped when T218 scaled attraction to exactly 6: one
+     * frame of pull cancelled the coin dead, it never reached the wall moving
+     * right, and the reflection produced 0 instead of a negative. A number
+     * above attraction *plus* friction cannot be cancelled in one frame,
+     * whatever the scale is retuned to.
+     */
+    const outside = coin({
+      x: 638,
+      y: 480,
+      xVel: COIN_ATTRACTION + COIN_FRICTION + 4,
+      yVel: 0,
+    });
     const step = tickCoin(outside, TANK, BOUNDS, 1);
 
     expect(step.coin).not.toBeNull();
@@ -242,11 +264,52 @@ describe('tickCoin', () => {
 
 describe('the constants come from the AS3, not from each other', () => {
   it('states each figure against its source line', () => {
-    // Copying these out of the module would be a tautology — see CLAUDE.md on
-    // assertions coming from the source. These are the AS3's literals.
+    /*
+     * Copying these out of the module would be a tautology — see CLAUDE.md on
+     * assertions coming from the source. These are the AS3's literals, and
+     * they are still asserted after T218 scaled the flight: the originals are
+     * kept as `AS3_*` precisely so this test survives the divergence rather
+     * than being deleted with it.
+     */
     expect(COIN_FRICTION).toBe(2.15); // `:612`
-    expect(COIN_ATTRACTION).toBe(2.5); // `:2155`
-    expect(COIN_MAX_SPEED).toBe(8); // `:2160`
+    expect(AS3_COIN_ATTRACTION).toBe(2.5); // `:2155`
+    expect(AS3_COIN_MAX_SPEED).toBe(8); // `:2160`
+  });
+
+  it('scales the flight off those figures rather than replacing them', () => {
+    /*
+     * T218: coins fly faster by request. Asserted as the *relationship*, so
+     * retuning `COIN_SPEED_SCALE` needs no edit here, while decoupling the
+     * live values from the AS3 ones — which is how a divergence quietly
+     * becomes an invented constant — fails.
+     */
+    expect(COIN_ATTRACTION).toBeCloseTo(AS3_COIN_ATTRACTION * COIN_SPEED_SCALE, 6);
+    expect(COIN_MAX_SPEED).toBeCloseTo(AS3_COIN_MAX_SPEED * COIN_SPEED_SCALE, 6);
+
+    // And the direction of the change, so a scale of 1 or below fails: the
+    // whole point is that they are faster than the original.
+    expect(COIN_SPEED_SCALE).toBeGreaterThan(1);
+  });
+
+  it('launches hard enough to survive the first frame of friction', () => {
+    /*
+     * The reason the original read as sluggish, and the thing most easily lost
+     * by retuning: `:628`'s launch is `1.2 + random()`, which is **below**
+     * friction's 2.15, so the outward scatter was erased inside one frame and
+     * the coin never visibly left the enemy.
+     */
+    const slowest = spawnMoney({
+      amount: 1,
+      x: 0,
+      y: 0,
+      radiusFor: () => 5,
+      random: () => 0,
+    });
+    const speed = Math.hypot(slowest[0].xVel, slowest[0].yVel);
+
+    expect(speed, 'even the slowest launch must outlive one frame of friction').toBeGreaterThan(
+      COIN_FRICTION,
+    );
   });
 
   it('has fifteen denominations, matching the fifteen clip frames', () => {

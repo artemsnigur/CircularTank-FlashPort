@@ -375,6 +375,20 @@ const BOMB_MARKER_FRAMES = [370, 371] as const;
 const MEDIC_RING_SHAPE = 1182;
 /** Coins sit under the tank and particles, above the ground. */
 const MONEY_DEPTH = 6;
+
+/**
+ * The money badge — T218.
+ *
+ * The same grey the HUD readouts paint with and the same green the shop's
+ * balance uses, so a coin on the floor, the counter top-left and the price in
+ * the shop are visibly the same currency. `--hud-plate` and `#7dff8a` cannot
+ * be read from CSS inside the canvas, so the values are restated here; a test
+ * parses the stylesheet and requires them to agree.
+ */
+const MONEY_BADGE_FILL = 0x26282c;
+const MONEY_BADGE_ALPHA = 0.92;
+const MONEY_BADGE_RIM = 0x7dff8a;
+const MONEY_BADGE_TEXT = '#7dff8a';
 /** `:3366` — `poisonParticleTimerMax`. */
 const POISON_PARTICLE_FRAMES = 3;
 /** Just above the ground tile, below anything that moves. */
@@ -3041,19 +3055,57 @@ export class GameplayScene extends Phaser.Scene {
     this.coins = [...this.coins, ...made];
 
     for (const coin of made) {
+      /*
+       * ── Divergence: a currency badge, not the extracted coin art (T218) ──
+       *
+       * `MONEY_CLIPS` draws the AS3's disc plus a numeral *shape* per
+       * denomination — fifteen hand-authored frames where the digits are
+       * paths. Replaced by request with a circle carrying the figure as text,
+       * so a drop says `$25` in the same green the HUD and the shop use rather
+       * than in a glyph a player has to learn.
+       *
+       * The clip is still consulted for its **size**, which is also what
+       * `coinRadius` feeds the pickup test — so the badge is exactly as big as
+       * the thing the tank collides with, and a 1 stays smaller than a 1000.
+       * Reading the size from one place keeps the drawn circle and the hitbox
+       * from drifting apart.
+       */
       const clip = MONEY_CLIPS[coin.value];
+      const size = clip?.size ?? coin.radius * 2;
       const container = this.add.container(coin.x, coin.y).setDepth(MONEY_DEPTH);
-      if (clip) {
-        container.add(
-          this.add.image(0, 0, `unit-${clip.body}`).setDisplaySize(clip.size, clip.size),
-        );
-        // The numeral is a second shape on its own depth — see `moneyArt.ts`.
-        // Drawn at its own authored size rather than scaled to the body, which
-        // is what keeps 100 and 500 legible on the same disc.
-        if (clip.overlay !== null) {
-          container.add(this.add.image(0, 0, `unit-${clip.overlay}`));
-        }
-      }
+
+      // A filled disc on the HUD's plate colour, with a green rim. Drawn
+      // rather than an image: it is one shape at fifteen sizes, and an
+      // authored asset per denomination is what this replaces.
+      container.add(
+        this.add
+          .circle(0, 0, size / 2, MONEY_BADGE_FILL, MONEY_BADGE_ALPHA)
+          .setStrokeStyle(Math.max(1, size * 0.07), MONEY_BADGE_RIM),
+      );
+
+      /*
+       * `Text`, not `BitmapText`: the figure is fixed for the life of the
+       * coin, so it rasterises once. `CLAUDE.md` reserves `BitmapText` for
+       * text that changes every frame, which this is the opposite of.
+       *
+       * Sized off the badge so the longest figure still fits — `$1000` is five
+       * characters on the largest disc, and the divisor is what keeps it
+       * inside the rim rather than a fixed point size that overflows the
+       * small denominations.
+       */
+      container.add(
+        this.add
+          .text(0, 0, `$${coin.value}`, {
+            // The face by name, not `var(--font-display)`: this string goes to
+            // the canvas 2D `font` property, which knows nothing about CSS
+            // custom properties and would silently fall back to the default.
+            fontFamily: '"SWFMainFont", sans-serif',
+            fontSize: `${Math.max(7, Math.round(size * 0.46))}px`,
+            color: MONEY_BADGE_TEXT,
+          })
+          .setOrigin(0.5),
+      );
+
       this.coinSprites.push(container);
     }
   }

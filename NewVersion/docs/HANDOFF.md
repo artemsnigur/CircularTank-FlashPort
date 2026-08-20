@@ -856,6 +856,13 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Money drops are green $-badges and fly faster (`A70`).** `COIN_SPEED_SCALE`
+multiplies the AS3's attraction and cap; friction is deliberately unscaled.
+The originals are kept as `AS3_*` and still pinned against their source lines
+— **do not delete them when retuning**. The badge colours are restated as hex
+in `GameplayScene` because a canvas cannot read CSS; a test compares them with
+the stylesheet.
+
 **Ice/lava trails sit at depth 0.75 and are spaced by distance (`A69`).**
 `HAZARD_DEPTH` was 0, below `PROP_DEPTH` 0.5, so props drew over the trail;
 `layerDepths.test.ts` now asserts the *ordering* rather than the numbers.

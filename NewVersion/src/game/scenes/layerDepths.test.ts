@@ -75,3 +75,45 @@ describe('the arena draws in the right order', () => {
     expect(depth('PARTICLE_DEPTH')).toBeGreaterThan(depth('HAZARD_DEPTH'));
   });
 });
+
+/**
+ * The money badge borrows two colours from the stylesheet — T218.
+ *
+ * A canvas cannot read `--hud-plate`, so the values are restated as hex in
+ * `GameplayScene`. That is two homes for one colour, which is exactly how the
+ * three glass tile surfaces drifted apart in `A38`, so the pair is compared
+ * here rather than trusted.
+ */
+describe('the money badge matches the currency styling', () => {
+  const CSS = readFileSync('src/styles/global.css', 'utf8');
+
+  const constant = (name: string): string => {
+    const match = new RegExp(`const ${name} = (0x[0-9a-f]+|'#[0-9a-f]+')`, 'i').exec(SCENE);
+    expect(match, `${name} is not declared in GameplayScene`).not.toBeNull();
+    /*
+     * Strip the *prefix*, not every non-hex character. Filtering characters
+     * turned `0x26282c` into `026282c` — the `x` went and the leading `0`
+     * stayed — and the comparison failed on a value that was correct.
+     */
+    return match![1].replace(/^'?(0x|#)/i, '').replace(/'$/, '').toLowerCase();
+  };
+
+  it('fills with the HUD plate colour', () => {
+    const plate = /--hud-plate:\s*rgb\((\d+)\s+(\d+)\s+(\d+)/.exec(CSS);
+    expect(plate, '--hud-plate is not in the stylesheet in the expected form').not.toBeNull();
+
+    const [, r, g, b] = plate!;
+    const asHex = ((Number(r) << 16) | (Number(g) << 8) | Number(b)).toString(16).padStart(6, '0');
+    expect(constant('MONEY_BADGE_FILL')).toBe(asHex);
+  });
+
+  it('writes the figure in the shop balance green', () => {
+    // The same green `.shop-buy__price` and `.shop-detail__balance` use, so a
+    // coin on the floor and its price in the shop are one currency.
+    const balance = /\.shop-detail__balance\s*\{[^}]*color:\s*#([0-9a-f]{6})/i.exec(CSS);
+    expect(balance, 'the shop balance colour was not found').not.toBeNull();
+
+    expect(constant('MONEY_BADGE_TEXT')).toBe(balance![1].toLowerCase());
+    expect(constant('MONEY_BADGE_RIM')).toBe(balance![1].toLowerCase());
+  });
+});

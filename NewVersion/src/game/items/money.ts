@@ -26,15 +26,49 @@ export const DENOMINATIONS: readonly number[] = [
 /** `:611` friction, applied to the coin's speed each frame. */
 export const COIN_FRICTION = 2.15;
 
+/**
+ * ── Divergence: coins fly faster than the original's (T218) ──────────────
+ *
+ * The AS3's numbers are kept below as `AS3_*` and this multiplies them.
+ *
+ * **Why it felt slow, in the original's own arithmetic**: attraction adds 2.5
+ * to the speed each frame and friction takes 2.15 off it, so a coin nets
+ * `+0.35` per frame and needs about **23 frames — most of a second** — to
+ * reach its cap of 8. The launch speed makes it worse rather than better:
+ * `1.2 + random()` is under friction's 2.15, so the outward scatter is gone
+ * inside a single frame and the coin never visibly pops out of the enemy.
+ *
+ * Scaling attraction and the cap together keeps the shape of the motion — a
+ * coin still eases toward the tank rather than snapping to it — while cutting
+ * the time to reach full speed to two or three frames. The launch is scaled
+ * further so the initial burst survives friction and the drop reads as
+ * *thrown* rather than as seeping outward.
+ *
+ * Friction is deliberately **not** scaled: it is what stops a coin that has
+ * bounced off a wall, and raising it with the rest would cancel the change.
+ */
+export const COIN_SPEED_SCALE = 2.4;
+
 /** `:2155` — the pull toward the tank, added to velocity every frame. */
-export const COIN_ATTRACTION = 2.5;
+export const AS3_COIN_ATTRACTION = 2.5;
+export const COIN_ATTRACTION = AS3_COIN_ATTRACTION * COIN_SPEED_SCALE;
 
 /** `:2160` — coins never travel faster than this. */
-export const COIN_MAX_SPEED = 8;
+export const AS3_COIN_MAX_SPEED = 8;
+export const COIN_MAX_SPEED = AS3_COIN_MAX_SPEED * COIN_SPEED_SCALE;
 
-/** `:628` — a scattered coin's launch speed is `1.2 + random()`. */
-const COIN_SPEED_BASE = 1.2;
-const COIN_SPEED_RANDOM = 1;
+/**
+ * `:628` — a scattered coin's launch speed is `1.2 + random()`.
+ *
+ * Scaled harder than the rest: at the original values friction erases the
+ * launch before it is drawn, so this is the number that decides whether a drop
+ * is seen leaving the enemy at all.
+ */
+const AS3_COIN_SPEED_BASE = 1.2;
+const AS3_COIN_SPEED_RANDOM = 1;
+const COIN_LAUNCH_SCALE = COIN_SPEED_SCALE * 1.5;
+const COIN_SPEED_BASE = AS3_COIN_SPEED_BASE * COIN_LAUNCH_SCALE;
+const COIN_SPEED_RANDOM = AS3_COIN_SPEED_RANDOM * COIN_LAUNCH_SCALE;
 
 /**
  * Splits an amount into coins, largest first — `:372-446`.
