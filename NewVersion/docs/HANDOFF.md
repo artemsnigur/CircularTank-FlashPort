@@ -757,6 +757,17 @@ decisive, wrong result and was believed.*
     Both were caught only because the *printed value* was implausible.
     **Print the value being judged, not just the verdict.**
 
+24. **Read the console; a warning nobody reads is not a mechanism.**
+    `--font-body` never loaded — the extracted `49_Main_font2_Arial.ttf` has a
+    malformed `cmap` and Chrome rejected it outright, on every screen, since
+    the first sync. `fontLoader.ts`'s self-test detected it perfectly and said
+    so in a `console.warn` that nothing ever surfaced. Nothing broke: text was
+    just set in a fallback face.
+
+    A layout scan that also collected `console` and `pageerror` output found it
+    in one run. **Collect console output in every driven harness** — it is free,
+    and it is the only channel a working self-test has.
+
 **A run reporting nothing missing should be as suspect as one reporting
 everything missing** — and a run reporting *more* missing than last time should
 be checked against a second mode on the same build before it is believed.
@@ -783,6 +794,12 @@ enemy in the wrong place. Dot colour is an authored per-family palette (the
 AS3 draws every enemy in one red), covered against `BESTIARY` so a new enemy
 type fails the test until it is classified. `marker` deliberately does not
 round; the rect fills still do.
+
+**The body font is a repaired authored asset (`A55`).**
+`assets-authored/fonts/49_Main_font2_Arial.ttf` deliberately shadows the
+extracted file of the same name — the JPEXS export's `cmap` is malformed and
+Chrome rejects it. Do not delete it or "restore" the extracted one;
+`fontIntegrity.test.ts` fails if the broken bytes ship.
 
 **Exit to Menu is on the options panel, not the dock, and only there
 (`A54`).** `BottomNav` takes `showMenu`, defaulting to **true**; only Options
