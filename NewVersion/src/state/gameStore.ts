@@ -58,6 +58,8 @@ interface LevelOutcomeSummary {
   nextLevel: LevelRef | null;
   /** Medals awarded, 0-3. */
   medals: number;
+  /** The level's mode, so the results draw the right medal shape. */
+  mode: string;
   /** Achievement ids newly earned, and enemy names newly discovered. */
   newAchievements: string[];
   newEnemies: string[];

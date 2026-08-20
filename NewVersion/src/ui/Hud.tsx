@@ -38,7 +38,9 @@ import { achievementFrame, achievementTooltip } from '../game/achievements/achie
 import { ACHIEVEMENT_CLIPS } from '../game/achievements/achievementArt';
 import { ACHIEVEMENT_PAGE_EARNED } from '../game/waves/statusPages';
 import { shapeUrl } from '../assets/registry';
-import { DIFFICULTY_RANK } from '../game/levels/levelProgress';
+import { DIFFICULTY_RANK, DIFFICULTY_SLOT } from '../game/levels/levelProgress';
+import { medalTiers } from '../game/levels/medalTiers';
+import { LevelModeIcon } from './LevelModeIcon';
 import type { AchievementPage } from '../game/waves/statusPages';
 import { siteCorner } from '../game/ui/infoTextSites';
 import { ChromeArt } from './ChromeArt';
@@ -271,7 +273,17 @@ function ReloadBar({ fill, label }: { fill: number; label: string }): React.Reac
  * The timer only decides how many of the earned medals are *drawn*. `value` is
  * `medalsForHp`'s output and is never recomputed here.
  */
-function MedalRow({ value }: { value: number }): React.ReactElement {
+function MedalRow({
+  value,
+  mode,
+  difficulty,
+}: {
+  value: number;
+  /** The level's mode, which picks the medal's shape. */
+  mode: string;
+  /** The run's difficulty, which picks its colour. */
+  difficulty: Difficulty;
+}): React.ReactElement {
   const [shown, setShown] = useState(() => medalsShownAt(0, value));
 
   useEffect(() => {
@@ -296,11 +308,43 @@ function MedalRow({ value }: { value: number }): React.ReactElement {
     return () => window.clearInterval(id);
   }, [value]);
 
+  /*
+   * ── The tier is derived, not restated (T206) ──────────────────────────
+   *
+   * A medal's colour is the highest difficulty that reached its slot, and
+   * `medalTiers` is that rule, ported and tested. Rather than write
+   * "Hard is gold" a second time here, this builds the `LevelValues` triple a
+   * run of `value` medals at `difficulty` would produce and asks `medalTiers`
+   * what colour it earns. Two copies of a mapping drift; one does not.
+   */
+  const values: [number, number, number] = [0, 0, 0];
+  values[DIFFICULTY_SLOT[difficulty]] = value;
+  const tiers = medalTiers(values);
+
   return (
     <p className="level-outcome__medals" aria-label={`${value} of 3 medals`}>
-      <span aria-hidden="true">
-        {'★'.repeat(shown)}
-        {'☆'.repeat(Math.max(0, 3 - shown))}
+      {/*
+        The same icon the level grid and the detail panel draw, in the same
+        three tier colours — `ScreenLevelSelect.as:874` builds it from the
+        level's *mode*, so a Flag level earns flags and a Boss level skulls.
+        This was three text stars in `--accent` red until T206, which is both
+        the wrong shape and a colour that means danger.
+
+        An unearned slot draws the same icon in an empty socket rather than
+        being absent, so the row does not resize as the stamps land — the same
+        treatment the level detail panel uses (`A44`).
+      */}
+      <span className="level-outcome__medal-row" aria-hidden="true">
+        {Array.from({ length: 3 }, (_, i) => (
+          <span
+            key={i}
+            className={`level-outcome__medal${
+              i < shown ? ` level-outcome__medal--earned medal--${tiers[i] ?? 'bronze'}` : ''
+            }`}
+          >
+            <LevelModeIcon mode={mode} className="level-outcome__medal-icon" />
+          </span>
+        ))}
       </span>
     </p>
   );
@@ -535,7 +579,7 @@ function LevelOutcomeOverlay(): React.ReactElement | null {
             <h2 className="level-outcome__title visually-hidden">
               {outcome.result === 'won' ? 'Victory' : 'Defeat'}
             </h2>
-            <MedalRow value={outcome.medals} />
+            <MedalRow value={outcome.medals} mode={outcome.mode} difficulty={difficulty} />
             <dl className="level-outcome__stats">
               <div>
                 <dt>Level</dt>

@@ -213,6 +213,15 @@ export interface GameEventMap {
     /** Medals awarded, 0-3 — see `waves/medals.ts`. */
     medals: number;
     /**
+     * The level's mode, so the results can draw the right medal *shape*.
+     *
+     * `ScreenLevelSelect.as:874` builds the medal icon from the level's mode
+     * before `:898` sets its tier frame — a Flag level earns flags and a Boss
+     * level earns skulls. The results screen drew stars for all three until
+     * T206, because this field did not exist and it had nothing else to go on.
+     */
+    mode: string;
+    /**
      * Achievement ids newly earned, and enemy display names newly discovered.
      *
      * `ScreenStatus.as:405-429` appends one page per entry, achievements first

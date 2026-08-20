@@ -54,6 +54,99 @@ function block(selector: string): string {
  * centre band left clear. These pin *where things are*, because the arena is
  * underneath and a readout drifting into the middle is the failure.
  */
+/**
+ * The results screen — T206.
+ *
+ * The victory path is hard to reach in a browser (you have to win), so the
+ * things that differ between victory and defeat are pinned here, where the
+ * outcome is an event payload rather than a level to play.
+ */
+describe('the results screen', () => {
+  const finish = (result: 'won' | 'lost', medals: number, mode = 'Normal') => {
+    enterGameplay();
+    const view = render(<Hud />);
+    act(() => {
+      GameEvents.emit('level:ended', {
+        result,
+        world: 1,
+        level: 1,
+        kills: 10,
+        currency: 25,
+        nextLevel: result === 'won' ? { world: 1, level: 2 } : null,
+        medals,
+        mode,
+        newAchievements: [],
+        newEnemies: [],
+      });
+    });
+    return view;
+  };
+
+  it('draws three medal sockets whatever was earned', () => {
+    /*
+     * The row must not resize as the stamps land, so an unearned medal keeps
+     * its socket. Driven at both ends: none earned and all three.
+     */
+    for (const earned of [0, 3]) {
+      const { container, unmount } = finish('won', earned);
+      expect(container.querySelectorAll('.level-outcome__medal'), String(earned)).toHaveLength(3);
+      unmount();
+    }
+  });
+
+  it('takes the medal shape from the mode, not a star for everything', () => {
+    // ScreenLevelSelect.as:874 builds the icon from the mode. Driven against
+    // its counterpart: two modes on the same call must draw different paths.
+    const normal = finish('won', 3).container.querySelector('.level-outcome__medal-icon path');
+    const normalPath = normal?.getAttribute('d');
+    expect(normalPath, 'the medal has no path at all').toBeTruthy();
+
+    const boss = finish('won', 3, 'Boss').container.querySelectorAll(
+      '.level-outcome__medal-icon path',
+    );
+    expect([...boss].some((p) => p.getAttribute('d') !== normalPath)).toBe(true);
+  });
+
+  it('gives exactly one action the emphasis, and names it by outcome', () => {
+    /*
+     * The hierarchy the screen was missing: four identical buttons led
+     * nowhere. Driven for both outcomes on the same component, because the
+     * primary is a *different button* in each and "one is primary" would pass
+     * with the wrong one highlighted.
+     */
+    const won = finish('won', 3);
+    const wonPrimary = won.container.querySelectorAll('.hud__button--primary');
+    expect(wonPrimary).toHaveLength(1);
+    expect(wonPrimary[0].textContent).toMatch(/next level/i);
+    won.unmount();
+
+    // A loss records no value, so there is no next level to offer and Retry is
+    // the obvious action instead.
+    const lost = finish('lost', 0);
+    expect(lost.container.querySelector('.hud__button--primary')).toBeNull();
+    expect(
+      [...lost.container.querySelectorAll('.hud__button')].map((b) => b.textContent),
+    ).toContain('Retry');
+  });
+
+  it('paints the results panel on the same plate, with no border', () => {
+    const panel = block('.level-outcome__panel');
+    expect(panel).toMatch(/background:\s*var\(--hud-plate/);
+    expect(panel).toMatch(/border:\s*none/);
+    expect(panel).not.toMatch(/border:\s*3px/);
+
+    // The reveal pop-up sits above it and kept its frame until T206.
+    const reveal = block('.level-outcome__reveal');
+    expect(reveal).toMatch(/border:\s*none/);
+    expect(reveal).toMatch(/background:\s*var\(--hud-plate/);
+  });
+
+  it('lays the stats out in three equal columns', () => {
+    // Content-width columns shifted the row as the figures grew.
+    expect(block('.level-outcome__stats')).toMatch(/grid-template-columns:\s*repeat\(3,\s*1fr\)/);
+  });
+});
+
 describe('the HUD layout', () => {
   it('puts money top-left, health bottom-left and weapons on the bottom', () => {
     enterGameplay();
@@ -639,6 +732,7 @@ describe('Hud', () => {
         currency: 240,
         nextLevel: { world: 1, level: 4 },
         medals: 3,
+        mode: 'Normal',
         newAchievements: [],
         newEnemies: [],
       });
@@ -682,6 +776,7 @@ describe('Hud', () => {
         currency: 240,
         nextLevel: { world: 1, level: 4 },
         medals: 3,
+        mode: 'Normal',
         newAchievements: [],
         newEnemies: [],
       });
@@ -711,6 +806,7 @@ describe('Hud', () => {
         currency: 100,
         nextLevel: { world: 1, level: 4 },
         medals: 3,
+        mode: 'Normal',
         newAchievements: [],
         newEnemies: [],
       });
@@ -737,6 +833,7 @@ describe('Hud', () => {
         currency: 100,
         nextLevel: null,
         medals: 3,
+        mode: 'Normal',
         newAchievements: [],
         newEnemies: [],
       });
@@ -765,6 +862,7 @@ describe('Hud', () => {
         currency: 300,
         nextLevel: { world: 2, level: 1 },
         medals: 3,
+        mode: 'Normal',
         newAchievements: [],
         newEnemies: [],
       });
@@ -790,6 +888,7 @@ describe('Hud', () => {
         currency: 10,
         nextLevel: null,
         medals: 3,
+        mode: 'Normal',
         newAchievements: [],
         newEnemies: [],
       });

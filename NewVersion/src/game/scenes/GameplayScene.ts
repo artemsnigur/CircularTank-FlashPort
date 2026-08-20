@@ -5105,6 +5105,8 @@ export class GameplayScene extends Phaser.Scene {
         // The reveal pages. Empty on a sandbox run and on a loss, which is what
         // `bankLevelOutcome` returns in both cases.
         medals: this.banking?.medals ?? 0,
+        // The medal's *shape* comes from the mode — `ScreenLevelSelect.as:874`.
+        mode: this.levelSpec?.mode ?? 'Normal',
         newAchievements: this.banking?.newAchievements ?? [],
         newEnemies: this.banking?.newEnemies ?? [],
       });

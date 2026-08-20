@@ -801,6 +801,12 @@ extracted file of the same name — the JPEXS export's `cmap` is malformed and
 Chrome rejects it. Do not delete it or "restore" the extracted one;
 `fontIntegrity.test.ts` fails if the broken bytes ship.
 
+**The results screen is flat, with real medals (`A58`).** Both the panel and
+the unlock reveal use `--hud-plate`. Medals are `LevelModeIcon` in the shared
+`medal--*` tiers, and the tier is derived by feeding `medalTiers` rather than
+restating "Hard is gold" — do not hard-code the mapping in the view.
+`level:ended` carries `mode` for the medal shape. One primary action, inverted.
+
 **The pre-level briefing is flat and ordered (`A57`).** `--hud-plate`, no
 border, and it reads mode -> objective -> count. The digit line is reserved by
 `min-height` so the text above cannot jump; the asymmetric bottom padding is

@@ -1736,16 +1736,67 @@ code {
   filter: drop-shadow(0 1px 1px rgb(0 0 0 / 70%));
 }
 
+/*
+ * The results screen's buttons, and the only place this class is still used
+ * since T194 took the HUD's own `Menu` button out.
+ *
+ * Flat, like the pause panel's: no border, no `--panel` body, one translucent
+ * white fill that lifts on hover. Focus draws an outline and hover does not,
+ * so a keyboard user can tell which is which while the pointer is elsewhere.
+ */
 .hud__button {
   font-family: var(--font-display);
   min-height: 44px;
   min-width: 44px;
-  padding: 0 1rem;
-  border-radius: 10px;
-  border: 1px solid var(--panel-border);
-  background: var(--panel);
-  color: var(--text);
+  padding: 0 clamp(0.6rem, 1.8vh, 1.1rem);
+  border: none;
+  border-radius: clamp(0.35rem, 1vh, 0.6rem);
+  background: rgb(255 255 255 / 8%);
+  color: var(--steel-000);
+  font-size: clamp(0.68rem, 1.6vh, 0.85rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   cursor: pointer;
+  transition: background-color 120ms ease-out;
+}
+
+.hud__button:hover {
+  background: rgb(255 255 255 / 14%);
+}
+
+.hud__button:focus-visible {
+  outline: 2px solid var(--steel-000);
+  outline-offset: 2px;
+}
+
+/* The default action, inverted rather than tinted — the same treatment the
+   pause panel's Resume uses, and for the same reason: contrast outranks hue
+   on a flat dark plate, and it keeps the panel monochrome. */
+.hud__button--primary {
+  background: var(--steel-000);
+  color: #101216;
+}
+
+.hud__button--primary:hover {
+  background: var(--steel-000);
+  filter: brightness(0.92);
+}
+
+/* Quieter than a secondary — the optional "show me the unlocks" affordance. */
+.hud__button--ghost {
+  background: transparent;
+  color: var(--text-faint);
+}
+
+.hud__button--ghost:hover {
+  background: rgb(255 255 255 / 8%);
+  color: var(--steel-000);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud__button {
+    transition: none;
+  }
 }
 
 /* The opening countdown — PartInterface.as:303-308.
@@ -1975,15 +2026,25 @@ code {
   border: 0;
 }
 
+/*
+ * The results panel.
+ *
+ * ── What it stopped being (T206) ─────────────────────────────────────────
+ * `var(--panel)` with a **3px** `--panel-border` frame — the last of the three
+ * heavy-bordered cards, after the pause panel (`A52`) and the briefing
+ * (`A57`). Same fault each time: a frame doing badly what a change of tone and
+ * one shadow do well.
+ *
+ * It is `--hud-plate` now, borderless, and it sizes in `vh` so the results are
+ * the same share of the screen on a laptop and a 4K monitor.
+ */
 .level-outcome__panel {
-  min-width: min(320px, 80vw);
-  padding: 1.5rem 1.75rem;
-  border-radius: 8px;
-  /* The dark plate, matching the reading panels on the menu screens: heavy
-     black edge, `--panel` body. A hairline read as a card on the old light
-     palette and reads as nothing over the arena. */
-  background: var(--panel);
-  border: 3px solid var(--panel-border);
+  width: min(26rem, 86vw);
+  padding: clamp(1.3rem, 3.6vh, 2.2rem) clamp(1.2rem, 3vh, 2rem);
+  border: none;
+  border-radius: clamp(0.5rem, 1.4vh, 0.9rem);
+  background: var(--hud-plate, rgb(38 40 44 / 72%));
+  box-shadow: 0 1.5rem 3rem rgb(0 0 0 / 55%);
   text-align: center;
 }
 
@@ -2015,14 +2076,15 @@ code {
    */
   inset: 12% auto auto 50%;
   transform: translateX(-50%);
-  min-width: min(300px, 76vw);
-  padding: 1.5rem 1.75rem;
-  border-radius: 8px;
-  /* The dark plate, matching the reading panels on the menu screens: heavy
-     black edge, `--panel` body. A hairline read as a card on the old light
-     palette and reads as nothing over the arena. */
-  background: var(--panel);
-  border: 3px solid var(--panel-border);
+  width: min(24rem, 82vw);
+  padding: clamp(1.2rem, 3.2vh, 2rem) clamp(1.1rem, 2.8vh, 1.8rem);
+  border: none;
+  border-radius: clamp(0.5rem, 1.4vh, 0.9rem);
+  /* The same plate as the panel it sits above, and a deeper shadow so the two
+     read as stacked rather than as one shape with a seam. T206 — this kept its
+     3px `--panel-border` frame when the panel below lost one. */
+  background: var(--hud-plate, rgb(38 40 44 / 72%));
+  box-shadow: 0 1.75rem 3.5rem rgb(0 0 0 / 65%);
   text-align: center;
 }
 
@@ -2032,30 +2094,66 @@ code {
   font-size: var(--text-xl);
 }
 
+/*
+ * The stats, as an even three-column grid.
+ *
+ * It was a flex row with a fixed gap, so the three columns took their content's
+ * width and the row shifted sideways as the figures grew — `Kills 7` and
+ * `Kills 143` centred differently. Equal columns hold the layout still while
+ * the numbers change, which on a results screen they always do.
+ *
+ * A hairline above and below rather than a box: the group needs separating
+ * from the medals and the buttons, and this is the least furniture that does
+ * it. `1fr` columns and `dt`/`dd` inside each cell keeps the pairing that
+ * makes it a description list rather than six loose strings.
+ */
 .level-outcome__stats {
-  display: flex;
-  justify-content: center;
-  gap: 1.5rem;
-  margin: 0 0 1.25rem;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(0.4rem, 1.2vh, 0.8rem);
+  margin: clamp(0.9rem, 2.4vh, 1.5rem) 0;
+  padding: clamp(0.7rem, 1.8vh, 1.1rem) 0;
+  border-top: 1px solid rgb(255 255 255 / 10%);
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
 }
 
 .level-outcome__stats dt {
-  font-size: var(--text-2xs);
+  font-size: clamp(0.5rem, 1.1vh, 0.65rem);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-dim);
+  letter-spacing: 0.16em;
+  color: var(--text-faint);
 }
 
 .level-outcome__stats dd {
-  margin: 0.15rem 0 0;
-  font-size: var(--text-lg);
+  margin: clamp(0.15rem, 0.5vh, 0.3rem) 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 2.6vh, 1.5rem);
+  /* The figures change between results; tabular stops the columns twitching. */
   font-variant-numeric: tabular-nums;
+  color: var(--steel-000);
 }
 
+/*
+ * The actions.
+ *
+ * Four buttons in a flex row, all identical, so nothing led — on a screen
+ * whose whole job is "here is what happened, now do the obvious next thing".
+ *
+ * A grid now: the primary action spans the full width on its own row, and the
+ * secondaries sit under it in equal columns. Equal columns rather than
+ * content-width, so `Replay` and `Level select` are the same size and the row
+ * does not shift when the word changes between a win and a loss.
+ */
 .level-outcome__actions {
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: clamp(0.4rem, 1.1vh, 0.6rem);
+  margin-top: clamp(0.9rem, 2.4vh, 1.4rem);
+}
+
+/* The primary — Next level on a win, Retry on a loss — takes the whole row. */
+.level-outcome__actions .hud__button--primary {
+  grid-column: 1 / -1;
 }
 
 /* Status pages — ScreenStatus. The overlay opens on the last page and pages
@@ -2069,11 +2167,61 @@ code {
   color: var(--accent);
 }
 
+/*
+ * The medals — three icons, earned ones lit, unearned ones as empty sockets.
+ *
+ * They were `★★☆` as text in `--accent`, which is the danger red: the wrong
+ * shape (the AS3 picks the icon from the level's *mode*, `:874`) in a colour
+ * that means something else. They are the same `LevelModeIcon` the level grid
+ * and the detail panel draw, in the same shared `medal--gold|silver|bronze`
+ * tiers, so a results medal and a tile medal cannot end up different golds.
+ */
 .level-outcome__medals {
   margin: 0;
-  font-size: var(--text-lg);
-  letter-spacing: 0.12em;
-  color: var(--accent);
+}
+
+.level-outcome__medal-row {
+  display: flex;
+  justify-content: center;
+  gap: clamp(0.35rem, 1vh, 0.7rem);
+}
+
+/*
+ * The socket. An unearned medal keeps its slot rather than being absent, so
+ * the row cannot resize as the stamps land one by one — the same reason the
+ * level detail panel uses sockets (`A44`), and the same reason the countdown
+ * reserves its digit line (`A57`).
+ */
+.level-outcome__medal {
+  display: grid;
+  place-items: center;
+  width: clamp(2rem, 5.5vh, 3.2rem);
+  height: clamp(2rem, 5.5vh, 3.2rem);
+  border-radius: 50%;
+  background: rgb(0 0 0 / 35%);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 70%);
+}
+
+.level-outcome__medal-icon {
+  width: 62%;
+  height: 62%;
+  /* Unearned: present, but clearly not a medal. */
+  color: rgb(255 255 255 / 14%);
+}
+
+/*
+ * Earned. The tier colour arrives on the socket from `medal--*`, so the icon
+ * takes `currentColor` and the socket lifts to match — one class doing both,
+ * rather than a second set of per-tier icon rules that could disagree.
+ */
+.level-outcome__medal--earned .level-outcome__medal-icon {
+  color: currentColor;
+  filter: drop-shadow(0 0 0.35em currentColor);
+}
+
+.level-outcome__medal--earned {
+  background: rgb(255 255 255 / 8%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
 }
 
 .level-outcome__body {
@@ -3139,9 +3287,9 @@ code {
   filter: none;
 }
 
-.level-outcome__actions .hud__button--primary {
-  border-color: color-mix(in srgb, var(--ok) 60%, transparent);
-}
+/* `--ok`-tinted border removed with the borders themselves (T206); the
+   primary is inverted now, which reads at a glance rather than as a hairline
+   nobody notices. */
 
 /* Enemy behaviour status — a development view. */
 .screen--enemies { overflow-y: auto; }
