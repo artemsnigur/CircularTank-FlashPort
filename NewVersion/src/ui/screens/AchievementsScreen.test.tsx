@@ -201,7 +201,15 @@ describe('the board', () => {
     // The counterpart: if every layer were the full 52 units, the scale would
     // be 1 everywhere and this test would pass while proving nothing.
     expect(scaled).toBeGreaterThan(0);
-    expect(block('.achievements__art img')).toMatch(/width:\s*calc\(100%\s*\*\s*var\(--sw\)\)/);
+    /*
+     * The rule moved to `.achievement-art img` in T227 — one rule now covers
+     * this board *and* the unlock reveal, which used to size its layers to a
+     * flat 100% and stretched any layer that is not square.
+     *
+     * The DOM assertions above are unchanged, because the span still carries
+     * `achievements__art`; only the stylesheet's selector moved.
+     */
+    expect(block('.achievement-art img')).toMatch(/width:\s*calc\(100%\s*\*\s*var\(--sw/);
   });
 
   it('draws the earned picture on a locked badge, desaturated', () => {

@@ -32,12 +32,8 @@ import { useGameStore } from '../../state/gameStore';
 import { ScreenShell } from '../ScreenShell';
 import { CursorTip } from '../CursorTooltip';
 import { achievementNote, achievementFrame } from '../../game/achievements/achievementTooltip';
-import {
-  ACHIEVEMENT_BADGE_SIZE,
-  ACHIEVEMENT_CLIPS,
-  ACHIEVEMENT_SHAPE_BOX,
-} from '../../game/achievements/achievementArt';
-import { shapeUrl } from '../../assets/registry';
+import { ACHIEVEMENT_CLIPS } from '../../game/achievements/achievementArt';
+import { AchievementArt } from '../AchievementArt';
 import { LevelModeIcon } from '../LevelModeIcon';
 import { formatNumber } from '../../game/core/Functions';
 import { MEDAL_TIERS } from '../../game/achievements/achievementStats';
@@ -83,7 +79,7 @@ const DIFFICULTY_LABEL: Record<number, string> = { 1: 'Easy', 2: 'Medium', 3: 'H
  * and nothing would flag it; recovering the offsets means extending
  * `gen-sprite-shapes.mjs` to keep the translation half of the matrix.
  */
-function AchievementArt({ entry }: { entry: AchievementEntry }): React.ReactElement | null {
+function AchievementBadge({ entry }: { entry: AchievementEntry }): React.ReactElement | null {
   const clip = ACHIEVEMENT_CLIPS[entry.id];
   if (clip === undefined) return null;
 
@@ -103,29 +99,9 @@ function AchievementArt({ entry }: { entry: AchievementEntry }): React.ReactElem
   const frame = entry.earned ? Math.min(achievementFrame(entry), clip.frames.length) : 2;
   const layers = clip.frames[frame - 1] ?? [];
 
-  return (
-    <span className="achievements__art" aria-hidden="true">
-      {layers.map((shape) => {
-        const [w, h] = ACHIEVEMENT_SHAPE_BOX[shape] ?? [
-          ACHIEVEMENT_BADGE_SIZE,
-          ACHIEVEMENT_BADGE_SIZE,
-        ];
-        return (
-          <img
-            key={shape}
-            src={shapeUrl(`${shape}.svg`)}
-            alt=""
-            style={
-              {
-                '--sw': w / ACHIEVEMENT_BADGE_SIZE,
-                '--sh': h / ACHIEVEMENT_BADGE_SIZE,
-              } as React.CSSProperties
-            }
-          />
-        );
-      })}
-    </span>
-  );
+  // The sizing that used to live here is `AchievementArt` now, so the reveal
+  // page cannot draw a badge differently from this board — T227.
+  return <AchievementArt className="achievements__art" layers={layers} aria-hidden />;
 }
 
 /**
@@ -160,7 +136,7 @@ function AchievementCell({
       onMouseEnter={() => onHover(entry)}
       onMouseLeave={() => onHover(null)}
     >
-      <AchievementArt entry={entry} />
+      <AchievementBadge entry={entry} />
       <h3 className="achievements__title">{entry.title}</h3>
       <p className="achievements__goal">{entry.description}</p>
       {entry.earned && entry.difficultyMatters && entry.difficulty !== null && (

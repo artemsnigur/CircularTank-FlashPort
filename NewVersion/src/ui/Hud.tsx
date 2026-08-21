@@ -37,7 +37,7 @@ import { previewForLevel } from '../game/levels/levelPreview';
 import { achievementFrame, achievementTooltip } from '../game/achievements/achievementTooltip';
 import { ACHIEVEMENT_CLIPS } from '../game/achievements/achievementArt';
 import { ACHIEVEMENT_PAGE_EARNED } from '../game/waves/statusPages';
-import { shapeUrl } from '../assets/registry';
+import { AchievementArt } from './AchievementArt';
 import { DIFFICULTY_RANK, DIFFICULTY_SLOT } from '../game/levels/levelProgress';
 import { medalTiers } from '../game/levels/medalTiers';
 import { LevelModeIcon } from './LevelModeIcon';
@@ -470,11 +470,19 @@ function AchievementReveal({
       <p className="level-outcome__eyebrow">New Achievement</p>
       <h2 className="level-outcome__title">{page.title}</h2>
 
-      <span className="achievement-icon" role="img" aria-label={page.title} {...hover}>
-        {layers.map((shape) => (
-          <img key={shape} src={shapeUrl(`${shape}.svg`)} alt="" aria-hidden="true" />
-        ))}
-      </span>
+      {/*
+        * Through the shared renderer — T227. This page used to force every
+        * layer to `100% x 100%` of a 64px square, which stretched any layer
+        * that is not square. `BossOnlySpecial`'s emblem is 33.3 x 12.5, so it
+        * was drawn at two and a half times its proper width.
+        */}
+      <AchievementArt
+        className="achievement-icon"
+        layers={layers}
+        role="img"
+        aria-label={page.title}
+        {...hover}
+      />
 
       <p className="level-outcome__body">{page.description}</p>
       {page.difficultyMatters && (

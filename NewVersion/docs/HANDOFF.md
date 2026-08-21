@@ -856,6 +856,13 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Achievement badges are drawn by `ui/AchievementArt.tsx` and nothing else
+(`A78`).** A badge is a stack of layers with different native sizes; the reveal
+page used to force each to 100% of a 64px square, which stretched
+`BossOnlySpecial`'s 33.3 x 12.5 emblem to 2.66x its width. Size layers by
+`--sw`/`--sh` — **not** `object-fit: contain`, which would letterbox each layer
+across the full badge and lose the composition.
+
 **IDLE never minded aiming (`A77`).** `:2826` reads the mouse *button*, not
 the pointer. The rule is `achievements/idleActivity.ts` now and takes no aim
 parameter, so it cannot start minding. The real blocker is survival: every mode
