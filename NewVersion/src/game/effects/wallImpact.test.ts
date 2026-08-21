@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  AS3_WALL_SPREAD,
   WALL_FAN_DEGREES,
   WALL_PIECES,
   WALL_SPREAD,
@@ -44,7 +45,27 @@ describe('which wall, and which way the debris sprays', () => {
     // The AS3's own figures, stated rather than read back out of the module.
     expect(WALL_PIECES).toBe(3); // `:1821`
     expect(WALL_FAN_DEGREES).toBe(90);
-    expect(WALL_SPREAD).toBe(10);
+  });
+
+  it('starts the debris **on** the wall, where the AS3 starts it ten units in', () => {
+    /*
+     * A divergence (T240), and the AS3's figure is kept beside it rather than
+     * deleted — the same arrangement the coin speed and the debris scale use.
+     *
+     * `distance` offsets each piece along its **own heading**, and every
+     * heading points into the room, so at 10 all three pieces begin ten units
+     * inside the wall and travel further in. Measured in play: a median of
+     * **10.2** units from the wall, about twenty screen pixels at the usual
+     * zoom — a visible gap between the wall and the sparks meant to be coming
+     * off it.
+     */
+    expect(AS3_WALL_SPREAD).toBe(10); // `:1821`
+    expect(WALL_SPREAD).toBe(0);
+
+    const [burst] = wallImpactBursts(at(-10, 275));
+    expect(burst.distance).toBe(0);
+    // Flush: the burst is the clamped point itself, with nothing added.
+    expect([burst.x, burst.y]).toEqual([0, 275]);
   });
 });
 

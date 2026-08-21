@@ -49,8 +49,29 @@ export const WALL_FAN_DEGREES = 90;
 /** `:1821` — three pieces per wall, and a corner throws two lots. */
 export const WALL_PIECES = 3;
 
-/** `:1821` — the `distance` argument; debris starts spread along its heading. */
-export const WALL_SPREAD = 10;
+/**
+ * `:1821` — the AS3's `distance` argument, kept for the pinning test.
+ *
+ * It offsets each piece along its **own heading** before it starts moving, and
+ * every heading points into the room, so all three pieces begin ten units
+ * *inside* the wall and travel further in. Nothing ever touches it.
+ */
+export const AS3_WALL_SPREAD = 10;
+
+/**
+ * ── Divergence: the debris starts **on** the wall (T240) ──────────────────
+ *
+ * Measured before changing it: pieces sat a median of **10.2** units from the
+ * wall, which at the usual camera zoom is about twenty screen pixels — a
+ * visible gap between the wall and the sparks that are supposed to be coming
+ * off it. That is the AS3's own arithmetic and it still reads as wrong here,
+ * so it is zero by request.
+ *
+ * Nothing is lost by it. The offset existed to stop three pieces stacking on
+ * one point, and `BulletDestroy`'s own velocity (`0.5 + random() * 1.5` along
+ * a 90-degree fan) separates them within a frame anyway.
+ */
+export const WALL_SPREAD = 0;
 
 export interface WallImpactInput {
   /** The round's position **after** the step that took it out of the room. */

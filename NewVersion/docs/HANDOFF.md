@@ -863,6 +863,12 @@ the wrong puff. `Reflect` has three frames and no `gotoAndStop`, so it stays on
 frame 1. Only `Magic` and the three muzzle flares roll, and neither
 distribution is flat.
 
+**Wall debris starts flush on the wall (`A91`)** — `WALL_SPREAD` is 0, a
+divergence; the AS3's `10` offsets each piece *into* the room and left a
+20-pixel gap. A round is never painted beside its own debris (0 orphaned
+sprites over 610 frames); a rapid-fire weapon simply always has a *later* shot
+near the wall, which is what the report saw.
+
 **A round hitting a wall throws debris (`A90`)** — `effects/wallImpact.ts`,
 four fans, one per edge, clamped **per axis** so the burst sits on the wall in
 one coordinate and at the round's real position in the other. A corner spawns

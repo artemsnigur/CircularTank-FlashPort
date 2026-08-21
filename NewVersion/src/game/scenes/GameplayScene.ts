@@ -2540,17 +2540,31 @@ export class GameplayScene extends Phaser.Scene {
           { x: bullet.x, y: bullet.y, ...bullet.velocity },
           deltaMs,
         );
-        for (const spawn of wallImpactBursts({
+        const bursts = wallImpactBursts({
           x: exit.x,
           y: exit.y,
           radius: bullet.radius,
           roomWidth: this.roomWidth,
           roomHeight: this.roomHeight,
-        })) {
-          this.burst(spawn);
-        }
+        });
 
+        /*
+         * ── The round goes first, then the debris from where it stopped ────
+         *
+         * Ordering inside one frame does not change what a renderer draws —
+         * both happen before the frame is painted — so this is not a fix for a
+         * frame of lag. It is written this way because it is the sequence the
+         * report described ("the projectile should disappear when it hits the
+         * wall, and only then the particles from that place"), and code that
+         * reads in the order of the thing it models is the version that
+         * survives someone else editing it.
+         *
+         * `destroy()` before the burst is also what makes the round's own
+         * sprite unable to overlap its debris under any future change to when
+         * particles are drawn.
+         */
         bullet.destroy();
+        for (const spawn of bursts) this.burst(spawn);
         continue;
       }
 
