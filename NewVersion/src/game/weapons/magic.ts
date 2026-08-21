@@ -97,6 +97,48 @@ export function magicVelocity(
   return { xVel: Math.cos(angle) * speed, yVel: Math.sin(angle) * speed };
 }
 
+/**
+ * The homing rounds that turn to face where they are going — `:1749`, `:1769`.
+ *
+ * ── A per-class rule, and the AS3 draws the line in a surprising place ─────
+ * All three homing rounds re-aim their *velocity* every frame a target is
+ * held. Only two of them re-aim their *art*:
+ *
+ *     BulletMagicBunny  `:1749` — inside the seeking block, gated on the class
+ *     BulletRocket      `:1769` — its own block, alongside the velocity write
+ *     BulletMagic       nothing. It keeps the rotation it was fired with.
+ *
+ * The magic round's omission looks like an oversight and is not treated as
+ * one: its art is a symmetrical orb, so a heading would not read on it, while
+ * the bunny and the rocket are both plainly directional. Reproduced rather
+ * than "fixed" — and stated here because the next reader will otherwise see
+ * two of three and assume the third was missed by the port.
+ */
+const TURNS_WHILE_SEEKING = new Set(['BulletMagicBunny', 'BulletRocket']);
+
+export function turnsWhileSeeking(bulletClass: string): boolean {
+  return TURNS_WHILE_SEEKING.has(bulletClass);
+}
+
+/**
+ * The drawn angle for a heading, in degrees — `angleToTarget * 180 / PI`.
+ *
+ * The art points along **+x** at rotation 0, the same convention the spawn
+ * write at `:3907` uses, so there is no offset to apply.
+ *
+ * `null` for a round that is not moving, or whose velocity is not finite.
+ * `Math.atan2(0, 0)` is `0` rather than `NaN`, so the arithmetic is safe
+ * either way — but snapping a stationary round to face right is a visible
+ * wrong answer, and leaving its angle alone is the right one. The caller
+ * reads `null` as "do not touch it", which also makes a `NaN` velocity from
+ * anywhere upstream unable to reach a transform.
+ */
+export function seekingRotation(xVel: number, yVel: number): number | null {
+  if (!Number.isFinite(xVel) || !Number.isFinite(yVel)) return null;
+  if (xVel === 0 && yVel === 0) return null;
+  return (Math.atan2(yVel, xVel) * 180) / Math.PI;
+}
+
 export interface MagicState {
   /** Enemies this round may still damage before it dies. */
   targetsLeft: number;

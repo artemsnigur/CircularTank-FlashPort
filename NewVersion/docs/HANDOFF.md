@@ -863,14 +863,13 @@ the wrong puff. `Reflect` has three frames and no `gotoAndStop`, so it stays on
 frame 1. Only `Magic` and the three muzzle flares roll, and neither
 distribution is flat.
 
-**The Magic Bunny does NOT turn its art, and that is a revert (`A87`).** `A86`
-made it face its target; a hard freeze was reported and it was reverted on the
-asymmetry — cosmetic against a locked tab — **not** on a found cause. Four
-driven runs and a baseline comparison found no loop, no NaN and no stall.
-Before re-landing it, get the level it froze on and whether the console showed
-an error.
-
-**A86, now reverted, recorded that two of the three homing rounds turn.**
+**The bunny faces its heading through a display-only write (`A88`).**
+`Bullet.faceHeading` reads velocity and calls `setAngle`; it assigns no state,
+so it cannot feed back into physics — that is the whole design, after `A86`'s
+state write drew an unreproducible freeze (`A87`). **It must run after
+`advance`**, which sets the angle from `motion.rotation` every frame; the state
+and the drawing now disagree by ~44 degrees and that is deliberate. Two of the
+three homing rounds turn — `turnsWhileSeeking`.
 `turnsWhileSeeking` in `weapons/magic.ts` — the bunny (`:1749`) and the rocket
 (`:1769`) do; `BulletMagic` keeps its spawn rotation and that is faithful, not
 an omission. `Bullet.steer` is what writes it; `advance` already drew it.

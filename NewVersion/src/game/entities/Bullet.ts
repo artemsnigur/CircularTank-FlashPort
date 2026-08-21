@@ -18,7 +18,14 @@ import {
 import type { CheeseBounceState, GummyBounceState } from '../weapons/foodRounds';
 import { advanceFlame, createFlame } from '../weapons/flames';
 import type { FlameState } from '../weapons/flames';
-import { createMagicState, isFinalTarget, isHoming, registerMagicHit } from '../weapons/magic';
+import {
+  createMagicState,
+  isFinalTarget,
+  isHoming,
+  registerMagicHit,
+  seekingRotation,
+  turnsWhileSeeking,
+} from '../weapons/magic';
 import type { MagicState } from '../weapons/magic';
 import type { BulletSpec } from '../weapons/firing';
 import type { BulletState } from '../weapons/bullets';
@@ -319,6 +326,37 @@ export class Bullet extends Phaser.GameObjects.Sprite {
   /** Points the round at a new heading, for homing. */
   steer(xVel: number, yVel: number): void {
     this.motion = { ...this.motion, xVel, yVel };
+  }
+
+  /**
+   * Points the sprite along its velocity — **display only** (T237).
+   *
+   * ── Why this writes no state, and why that is the point ────────────────
+   * T235 did the same job by writing `motion.rotation` inside `steer`. A hard
+   * tab freeze was reported on it; four driven runs and a baseline comparison
+   * found no loop, no `NaN` and no stall (`A87`), but the evidence was
+   * inconclusive and it was reverted.
+   *
+   * This reads velocity and writes **only the display object's angle**.
+   * `motion` is untouched, so nothing here can feed back into a step, a
+   * bounce, a target search or a collision — the round flies exactly as it did
+   * before this method existed. If a freeze ever survives this, it is provably
+   * not from here.
+   *
+   * The gate has one home: `turnsWhileSeeking` says two of the three homing
+   * rounds turn, and the caller loops over every bullet rather than
+   * re-deciding.
+   *
+   * Must run **after** `advance`, which sets the angle from `motion.rotation`
+   * on every frame it runs. The two now disagree by design: the state keeps
+   * the spawn rotation the AS3 gives a round, and the drawing shows the
+   * heading.
+   */
+  faceHeading(): void {
+    if (!turnsWhileSeeking(this.bulletClassName)) return;
+
+    const angle = seekingRotation(this.motion.xVel, this.motion.yVel);
+    if (angle !== null) this.setAngle(angle);
   }
 
   hasHit(enemy: object): boolean {

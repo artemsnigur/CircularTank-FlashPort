@@ -2686,6 +2686,13 @@ export class GameplayScene extends Phaser.Scene {
     // Fragments join at the end, so they cannot burst again in the frame that
     // created them.
     this.bullets = [...surviving, ...spawnedPieces];
+
+    /*
+     * Last, because `Bullet.advance` sets the angle from `motion.rotation` on
+     * every frame it runs — a write before the flight would be overwritten by
+     * it. Display only; see `Bullet.faceHeading`.
+     */
+    for (const bullet of this.bullets) bullet.faceHeading();
   }
 
   /**
