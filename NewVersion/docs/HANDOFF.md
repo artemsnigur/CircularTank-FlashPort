@@ -856,6 +856,13 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Particle frames are a rule table, not `frames.length` (`A83`).**
+`particleFrame` in `effects/particles.ts`. `Poison`/`PoisonBoss` are frame 1
+and 2 **fixed** — the boss distinction *is* the frame, and randomising it draws
+the wrong puff. `Reflect` has three frames and no `gotoAndStop`, so it stays on
+frame 1. Only `Magic` and the three muzzle flares roll, and neither
+distribution is flat.
+
 **Burning has no indicator, and that is faithful (`A82`).** `onFire`/`onLava`
 are same-frame dedup booleans reset at `:5554` — fire is not a status, so there
 is no duration an overlay could be shown for, and no burn symbol exists in any

@@ -15,12 +15,14 @@ import {
   PARTICLE_PRESETS,
   alphaFor,
   isDead,
+  particleFrame,
   presetFor,
   spawnParticles,
   tickParticle,
   tickParticles,
 } from './particles';
 import type { Particle } from './particles';
+import { PARTICLE_CLIPS } from './particleArt';
 
 const make = (over: Partial<Particle> = {}): Particle => ({
   type: 'BulletDestroy',
@@ -28,6 +30,7 @@ const make = (over: Partial<Particle> = {}): Particle => ({
   velocity: 2, friction: 0.5,
   lifeTime: 10, lifeTimeMax: 10,
   scaleMax: 2, scaleMin: 0.2, killVelocity: 0,
+  frame: 1,
   scale: 2, alpha: 1,
   ...over,
 });
@@ -126,6 +129,98 @@ describe('four types fade, twenty-eight do not', () => {
     const debris = tickParticle(make({ type: 'BulletDestroy', lifeTime: 20, lifeTimeMax: 20 }));
     expect(heal.alpha).toBeLessThan(1);
     expect(debris.alpha).toBe(1);
+  });
+});
+
+describe('particleFrame', () => {
+  it('gives the boss poison its own frame, and never rolls for it', () => {
+    /*
+     * `:844` and `:850`. This is the half that was an actual **bug** rather
+     * than a loss of variety: the draw site asked for frame 1 unconditionally,
+     * so every boss drew the ordinary puff.
+     *
+     * Driven across the whole range of `random`, because the claim is that it
+     * does not consult it at all.
+     */
+    for (const r of [0, 0.2, 0.5, 0.9, 1]) {
+      expect(particleFrame('Poison', () => r), `roll ${r}`).toBe(1);
+      expect(particleFrame('PoisonBoss', () => r), `roll ${r}`).toBe(2);
+    }
+  });
+
+  it('splits Magic at the AS3`s thresholds, which are not thirds', () => {
+    /*
+     * `:871-882` — `< 0.33`, `< 0.66`, else. The third frame gets 34%, and a
+     * "tidied" `floor(r * 3)` would give clean thirds and disagree at exactly
+     * these boundaries. Pinned on both sides of each.
+     */
+    expect(particleFrame('Magic', () => 0)).toBe(1);
+    expect(particleFrame('Magic', () => 0.329)).toBe(1);
+    expect(particleFrame('Magic', () => 0.33)).toBe(2);
+    expect(particleFrame('Magic', () => 0.659)).toBe(2);
+    expect(particleFrame('Magic', () => 0.66)).toBe(3);
+    expect(particleFrame('Magic', () => 1)).toBe(3);
+  });
+
+  it('spreads the muzzle flares over four frames, with the rounding skew', () => {
+    /*
+     * `:915` — `round(1 + random() * 3)`. Rounding is not a uniform draw:
+     * frames 2 and 3 take about a third each and 1 and 4 about a sixth. The
+     * boundaries are what say so.
+     */
+    for (const kind of ['MuzzleFlareSmall', 'MuzzleFlareMedium', 'MuzzleFlareBig']) {
+      expect(particleFrame(kind, () => 0), kind).toBe(1);
+      expect(particleFrame(kind, () => 0.16), kind).toBe(1);
+      expect(particleFrame(kind, () => 0.17), kind).toBe(2);
+      expect(particleFrame(kind, () => 0.5), kind).toBe(3);
+      expect(particleFrame(kind, () => 0.84), kind).toBe(4);
+      expect(particleFrame(kind, () => 1), kind).toBe(4);
+    }
+  });
+
+  it('leaves Reflect on frame 1 although it has three frames', () => {
+    /*
+     * **The case a `frames.length`-driven implementation gets wrong.**
+     * `Reflect` has three frames in `PARTICLE_CLIPS` and no `gotoAndStop`
+     * anywhere in the spawner, so it draws its first — a loop over the art
+     * would randomise it and look more thorough while being less faithful.
+     *
+     * Pinned beside `Magic`, which does roll on the same inputs.
+     */
+    expect(PARTICLE_CLIPS.Reflect.frames.length).toBeGreaterThan(1);
+    for (const r of [0, 0.5, 0.99]) {
+      expect(particleFrame('Reflect', () => r), `roll ${r}`).toBe(1);
+      expect(particleFrame('Magic', () => r)).toBe(r < 0.33 ? 1 : r < 0.66 ? 2 : 3);
+    }
+  });
+
+  it('gives every single-frame type frame 1, and asks for no frame off the end', () => {
+    /*
+     * The sweep: every type the preset table names, plus every enemy debris
+     * colour, must resolve to a frame its clip actually has. That is what
+     * stops a rule added later from indexing past the art.
+     */
+    const types = [...Object.keys(PARTICLE_PRESETS), 'EnemyGreen', 'EnemyRed', 'EnemyBlack'];
+    for (const type of types) {
+      for (const r of [0, 0.5, 0.99]) {
+        const frame = particleFrame(type, () => r);
+        const clip = PARTICLE_CLIPS[presetFor(type).sprite];
+        expect(clip, `${type} has no clip`).toBeDefined();
+        expect(frame, `${type} at roll ${r}`).toBeGreaterThanOrEqual(1);
+        expect(frame, `${type} at roll ${r} is past its ${clip.frames.length} frame(s)`)
+          .toBeLessThanOrEqual(clip.frames.length);
+      }
+    }
+  });
+
+  it('is spent by `spawnParticles`, so the frame is decided once at spawn', () => {
+    // The wiring the draw site depends on: a particle carries its frame, and
+    // it is the frame the rule chose rather than a default.
+    const [boss] = spawnParticles({ type: 'PoisonBoss', count: 1, x: 0, y: 0 });
+    const [normal] = spawnParticles({ type: 'Poison', count: 1, x: 0, y: 0 });
+
+    expect(boss.frame).toBe(2);
+    expect(normal.frame).toBe(1);
   });
 });
 

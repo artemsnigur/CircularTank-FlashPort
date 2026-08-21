@@ -194,6 +194,59 @@ export interface Particle {
   /** Current drawn scale and opacity, recomputed each tick. */
   scale: number;
   alpha: number;
+  /**
+   * The clip frame, chosen once at spawn — see `particleFrame`.
+   *
+   * Fixed for the particle's life, exactly as `gotoAndStop` is: none of these
+   * clips animates. The field exists because the draw site used to ask for
+   * frame 1 unconditionally, which drew the ordinary poison puff on bosses and
+   * flattened the muzzle flares to one of their four.
+   */
+  frame: number;
+}
+
+/**
+ * The clip frame a particle draws — `gotoAndStop` in `spawnParticle`.
+ *
+ * ── There are exactly three rules, and only two are random ────────────────
+ * Every `gotoAndStop` in the whole spawner was listed before writing this,
+ * because the obvious implementation — "pick a random frame from the clip's
+ * frames" — is wrong for two of the five multi-frame clips:
+ *
+ *   `Poison` / `PoisonBoss`  `:844` / `:850`. **Fixed, not random**: frame 1
+ *                            for the ordinary puff and frame 2 for the boss's.
+ *                            It is a boss distinction wearing a frame, and
+ *                            randomising it would draw the small puff on a
+ *                            boss half the time.
+ *   `Magic`                  `:871-882`. Random over three, at `< 0.33`,
+ *                            `< 0.66`, else — so **34%** for the third, not a
+ *                            clean third.
+ *   the three muzzle flares  `:915`. `round(1 + random() * 3)` over four, and
+ *                            rounding skews it: frames 2 and 3 come up about
+ *                            a third each, frames 1 and 4 about a sixth. Same
+ *                            shape as the ice block's frame draw.
+ *
+ * `Reflect` has **three** frames and no `gotoAndStop` anywhere, so it stays on
+ * frame 1. That is the case a `frames.length`-driven implementation would get
+ * wrong while looking more thorough, and it is why this is a table of rules
+ * rather than a loop over the art.
+ *
+ * Everything else is a single-frame clip and returns 1 trivially.
+ */
+export function particleFrame(type: string, random: () => number = Math.random): number {
+  if (type === 'Poison') return 1;
+  if (type === 'PoisonBoss') return 2;
+
+  if (type === 'Magic') {
+    const roll = random();
+    if (roll < 0.33) return 1;
+    if (roll < 0.66) return 2;
+    return 3;
+  }
+
+  if (type.startsWith('MuzzleFlare')) return Math.round(1 + random() * 3);
+
+  return 1;
 }
 
 export function presetFor(type: string): ParticlePreset {
@@ -249,6 +302,7 @@ export function spawnParticles(input: SpawnInput): Particle[] {
       y: input.y + Math.sin(radians) * offset,
       moveAngle,
       rotation: preset.facesStartAngle ? startAngle : random() * 360,
+      frame: particleFrame(input.type, random),
       velocity,
       friction: preset.friction,
       lifeTime,

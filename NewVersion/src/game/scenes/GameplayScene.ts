@@ -4183,23 +4183,15 @@ export class GameplayScene extends Phaser.Scene {
       }
       const clip = presetFor(particle.type).sprite;
       /*
-       * ── Gap: always frame 1, where the AS3 picks a variant (T219) ───────
+       * The frame the particle chose at spawn — T232 closed T219's gap here.
        *
-       * `:846`/`:852` call `gotoAndStop` with a drawn frame, and
-       * `particles.ts`'s own docstring lists "the variant frame" among the
-       * randomised terms — but `Particle` carries no frame field, so nothing
-       * chooses one and this asks for 1 every time.
-       *
-       * **Harmless for enemy debris**, which is why it was not fixed here:
-       * every `Enemy*` clip has exactly one frame. It costs variety on the
-       * five clips that have more — Magic (3), Poison (2) and the three muzzle
-       * flares (4 each), which always draw their first.
-       *
-       * Fixing it means a `frame` on the particle, chosen at spawn from
-       * `PARTICLE_CLIPS[clip].frames.length`, and re-reading `:846` to see
-       * whether the choice is uniform or per-type.
+       * This asked for frame 1 unconditionally, which was not merely a loss of
+       * variety: `PoisonBoss` *is* frame 2 (`:850`), so every boss drew the
+       * ordinary puff. `particleFrame` holds the three rules; the choice is
+       * made once, because `gotoAndStop` is a stop and none of these clips
+       * animates.
        */
-      const shape = particleShape(clip, 1);
+      const shape = particleShape(clip, particle.frame);
       // Flash anchors a clip at its **registration point**; Phaser defaults to
       // the centre. Identical for 33 of the 44 particle shapes, and not for the
       // muzzle flares, whose registration is the flare's flat base — drawn
