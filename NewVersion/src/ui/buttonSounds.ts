@@ -1,6 +1,16 @@
 /**
- * Hover and click sounds for every DOM control — `InterfaceButtonOver1` and
- * `InterfaceButtonClick`.
+ * Click sounds for every DOM control — `InterfaceButtonClick`.
+ *
+ * ── The hover half is removed, and that is a divergence (T238) ────────────
+ * The AS3 pushes `InterfaceButtonOver1` on every rollover, and this port did
+ * too. Removed by request: a cursor crossing a dense screen fires it
+ * constantly, and the clutter costs more than the feedback is worth. Clicks
+ * are unaffected, so a control still answers when it is *used*.
+ *
+ * `HOVER_SOUND` is gone rather than left unused, so nothing can quietly start
+ * emitting it again; `InterfaceButtonOver1` stays in the manifest, because the
+ * asset is real and the sweep counts it as a known name rather than a missing
+ * one.
  *
  * ── 115 of the AS3's 187 sound sites are these two rules ──────────────────
  * Every `Button*` class in the original pushes `InterfaceButtonOver1` on
@@ -31,9 +41,6 @@
  */
 
 import { GameEvents } from '../game/events/GameEvents';
-
-/** `Button*.as` rollover — `InterfaceButtonOver1`. */
-export const HOVER_SOUND = 'InterfaceButtonOver1';
 
 /** `Button*.as` release — `InterfaceButtonClick`. */
 export const CLICK_SOUND = 'InterfaceButtonClick';
@@ -75,33 +82,16 @@ export function isAudible(element: Element | null): element is HTMLElement {
 }
 
 /**
- * Installs the two listeners on `root`. Returns a teardown.
+ * Installs the click listener on `root`. Returns a teardown.
  *
- * `pointerover` rather than `mouseenter` because it bubbles — the whole point
- * is one listener rather than one per control. `pointerover` refires when the
- * pointer crosses between children of the same button, so the last-hovered
- * control is tracked and a repeat on the same one is ignored; otherwise moving
- * across a button's label would retrigger the sound.
+ * One delegated listener rather than one per control — see the header for why
+ * that is the coverage mechanism rather than a shortcut.
+ *
+ * The `pointerover`/`pointerout` pair that drove the hover sound is gone with
+ * it (T238), along with the last-hovered bookkeeping that existed only to stop
+ * the sound retriggering as the pointer crossed a button's own label.
  */
 export function installButtonSounds(root: HTMLElement): () => void {
-  let lastHovered: Element | null = null;
-
-  const onOver = (event: Event): void => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const control = target.closest(INTERACTIVE_SELECTOR);
-    if (control === lastHovered) return;
-    lastHovered = control;
-    if (isAudible(target)) GameEvents.emit('ui:sound', { name: HOVER_SOUND });
-  };
-
-  const onOut = (event: Event): void => {
-    const target = event.target;
-    if (target instanceof Element && target.closest(INTERACTIVE_SELECTOR) === lastHovered) {
-      lastHovered = null;
-    }
-  };
-
   // `click` rather than `pointerdown`: the AS3 plays on *release*, and click is
   // also what fires for a keyboard activation, so the sound follows the action
   // rather than the mouse.
@@ -111,13 +101,9 @@ export function installButtonSounds(root: HTMLElement): () => void {
     }
   };
 
-  root.addEventListener('pointerover', onOver);
-  root.addEventListener('pointerout', onOut);
   root.addEventListener('click', onClick);
 
   return () => {
-    root.removeEventListener('pointerover', onOver);
-    root.removeEventListener('pointerout', onOut);
     root.removeEventListener('click', onClick);
   };
 }

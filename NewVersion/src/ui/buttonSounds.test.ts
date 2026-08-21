@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CLICK_SOUND,
-  HOVER_SOUND,
   INTERACTIVE_SELECTOR,
   SILENT_ATTRIBUTE,
   isAudible,
@@ -71,20 +70,49 @@ describe('isAudible', () => {
   });
 });
 
-describe('the two sound names', () => {
-  it('both resolve against the manifest', () => {
-    // The `EnemyShoot` failure mode, caught at build time for these two: a name
-    // the manifest does not know is warned about and silently dropped at
-    // runtime. `resolved: false` in the queue history is the runtime half.
+describe('the click sound', () => {
+  it('resolves against the manifest', () => {
+    // The `EnemyShoot` failure mode, caught at build time: a name the manifest
+    // does not know is warned about and silently dropped at runtime.
+    // `resolved: false` in the queue history is the runtime half.
     const known = new Set(SFX.map((entry) => entry.name));
-    expect(known.has(HOVER_SOUND)).toBe(true);
     expect(known.has(CLICK_SOUND)).toBe(true);
+    expect(CLICK_SOUND).toBe('InterfaceButtonClick');
   });
 
-  it('are the AS3`s two, not one doing both jobs', () => {
-    expect(HOVER_SOUND).toBe('InterfaceButtonOver1');
-    expect(CLICK_SOUND).toBe('InterfaceButtonClick');
-    expect(HOVER_SOUND).not.toBe(CLICK_SOUND);
+  it('is the only sound this module emits — the hover is gone (T238)', () => {
+    /*
+     * A divergence, requested: the AS3 pushes `InterfaceButtonOver1` on every
+     * rollover and a cursor crossing a dense screen fires it constantly.
+     *
+     * Asserted against the **source**, not against a name, because the
+     * constant was deleted — a test that only checked "HOVER_SOUND is not
+     * exported" would pass for a module that had inlined the string.
+     *
+     * Comments are stripped first. The module's own header explains what was
+     * removed and names the sound, so a raw match reads its explanation as
+     * code — prose-as-code, the trap `CLAUDE.md` names, and it failed a
+     * correct module on the first run.
+     */
+    const source = readFileSync('src/ui/buttonSounds.ts', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('//'))
+      .join('\n');
+
+    expect(source, 'the hover sound is emitted again').not.toMatch(/InterfaceButtonOver1/);
+    expect(source, 'a hover listener is installed again').not.toMatch(/pointerover|mouseenter/);
+
+    // The counterpart: the click half is still wired, so "no sounds at all"
+    // does not pass this.
+    expect(source).toMatch(/addEventListener\('click'/);
+    expect(source).toMatch(/name: CLICK_SOUND/);
+  });
+
+  it('leaves the asset in the manifest, since it is real', () => {
+    // Removing the *trigger* is not removing the sound: the file exists and
+    // the coverage sweep counts it as a known name rather than a missing one.
+    expect(new Set(SFX.map((e) => e.name)).has('InterfaceButtonOver1')).toBe(true);
   });
 });
 

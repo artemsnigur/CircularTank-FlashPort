@@ -24,6 +24,8 @@ import {
   writeAudioOptions,
 } from './audioOptions';
 import { getOptionsStore } from '../save/optionsStore';
+import { installAudioUnlock } from './audioUnlock';
+import type { ResumableContext } from './audioUnlock';
 
 const SOUND_REGISTRY_KEY = 'soundManager';
 
@@ -62,7 +64,21 @@ export function installSoundManager(scene: Phaser.Scene): Installed {
   // controls — see `ui/buttonSounds.ts` for why it is delegated.
   const offUiSound = GameEvents.subscribe('ui:sound', ({ name }) => manager.queue(name));
 
+  /*
+   * Keep the Web Audio context running — T238, and see `audioUnlock.ts` for
+   * why Phaser's own unlock is not sufficient.
+   *
+   * The context is read through a thunk because Phaser's manager may not have
+   * one (the HTML5 fallback and the no-audio stub both lack it), and because
+   * it can be replaced.
+   */
+  const offUnlock = installAudioUnlock(() => {
+    const sound = scene.game.sound as { context?: ResumableContext };
+    return sound.context ?? null;
+  });
+
   const dispose = (): void => {
+    offUnlock();
     offUiSound();
     scene.game.events.off(Phaser.Core.Events.PRE_STEP, tick);
     backend.destroy();

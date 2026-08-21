@@ -34,12 +34,26 @@ export interface AudioOptions {
   musicVol: number;
 }
 
-/** `SaveManager.as:831-834` — the reset defaults. */
+/**
+ * The starting volumes — **a divergence, requested** (T238).
+ *
+ * `SaveManager.as:831-834` resets both to `1`, and the AS3 figures are kept
+ * below as `AS3_AUDIO_DEFAULTS` and still asserted against that line. A fresh
+ * profile now starts at half on both channels, because full is loud enough on
+ * modern hardware that the first thing a new player does is reach for the
+ * slider.
+ *
+ * The toggles are untouched: on/off is a different question from how loud, and
+ * the AS3's coupling between them (`A?` — see the slider note below) still
+ * behaves exactly as it did.
+ */
+export const AS3_AUDIO_DEFAULTS = { soundVol: 1, musicVol: 1 } as const;
+
 export const DEFAULT_AUDIO_OPTIONS: AudioOptions = {
   soundOn: true,
   musicOn: true,
-  soundVol: 1,
-  musicVol: 1,
+  soundVol: 0.5,
+  musicVol: 0.5,
 };
 
 /**

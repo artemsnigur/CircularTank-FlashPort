@@ -863,6 +863,14 @@ the wrong puff. `Reflect` has three frames and no `gotoAndStop`, so it stays on
 frame 1. Only `Magic` and the three muzzle flares roll, and neither
 distribution is flat.
 
+**Audio starts at 0.5, and `audio/audioUnlock.ts` keeps the context running
+(`A89`).** Phaser's own unlock installs handlers *only* if the context is
+suspended at construction, which Chrome often makes false — so we listen on
+`document` in the capture phase, on every gesture, not once. **Never gate a
+music request behind a Phaser scene pointer event**: DOM overlays cover the
+canvas, which is exactly why the lobby was silent. Hover sounds are gone;
+clicks remain.
+
 **The bunny faces its heading through a display-only write (`A88`).**
 `Bullet.faceHeading` reads velocity and calls `setAngle`; it assigns no state,
 so it cannot feed back into physics — that is the whole design, after `A86`'s

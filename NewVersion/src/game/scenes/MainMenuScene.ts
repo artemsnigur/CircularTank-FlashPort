@@ -74,13 +74,27 @@ export class MainMenuScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    // The audio self-test needs an unlocked AudioContext, which needs a
-    // gesture. The first tap anywhere is the earliest honest moment to run it.
+    /*
+     * ── The menu track is requested here, not behind a canvas tap (T238) ──
+     *
+     * It used to sit inside `this.input.once(POINTER_DOWN, ...)`, which is a
+     * **Phaser scene** pointer event and therefore needs a press on the
+     * *canvas*. Every control on this screen is a DOM overlay drawn over that
+     * canvas, so a player who only ever clicks buttons — which is every player
+     * on the menu — never produced one. The lobby was silent for that reason
+     * alone, and no amount of waiting fixed it.
+     *
+     * Requesting it unconditionally is safe: `startCrossfade` retries each
+     * frame until the lazy load lands, and `installAudioUnlock` resumes the
+     * context on the first real gesture wherever it happens.
+     */
+    getSoundManager(this)?.setMusic('Menu');
+
+    // The self-test still needs a gesture — it measures a decoded buffer and a
+    // suspended context would report silence. This is the earliest honest
+    // moment, and unlike the music it is genuinely gesture-dependent.
     this.input.once(Phaser.Input.Events.POINTER_DOWN, () => {
       void this.runSelfTestOnce();
-      // Menu music is the one track worth loading eagerly; the crossfade
-      // retries each frame until the lazy load lands.
-      getSoundManager(this)?.setMusic('Menu');
     });
 
     this.publishResumePoint();

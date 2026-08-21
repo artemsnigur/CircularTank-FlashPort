@@ -13,6 +13,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  AS3_AUDIO_DEFAULTS,
   DEFAULT_AUDIO_OPTIONS,
   applyAudioOptions,
   coupleAudioChange,
@@ -430,5 +431,41 @@ describe('setAudioOption applies the coupling for every surface', () => {
     setAudioOption(scene, { soundOn: false });
 
     expect(saved.at(-1)).toBe(0);
+  });
+});
+
+describe('the starting volumes are half, by request', () => {
+  it('starts a fresh profile at 0.5 on both channels', () => {
+    /*
+     * A divergence (T238). `SaveManager.as:831-834` resets both to 1, and full
+     * is loud enough on modern hardware that the first thing a new player does
+     * is reach for the slider.
+     *
+     * The AS3 figures are kept and asserted against their source line, so the
+     * change stays deliberate rather than becoming an invented constant — the
+     * same arrangement the coin speed and the debris scale used.
+     */
+    expect(AS3_AUDIO_DEFAULTS.soundVol).toBe(1); // `SaveManager.as:831-834`
+    expect(AS3_AUDIO_DEFAULTS.musicVol).toBe(1);
+
+    expect(DEFAULT_AUDIO_OPTIONS.soundVol).toBe(0.5);
+    expect(DEFAULT_AUDIO_OPTIONS.musicVol).toBe(0.5);
+  });
+
+  it('leaves both channels switched on', () => {
+    /*
+     * The counterpart, and it matters because of the slider/toggle coupling
+     * this file documents at length: half volume must not read as "muted".
+     * A change that set the volumes by turning something off would fail here.
+     */
+    expect(DEFAULT_AUDIO_OPTIONS.soundOn).toBe(true);
+    expect(DEFAULT_AUDIO_OPTIONS.musicOn).toBe(true);
+  });
+
+  it('is what a store with nothing saved hands back', () => {
+    // The wiring half: defaults matter only if the reader falls back to them.
+    const options = readAudioOptions(new SaveStore(OPTIONS_STORE, new MemoryBackend()));
+    expect(options.soundVol).toBe(0.5);
+    expect(options.musicVol).toBe(0.5);
   });
 });
