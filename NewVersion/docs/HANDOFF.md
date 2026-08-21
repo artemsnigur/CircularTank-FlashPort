@@ -888,6 +888,12 @@ from `steppedPosition` (exported from `weapons/bullets.ts`): `advanceBullet`
 discards the stepped position when it culls, and `bullet.x` is still inside the
 room.
 
+**`docs/ENEMY-DOSSIER.md` is every enemy stat, tier and multiplier**, with the
+difficulty scaling written out — the baseline for the planned fourth
+difficulty. Generated: `node scripts/gen-enemy-dossier.mjs`. Its resolved
+tables are *recomputed* with `resolveEnemyStats`' formula rather than
+described, so they cannot drift.
+
 **`docs/LEVEL-DOSSIER.md` is every world, level, mode and wave in one table**,
 plus where each enemy type first appears and the structural rules checked
 against all 405 rows. Generated — `node scripts/gen-level-dossier.mjs` — so
