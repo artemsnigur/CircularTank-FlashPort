@@ -34,6 +34,8 @@ export interface StepContext {
   camera: CameraBounds | null;
   /** False once this round's bounces are used up — `:1812`. */
   canBounce: boolean;
+  /** See `BulletBounds.contactInset`. Omitted keeps the collision radius. */
+  contactInset?: number;
 }
 
 export interface StepResult {
@@ -77,7 +79,11 @@ export function stepBullet(
 
   const next = advanceBullet(
     bullet,
-    { roomWidth: context.roomWidth, roomHeight: context.roomHeight },
+    {
+      roomWidth: context.roomWidth,
+      roomHeight: context.roomHeight,
+      contactInset: context.contactInset,
+    },
     deltaMs,
   );
   return next ? { state: next, bounced: null } : null;

@@ -2543,7 +2543,9 @@ export class GameplayScene extends Phaser.Scene {
         const bursts = wallImpactBursts({
           x: exit.x,
           y: exit.y,
-          radius: bullet.radius,
+          // The same margin the cull used, or the burst cannot tell which
+          // wall was struck — see `WallImpactInput.contactInset`.
+          contactInset: bullet.wallContactInset,
           roomWidth: this.roomWidth,
           roomHeight: this.roomHeight,
         });

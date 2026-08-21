@@ -65,6 +65,27 @@ export interface BulletState {
 export interface BulletBounds {
   roomWidth: number;
   roomHeight: number;
+  /**
+   * How close the **centre** may come to a wall before the round is gone,
+   * measured inward — so a positive value kills it while it is still inside.
+   *
+   * ── Why this is not the collision radius (T241) ────────────────────────
+   * It used to be `-radius`: the round survived until its centre had passed
+   * the wall by its collision radius. For `BulletSmall` that is 2, while the
+   * **art is 16 units long** — so the drawn round reached 10 units *through*
+   * the wall before it died. Measured at paint time, that is exactly what it
+   * did, and it is what "the projectile is still visible" was describing.
+   *
+   * The AS3 is worse here, not better: `:1815` uses `theBullet.width / 2`,
+   * the clip's own bounding box, so the original waits for the sprite to
+   * clear the wall entirely. Reproducing that faithfully is what produced the
+   * complaint, so this diverges deliberately — the round dies as its leading
+   * edge *touches* the wall.
+   *
+   * Omitted, it keeps the old behaviour, which is what every caller that does
+   * not draw a sprite wants.
+   */
+  contactInset?: number;
 }
 
 /**
@@ -94,11 +115,12 @@ export function advanceBullet(
 
   // The AS3 has per-weapon border behaviour (bounce, explode, stop); the base
   // path simply removes the bullet.
+  const inset = bounds.contactInset ?? -bullet.radius;
   if (
-    x < -bullet.radius ||
-    x > bounds.roomWidth + bullet.radius ||
-    y < -bullet.radius ||
-    y > bounds.roomHeight + bullet.radius
+    x < inset ||
+    x > bounds.roomWidth - inset ||
+    y < inset ||
+    y > bounds.roomHeight - inset
   ) {
     return null;
   }

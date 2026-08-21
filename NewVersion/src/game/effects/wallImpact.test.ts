@@ -11,10 +11,19 @@ import { advanceBullet, steppedPosition } from '../weapons/bullets';
 import type { BulletState } from '../weapons/bullets';
 
 const ROOM = { roomWidth: 800, roomHeight: 600 };
-const RADIUS = 3;
+
+/**
+ * `BulletSmall`: collision radius 2, art 16 units long.
+ *
+ * The pair is the point of T241 — the round is gone once its **centre** is
+ * within half the art's length of a wall, which is eight times further out
+ * than the radius the cull used to wait for.
+ */
+const RADIUS = 2;
+const CONTACT = 8;
 
 /** Everything but the position, so each case says only what it is about. */
-const at = (x: number, y: number) => ({ x, y, radius: RADIUS, ...ROOM });
+const at = (x: number, y: number) => ({ x, y, contactInset: CONTACT, ...ROOM });
 
 describe('which wall, and which way the debris sprays', () => {
   it('sends each fan back into the room, along the inward normal', () => {
@@ -164,20 +173,22 @@ describe('it fires only for a round that really left the room', () => {
      * would put debris in the middle of the arena.
      */
     expect(wallImpactBursts(at(400, 300))).toEqual([]);
-    expect(wallImpactBursts(at(0, 0))).toEqual([]);
-    expect(wallImpactBursts(at(800, 600))).toEqual([]);
+    // Just clear of the contact margin on both axes, at both corners.
+    expect(wallImpactBursts(at(CONTACT + 1, CONTACT + 1))).toEqual([]);
+    expect(wallImpactBursts(at(800 - CONTACT - 1, 600 - CONTACT - 1))).toEqual([]);
   });
 
-  it('uses the same radius margin the cull does', () => {
+  it('uses the same contact margin the cull does', () => {
     /*
      * The pair that matters most, and the reason `advanceBullet` is imported
-     * here: the burst must fire on **exactly** the step that culls. One unit
-     * inside the margin, the round survives and there is no burst; one unit
+     * here: the burst must fire on **exactly** the step that culls. A hair
+     * inside the margin, the round survives and there is no burst; a hair
      * past it, both agree.
      *
      * A margin that disagreed would show as debris with no removal, or a
      * removal with no debris — and neither is visible in a test of either
-     * function alone.
+     * function alone. After T241 it would be worse than a mismatch: the burst
+     * would find the round *in bounds* and produce nothing at all.
      */
     const bullet = (x: number): BulletState => ({
       x,
@@ -198,14 +209,42 @@ describe('it fires only for a round that really left the room', () => {
       targets: 0,
     });
 
-    const inside = -RADIUS + 0.5;
-    const outside = -RADIUS - 0.5;
+    const bounds = { ...ROOM, contactInset: CONTACT };
+    const clear = CONTACT + 0.5;
+    const touching = CONTACT - 0.5;
 
-    expect(advanceBullet(bullet(inside), ROOM, 0)).not.toBeNull();
-    expect(wallImpactBursts(at(inside, 300))).toEqual([]);
+    expect(advanceBullet(bullet(clear), bounds, 0)).not.toBeNull();
+    expect(wallImpactBursts(at(clear, 300))).toEqual([]);
 
-    expect(advanceBullet(bullet(outside), ROOM, 0)).toBeNull();
-    expect(wallImpactBursts(at(outside, 300))).toHaveLength(1);
+    expect(advanceBullet(bullet(touching), bounds, 0)).toBeNull();
+    expect(wallImpactBursts(at(touching, 300))).toHaveLength(1);
+  });
+
+  it('kills the round while its centre is still inside the room', () => {
+    /*
+     * The change itself, stated as the thing that was wrong. The cull used to
+     * be `-radius`, so the round survived until its centre had passed the
+     * wall — and with the art eight times longer than the radius, the drawn
+     * round reached **10 units through the wall** before dying. That is what
+     * "the projectile is still visible" was.
+     *
+     * The old margin is asserted beside the new one, because "dies near the
+     * wall" is true of both and only the *sign* separates them.
+     */
+    const bullet: BulletState = {
+      x: 4, y: 300, xVel: 0, yVel: 0, rotation: 0, radius: RADIUS,
+      damage: 1, explosion: false, explosionRadius: 0, penetrates: false,
+      bombTimer: 0, freezeTime: 0, poisonTime: 0, poisonDamage: 0,
+      cakePieces: 0, targets: 0,
+    };
+
+    // Inside the room by every measure — and gone, because its nose is out.
+    expect(bullet.x).toBeGreaterThan(0);
+    expect(advanceBullet(bullet, { ...ROOM, contactInset: CONTACT }, 0)).toBeNull();
+
+    // Without the inset, the same round lives on and is drawn past the wall.
+    expect(advanceBullet(bullet, ROOM, 0)).not.toBeNull();
+    expect(advanceBullet({ ...bullet, x: -RADIUS - 1 }, ROOM, 0)).toBeNull();
   });
 
   it('reads the position the step produced, not the one before it', () => {
@@ -217,12 +256,12 @@ describe('it fires only for a round that really left the room', () => {
      * position produces a burst.
      */
     const frame = 1000 / 30;
-    const round = { x: 5, y: 300, xVel: -20, yVel: 0 };
+    const round = { x: 20, y: 300, xVel: -20, yVel: 0 };
 
     expect(wallImpactBursts(at(round.x, round.y))).toEqual([]);
 
     const exit = steppedPosition(round, frame);
-    expect(exit.x).toBeCloseTo(-15, 6);
+    expect(exit.x).toBeCloseTo(0, 6);
     expect(wallImpactBursts(at(exit.x, exit.y))).toHaveLength(1);
   });
 

@@ -309,6 +309,22 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     return { xVel: this.motion.xVel, yVel: this.motion.yVel };
   }
 
+  /**
+   * How far the centre is from a wall when the **drawn** round touches it.
+   *
+   * Half the sprite's length, because the art points along the heading — so
+   * this is the distance from the centre to the leading edge whatever
+   * direction the round is travelling.
+   *
+   * Read live rather than cached: a flame grows over its life
+   * (`advanceFlameLife`), and a stale value would let a grown one cross the
+   * wall again. `displayWidth` is the authored size the constructor set, so
+   * this is not the 4x raster.
+   */
+  get wallContactInset(): number {
+    return this.displayWidth / 2;
+  }
+
   /** Flight speed in design units per frame, for re-aiming a homing round. */
   get speedPerFrame(): number {
     return Math.hypot(this.motion.xVel, this.motion.yVel);
@@ -453,6 +469,7 @@ export class Bullet extends Phaser.GameObjects.Sprite {
         roomHeight: this.roomHeight,
         camera,
         canBounce: this.bounceState !== null && !this.bounceSpent(),
+        contactInset: this.wallContactInset,
       },
       deltaMs,
     );

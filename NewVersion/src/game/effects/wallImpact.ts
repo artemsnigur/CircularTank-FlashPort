@@ -77,8 +77,14 @@ export interface WallImpactInput {
   /** The round's position **after** the step that took it out of the room. */
   x: number;
   y: number;
-  /** Its collision radius — the same margin `advanceBullet` culls on. */
-  radius: number;
+  /**
+   * The margin `advanceBullet` culled on — `BulletBounds.contactInset`.
+   *
+   * It has to be **the same number**, not the collision radius: with the round
+   * now dying while its centre is still inside the room (T241), a radius test
+   * would find it in bounds and produce no burst at all.
+   */
+  contactInset: number;
   roomWidth: number;
   roomHeight: number;
 }
@@ -91,7 +97,7 @@ export interface WallImpactInput {
  * those would put debris in the middle of the arena.
  */
 export function wallImpactBursts(input: WallImpactInput): SpawnInput[] {
-  const { x, y, radius, roomWidth, roomHeight } = input;
+  const { x, y, contactInset, roomWidth, roomHeight } = input;
   if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
 
   const bursts: SpawnInput[] = [];
@@ -111,20 +117,20 @@ export function wallImpactBursts(input: WallImpactInput): SpawnInput[] {
     randAngle: WALL_FAN_DEGREES,
   });
 
-  if (x < -radius) {
+  if (x < contactInset) {
     partX = 0;
     bursts.push(burst(partX, partY, 0));
-  } else if (x > roomWidth + radius) {
+  } else if (x > roomWidth - contactInset) {
     partX = roomWidth;
     bursts.push(burst(partX, partY, 180));
   }
 
   // Separate `if`, not an `else` — a corner exit spawns from both, and this
   // one sees the `partX` the block above may have already clamped.
-  if (y < -radius) {
+  if (y < contactInset) {
     partY = 0;
     bursts.push(burst(partX, partY, 90));
-  } else if (y > roomHeight + radius) {
+  } else if (y > roomHeight - contactInset) {
     partY = roomHeight;
     bursts.push(burst(partX, partY, 270));
   }

@@ -863,6 +863,12 @@ the wrong puff. `Reflect` has three frames and no `gotoAndStop`, so it stays on
 frame 1. Only `Magic` and the three muzzle flares roll, and neither
 distribution is flat.
 
+**A round dies when its art touches the wall, not when its centre passes it
+(`A92`).** `BulletBounds.contactInset` — `BulletSmall`'s radius is 2 and its
+art is 16 long, so the old `-radius` cull drew it **10 units through the wall**.
+The cull and `wallImpactBursts` must share the one margin; a radius test would
+now find the round in bounds and spawn nothing.
+
 **Wall debris starts flush on the wall (`A91`)** — `WALL_SPREAD` is 0, a
 divergence; the AS3's `10` offsets each piece *into* the room and left a
 20-pixel gap. A round is never painted beside its own debris (0 orphaned
