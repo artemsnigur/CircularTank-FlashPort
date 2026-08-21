@@ -18,6 +18,7 @@ import {
   PROP_SHAPES,
 } from '../../assets/manifest';
 import { SceneKeys } from '../config/constants';
+import { bootScene } from '../../state/menuRoute';
 import { GameEvents } from '../events/GameEvents';
 import { audioUrl } from '../../assets/registry';
 import { SoundManager } from '../audio/SoundManager';
@@ -189,6 +190,18 @@ export class PreloadScene extends Phaser.Scene {
       assetCount: SAMPLE_ASSET_COUNT,
     });
 
-    this.scene.start(SceneKeys.MainMenu);
+    /*
+     * The menu named by `location.hash`, or the main menu — T225.
+     *
+     * This is the half of the reload story that only the boot path can do:
+     * `menuRoute` keeps the hash current while the app runs, and this is what
+     * reads it back. Booting into `MainMenu` and then navigating would work
+     * too, and would show the main menu for a frame on every reload.
+     *
+     * `bootScene` cannot return `Gameplay` — no slug maps to it — so a reload
+     * during a level lands on the last menu instead of a half-built
+     * simulation. See `navigation/menuRoute.ts`.
+     */
+    this.scene.start(bootScene());
   }
 }

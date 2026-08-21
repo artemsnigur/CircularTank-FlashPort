@@ -856,6 +856,13 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**The menu screen is in the URL hash (`A76`).** `#upgrades`, `#levels`,
+`#options` — written by `state/menuRoute.ts` as `activeScene` changes, read by
+`PreloadScene` on hand-off. `Gameplay` has **no slug on purpose**, so a refresh
+mid-level lands on the last menu rather than a half-built simulation; that
+makes `routeForScene` returning null mean *leave the hash alone*, not clear it.
+A new scene fails `menuRoute.test.ts` until it is routed or excused.
+
 **Before believing a "the world got smaller" report, print the scale chain
 (`A75`).** dpr, canvas CSS box, backing store, scale-manager size, camera zoom,
 `worldView`. The contract is a fixed 640-unit design width, so `worldView.width
