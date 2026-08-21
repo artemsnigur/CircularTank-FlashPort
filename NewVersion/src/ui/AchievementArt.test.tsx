@@ -98,6 +98,59 @@ describe('every badge, everywhere', () => {
     expect(layers).toBeGreaterThan(100);
   });
 
+  it('renders every frame of every clip at its recorded ratio', () => {
+    /*
+     * The board audit, as a mechanism rather than a harness run — T228.
+     *
+     * A browser pass over the Achievements board measured 36 badges and 72
+     * layers, none stretched. But a locked board draws **frame 2 only**, so
+     * that run saw 38 of the 76 shapes, and an earned badge stacks different
+     * layers. Rather than contrive a profile per achievement, every frame of
+     * every clip is rendered here and each layer checked against its box.
+     *
+     * What made the browser run sufficient anyway is worth keeping: all
+     * **14** non-square shapes appear on frame 2, and the other 62 are exactly
+     * 52x52, where a stretch is arithmetically a no-op. So the board pass did
+     * cover every shape whose ratio a render could get wrong — this is what
+     * stops that argument having to be made again by hand.
+     */
+    let checked = 0;
+    let nonSquare = 0;
+
+    for (const [id, clip] of Object.entries(ACHIEVEMENT_CLIPS)) {
+      for (const [index, frame] of clip.frames.entries()) {
+        const { container } = render(<AchievementArt className="x" layers={frame} />);
+        const imgs = [...container.querySelectorAll<HTMLElement>('img')];
+        expect(imgs, `${id} frame ${index + 1}`).toHaveLength(frame.length);
+
+        for (const img of imgs) {
+          const shape = Number(/(\d+)\.svg/.exec(img.getAttribute('src') ?? '')?.[1]);
+          const box = ACHIEVEMENT_SHAPE_BOX[shape];
+          const sw = Number(img.style.getPropertyValue('--sw'));
+          const sh = Number(img.style.getPropertyValue('--sh'));
+
+          // The ratio is the claim: a stretched layer is one whose aspect does
+          // not survive. Asserted as the box's own aspect, not as "sw != sh".
+          expect(sw / sh, `${id} frame ${index + 1} shape ${shape}`).toBeCloseTo(
+            box[0] / box[1],
+            6,
+          );
+          expect(sw).toBeCloseTo(box[0] / ACHIEVEMENT_BADGE_SIZE, 6);
+          checked += 1;
+          if (box[0] !== box[1]) nonSquare += 1;
+        }
+      }
+    }
+
+    /*
+     * The counterpart for the whole sweep. If every layer in the game were
+     * square, every assertion above would pass for a renderer that stretches —
+     * which is precisely the state the reveal page was in for 35 badges.
+     */
+    expect(checked).toBeGreaterThan(100);
+    expect(nonSquare, 'no non-square layer exists, so this proves nothing').toBeGreaterThan(0);
+  });
+
   it('is drawn through this component on both screens, and by nothing else', () => {
     /*
      * Source-shape, and narrow: it proves the two call sites are written this
