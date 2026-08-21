@@ -298,6 +298,17 @@ export class Bullet extends Phaser.GameObjects.Sprite {
     return this.bulletClassName === 'BulletCake';
   }
 
+  /**
+   * This round's velocity, for rules the scene owns.
+   *
+   * Read-only and a fresh object: `motion` stays private, so nothing outside
+   * can write a component and desynchronise the state from the sprite. Added
+   * for the wall-impact burst (T239), which needs the step the cull discards.
+   */
+  get velocity(): { xVel: number; yVel: number } {
+    return { xVel: this.motion.xVel, yVel: this.motion.yVel };
+  }
+
   /** Flight speed in design units per frame, for re-aiming a homing round. */
   get speedPerFrame(): number {
     return Math.hypot(this.motion.xVel, this.motion.yVel);

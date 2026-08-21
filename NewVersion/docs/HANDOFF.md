@@ -863,6 +863,14 @@ the wrong puff. `Reflect` has three frames and no `gotoAndStop`, so it stays on
 frame 1. Only `Magic` and the three muzzle flares roll, and neither
 distribution is flat.
 
+**A round hitting a wall throws debris (`A90`)** — `effects/wallImpact.ts`,
+four fans, one per edge, clamped **per axis** so the burst sits on the wall in
+one coordinate and at the round's real position in the other. A corner spawns
+**twice**, and the two do not land in the same place. The position must come
+from `steppedPosition` (exported from `weapons/bullets.ts`): `advanceBullet`
+discards the stepped position when it culls, and `bullet.x` is still inside the
+room.
+
 **Audio starts at 0.5, and `audio/audioUnlock.ts` keeps the context running
 (`A89`).** Phaser's own unlock installs handlers *only* if the context is
 suspended at construction, which Chrome often makes false — so we listen on

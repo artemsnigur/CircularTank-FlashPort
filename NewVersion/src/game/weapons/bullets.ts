@@ -67,15 +67,30 @@ export interface BulletBounds {
   roomHeight: number;
 }
 
+/**
+ * Where one step takes a bullet — exported so nothing re-derives it.
+ *
+ * The wall-impact burst needs the position **after** the step that took the
+ * round out of the room, and `advanceBullet` throws that away when it culls.
+ * Recomputing `x + xVel * frames` at the call site would be a second copy of
+ * a one-line rule, which is exactly how `countCrowd` and `canAfford` drifted
+ * from their callers (`docs/AUDIT-2026-07.md`, "One rule, two copies").
+ */
+export function steppedPosition(
+  bullet: Pick<BulletState, 'x' | 'y' | 'xVel' | 'yVel'>,
+  deltaMs: number,
+): { x: number; y: number } {
+  const frames = (deltaMs / 1000) * AS3_FPS;
+  return { x: bullet.x + bullet.xVel * frames, y: bullet.y + bullet.yVel * frames };
+}
+
 /** Advances a bullet. Returns null once it leaves the room. */
 export function advanceBullet(
   bullet: BulletState,
   bounds: BulletBounds,
   deltaMs: number,
 ): BulletState | null {
-  const frames = (deltaMs / 1000) * AS3_FPS;
-  const x = bullet.x + bullet.xVel * frames;
-  const y = bullet.y + bullet.yVel * frames;
+  const { x, y } = steppedPosition(bullet, deltaMs);
 
   // The AS3 has per-weapon border behaviour (bounce, explode, stop); the base
   // path simply removes the bullet.

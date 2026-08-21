@@ -78,6 +78,8 @@ import { beginStep, createDefaultExitContext, tickStep } from '../tutorial/tutor
 import type { ActiveStep } from '../tutorial/tutorialExit';
 import { bombIndicatorView, medicRingScale } from '../effects/indicators';
 import { iceIndicatorView, pickIceFrame } from '../effects/iceIndicator';
+import { wallImpactBursts } from '../effects/wallImpact';
+import { steppedPosition } from '../weapons/bullets';
 import {
   MONEY_FIGURE_MIN,
   MONEY_FIGURE_OVERSAMPLE,
@@ -2522,6 +2524,32 @@ export class GameplayScene extends Phaser.Scene {
         if (bullet.borderSound) {
           getSoundManager(this)?.queue(`Border${bullet.borderSound}`);
         }
+
+        /*
+         * `:1815-1837` — debris off the wall it struck, beside the sound the
+         * same block plays. Three pieces in a 90-degree fan pointing back into
+         * the room, and six at a corner: see `effects/wallImpact.ts`.
+         *
+         * The position has to be the one **after** the step, which is what
+         * crossed the border — `advance` discards it when it culls, so it is
+         * recomputed through `steppedPosition` rather than being derived here
+         * a second time. `bullet.x` is still inside the room and would put the
+         * burst a frame short of the wall.
+         */
+        const exit = steppedPosition(
+          { x: bullet.x, y: bullet.y, ...bullet.velocity },
+          deltaMs,
+        );
+        for (const spawn of wallImpactBursts({
+          x: exit.x,
+          y: exit.y,
+          radius: bullet.radius,
+          roomWidth: this.roomWidth,
+          roomHeight: this.roomHeight,
+        })) {
+          this.burst(spawn);
+        }
+
         bullet.destroy();
         continue;
       }
