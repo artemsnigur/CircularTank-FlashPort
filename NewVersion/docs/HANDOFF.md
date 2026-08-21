@@ -869,10 +869,12 @@ parameter, so it cannot start minding. The real blocker is survival: every mode
 completes on the player's action, so IDLE only works where contact kills enough
 attackers first.
 
-**Level 1-18 plays with three bosses (`A77`)** via `levelEnemyOverrides.ts`,
-because `BossOnlySpecial` ("CHUCK NORRIS") gates hard on `threeBosses`. Pair it
-with **`?secondary=Mine&bigdamage=1`** — a DEV-only million-damage override —
-to test that achievement without a long fight.
+**`BossOnlySpecial` ("CHUCK NORRIS") gates hard on `threeBosses`, and no
+world-1 level has three (`A80`).** T226 gave 1-18 a third boss and added a
+`?bigdamage=` cheat so it could be verified; both were removed in T229 once it
+had been. Reaching it again means restoring a roster override —
+`levelSizeOverrides.ts` is the pattern — or finding a level that already has
+three.
 
 **The menu screen is in the URL hash (`A76`).** `#upgrades`, `#levels`,
 `#options` — written by `state/menuRoute.ts` as `activeScene` changes, read by
