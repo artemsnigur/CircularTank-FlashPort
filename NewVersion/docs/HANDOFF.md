@@ -856,6 +856,14 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Frozen enemies wear an ice block, not a tint (`A81`).** `IndicatorIce`
+(symbol 1190) is a separate object above the enemy — the enemy keeps its own
+colours. `effects/iceIndicator.ts` holds the rules; `GameplayScene.updateIceBlocks`
+draws them. A cyan `setTint` would be wrong *and* would fight the damage flash.
+**Testing note:** `?secondary=Ice Grenade` grants level 10, whose blast
+one-shots a 1-1 enemy — a dead enemy never looks frozen. Freeze something that
+survives the hit.
+
 **Achievement badges are drawn by `ui/AchievementArt.tsx` and nothing else
 (`A78`).** A badge is a stack of layers with different native sizes; the reveal
 page used to force each to 100% of a 64px square, which stretched

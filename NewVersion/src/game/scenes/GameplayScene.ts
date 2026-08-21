@@ -77,6 +77,7 @@ import {
 import { beginStep, createDefaultExitContext, tickStep } from '../tutorial/tutorialExit';
 import type { ActiveStep } from '../tutorial/tutorialExit';
 import { bombIndicatorView, medicRingScale } from '../effects/indicators';
+import { iceIndicatorView, pickIceFrame } from '../effects/iceIndicator';
 import {
   MONEY_FIGURE_MIN,
   MONEY_FIGURE_OVERSAMPLE,
@@ -380,6 +381,28 @@ const HUD_BOTTOM_CLEARANCE_CSS = 8;
 const TUTORIAL_DEPTH = 40;
 /** `WarningTimedBomb` frames: 1 ordinary, 2 boss. */
 const BOMB_MARKER_FRAMES = [370, 371] as const;
+
+/**
+ * `IndicatorIce` (symbol 1190) frames 1-6, in order.
+ *
+ * All six were extracted, synced and registered long before anything drew
+ * them — `manifest.ts` has carried `unit-1184` through `unit-1189` since the
+ * indicator pass. The gap was the render, not the pipeline.
+ */
+const ICE_BLOCK_FRAMES = [1184, 1185, 1186, 1187, 1188, 1189] as const;
+
+/**
+ * The authored size a block is drawn at, `[width, height]`, ordinary and boss.
+ *
+ * One size per tier rather than per frame: the three frames within a tier are
+ * within a few units of each other, and the AS3 scales the *clip*, whose box
+ * is one size for all of its frames. Using each frame's own SVG box would make
+ * the ice change size when the frame changed, which the original cannot do.
+ */
+const ICE_BLOCK_ART = [
+  [136, 144.5],
+  [131.5, 121.75],
+] as const;
 /** `IndicatorMedic`'s single frame. */
 const MEDIC_RING_SHAPE = 1182;
 /** Coins sit under the tank and particles, above the ground. */
@@ -926,6 +949,18 @@ export class GameplayScene extends Phaser.Scene {
 
   /** Heal rings, one per living medic — `medicIndicatorArray` (`:2283`). */
   private medicRings = new Map<Enemy, Phaser.GameObjects.Image>();
+
+  /**
+   * The ice block on each frozen enemy — `iceIndicatorLayer` (`:5883`).
+   *
+   * Keyed by the enemy exactly as `medicRings` is, and for the same reason:
+   * the block belongs to one enemy for the life of one freeze, and a pool
+   * handed out per frame would re-roll its frame and rotation every tick.
+   * `:5888` is explicit that a re-freeze reuses the existing block and only
+   * resets its alpha — the ice does not visibly change shape when a second
+   * icicle lands.
+   */
+  private iceBlocks = new Map<Enemy, Phaser.GameObjects.Image>();
   /**
    * Boss life indicators — `PartInterface.lifeIndicatorArray` (`:128`).
    *
@@ -1186,6 +1221,7 @@ export class GameplayScene extends Phaser.Scene {
     this.tutorialStep = null;
     this.bombMarkers = [];
     this.medicRings = new Map();
+    this.iceBlocks = new Map();
     this.bossLifeRings = new Map();
     this.hp = TANK_MAX_HP;
     this.damageIndicator = 0;
@@ -3266,6 +3302,8 @@ export class GameplayScene extends Phaser.Scene {
         .setAlpha(view.alpha);
     });
 
+    this.updateIceBlocks();
+
     // `:2286` — a ring whose medic has gone is removed, not reused.
     for (const [enemy, ring] of this.medicRings) {
       if (!this.enemies.includes(enemy)) {
@@ -4200,6 +4238,61 @@ export class GameplayScene extends Phaser.Scene {
       this.particleSprites.push(
         this.add.image(0, 0, 'particle-dot').setDepth(PARTICLE_DEPTH).setVisible(false),
       );
+    }
+  }
+
+  /**
+   * The ice block on every frozen enemy — `:6326-6360`, and `:5866-5889`.
+   *
+   * Created on the first freeze, followed while the freeze lasts, and removed
+   * on the thaw. The frame and the rotation are rolled **once**, at creation:
+   * `:5888` reuses the existing block on a re-freeze and resets only its
+   * alpha, so a second icicle does not reshuffle the ice already there.
+   *
+   * ── Why the enemy's own sprite is untouched ────────────────────────────
+   * The obvious port of "frozen enemies look frozen" is a cyan tint, and the
+   * AS3 does not do that. It draws a separate object on its own layer above
+   * the enemy; the enemy keeps its colours and is *covered*. A tint would also
+   * fight the damage flash, which already owns the sprite's tint.
+   */
+  private updateIceBlocks(): void {
+    // Gone, or thawed — `:6354` removes the child rather than hiding it.
+    for (const [enemy, block] of this.iceBlocks) {
+      if (!this.enemies.includes(enemy) || !enemy.status.frozen) {
+        block.destroy();
+        this.iceBlocks.delete(enemy);
+      }
+    }
+
+    for (const enemy of this.enemies) {
+      if (!enemy.status.frozen) continue;
+
+      let block = this.iceBlocks.get(enemy);
+      if (block === undefined) {
+        const frame = pickIceFrame(enemy.enemyLevel === 'B');
+        block = this.add
+          .image(0, 0, `unit-${ICE_BLOCK_FRAMES[frame - 1]}`)
+          // Above the enemy and its bomb marker: the block covers the body.
+          .setDepth(INDICATOR_DEPTH)
+          // `:5878` — a fresh angle each freeze, so a crowd of frozen enemies
+          // does not look stamped from one die.
+          .setRotation(Math.random() * Math.PI * 2);
+        this.iceBlocks.set(enemy, block);
+      }
+
+      const view = iceIndicatorView({
+        radius: enemy.radius,
+        frozenTimer: enemy.status.frozenTimer,
+      });
+      const art = ICE_BLOCK_ART[enemy.enemyLevel === 'B' ? 1 : 0];
+
+      block
+        .setPosition(enemy.x, enemy.y)
+        // `setDisplaySize`, not `setScale`: the textures are rasterised at
+        // `UNIT_RASTER_SCALE`, so a scale would draw the block four times too
+        // large. The authored size times the view's scale is absolute.
+        .setDisplaySize(art[0] * view.scale, art[1] * view.scale)
+        .setAlpha(view.alpha);
     }
   }
 
