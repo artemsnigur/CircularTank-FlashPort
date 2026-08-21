@@ -252,6 +252,15 @@ export class Enemy extends Phaser.GameObjects.Container {
    */
   poisonParticleTimer = 0;
 
+  /**
+   * Frames until this enemy throws its next flame — T233, invented.
+   *
+   * Its own counter for the same reason `poisonParticleTimer` is: fire damage
+   * lands every frame an enemy overlaps a flame or stands in lava, and the
+   * flames must not. See `effects/burnParticles.ts`.
+   */
+  burnParticleTimer = 0;
+
   /** Carried from the stat tables; unused until the behaviour loop is ported. */
   health: number;
 

@@ -863,7 +863,14 @@ the wrong puff. `Reflect` has three frames and no `gotoAndStop`, so it stays on
 frame 1. Only `Magic` and the three muzzle flares roll, and neither
 distribution is flat.
 
-**Burning has no indicator, and that is faithful (`A82`).** `onFire`/`onLava`
+**Burning enemies throw flames, and that is invented (`A84`).** The AS3 shows
+nothing (`A82`); this was added by request. `effects/burnParticles.ts` holds the
+rule, `emitBurnFlame` is the one call site both lava and flame rounds use.
+**The cadence is the budget** — one flame per enemy per 4 frames, about two
+live each, measured at 2.0 with a crowd alight. Do not move it to per-damage-
+tick: fire damage lands every frame.
+
+**The original itself has no burn indicator (`A82`).** `onFire`/`onLava`
 are same-frame dedup booleans reset at `:5554` — fire is not a status, so there
 is no duration an overlay could be shown for, and no burn symbol exists in any
 of the 518. Do not add one. What lava *does* is flash the enemy red

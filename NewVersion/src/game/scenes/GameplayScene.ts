@@ -78,6 +78,7 @@ import { beginStep, createDefaultExitContext, tickStep } from '../tutorial/tutor
 import type { ActiveStep } from '../tutorial/tutorialExit';
 import { bombIndicatorView, medicRingScale } from '../effects/indicators';
 import { iceIndicatorView, pickIceFrame } from '../effects/iceIndicator';
+import { burnFlame, tickBurnClock } from '../effects/burnParticles';
 import {
   MONEY_FIGURE_MIN,
   MONEY_FIGURE_OVERSAMPLE,
@@ -4288,6 +4289,40 @@ export class GameplayScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * One flame off a burning enemy, on that enemy's own clock — T233.
+   *
+   * **Invented, not ported.** `A82` established the AS3 shows nothing on a
+   * burning enemy; this exists because an enemy walking through lava died with
+   * only a red flash to show for it.
+   *
+   * Called from **both** fire-damage sites — lava underfoot and a flame round
+   * — so the two cannot disagree about what burning looks like, and so a
+   * future third source gets it by calling one method. The rule and the two
+   * numbers behind it are in `effects/burnParticles.ts`; what lives here is
+   * the counter, which needs an enemy to hang on.
+   */
+  private emitBurnFlame(enemy: Enemy): void {
+    const clock = tickBurnClock(enemy.burnParticleTimer);
+    enemy.burnParticleTimer = clock.timer;
+    if (!clock.emit) return;
+
+    const flame = burnFlame(enemy.radius);
+    this.burst({
+      type: 'Burn',
+      count: 1,
+      x: enemy.x,
+      y: enemy.y,
+      distance: 0,
+      // One flame, one angle: `randAngle: 0` makes `startAngle` both the
+      // heading and — through `facesStartAngle` — the drawn rotation. The
+      // spread across flames comes from the jitter, not from within a burst.
+      startAngle: flame.startAngle,
+      randAngle: 0,
+      addMaxScale: flame.addMaxScale,
+    });
+  }
+
   private updateHazards(deltaMs: number): void {
     if (this.hazards.length === 0) {
       // Still clear the shot: the freeze gate is per-frame.
@@ -4412,6 +4447,9 @@ export class GameplayScene extends Phaser.Scene {
        * `if (!result.killed)`.
        */
       enemy.flashDamage();
+
+      // T233 — the flames, on the same beat as the flash but their own clock.
+      this.emitBurnFlame(enemy);
     }
 
     // One shot, one sweep. The AS3 keeps the beam sprite alive for four frames
@@ -5720,6 +5758,11 @@ export class GameplayScene extends Phaser.Scene {
     if (flameBurnSounds(enemy.enemyType, enemy.damageMultipliers.FireLava)) {
       getSoundManager(this)?.keepLoopAlive('Burning');
     }
+
+    // T233 — a flame round burns what it touches, the same way lava does.
+    // Before `hitEnemy`, so an enemy that dies to this tick still throws its
+    // last flame rather than vanishing silently.
+    this.emitBurnFlame(enemy);
 
     this.hitEnemy(enemy, bullet);
   }
