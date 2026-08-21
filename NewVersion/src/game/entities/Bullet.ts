@@ -18,7 +18,9 @@ import {
 import type { CheeseBounceState, GummyBounceState } from '../weapons/foodRounds';
 import { advanceFlame, createFlame } from '../weapons/flames';
 import type { FlameState } from '../weapons/flames';
-import { createMagicState, isFinalTarget, isHoming, registerMagicHit } from '../weapons/magic';
+import {
+  seekingRotation,
+  turnsWhileSeeking, createMagicState, isFinalTarget, isHoming, registerMagicHit } from '../weapons/magic';
 import type { MagicState } from '../weapons/magic';
 import type { BulletSpec } from '../weapons/firing';
 import type { BulletState } from '../weapons/bullets';
@@ -317,8 +319,29 @@ export class Bullet extends Phaser.GameObjects.Sprite {
   }
 
   /** Points the round at a new heading, for homing. */
+  /**
+   * Points the round somewhere new — the homing re-aim.
+   *
+   * ── It rewrites `rotation` too, for the classes that turn ───────────────
+   * This used to set velocity alone, so a homing round flew one way and faced
+   * another: the Magic Bunny re-aimed at every target it chained to and kept
+   * the angle it was fired at, which is what "it should face whoever it is
+   * flying at" was reported about.
+   *
+   * `advance` already draws `motion.rotation` every frame — it has since the
+   * bounce work, whose comment even names `:1750` — so the gap was that
+   * nothing ever *wrote* the field mid-flight. One line here reaches the
+   * screen through machinery that was already correct.
+   *
+   * Which classes turn is `turnsWhileSeeking`, and the answer is two of the
+   * three homing rounds. See it for why `BulletMagic` is not one of them.
+   */
   steer(xVel: number, yVel: number): void {
-    this.motion = { ...this.motion, xVel, yVel };
+    const rotation = turnsWhileSeeking(this.bulletClassName)
+      ? seekingRotation(xVel, yVel)
+      : this.motion.rotation;
+
+    this.motion = { ...this.motion, xVel, yVel, rotation };
   }
 
   hasHit(enemy: object): boolean {

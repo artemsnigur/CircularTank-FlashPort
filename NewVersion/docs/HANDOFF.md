@@ -863,6 +863,13 @@ the wrong puff. `Reflect` has three frames and no `gotoAndStop`, so it stays on
 frame 1. Only `Magic` and the three muzzle flares roll, and neither
 distribution is flat.
 
+**Two of the three homing rounds turn their art, not all three (`A86`).**
+`turnsWhileSeeking` in `weapons/magic.ts` — the bunny (`:1749`) and the rocket
+(`:1769`) do; `BulletMagic` keeps its spawn rotation and that is faithful, not
+an omission. `Bullet.steer` is what writes it; `advance` already drew it.
+**Harness note:** a bunny only homes *after its first hit*, so a swept shot
+that meets nobody proves nothing — aim at a live enemy.
+
 **Fire's only feedback is the red flash, and that is settled (`A85`).** The
 AS3 shows nothing else, and an invented flame particle was built (`A84`) and
 **removed as ugly** one commit later. Do not re-add one without being asked:
