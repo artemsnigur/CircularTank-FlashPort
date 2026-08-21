@@ -97,40 +97,6 @@ export function magicVelocity(
   return { xVel: Math.cos(angle) * speed, yVel: Math.sin(angle) * speed };
 }
 
-/**
- * The homing rounds that turn to face where they are going — `:1749`, `:1769`.
- *
- * ── This is a per-class rule, and the AS3 draws the line in a surprising place
- * All three homing rounds re-aim their *velocity* every frame a target is
- * held. Only two of them re-aim their *art*:
- *
- *     BulletMagicBunny  `:1749` — inside the seeking block, gated on the class
- *     BulletRocket      `:1769` — its own block, alongside the velocity write
- *     BulletMagic       nothing. It keeps the rotation it was fired with.
- *
- * The magic round's omission looks like an oversight and is not treated as
- * one: its art is a symmetrical orb, so a heading would not read on it, while
- * the bunny and the rocket are both plainly directional. Reproduced rather
- * than "fixed" — and stated here because the next reader will otherwise see
- * two of three and assume the third was missed by the port.
- */
-const TURNS_WHILE_SEEKING = new Set(['BulletMagicBunny', 'BulletRocket']);
-
-export function turnsWhileSeeking(bulletClass: string): boolean {
-  return TURNS_WHILE_SEEKING.has(bulletClass);
-}
-
-/**
- * The drawn angle for a heading, in degrees — `angleToTarget * 180 / PI`.
- *
- * The art points along **+x** at rotation 0, which is the same convention the
- * spawn write at `:3907` uses (`bullet.rotation = tower.rotation`), so there
- * is no offset to apply: the number that steers is the number that draws.
- */
-export function seekingRotation(xVel: number, yVel: number): number {
-  return (Math.atan2(yVel, xVel) * 180) / Math.PI;
-}
-
 export interface MagicState {
   /** Enemies this round may still damage before it dies. */
   targetsLeft: number;
