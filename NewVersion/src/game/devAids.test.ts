@@ -53,6 +53,10 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     // fire and penetrating rounds and is otherwise indistinguishable from the
     // call never happening.
     'last impact burst placement',
+    // T226: a million-damage secondary via `?bigdamage=`. BossOnlySpecial
+    // wants three bosses killed without a primary, which is a long fight to
+    // reach a condition that is really about weapon choice.
+    'secondary damage override via ?bigdamage=',
     // T69: the sweep aimed at a hard-coded screen point. This is how it finds
     // the tank instead.
     'live tank screen position',
@@ -180,7 +184,7 @@ describe('dev aids are enumerable', () => {
     // files. Taken out at the maintainer's request rather than because it was
     // broken — a dev affordance that ships behind `import.meta.env.DEV` still
     // shows up in every development session, which is where it was unwanted.
-    // 38 with T220's impact-burst probe.
-    expect(total).toBe(38);
+    // 38 with T220's impact-burst probe; 39 with T226's `?bigdamage=`.
+    expect(total).toBe(39);
   });
 });

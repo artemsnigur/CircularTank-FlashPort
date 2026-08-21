@@ -11,6 +11,7 @@
  */
 
 import { applySizeOverride } from './levelSizeOverrides';
+import { applyBossCountOverride } from './levelEnemyOverrides';
 
 /** Level archetype — column 6. */
 export type LevelMode = "Boss" | "Defense" | "Flag" | "Normal" | "Tower";
@@ -522,6 +523,9 @@ export const levelsInWorld = (world: number): number => LEVELS[world - 1]?.lengt
  */
 export function getLevel(world: number, level: number): LevelSpec | undefined {
   const spec = LEVELS[world - 1]?.[level - 1];
-  return spec === undefined ? undefined : applySizeOverride(spec, world, level);
+  if (spec === undefined) return undefined;
+  // Two override tables, applied in the same place and for the same
+  // reason: the generated data stays a function of the AS3 alone.
+  return applyBossCountOverride(applySizeOverride(spec, world, level), world, level);
 }
 

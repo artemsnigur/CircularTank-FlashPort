@@ -856,6 +856,17 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**IDLE never minded aiming (`A77`).** `:2826` reads the mouse *button*, not
+the pointer. The rule is `achievements/idleActivity.ts` now and takes no aim
+parameter, so it cannot start minding. The real blocker is survival: every mode
+completes on the player's action, so IDLE only works where contact kills enough
+attackers first.
+
+**Level 1-18 plays with three bosses (`A77`)** via `levelEnemyOverrides.ts`,
+because `BossOnlySpecial` ("CHUCK NORRIS") gates hard on `threeBosses`. Pair it
+with **`?secondary=Mine&bigdamage=1`** — a DEV-only million-damage override —
+to test that achievement without a long fight.
+
 **The menu screen is in the URL hash (`A76`).** `#upgrades`, `#levels`,
 `#options` — written by `state/menuRoute.ts` as `activeScene` changes, read by
 `PreloadScene` on hand-off. `Gameplay` has **no slug on purpose**, so a refresh

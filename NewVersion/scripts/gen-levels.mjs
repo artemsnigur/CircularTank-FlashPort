@@ -208,6 +208,7 @@ out.push(' * dropped here rather than preserved as unnamed noise.');
 out.push(' */');
 out.push('');
 out.push("import { applySizeOverride } from './levelSizeOverrides';");
+out.push("import { applyBossCountOverride } from './levelEnemyOverrides';");
 out.push('');
 out.push('/** Level archetype — column 6. */');
 out.push(
@@ -314,7 +315,10 @@ out.push(' * still what `roomSizeSource.test.ts` checks.');
 out.push(' */');
 out.push('export function getLevel(world: number, level: number): LevelSpec | undefined {');
 out.push('  const spec = LEVELS[world - 1]?.[level - 1];');
-out.push('  return spec === undefined ? undefined : applySizeOverride(spec, world, level);');
+out.push('  if (spec === undefined) return undefined;');
+out.push('  // Two override tables, applied in the same place and for the same');
+out.push('  // reason: the generated data stays a function of the AS3 alone.');
+out.push('  return applyBossCountOverride(applySizeOverride(spec, world, level), world, level);');
 out.push('}');
 out.push('');
 

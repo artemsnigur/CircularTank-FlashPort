@@ -36,6 +36,7 @@ import {
   outsideWindow,
 } from '../ui/offScreenMarkers';
 import { shouldRunDuringCountdown } from '../waves/countdownGate';
+import { endsIdleRun } from '../achievements/idleActivity';
 import { countdownSkipped, createCountdown, tickCountdown } from '../waves/countdown';
 import type { CountdownState } from '../waves/countdown';
 import { countdownLabel, modeLabel, objectiveText } from '../waves/countdownPanel';
@@ -524,6 +525,43 @@ function withOwnedSecondary(state: UpgradeState, name: string): UpgradeState {
  * profile does not own resolves to null stats and simply never fires, which
  * photographs and measures identically to a broken weapon.
  */
+/**
+ * DEV-AID: the equipped secondary's damage, from `?bigdamage=<n>`.
+ *
+ * Exists to make **`BossOnlySpecial` ("CHUCK NORRIS") testable by hand**. That
+ * achievement wants a three-boss level won with three medals and *no primary
+ * weapon*, which means killing three bosses with a secondary — a long fight to
+ * reach a condition that is really about weapon choice, and an expensive way
+ * to find out the rule is wired wrong.
+ *
+ * `?bigdamage` and `?bigdamage=1` both give a million; `?bigdamage=<n>` for
+ * any `n` above 1 gives `n` instead. Anything else — a blank, a word, a zero,
+ * a negative — falls back to the million rather than to zero, because a
+ * zero-damage secondary and a broken one are indistinguishable in play, which
+ * is the failure mode this exists to remove rather than create.
+ *
+ * **The `> 1` rule is the fix for a real bug, not fastidiousness.** The first
+ * version took any positive number literally, so the documented `?bigdamage=1`
+ * set the damage to **1** — driven, and it read as the override being ignored.
+ * One is below every secondary's own damage, so there is no reading of
+ * `=1` that wants it literally.
+ *
+ * Damage only. It grants no ownership and equips nothing, so it composes with
+ * `?secondary=` rather than duplicating it: `?secondary=Mine&bigdamage=1`.
+ */
+const DEV_SECONDARY_DAMAGE = 1_000_000;
+
+function devSecondaryDamage(): number | null {
+  if (!import.meta.env.DEV) return null;
+  if (typeof window === 'undefined') return null;
+
+  const raw = new URLSearchParams(window.location.search).get('bigdamage');
+  if (raw === null) return null;
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 1 ? parsed : DEV_SECONDARY_DAMAGE;
+}
+
 function devPrimaryOverride(): string | null {
   if (!import.meta.env.DEV) return null;
   if (typeof window === 'undefined') return null;
@@ -1169,6 +1207,12 @@ export class GameplayScene extends Phaser.Scene {
     this.secondaryStats = this.secondary
       ? resolveSecondaryStats(this.secondary, this.upgrades)
       : null;
+
+    // `?bigdamage=` makes the equipped secondary lethal — see below.
+    const boosted = devSecondaryDamage();
+    if (this.secondaryStats !== null && boosted !== null) {
+      this.secondaryStats = { ...this.secondaryStats, damage: boosted };
+    }
     this.secondaryPressed = false;
     this.outcome = createLevelOutcome();
     this.banked = false;
@@ -1435,12 +1479,15 @@ export class GameplayScene extends Phaser.Scene {
     // allowed to act.
     if (
       shouldRunDuringCountdown('inputActivity', this.countdown.done) &&
-      (input.up ||
-        input.down ||
-        input.left ||
-        input.right ||
-        this.firePressed ||
-        this.input.activePointer.isDown)
+      endsIdleRun({
+        moving: input.up || input.down || input.left || input.right,
+        firing: this.firePressed,
+        // The **button**, not the pointer's position: `Main.mouse` is a
+        // button flag, so aiming has never voided IDLE. The rule takes no aim
+        // parameter at all, which is what stops that changing by accident —
+        // see `achievements/idleActivity.ts`.
+        pointerDown: this.input.activePointer.isDown,
+      })
     ) {
       this.levelFlags.nothingPressed = false;
     }
