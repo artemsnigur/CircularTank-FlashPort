@@ -106,38 +106,6 @@ export const PARTICLE_PRESETS: Readonly<Record<string, ParticlePreset>> = {
     lifeTime: 5, lifeTimeRandom: 5,
     scaleMax: 1, scaleMin: 0.2, killVelocity: -1,
   },
-  /**
-   * ── Divergence: a flame on a burning enemy (T233) ──────────────────────
-   *
-   * **There is no `Burn` particle in the AS3.** `A82` established that by
-   * three sweeps: fire is not a status there, only per-frame contact damage,
-   * so the original shows nothing on an enemy standing in lava beyond the red
-   * damage flash. This was added by request, because "enemies just walking on
-   * lava die, there are no particles".
-   *
-   * It borrows the original's *shape* even though the effect is new: the AS3
-   * already has one continuous status emitter — poison's, on its own 3-frame
-   * clock at `:6375` — and this is the same arrangement on a 4-frame one. That
-   * matters more than it sounds: emitting per damage tick would be **30 a
-   * second per enemy**, and the cadence is what keeps a crowd affordable.
-   *
-   * The art is the muzzle flare, which is a real flame drawn for this game.
-   * Its registration point is its flat base (`PARTICLE_ANCHORS` gives it
-   * `originX: 0`), so a flame *extends from* where it is spawned rather than
-   * straddling it — exactly what is wanted licking up off a body. It carries
-   * four frames, so `particleFrame` gives it the same flicker the muzzle now
-   * has.
-   *
-   * `facesStartAngle` because each flame is spawned individually with its own
-   * jittered angle: the shared `startAngle` *is* this flame's angle, and both
-   * its heading and its rotation come from it.
-   */
-  Burn: {
-    sprite: 'MuzzleFlareSmall',
-    velocity: 1.2, velocityRandom: 0.8, friction: 0.15,
-    lifeTime: 6, lifeTimeRandom: 4,
-    scaleMax: 0.9, scaleMin: 0.15, killVelocity: -1, facesStartAngle: true,
-  },
   MuzzleFlareSmall: {
     sprite: 'MuzzleFlareSmall',
     velocity: 0, velocityRandom: 0, friction: 0,
@@ -277,10 +245,6 @@ export function particleFrame(type: string, random: () => number = Math.random):
   }
 
   if (type.startsWith('MuzzleFlare')) return Math.round(1 + random() * 3);
-
-  // T233's invented `Burn` draws the flare art, so it takes the flare's rule.
-  // Not an AS3 line — there is no `Burn` particle there at all (`A82`).
-  if (type === 'Burn') return Math.round(1 + random() * 3);
 
   return 1;
 }
