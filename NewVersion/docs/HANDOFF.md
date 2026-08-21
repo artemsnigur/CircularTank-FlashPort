@@ -888,6 +888,12 @@ from `steppedPosition` (exported from `weapons/bullets.ts`): `advanceBullet`
 discards the stepped position when it culls, and `bullet.x` is still inside the
 room.
 
+**`docs/LEVEL-DOSSIER.md` is every world, level, mode and wave in one table**,
+plus where each enemy type first appears and the structural rules checked
+against all 405 rows. Generated — `node scripts/gen-level-dossier.mjs` — so
+re-run it rather than editing it. Written for the planned 9-world -> 4-world
+redesign.
+
 **`musicPaused` belongs to `GameplayScene` and is cleared on its SHUTDOWN
 (`A94`).** It sits on a `SoundManager` that outlives every scene, and
 `handleMusicChange` gates the whole crossfade on it — left set, every later
