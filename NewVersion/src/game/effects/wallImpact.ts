@@ -59,19 +59,31 @@ export const WALL_PIECES = 3;
 export const AS3_WALL_SPREAD = 10;
 
 /**
- * ── Divergence: the debris starts **on** the wall (T240) ──────────────────
+ * ── Divergence: two thirds of the AS3's offset (T240, T242) ──────────────
  *
- * Measured before changing it: pieces sat a median of **10.2** units from the
- * wall, which at the usual camera zoom is about twenty screen pixels — a
- * visible gap between the wall and the sparks that are supposed to be coming
- * off it. That is the AS3's own arithmetic and it still reads as wrong here,
- * so it is zero by request.
+ * This is the `distance` each piece steps along **its own heading** before it
+ * starts moving, so with a 90-degree fan it is also the burst's initial
+ * spread: at `0` all three pieces spawn on one point and can only separate by
+ * flying apart. **The offset is the scatter**, which is why taking it to zero
+ * cost both the breathing room and the pattern.
  *
- * Nothing is lost by it. The offset existed to stop three pieces stacking on
- * one point, and `BulletDestroy`'s own velocity (`0.5 + random() * 1.5` along
- * a 90-degree fan) separates them within a frame anyway.
+ * The history is worth keeping, because the two complaints look contradictory
+ * and are not:
+ *
+ *   10 (the AS3's)  "quite far from the wall" — but the round was also being
+ *                   drawn ten units *through* the wall at the time (`A92`),
+ *                   so the sparks and the thing that made them were twenty
+ *                   units apart. The offset took the blame for that.
+ *    0 (T240)       flush, and "pressed against the wall, doesn't scatter".
+ *    6 (T242)       here.
+ *
+ * Six rather than back to ten: the round now dies exactly on the wall, so the
+ * reference point has changed and the gap is no longer compounded — but ten is
+ * the number that was called too far, and going straight back to it would be
+ * re-litigating a judgement rather than answering it. `AS3_WALL_SPREAD` keeps
+ * the original beside it.
  */
-export const WALL_SPREAD = 0;
+export const WALL_SPREAD = 6;
 
 export interface WallImpactInput {
   /** The round's position **after** the step that took it out of the room. */

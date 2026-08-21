@@ -869,6 +869,11 @@ art is 16 long, so the old `-radius` cull drew it **10 units through the wall**.
 The cull and `wallImpactBursts` must share the one margin; a radius test would
 now find the round in bounds and spawn nothing.
 
+**`WALL_SPREAD` is the wall burst's scatter, not just its offset (`A93`).**
+`distance` steps each piece along *its own* heading, so across a 90-degree fan
+it spreads the burst rather than moving it — at 0 all three spawn on one point.
+It is 6; the AS3's 10 is kept as `AS3_WALL_SPREAD`.
+
 **Wall debris starts flush on the wall (`A91`)** — `WALL_SPREAD` is 0, a
 divergence; the AS3's `10` offsets each piece *into* the room and left a
 20-pixel gap. A round is never painted beside its own debris (0 orphaned

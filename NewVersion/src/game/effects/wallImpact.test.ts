@@ -56,7 +56,7 @@ describe('which wall, and which way the debris sprays', () => {
     expect(WALL_FAN_DEGREES).toBe(90);
   });
 
-  it('starts the debris **on** the wall, where the AS3 starts it ten units in', () => {
+  it('offsets the debris into the room, less far than the AS3 does', () => {
     /*
      * A divergence (T240), and the AS3's figure is kept beside it rather than
      * deleted — the same arrangement the coin speed and the debris scale use.
@@ -69,11 +69,21 @@ describe('which wall, and which way the debris sprays', () => {
      * off it.
      */
     expect(AS3_WALL_SPREAD).toBe(10); // `:1821`
-    expect(WALL_SPREAD).toBe(0);
+    expect(WALL_SPREAD).toBe(6);
+
+    // Between flush and the original — the range both complaints leave open.
+    expect(WALL_SPREAD).toBeGreaterThan(0);
+    expect(WALL_SPREAD).toBeLessThan(AS3_WALL_SPREAD);
 
     const [burst] = wallImpactBursts(at(-10, 275));
-    expect(burst.distance).toBe(0);
-    // Flush: the burst is the clamped point itself, with nothing added.
+    expect(burst.distance).toBe(WALL_SPREAD);
+
+    /*
+     * The burst's own origin stays **on** the wall; `distance` is applied per
+     * piece, along each one's own heading, inside `spawnParticles`. So the
+     * offset spreads the fan without moving the impact point — which is why
+     * it is also the scatter, and why zero collapsed all three onto one spot.
+     */
     expect([burst.x, burst.y]).toEqual([0, 275]);
   });
 });
