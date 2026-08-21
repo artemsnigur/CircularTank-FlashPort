@@ -856,6 +856,14 @@ passes false, via `ScreenShell`'s `navMenuButton`. Do not flip the default —
 `.options__exit` now; putting it back on `.options__danger` as well splits the
 free space and pushes the two buttons apart.
 
+**Burning has no indicator, and that is faithful (`A82`).** `onFire`/`onLava`
+are same-frame dedup booleans reset at `:5554` — fire is not a status, so there
+is no duration an overlay could be shown for, and no burn symbol exists in any
+of the 518. Do not add one. What lava *does* is flash the enemy red
+(`:6272`), which the port was missing and now does — with **no** feedback
+argument, unlike every other `flashDamage` site, because the AS3's lava branch
+spawns no strong/weak particle.
+
 **Frozen enemies wear an ice block, not a tint (`A81`).** `IndicatorIce`
 (symbol 1190) is a separate object above the enemy — the enemy keeps its own
 colours. `effects/iceIndicator.ts` holds the rules; `GameplayScene.updateIceBlocks`

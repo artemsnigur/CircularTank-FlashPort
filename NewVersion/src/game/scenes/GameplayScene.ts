@@ -4398,7 +4398,28 @@ export class GameplayScene extends Phaser.Scene {
       getSoundManager(this)?.keepLoopAlive('Burning');
 
       enemy.takeDamage(effect.damage);
-      if (enemy.health <= 0) this.removeEnemy(enemy, true);
+      if (enemy.health <= 0) {
+        this.removeEnemy(enemy, true);
+        continue;
+      }
+
+      /*
+       * `:6272` — `colorClip(theEnemy, 16711680, 0.8)` beside
+       * `damageIndicator = 20`. Standing in lava flashes the enemy red, and
+       * the port applied the damage without it, so lava was the one damage
+       * source in the game that did nothing visible to what it hit.
+       *
+       * **No feedback argument, deliberately.** Every other `flashDamage` call
+       * passes `impactFeedback(...)` so the colour carries strong/weak, and
+       * the AS3's other sites spawn a `Strength`/`Weakness` particle to match.
+       * The lava branch spawns none — it is plain red whatever the enemy's
+       * resistance — so the plain call is the faithful one here.
+       *
+       * Survivors only: `:6263` puts the flash inside the `hp - damage > 0`
+       * arm, which is the same rule the bullet sites follow with their
+       * `if (!result.killed)`.
+       */
+      enemy.flashDamage();
     }
 
     // One shot, one sweep. The AS3 keeps the beam sprite alive for four frames
