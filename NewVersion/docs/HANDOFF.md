@@ -888,6 +888,13 @@ from `steppedPosition` (exported from `weapons/bullets.ts`): `advanceBullet`
 discards the stepped position when it culls, and `bullet.x` is still inside the
 room.
 
+**`musicPaused` belongs to `GameplayScene` and is cleared on its SHUTDOWN
+(`A94`).** It sits on a `SoundManager` that outlives every scene, and
+`handleMusicChange` gates the whole crossfade on it — left set, every later
+`setMusic` is recorded and never acted on. A test pins that exactly two files
+assign it. **Menu music comes from `MENU_MUSIC_SCENES` + one `scene:ready`
+subscriber**, not from per-scene calls; `Gameplay` must stay out of that set.
+
 **Audio starts at 0.5, and `audio/audioUnlock.ts` keeps the context running
 (`A89`).** Phaser's own unlock installs handlers *only* if the context is
 suspended at construction, which Chrome often makes false — so we listen on

@@ -1397,6 +1397,24 @@ export class GameplayScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       for (const off of this.teardown) off();
       this.teardown = [];
+
+      /*
+       * ── Un-pause the music on the way out (T243) ───────────────────────
+       *
+       * `musicPaused` is *this scene's* pause state, and it lives on a
+       * `SoundManager` that outlives the scene — so quitting from the pause
+       * panel left it true forever. `handleMusicChange` gates the whole
+       * crossfade on `!musicPaused`, so every later `setMusic` was recorded
+       * and never acted on: the lobby came back silent, the next level
+       * started silent, and pressing ESC twice was the only way back, because
+       * the un-pause is what cleared the flag.
+       *
+       * A scene that is going away is not paused. Clearing it here is the
+       * statement of ownership: the flag belongs to a live GameplayScene and
+       * to nothing else.
+       */
+      const sound = getSoundManager(this);
+      if (sound) sound.musicPaused = false;
       // Abandoned partway: the takings are forfeit, so put the HUD back to the
       // balance actually held rather than leaving unbanked money on screen.
       if (!this.outcome.finished && this.currency !== this.openingBalance) {

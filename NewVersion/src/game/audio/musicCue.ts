@@ -26,6 +26,40 @@
  */
 
 import type { MusicName } from './SoundManager';
+import { SceneKeys } from '../config/constants';
+import type { SceneKey } from '../config/constants';
+/**
+ * The menu screens that ask for the `Menu` track — `Main.as:855-901`.
+ *
+ * **Seven screen changes, seven identical assignments.** The port had exactly
+ * one, in `MainMenuScene`, so every other menu kept whatever had been playing:
+ * quitting a level put the player on Level Select with the *gameplay* track
+ * still running, and before `A94`'s pause fix, with nothing running at all.
+ *
+ * A table with one subscriber rather than seven call sites, for the reason
+ * `buttonSounds.ts` gives about its delegated listener: a screen is covered
+ * because it is *in the set*, and a screen added tomorrow fails the
+ * completeness test rather than joining a blind spot.
+ *
+ * `Gameplay` is deliberately absent and must stay absent — it requests its own
+ * mode track in `create()`, and a `Menu` request racing that would be a
+ * coin-flip over which one won.
+ */
+export const MENU_MUSIC_SCENES: readonly SceneKey[] = [
+  SceneKeys.MainMenu,
+  SceneKeys.LevelSelect,
+  SceneKeys.Upgrades,
+  SceneKeys.Enemies,
+  SceneKeys.Bestiary,
+  SceneKeys.Options,
+  SceneKeys.Achievements,
+];
+
+/** The track a scene asks for on becoming ready, or null to leave it alone. */
+export function musicForScene(key: SceneKey): MusicName | null {
+  return MENU_MUSIC_SCENES.includes(key) ? 'Menu' : null;
+}
+
 import type { LevelMode } from '../levels/levelData';
 
 /**

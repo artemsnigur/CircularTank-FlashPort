@@ -25,6 +25,7 @@ import {
 } from './audioOptions';
 import { getOptionsStore } from '../save/optionsStore';
 import { installAudioUnlock } from './audioUnlock';
+import { musicForScene } from './musicCue';
 import type { ResumableContext } from './audioUnlock';
 
 const SOUND_REGISTRY_KEY = 'soundManager';
@@ -77,7 +78,20 @@ export function installSoundManager(scene: Phaser.Scene): Installed {
     return sound.context ?? null;
   });
 
+  /*
+   * `Main.as:855-901` — every menu screen change asks for the `Menu` track.
+   *
+   * One subscriber rather than a call in each scene; the set lives in
+   * `musicCue.ts` and `musicForScene` returns null for anything that owns its
+   * own track, which is `Gameplay` and the two boot scenes.
+   */
+  const offSceneMusic = GameEvents.subscribe('scene:ready', ({ key }) => {
+    const track = musicForScene(key);
+    if (track) manager.setMusic(track);
+  });
+
   const dispose = (): void => {
+    offSceneMusic();
     offUnlock();
     offUiSound();
     scene.game.events.off(Phaser.Core.Events.PRE_STEP, tick);

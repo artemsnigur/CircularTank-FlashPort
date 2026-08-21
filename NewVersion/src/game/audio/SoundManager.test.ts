@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, sep } from 'node:path';
+
 import {
   MUSIC_CROSSFADE_MS,
   MUSIC_MULTIPLIER,
@@ -7,6 +10,15 @@ import {
 } from './SoundManager';
 import type { AudioBackend, LoopId, MusicChannel } from './SoundManager';
 import { LOOPS, MUSIC, ORPHAN_FILES, SFX } from '../../assets/audioManifest';
+
+/** Every `.ts`/`.tsx` under a directory, for the single-writer sweep below. */
+function walk(dir: string): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) return walk(full);
+    return /\.tsx?$/.test(full) ? [full] : [];
+  });
+}
 
 interface Call {
   kind: string;
@@ -588,6 +600,42 @@ describe('musicPaused', () => {
     expect(backend.of('stopMusic').length).toBe(stopsBefore + 2);
   });
 
+  it('holds a request made while paused, and only the resume releases it', () => {
+    /*
+     * The shape of the bug T243 fixed, in one manager.
+     *
+     * `handleMusicChange` gates the whole crossfade on `!musicPaused`, so a
+     * `setMusic` issued while the flag is set is recorded and **never acted
+     * on** — not dropped, not deferred with a timer, just inert until
+     * something clears the flag.
+     *
+     * In the game that something was the player pressing ESC a second time,
+     * which is why quitting a paused level left the lobby silent and the next
+     * level silent too: nothing else in the app ever wrote the flag.
+     */
+    const m = playing();
+    m.musicPaused = true;
+    m.update(FRAME);
+
+    const playsBefore = backend.of('playMusic').length;
+    m.setMusic('Normal');
+    for (let i = 0; i < 30; i += 1) m.update(FRAME);
+
+    // Thirty frames of asking, and nothing plays.
+    expect(backend.of('playMusic').length).toBe(playsBefore);
+    expect(m.activeMusic).toBe('None');
+
+    // The request survived, so clearing the flag is the entire fix — no
+    // re-request is needed, which is what makes the one-line shutdown reset
+    // sufficient rather than a patch over a lost message.
+    m.musicPaused = false;
+    m.update(FRAME);
+    m.update(MUSIC_CROSSFADE_MS + FRAME);
+
+    expect(backend.of('playMusic').length).toBeGreaterThan(playsBefore);
+    expect(m.activeMusic).toBe('Normal');
+  });
+
   it('lets the same track start again on resume', () => {
     // The counterpart: pausing must not be a one-way door. `changeMusic` still
     // holds the request, so clearing the flag re-runs the crossfade.
@@ -616,5 +664,57 @@ describe('musicPaused', () => {
     expect(backend.of('playMusic').length, 'the toggle is still off').toBe(
       playsAfterToggleOff,
     );
+  });
+});
+
+/**
+ * The flag is scene state on a game-lifetime object — T243.
+ *
+ * `SoundManager` lives on the game registry and outlives every scene, while
+ * `musicPaused` means "the gameplay scene is paused". Nothing but that scene
+ * writes it, so if the scene can go away while it is set, it is set forever.
+ * It could, and it was.
+ *
+ * Source-shape, and narrow: this proves both writes are *written*, not that
+ * either runs. What it buys is the pairing — a reader who deletes the reset as
+ * redundant has to delete an assertion that says why it is not.
+ */
+describe('the gameplay scene owns the flag, and gives it back', () => {
+  const SCENE = readFileSync('src/game/scenes/GameplayScene.ts', 'utf8');
+
+  it('sets it on pause and clears it on shutdown', () => {
+    // The positive: pausing still stops the music.
+    expect(SCENE).toMatch(/sound\.musicPaused = paused/);
+
+    // The fix: the shutdown handler hands it back.
+    const shutdown = /Phaser\.Scenes\.Events\.SHUTDOWN, \(\) => \{[\s\S]{0,2000}?scene:shutdown/.exec(
+      SCENE,
+    );
+    expect(shutdown, 'the SHUTDOWN handler was not found').not.toBeNull();
+    expect(shutdown![0], 'quitting leaves the music paused forever').toMatch(
+      /musicPaused = false/,
+    );
+  });
+
+  it('is written by nothing else in the app', () => {
+    /*
+     * The claim the fix rests on: if some other screen also wrote the flag,
+     * clearing it here could fight that writer. Derived from the source rather
+     * than asserted, so a second writer added later fails this instead of
+     * silently making the ownership statement false.
+     */
+    const writers = [];
+    for (const dir of ['src/game', 'src/ui', 'src/state']) {
+      for (const file of walk(dir)) {
+        if (file.endsWith('.test.ts') || file.endsWith('.test.tsx')) continue;
+        const text = readFileSync(file, 'utf8');
+        if (/musicPaused\s*=/.test(text)) writers.push(file.split(sep).join('/'));
+      }
+    }
+
+    expect(writers.sort()).toEqual([
+      'src/game/audio/SoundManager.ts', // the declaration
+      'src/game/scenes/GameplayScene.ts', // the pause, and the reset
+    ]);
   });
 });

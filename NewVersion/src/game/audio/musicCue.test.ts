@@ -2,7 +2,15 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { MUSIC_BY_MODE, musicForMode, musicForOutcome } from './musicCue';
+import {
+  MENU_MUSIC_SCENES,
+  MUSIC_BY_MODE,
+  musicForMode,
+  musicForOutcome,
+  musicForScene,
+} from './musicCue';
+import { SceneKeys } from '../config/constants';
+import type { SceneKey } from '../config/constants';
 import { MUSIC } from '../../assets/audioManifest';
 import { MUSIC_CROSSFADE_MS } from './SoundManager';
 
@@ -99,5 +107,46 @@ describe('every music trigger is reached', () => {
     expect(MENU).toContain("setMusic('Menu')");
     expect(GAMEPLAY).toContain('setMusic(musicForMode(');
     expect(GAMEPLAY).toContain('setMusic(outcomeMusic(');
+  });
+});
+
+describe('musicForScene', () => {
+  it('asks for the Menu track on every menu screen', () => {
+    /*
+     * `Main.as:855-901` — seven screen changes, seven identical
+     * `changeMusic = "Menu"` assignments. The port had one, in MainMenuScene,
+     * so quitting a level left the gameplay track playing on Level Select.
+     */
+    for (const key of MENU_MUSIC_SCENES) {
+      expect(musicForScene(key), key).toBe('Menu');
+    }
+    expect(MENU_MUSIC_SCENES).toHaveLength(7); // `Main.as:855-901`
+  });
+
+  it('leaves Gameplay alone, which owns its own track', () => {
+    /*
+     * The counterpart, and the one that matters: `GameplayScene.create` sets
+     * the mode track, and a `Menu` request racing it would be a coin flip.
+     * Boot and Preload are excluded for the plainer reason that they are
+     * transitions.
+     */
+    expect(musicForScene(SceneKeys.Gameplay)).toBeNull();
+    expect(musicForScene(SceneKeys.Boot)).toBeNull();
+    expect(musicForScene(SceneKeys.Preload)).toBeNull();
+  });
+
+  it('accounts for every scene, either as a menu or as an exclusion', () => {
+    /*
+     * Derived from `SceneKeys` rather than restated, so a scene added to the
+     * game fails here until someone decides whether it plays menu music —
+     * the same mechanism `menuRoute.test.ts` uses for the URL slugs, and for
+     * the same reason: a hand-written list of seven never mentions the
+     * eighth.
+     */
+    const excluded: readonly SceneKey[] = [SceneKeys.Boot, SceneKeys.Preload, SceneKeys.Gameplay];
+    for (const key of Object.values(SceneKeys)) {
+      const isMenu = musicForScene(key) !== null;
+      expect(isMenu !== excluded.includes(key), `${key} is neither`).toBe(true);
+    }
   });
 });
