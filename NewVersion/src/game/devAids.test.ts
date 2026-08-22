@@ -92,27 +92,7 @@ const DEV_AIDS: Readonly<Record<string, readonly string[]>> = {
     'live sprite tint, for --hits',
     'drop an enemy at a world point, for --boss-collision',
   ],
-  'src/game/levels/devLevels.ts': ['QA levels for enemy behaviour and ground themes'],
-  /*
-   * T248: the ground-theme gallery, for the campaign redesign's `D-4` — nine
-   * themes cut to four, chosen by eye. Seven tags across seven files, and they
-   * come out **together**: the screen, its scene, the scene key the route names,
-   * the two registrations that make it reachable, the facts module it reads and
-   * the menu-music entry.
-   *
-   * Removing it is: delete the three files, then drop the `ThemeGallery` key,
-   * the `themes` slug and `DEV_MENU_ROUTES`, the `gameConfig` spread, the mount
-   * in `App.tsx`, `DEV_MENU_MUSIC_SCENES`, and the theme half of `devLevels.ts`.
-   * The compiler names every one of those once `SceneKeys.ThemeGallery` is gone,
-   * which is why the key is declared in the union rather than cast in.
-   */
-  'src/game/levels/devThemes.ts': ['ground themes as comparable facts'],
-  'src/game/scenes/ThemeGalleryScene.ts': ['the gallery scene shell'],
-  'src/ui/screens/ThemeGalleryScreen.tsx': ['the nine-theme contact sheet'],
-  'src/game/config/constants.ts': ['the ThemeGallery scene key'],
-  'src/game/config/gameConfig.ts': ['registers the gallery scene in dev only'],
-  'src/App.tsx': ['mounts the gallery screen'],
-  'src/game/audio/musicCue.ts': ['dev screens that take the menu track'],
+  'src/game/levels/devLevels.ts': ['QA levels for enemy behaviour'],
   // T100: a fresh profile knows only `Basic`, which has no resistances, so the
   // bestiary's 16 typed badges cannot be photographed without one.
   'src/game/scenes/BestiaryScene.ts': ['reveal the whole bestiary via ?known=all'],
@@ -203,11 +183,12 @@ describe('dev aids are enumerable', () => {
     // 38 with T220's impact-burst probe. T226 briefly made it 39 with
     // `?bigdamage=`, removed in T229 once CHUCK NORRIS had been verified —
     // which is the affordance lifecycle this list exists to make possible.
-    // 45 since T248 — the ground-theme gallery, seven tags in seven files.
-    // The biggest single addition to this list, and the one with the clearest
-    // end date: it exists to answer `D-4` (which four of the nine themes the
-    // redesigned campaign keeps) and should go once that is answered and the
-    // level data is written.
-    expect(total).toBe(45);
+    // 45 since T248 — the ground-theme gallery, seven tags in seven files, the
+    // biggest single addition this list has taken. **Back to 38 in T254**: it
+    // existed to answer `D-4`, the answer was taken (all nine themes, in
+    // blocks), and it came out. That is the whole point of keeping the list —
+    // the affordance had an end date and reached it, which is what did not
+    // happen to the eleven untagged aids this file was written for.
+    expect(total).toBe(38);
   });
 });

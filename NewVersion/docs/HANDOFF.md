@@ -922,6 +922,15 @@ leak: `gameConfig.ts` registers the scene only under `import.meta.env.DEV`, and
 `sceneForRoute('#themes', false)` is null beside `sceneForRoute('#upgrades',
 false)`, which is not.
 
+**The campaign overhaul is finished** — all six decisions landed, T246-T254.
+`docs/CAMPAIGN-REDESIGN-PLAN.md` is the record and is regenerated from the same
+constants the data is (`scripts/lib/campaign-design.mjs`), so it cannot drift.
+
+**The `#themes` gallery is gone (`A100`).** It answered `D-4` and came out in
+one pass against the removal list written when it went in; the `DEV-AID:` count
+is back to 38. If a similar tool is wanted again, `menuRoute.ts` records the
+shape of the dev-only-slug machinery that went with it.
+
 **Saves carry a schema version, and a pre-redesign slot resets (`A99`,
 `D-6`).** `sv` in the slot; `decodeSaveSlot` returns a fresh slot when it does
 not match, so every reader gets the same answer. Absent means version 1, which

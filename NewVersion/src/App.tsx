@@ -9,7 +9,6 @@ import { EnemiesScreen } from './ui/screens/EnemiesScreen';
 import { BestiaryScreen } from './ui/screens/BestiaryScreen';
 import { OptionsScreen } from './ui/screens/OptionsScreen';
 import { AchievementsScreen } from './ui/screens/AchievementsScreen';
-import { ThemeGalleryScreen } from './ui/screens/ThemeGalleryScreen';
 import { installButtonSounds } from './ui/buttonSounds';
 import { useEffect, useRef } from 'react';
 import { InfoText } from './ui/InfoText';
@@ -54,14 +53,6 @@ export function App(): React.ReactElement {
         <BestiaryScreen />
         <OptionsScreen />
         <AchievementsScreen />
-        {/*
-          DEV-AID: the ground-theme gallery (`#themes`). Mounted unconditionally
-          because it renders nothing unless its scene is active, and that scene
-          is registered only in a dev build — so in production this is a
-          component that can never match. Gating the mount as well would add a
-          second place to keep in step for no gain.
-        */}
-        <ThemeGalleryScreen />
         <Hud />
         {/*
           One panel for the whole app. The AS3 gives each of its eight screens

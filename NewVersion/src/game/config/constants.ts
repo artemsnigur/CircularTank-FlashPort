@@ -15,16 +15,6 @@ export const SceneKeys = {
   Options: 'Options',
   Achievements: 'Achievements',
   Gameplay: 'Gameplay',
-  /**
-   * DEV-AID: the nine ground themes side by side, for decision `D-4`.
-   *
-   * Declared here in every build because the type has to exist for the route
-   * table to name it; what keeps it out of production is `gameConfig.ts`, which
-   * registers the scene only under `import.meta.env.DEV`, and `menuRoute.ts`,
-   * whose slug for it is dev-only too. A key with no scene behind it is
-   * unreachable — nothing can start it.
-   */
-  ThemeGallery: 'ThemeGallery',
 } as const;
 
 export type SceneKey = (typeof SceneKeys)[keyof typeof SceneKeys];

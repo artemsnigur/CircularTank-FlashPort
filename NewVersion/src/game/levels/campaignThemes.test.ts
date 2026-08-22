@@ -8,7 +8,6 @@ import {
   themeBlocks,
   themeForCampaignLevel,
 } from './campaignThemes';
-import { allThemes } from './devThemes';
 import { GROUND_KEYS } from './groundTexture';
 import type { LevelTheme } from './levelData';
 
@@ -74,7 +73,11 @@ describe('the rules the blocks obey', () => {
     expect(used).toHaveLength(9);
     expect(new Set(used).size, 'no theme is used twice').toBe(9);
     expect(new Set(used)).toEqual(new Set(Object.keys(GROUND_KEYS) as LevelTheme[]));
-    expect(new Set(used)).toEqual(new Set(allThemes()));
+    // Every theme with a ground texture is used, and none other — the two
+    // sets are the same, which is what "keep all nine" means. `allThemes()`
+    // used to be the second reading here; it lived in the theme gallery and
+    // went with it (T254), so this reads `GROUND_KEYS` directly.
+    expect(used.every((theme) => theme in GROUND_KEYS)).toBe(true);
   });
 
   it('gives every level of every world exactly one theme', () => {

@@ -55,27 +55,9 @@ export const MENU_MUSIC_SCENES: readonly SceneKey[] = [
   SceneKeys.Achievements,
 ];
 
-/**
- * DEV-AID: screens this port adds that are menus too, and have no AS3 original.
- *
- * **Kept out of `MENU_MUSIC_SCENES` on purpose.** That array is seven because
- * `Main.as:855-901` lists seven, and `musicCue.test.ts` asserts the length
- * against the AS3 — appending to it would have turned a checked fact about the
- * original into a number that follows whatever we add. So the port's own
- * screens live here, and `musicForScene` reads both.
- */
-export const DEV_MENU_MUSIC_SCENES: readonly SceneKey[] = [SceneKeys.ThemeGallery];
-
 /** The track a scene asks for on becoming ready, or null to leave it alone. */
-export function musicForScene(
-  key: SceneKey,
-  dev: boolean = import.meta.env.DEV,
-): MusicName | null {
-  if (MENU_MUSIC_SCENES.includes(key)) return 'Menu';
-  // A dev screen is silent in a build that does not have it — which is moot,
-  // since its scene is not registered there either, but it keeps this function
-  // honest about what production does rather than relying on that.
-  return dev && DEV_MENU_MUSIC_SCENES.includes(key) ? 'Menu' : null;
+export function musicForScene(key: SceneKey): MusicName | null {
+  return MENU_MUSIC_SCENES.includes(key) ? 'Menu' : null;
 }
 
 import type { LevelMode } from '../levels/levelData';
