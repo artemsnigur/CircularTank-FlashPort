@@ -922,6 +922,37 @@ leak: `gameConfig.ts` registers the scene only under `import.meta.env.DEV`, and
 `sceneForRoute('#themes', false)` is null beside `sceneForRoute('#upgrades',
 false)`, which is not.
 
+**The campaign is four worlds of 45, and `levelData.ts` has two tables
+(`A98`).** `AS3_LEVELS` is the untouched 9x45 transcription — the record, and
+what `roomSizeSource.test.ts` checks the port against. `LEVELS` is what the game
+plays. **They are different campaigns, not two views of one:** a test whose
+claim is about `ScreenGame.as` reads `AS3_LEVELS`; one about what the game plays
+reads `LEVELS` or `getLevel`.
+
+**A level number is not a stable description of a level.** 1-2 was Normal and is
+now Flag; 1-3 was Flag and is now Defense. A fixture that names a mode must
+assert it — `waveState.test.ts`'s `guard(spec, 'Normal', 2)` — because the
+failure mode is not a wrong answer: a Flag level never drains its pool, so a
+`while (remainingTotal > 0)` loop **hangs the whole suite** with no message.
+
+**Boss levels have three rules of their own**, none from the AS3, all driven by
+`campaignBosses.test.ts`: 1-5 is a single boss, no type appears more than twice
+on a level, and a new enemy's boss variant is showcased at the next boss level
+with room (carried on a queue, so nothing is dropped). A boss level can hold
+**seven** wave entries against the ordinary six — `MAX_BOSS_LEVEL_ENTRIES` is
+separate so only that moves if the panel overflows. **This is the one piece of
+the redesign nobody has looked at yet.**
+
+**Money is scaled campaign-wide (`CAMPAIGN_MONEY_MULTIPLIER = 2.05`).** 180
+levels earn 0.48x what 405 did against an unchanged shop; the multiplier lands
+it at 0.99x. Applied to *every* payout — `dropAmount` and the flag reward — and
+pinned rather than derived, with a test that fails if the two campaigns drift
+more than 5% apart.
+
+**`levelSizeOverrides.ts` is gone, and its decisions are in `ROOMS`** — Tower
+800x800 and Defense 712x960 were compared in game and chosen, and retiring the
+list without carrying them would have reverted both silently.
+
 **Every level is denser, applied at `getLevel` (`A96`, `D-3`).**
 `config/campaignTuning.ts`: counts x1.2 and interval x0.7, Defense x0.6 with
 enemies 1.5x faster. It sits beside `levelSizeOverrides` so `LEVELS` stays a

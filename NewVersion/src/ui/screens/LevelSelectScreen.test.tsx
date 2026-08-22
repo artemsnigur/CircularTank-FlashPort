@@ -19,6 +19,22 @@ import { LevelSelectScreen } from './LevelSelectScreen';
 import { GameEvents } from '../../game/events/GameEvents';
 import { useGameStore } from '../../state/gameStore';
 import type { LevelListing } from '../../state/gameStore';
+import { getLevel } from '../../game/levels/levelData';
+
+/**
+ * The mode a campaign level actually is.
+ *
+ * **Two sources of truth meet in this file, and they are not the same.** The
+ * grid's tiles come from the fabricated `LISTING` in the store, so a tile is
+ * queried by the mode that listing gives it. The detail panel and the tooltip
+ * build their text from `previewForLevel`, which reads the **real campaign** —
+ * so their mode text follows `getLevel`, and 1-2 is a Flag level there since
+ * T252 however the listing labels it.
+ *
+ * Written out because the mismatch looks like a bug in the screen and is not:
+ * the tests stub the grid and let the panel read through.
+ */
+const modeOf = (world: number, level: number): string => getLevel(world, level)!.mode;
 
 const initial = useGameStore.getState();
 
@@ -164,7 +180,7 @@ describe('the detail column', () => {
     // `Level 3`, not `Level 1-3`: `:421` sets `levelText` to the level alone,
     // and the world is named over the grid beside it.
     expect(panel).toHaveTextContent('Level 3');
-    expect(panel).toHaveTextContent(/Flag mode/i);
+    expect(panel).toHaveTextContent(new RegExp(`${modeOf(1, 3)} mode`, 'i'));
   });
 
   /**
@@ -208,10 +224,12 @@ describe('the detail column', () => {
     });
 
     expect(panel).toHaveTextContent('Level 2');
-    // The mode changes with it — Flag on the frontier, Normal here — which is
-    // what separates "the panel followed" from "the panel is stuck on one
-    // level and happens to name it".
-    expect(panel).toHaveTextContent(/Normal mode/i);
+    // The mode changes with it, which is what separates "the panel followed"
+    // from "the panel is stuck on one level and happens to name it". Asserted
+    // as a difference rather than as two named modes, so it keeps testing the
+    // following rather than the campaign's layout.
+    expect(modeOf(1, 2), 'the two fixtures differ in mode').not.toBe(modeOf(1, 3));
+    expect(panel).toHaveTextContent(new RegExp(`${modeOf(1, 2)} mode`, 'i'));
   });
 
   it('offers PLAY LEVEL for the level it names, as a second route not a gate', () => {
@@ -634,7 +652,7 @@ describe('the cursor tooltip', () => {
     const tip = document.querySelector('.cursor-tip');
     expect(tip).not.toBeNull();
     expect(tip).toHaveTextContent('Level 1-2');
-    expect(tip).toHaveTextContent(/Normal mode/i);
+    expect(tip).toHaveTextContent(new RegExp(`${modeOf(1, 2)} mode`, 'i'));
   });
 
   it('goes away again on leave', () => {

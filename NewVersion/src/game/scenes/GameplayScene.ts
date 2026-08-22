@@ -213,6 +213,7 @@ import { isWaveComplete, registerEnemyKilled, registerFlagCaptured } from '../wa
 import { canCaptureFlag, placeFlag, tickFlag } from '../waves/flag';
 import { deathExplosion } from '../enemies/enemyDeath';
 import { devLevelSpec } from '../levels/devLevels';
+import { campaignMoney } from '../config/campaignTuning';
 import {
   advanceEnemyBullet,
   applyBulletToTank,
@@ -5410,8 +5411,13 @@ export class GameplayScene extends Phaser.Scene {
 
     // Divergence: credited straight to the balance rather than scattered as
     // ItemMoney pickups. See waves/flag.ts.
-    this.currency += spec.flagMoney;
-    GameEvents.emit('currency:earned', { amount: spec.flagMoney, total: this.currency });
+    //
+    // Through `campaignMoney` like every other payout (`D-3`): a Flag level's
+    // whole income is its flags, so leaving this unscaled would have made Flag
+    // the one mode paying half what the rest do.
+    const reward = campaignMoney(spec.flagMoney);
+    this.currency += reward;
+    GameEvents.emit('currency:earned', { amount: reward, total: this.currency });
 
     this.flag = null;
     this.clearFlagMarker();

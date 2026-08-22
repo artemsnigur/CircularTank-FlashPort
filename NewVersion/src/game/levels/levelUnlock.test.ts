@@ -143,12 +143,16 @@ describe('the world unlock rule', () => {
 });
 
 describe('the world picker rows', () => {
-  it('describes all nine worlds, in order, with their theme names', () => {
+  it('describes every world, in order, with a theme name', () => {
     const rows = worldUnlockStates(createEmptyProgress());
 
     expect(rows).toHaveLength(WORLD_COUNT);
     expect(rows.map((r) => r.world)).toEqual(rows.map((_, i) => i + 1));
-    expect(rows.map((r) => r.name)).toEqual([...Worlds]);
+    // A world crosses two or three themes now (`D-4`), so the row's name is
+    // one of them rather than the whole list — what must hold is that each is
+    // a real theme and they are all different.
+    for (const row of rows) expect([...Worlds], row.name).toContain(row.name);
+    expect(new Set(rows.map((r) => r.name)).size).toBe(rows.length);
     expect(rows[0].totalLevels).toBe(levelsInWorld(1));
   });
 
@@ -191,7 +195,14 @@ describe('the world picker rows', () => {
     // The AS3 blanks a locked button's text; the numbers are not secret, they
     // are simply zero, so the caller decides what to hide.
     const rows = worldUnlockStates(createEmptyProgress());
-    expect(rows[8]).toMatchObject({ unlocked: false, bronze: 0, silver: 0, gold: 0 });
+    // The last world, whichever that is — indexed from the end so it follows
+    // the campaign rather than pinning a ninth world that no longer exists.
+    expect(rows[rows.length - 1]).toMatchObject({
+      unlocked: false,
+      bronze: 0,
+      silver: 0,
+      gold: 0,
+    });
   });
 });
 
@@ -390,7 +401,7 @@ describe('the world pin is off', () => {
     // unconditionally 9 at :104, :194 and :285, so the original offers world 7
     // regardless of the picker's cap.
     expect(SELECTABLE_WORLDS).toBe(WORLD_COUNT);
-    expect(WORLD_COUNT).toBe(9);
+    expect(WORLD_COUNT).toBe(4);
   });
 
   it('no scene keeps a private copy of the number', () => {

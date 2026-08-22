@@ -33,10 +33,25 @@ describe('the theme set', () => {
 
 describe('the order', () => {
   it('follows the world a theme first appears in', () => {
-    // Derived here a second way — straight off `LEVELS` — rather than compared
-    // against the module's own output, which would be a tautology.
-    const byWorld = LEVELS.map((levels) => levels[0].theme);
-    expect(themeOrder()).toEqual(byWorld);
+    /*
+     * Derived here a second way — walking `LEVELS` in order — rather than
+     * compared against the module's own output, which would be a tautology.
+     *
+     * It used to read each world's *first* level, which was the same thing
+     * when a world had one theme. Since `D-4` a world crosses two or three in
+     * blocks (T252), so first-appearance has to be walked rather than sampled.
+     */
+    const seen = new Set<string>();
+    const firstAppearance: string[] = [];
+    for (const world of LEVELS) {
+      for (const level of world) {
+        if (seen.has(level.theme)) continue;
+        seen.add(level.theme);
+        firstAppearance.push(level.theme);
+      }
+    }
+    expect(themeOrder()).toEqual(firstAppearance);
+    expect(firstAppearance).toHaveLength(9);
   });
 
   /*
@@ -98,11 +113,18 @@ describe('the cards', () => {
   it('counts the worlds and levels each theme is used by', () => {
     for (const card of themeCards()) {
       expect(card.worlds, card.theme).toEqual(themeWorlds(card.theme));
-      // One theme per world across all 405 rows today, so a used theme is
-      // exactly 45 levels. Stated as the arithmetic rather than as 45, so this
-      // still reads correctly when the redesign changes what a world holds.
-      expect(card.levels, card.theme).toBe(card.worlds.length * 45);
+      // Counted independently off `LEVELS`. This used to be
+      // `worlds.length * 45`, which held while a world had one theme and stops
+      // holding the moment a world crosses three of them (T252) — the arithmetic
+      // was a description of the old campaign, not of the field.
+      const played = LEVELS.flat().filter((l) => l.theme === card.theme).length;
+      expect(card.levels, card.theme).toBe(played);
+      expect(card.levels, card.theme).toBeGreaterThan(0);
     }
+
+    // Every level belongs to exactly one theme's count.
+    const total = themeCards().reduce((n, c) => n + c.levels, 0);
+    expect(total).toBe(LEVELS.flat().length);
   });
 
   it('carries the prop mix for every theme, summing to one', () => {

@@ -12,20 +12,38 @@ import {
   levelPreview,
   previewForLevel,
 } from './levelPreview';
-import { LEVELS } from './levelData';
+import { AS3_LEVELS, LEVELS, getLevel } from './levelData';
 import type { LevelSpec } from './levelData';
 
 /**
- * `LEVELS` is the AS3 transcription; `getLevel` is what the game plays, and
- * since T250 the two differ by more than room size — `campaignTuning` raises
- * every count by 20% and shortens every interval on the way out (`D-3`).
+ * `AS3_LEVELS` is the original's 9x45; `LEVELS` is the redesigned campaign and
+ * `getLevel` is that with the density tuning applied. They are three different
+ * things since T252, not three views of one.
  *
- * A test whose claim is "this matches `ScreenGame.as`" therefore has to read
- * the **source row**, or it stops checking the AS3 and starts checking our
- * tuning. That distinction already existed for room sizes and is now load
- * bearing for the whole row.
+ * The describes in this file are about the AS3's shape — "the AS3 pair walk",
+ * "the amount label, four branches" — so they read the original. A test that
+ * reached for `getLevel` here would stop checking `ScreenGame.as` and start
+ * checking our redesign.
  */
-const source = (world: number, level: number): LevelSpec => LEVELS[world - 1][level - 1];
+const source = (world: number, level: number): LevelSpec => AS3_LEVELS[world - 1][level - 1];
+
+/**
+ * The first campaign level of a mode, as `[world, level]`.
+ *
+ * Several tests below wanted "a Boss level" or "a Defense level" and named a
+ * number, which was a stable description while the campaign was the AS3's.
+ * It is not any more — the redesign moved every mode (T252) — so they ask for
+ * what they need and let the table answer.
+ */
+function firstOfMode(mode: string): [number, number] {
+  for (const [w, world] of LEVELS.entries()) {
+    for (const [l, spec] of world.entries()) {
+      if (spec.mode === mode) return [w + 1, l + 1];
+    }
+  }
+  throw new Error(`no ${mode} level in the campaign`);
+}
+
 
 import { getDifficultyProfile } from '../config/difficultyMultipliers';
 import { enemyShape } from '../entities/enemyArt';
@@ -209,9 +227,9 @@ describe('the panel does not print an upgrade limit', () => {
     expect(preview.summary.split('\n')).toHaveLength(5);
   });
 
-  it('omits it on every one of the 405 levels, not just the fixture', () => {
-    // 1-9 has an upgrade limit of 2. A level whose limit is 1 or 10 would
-    // print a different string, so the sweep is what makes this a rule.
+  it('omits it on every level, not just the fixture', () => {
+    // Upgrade limits run 1..10 across the campaign and a level at either end
+    // would print a different string, so the sweep is what makes this a rule.
     let checked = 0;
     for (let w = 0; w < LEVELS.length; w += 1) {
       for (let l = 0; l < LEVELS[w].length; l += 1) {
@@ -221,7 +239,8 @@ describe('the panel does not print an upgrade limit', () => {
         checked += 1;
       }
     }
-    expect(checked).toBe(405);
+    // The whole campaign, counted rather than named — it was 405 and is 180.
+    expect(checked).toBe(LEVELS.flat().length);
   });
 
   it('keeps the datum in LevelSpec, unread', () => {
@@ -241,25 +260,35 @@ describe('the whole preview for a named level', () => {
    * Boss mode, four rows, mixed level labels, and two rows sharing a
    * percentage, so a builder that deduplicated or reordered fails.
    */
-  it('builds level 1-9 exactly', () => {
-    const preview = levelPreview(1, 9, 'Easy', 'Kill 1 Boss')!;
+  it('builds a Boss level exactly', () => {
+    const [world, level] = firstOfMode('Boss');
+    const spec = getLevel(world, level)!;
+    const preview = levelPreview(world, level, 'Easy', 'Kill the boss')!;
 
     expect(preview.summary).toBe(
-      'World: 1\nLevel: 9\nMode: Boss\nDifficulty: Easy\nObjective: Kill 1 Boss',
+      `World: ${world}\nLevel: ${level}\nMode: Boss\nDifficulty: Easy\nObjective: Kill the boss`,
     );
 
-    expect(
-      preview.rows.map((r) => [r.type, r.levelLabel, r.amountLabel, r.isBoss]),
-    ).toEqual([
-      // The played level, so the shares are of the tuned wave (`D-3`): the
-      // authored 7/6/6 become 8/7/7 and the boss row is untouched, which is
-      // why the denominator is 22 and not 20 x 1.2. The AS3's own row is
-      // asserted at the source in `levelProgress.test.ts`.
-      ['Basic', 'BOSS', '1 X', true],
-      ['Fast', 'LVL 1', '36.4%', false],
-      ['Basic', 'LVL 1', '31.8%', false],
-      ['Shooting', 'LVL 1', '31.8%', false],
-    ]);
+    /*
+     * Row for row against the level's own composition, rather than against a
+     * transcribed list. The shapes being pinned are Boss mode's: the boss row
+     * prints a count and every other row a share of the total **less** the
+     * bosses, so a builder that used the whole total, deduplicated or reordered
+     * still fails here.
+     */
+    const bosses = spec.enemies.filter((e) => e.level === 'B').reduce((n, e) => n + e.count, 0);
+    const support = spec.totalEnemies - bosses;
+
+    expect(preview.rows).toHaveLength(spec.enemies.length);
+    expect(preview.rows.map((r) => [r.type, r.isBoss])).toEqual(
+      spec.enemies.map((e) => [e.type, e.level === 'B']),
+    );
+    expect(preview.rows[0].amountLabel).toBe(`${bosses} X`);
+    expect(preview.rows[0].levelLabel).toBe('BOSS');
+    for (const [i, row] of preview.rows.slice(1).entries()) {
+      const share = Math.round((spec.enemies[i + 1].count / support) * 1000) / 10;
+      expect(row.amountLabel, row.type).toBe(`${share}%`);
+    }
 
     // ── A boss row draws the BOSS clip. This is a deliberate divergence ────
     // **`A9`, and it is not the enemyType-stripping bug it looks like.**
@@ -273,9 +302,9 @@ describe('the whole preview for a named level', () => {
     // to fix**: someone reading `:249` and then this file would reasonably
     // conclude the level char had been forgotten. It was found, checked, and
     // kept. See `A9` in the audit before changing it.
-    expect(preview.rows[0].shape).toBe(enemyShape('Basic', true));
-    expect(preview.rows[2].shape).toBe(enemyShape('Basic', false));
-    expect(preview.rows[0].shape).not.toBe(preview.rows[2].shape);
+    const bossRow = preview.rows[0];
+    expect(bossRow.shape).toBe(enemyShape(bossRow.type, true));
+    expect(bossRow.shape).not.toBe(enemyShape(bossRow.type, false));
   });
 
   /**
@@ -284,20 +313,44 @@ describe('the whole preview for a named level', () => {
    * empty list (`:403`, `:464`); the placeholder is `ScreenEnemies.as:385-391`.
    */
   it('shows resistances with no placeholder and no knowledge gate', () => {
-    const preview = levelPreview(1, 9, 'Easy', 'Kill 1 Boss')!;
-    const basic = preview.rows[2];
     // Basic has neither strengths nor weaknesses — so no badges at all.
+    const withBasic = LEVELS.flat().find((l) => l.enemies.some((e) => e.type === 'Basic'))!;
+    const [bw, bl] = (() => {
+      for (const [w, world] of LEVELS.entries()) {
+        const l = world.indexOf(withBasic);
+        if (l !== -1) return [w + 1, l + 1];
+      }
+      throw new Error('unreachable');
+    })();
+
+    const preview = levelPreview(bw, bl, 'Easy', 'x')!;
+    const basic = preview.rows.find((r) => r.type === 'Basic' && !r.isBoss)!;
     expect(basic.strengths).toEqual([]);
     expect(basic.weaknesses).toEqual([]);
 
-    // The counterpart, on a level with a type that does have them: 1-13 is
-    // Defense with Strong 10 / Basic 8 / Shooting 6, and Strong resists
-    // Explosions and Bullets.
-    const withBadges = levelPreview(1, 13, 'Easy', 'Kill 24 Enemies')!;
+    // The counterpart, on a Defense level fielding a type that does have them:
+    // Strong resists Explosions and Bullets. Found rather than named, and the
+    // label is checked as a count — Defense prints counts where Flag prints
+    // shares, which is the branch this half is really about.
+    const found = (() => {
+      for (const [w, world] of LEVELS.entries()) {
+        for (const [l, spec] of world.entries()) {
+          if (spec.mode === 'Defense' && spec.enemies.some((e) => e.type === 'Strong')) {
+            return { world: w + 1, level: l + 1, spec };
+          }
+        }
+      }
+      throw new Error('no Defense level fields Strong');
+    })();
+
+    const withBadges = levelPreview(found.world, found.level, 'Easy', 'x')!;
     const strong = withBadges.rows.find((r) => r.type === 'Strong')!;
-    // Tuned: the authored 10 is what the AS3 says, and `previewForLevel`
-    // reads `getLevel`, so the panel shows what the level actually fields.
-    expect(strong.amountLabel, 'Defense counts rather than shares').toBe('12 X');
+    // From `getLevel`, not the authored row: the panel shows what the level
+    // actually fields, and `campaignTuning` raises every count on the way out
+    // (`D-3`). Comparing against `LEVELS` here was off by exactly that 20%.
+    const played = getLevel(found.world, found.level)!;
+    const count = played.enemies.find((e) => e.type === 'Strong')!.count;
+    expect(strong.amountLabel, 'Defense counts rather than shares').toBe(`${count} X`);
     expect(strong.strengths.map((b) => b.label)).toEqual(['Explosions', 'Bullets']);
     expect(strong.strengths.every((b) => b.damageType !== null)).toBe(true);
   });
@@ -366,33 +419,56 @@ describe('previewForLevel is per-level, not cached', () => {
    * one.
    */
   it('gives different levels different previews', () => {
-    const a = previewForLevel(1, 2, 'Easy')!;
-    const b = previewForLevel(1, 3, 'Easy')!;
+    const [nw, nl] = firstOfMode('Normal');
+    const [fw, fl] = firstOfMode('Flag');
+    const a = previewForLevel(nw, nl, 'Easy')!;
+    const b = previewForLevel(fw, fl, 'Easy')!;
 
-    expect(a.summary).toContain('Level: 2');
-    expect(b.summary).toContain('Level: 3');
+    expect(a.summary).toContain(`Level: ${nl}`);
+    expect(b.summary).toContain(`Level: ${fl}`);
     expect(a.summary).not.toBe(b.summary);
 
     expect(a.summary).toContain('Mode: Normal');
     expect(b.summary).toContain('Mode: Flag');
-    // …and the rows differ too, not just the heading.
-    // Tuned counts and shares — 12/6 authored becomes 14/7, and 1-3's 10/4
-    // becomes 12/5, which is 70.6/29.4 rather than 71.4/28.6.
-    expect(a.rows.map((r) => r.amountLabel)).toEqual(['14 X', '7 X']);
-    expect(b.rows.map((r) => r.amountLabel)).toEqual(['70.6%', '29.4%']);
+
+    // …and the rows differ too, not just the heading. The two modes print
+    // different *kinds* of label — Normal a count, Flag a share — which is the
+    // distinction worth pinning rather than the numbers themselves.
+    for (const label of a.rows.map((r) => r.amountLabel)) expect(label).toMatch(/^\d+ X$/);
+    for (const label of b.rows.map((r) => r.amountLabel)) expect(label).toMatch(/%$/);
   });
 
   /** Asking twice returns equal content — pure, so re-hover is not a fresh answer. */
   it('is stable for the same level', () => {
-    expect(previewForLevel(1, 2, 'Easy')).toEqual(previewForLevel(1, 2, 'Easy'));
+    expect(previewForLevel(1, 1, 'Easy')).toEqual(previewForLevel(1, 1, 'Easy'));
   });
 
   /** The objective is wired, not blank — the field the three callers shared. */
   it('fills the objective from the level, per mode', () => {
-    // 12 Basic + 6 Fast authored, 14 + 7 played — `D-3`.
-    expect(previewForLevel(1, 2, 'Easy')!.summary).toContain('Objective: Kill 21 Enemies');
-    expect(previewForLevel(1, 3, 'Easy')!.summary).toContain('Objective: Collect 10 Flags');
-    expect(previewForLevel(1, 9, 'Easy')!.summary).toContain('Objective: Kill 1 Boss');
+    /*
+     * One of each mode, found rather than named, and the objective checked
+     * against the level's own numbers — the wording is what is under test, and
+     * a transcribed count would just pin whichever levels these happen to be.
+     */
+    const forMode = (mode: string) => {
+      const [w, l] = firstOfMode(mode);
+      return { spec: getLevel(w, l)!, summary: previewForLevel(w, l, 'Easy')!.summary };
+    };
+
+    const normal = forMode('Normal');
+    expect(normal.summary).toContain(`Objective: Kill ${normal.spec.totalEnemies} Enemies`);
+
+    const flag = forMode('Flag');
+    expect(flag.summary).toContain(`Objective: Collect ${flag.spec.flagCount} Flags`);
+
+    const boss = forMode('Boss');
+    const bosses = boss.spec.enemies
+      .filter((e) => e.level === 'B')
+      .reduce((n, e) => n + e.count, 0);
+    // The campaign's first boss level fields exactly one, so this is the
+    // singular branch; `countdownPanel` pluralises past that.
+    expect(bosses).toBe(1);
+    expect(boss.summary).toContain('Objective: Kill 1 Boss');
   });
 
   it('returns null for a level that does not exist', () => {

@@ -18,6 +18,35 @@
  * into level data is a separate job with its own gate.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
+import {
+  BIG_BOSS_FROM,
+  BIG_BOSS_ROOM,
+  BOSS_AMOUNTS,
+  BOSS_LEVELS,
+  INTRO_LEVELS,
+  LAYOUT_ROTATION,
+  MAX_BOSS_LEVEL_ENTRIES,
+  MAX_WAVE_ENTRIES,
+  PER_WORLD,
+  ROOMS,
+  TIER_SOURCE,
+  TOTAL_LEVELS,
+  VARIETY_BAND,
+  WORLDS,
+  layoutFor,
+  nonBossLevels,
+  varietyAt,
+} from './lib/campaign-design.mjs';
+
+/**
+ * The design constants live in `lib/campaign-design.mjs`, shared with
+ * `gen-levels.mjs`, which writes the data this document describes.
+ *
+ * They used to be a copy here. A copy is how a document comes to describe a
+ * campaign nobody is playing — this one already carried a stale theme table
+ * once, which is what moved the themes into `src/` and the rest into a lib.
+ */
+const TOTAL = TOTAL_LEVELS;
 
 const SRC = 'src/game/levels/levelData.ts';
 const OUT = 'docs/CAMPAIGN-REDESIGN-PLAN.md';
@@ -63,7 +92,11 @@ function parseLiteral(literal) {
   return JSON.parse(json);
 }
 
-const OLD = parseLiteral(arrayLiteral(readFileSync(SRC, 'utf8'), 'LEVELS'));
+// `AS3_LEVELS`, not `LEVELS`: since T252 the latter is the redesigned
+// campaign this document describes, and comparing the plan against its own
+// output would say nothing. The original is what the redesign is measured
+// from.
+const OLD = parseLiteral(arrayLiteral(readFileSync(SRC, 'utf8'), 'AS3_LEVELS'));
 assert(OLD.length === 9, `expected 9 source worlds, got ${OLD.length}`);
 
 const oldFlat = [];
@@ -110,110 +143,6 @@ function tierMix(worlds) {
   return { t1: (c[1] / total) * 100, t2: (c[2] / total) * 100, t3: (c[3] / total) * 100 };
 }
 
-/* ── The design ──────────────────────────────────────────────────────────── */
-
-const WORLDS = 4;
-const PER_WORLD = 45;
-const TOTAL = WORLDS * PER_WORLD;
-
-/**
- * Boss levels within every world.
- *
- * The original's five (9, 18, 27, 36, 45) are all kept, and a sixth through
- * tenth is inserted at the midpoint of each gap. That is what "evenly across
- * the four worlds" buys without throwing away the cadence players already
- * read: every boss the old campaign had is still a boss, and the new ones sit
- * between them rather than displacing them.
- */
-const BOSS_LEVELS = [5, 9, 14, 18, 23, 27, 32, 36, 41, 45];
-
-/**
- * How many bosses each boss level spawns, in order, per world.
- *
- * Ramped inside a world and across the campaign. The old game's range was
- * 1..3 with a mean of 2; this runs 2..10.
- */
-const BOSS_AMOUNTS = {
-  1: [2, 2, 3, 3, 3, 4, 4, 4, 5, 5],
-  2: [3, 3, 4, 4, 4, 5, 5, 5, 6, 6],
-  3: [4, 4, 5, 5, 5, 6, 6, 6, 7, 8],
-  4: [5, 5, 6, 6, 6, 7, 7, 8, 9, 10],
-};
-
-/**
- * The non-boss mode layout, in level order, for world 1.
- *
- * Ten segments sit between the boss levels, alternating four and three long.
- * Each three-segment carries the world's one Tower, which lands the Tower on
- * levels 7, 16, 25, 34 and 43 — five of them, exactly half the old rate.
- */
-const BASE_LAYOUT = [
-  'Normal', 'Flag', 'Defense', 'Normal',            // 1-4
-  'Defense', 'Tower', 'Normal',                     // 6-8
-  'Normal', 'Flag', 'Defense', 'Flag',              // 10-13
-  'Flag', 'Tower', 'Defense',                       // 15-17
-  'Normal', 'Flag', 'Defense', 'Defense',           // 19-22
-  'Defense', 'Tower', 'Normal',                     // 24-26
-  'Normal', 'Flag', 'Defense', 'Normal',            // 28-31
-  'Flag', 'Tower', 'Defense',                       // 33-35
-  'Normal', 'Flag', 'Defense', 'Flag',              // 37-40
-  'Normal', 'Tower', 'Flag',                        // 42-44
-];
-
-/**
- * Worlds 2-4 rotate that sequence by 7 slots each.
- *
- * The Towers sit 7 apart, so a rotation by 7 maps the Tower set onto itself —
- * the Tower cadence stays fixed at 7/16/25/34/43 in every world while Normal,
- * Flag and Defense land differently. One template, four layouts, and the mode
- * counts come out identical by construction rather than by care.
- */
-const LAYOUT_ROTATION = 7;
-
-/**
- * Where each type debuts, as `world -> [level, ...]`.
- *
- * The **order is the original's, unchanged** — rule 2. Only the spacing moves:
- * after the opening three the cadence is a flat nine levels, so the longest
- * wait for something new drops from 39 levels to 9.
- */
-const INTRO_LEVELS = {
-  1: [1, 2, 4, 11, 19, 28, 37],
-  2: [1, 10, 19, 28, 37],
-  3: [1, 10, 19, 28, 37],
-  4: [1, 10, 19],
-};
-
-/** How many distinct enemy types a non-boss level should field, per world. */
-const VARIETY_BAND = {
-  1: [2, 4],
-  2: [3, 5],
-  3: [4, 6],
-  4: [4, 6],
-};
-
-/**
- * The cap on wave entries, and why it is 6 rather than a round 8.
- *
- * `levelPreview` renders one row per entry in the level-select panel, and the
- * original's busiest level has 6. Six is therefore a layout the UI is known to
- * survive; seven is a guess. Raising it is a UI change with its own look.
- */
-const MAX_WAVE_ENTRIES = 6;
-
-/**
- * Theme per world — **read from `campaignThemes.ts`, not restated here.**
- *
- * It used to be a copy, with a comment saying which four themes might be cut.
- * Decision `D-4` settled on keeping all nine in solid blocks, and a settled
- * boundary written in two places is a boundary that drifts. The module is the
- * specification and carries the tests; this document reports it.
- *
- * Parsed rather than imported for the same reason `levelData.ts` is: the source
- * imports its neighbours without file extensions, which Node's ESM loader will
- * not take. The assertions below are what make that safe — a parse that finds
- * the wrong thing fails loudly instead of printing a plausible table.
- */
 const THEMES = (() => {
   const source = readFileSync('src/game/levels/campaignThemes.ts', 'utf8');
   const literal = arrayLiteral(source, 'CAMPAIGN_THEMES', '{');
@@ -242,22 +171,6 @@ assert(Object.keys(THEMES).length === WORLDS, `theme table covers ${Object.keys(
 }
 
 /** Mode -> room size. The original already locks Tower, Defense and Boss. */
-const ROOMS = {
-  Tower: '640x640',
-  Defense: '640x960',
-  Normal: '800x600',
-  Flag: '900x720',
-  Boss: '800x600',
-};
-/** A boss level with a big crowd gets the larger of the two Boss rooms. */
-const BIG_BOSS_ROOM = '900x720';
-const BIG_BOSS_FROM = 5;
-
-/** Which old worlds each new world inherits its tier mix from. */
-const TIER_SOURCE = { 1: [1, 2], 2: [3, 4], 3: [5, 6], 4: [7, 8, 9] };
-
-/* ── Derivation ──────────────────────────────────────────────────────────── */
-
 const introByWorldLevel = new Map();
 {
   let n = 0;
@@ -270,29 +183,19 @@ const introByWorldLevel = new Map();
   assert(n === 20, `intro schedule places ${n} types, expected 20`);
 }
 
-const NONBOSS_LEVELS = [];
-for (let l = 1; l <= PER_WORLD; l += 1) if (!BOSS_LEVELS.includes(l)) NONBOSS_LEVELS.push(l);
+const NONBOSS_LEVELS = nonBossLevels();
 assert(
-  NONBOSS_LEVELS.length === BASE_LAYOUT.length,
-  `layout has ${BASE_LAYOUT.length} slots for ${NONBOSS_LEVELS.length} non-boss levels`,
+  NONBOSS_LEVELS.length === layoutFor(1).length,
+  `layout has ${layoutFor(1).length} slots for ${NONBOSS_LEVELS.length} non-boss levels`,
 );
-
-function layoutFor(world) {
-  const k = (LAYOUT_ROTATION * (world - 1)) % BASE_LAYOUT.length;
-  return BASE_LAYOUT.map((_, i) => BASE_LAYOUT[(i + k) % BASE_LAYOUT.length]);
-}
+// `layoutFor` and `varietyAt` come from the shared design; only the theme
+// lookup is local, because the blocks are parsed from `campaignThemes.ts`.
+assert(LAYOUT_ROTATION > 0, 'the layout rotation is not set');
 
 function themeAt(world, level) {
   let theme = THEMES[world][0][0];
   for (const [name, from] of THEMES[world]) if (level >= from) theme = name;
   return theme;
-}
-
-/** The variety target at a point in the campaign, bounded by the roster. */
-function varietyAt(world, level, roster) {
-  const [lo, hi] = VARIETY_BAND[world];
-  const t = (level - 1) / (PER_WORLD - 1);
-  return Math.min(roster, MAX_WAVE_ENTRIES, lo + Math.round(t * (hi - lo)));
 }
 
 const PLAN = [];
@@ -380,10 +283,20 @@ const onBoss = PLAN.filter((r) => r.intro && r.mode === 'Boss').map((r) => `${r.
 assert(onBoss.length === 0, `debuts on boss levels: ${onBoss.join(', ')}`);
 
 const NEW_BOSS_TOTAL = PLAN.reduce((n, r) => n + r.bosses, 0);
+{
+  const singles = PLAN.filter((r) => r.mode === 'Boss' && r.bosses === 1);
+  assert(
+    singles.length === 1 && singles[0].world === 1 && singles[0].level === 5,
+    `single-boss levels: ${singles.map((r) => `${r.world}-${r.level}`).join(', ') || 'none'}`,
+  );
+}
+
 assert(NEW_BOSS_TOTAL > OLD_BOSS_TOTAL, 'the campaign does not spawn more bosses');
 for (const r of PLAN) {
   if (r.mode !== 'Boss') assert(r.bosses === 0, `${r.world}-${r.level} is not a boss level`);
-  else assert(r.bosses >= 2, `${r.world}-${r.level} spawns only ${r.bosses}`);
+  // At least one, and exactly one only on 1-5 — the first boss a player meets
+  // has to teach the encounter rather than kill them (`campaign-design.mjs`).
+  else assert(r.bosses >= 1, `${r.world}-${r.level} spawns ${r.bosses}`);
 }
 // BossOnlySpecial needs a level with three bosses, and could not be earned in
 // world 1 of the original because no world-1 level has three.
@@ -669,8 +582,15 @@ w(
   'debuted, which binds in world 1 only; and wave entries are capped at',
   `**${MAX_WAVE_ENTRIES}**, because \`levelPreview\` draws one row per entry and the busiest`,
   `level in the original has ${OLD_MAX_ENTRIES}. Six is a layout the level-select panel is known`,
-  'to survive; seven is a guess. Raising it is a UI change with its own look, not',
-  'a data change.',
+  'to survive; seven is a guess.',
+  '',
+  `**Boss levels are the exception, at ${MAX_BOSS_LEVEL_ENTRIES}.** A boss level now fields up to five`,
+  'distinct boss types and each is a row of its own before the support gets one,',
+  'so five bosses plus two support is seven — one past what the original ever',
+  'asked the panel to draw. It is a separate constant from the number above so',
+  'that ordinary levels stay inside what is known to work: **if seven rows',
+  'overflow, only the boss cap moves.** This is the one piece of the redesign',
+  'that has not been looked at.',
   '',
   '### Tier mix per world',
   '',
@@ -796,8 +716,8 @@ w(
   '| **D-2** | Should the freed Tower slots grow Normal/Flag/Defense instead of Boss? | **No** — rule 5 as written; the other three hold their old rate | settled; the tables above reflect it |',
   '| **D-3** | Enemy density on ordinary levels | **+20% enemy count, -30% spawn interval.** Defense levels instead take **-40% interval and +50% enemy move speed** | **Done, T250** (`A96`) — `config/campaignTuning.ts`, live on the current campaign too |',
   '| **D-4** | Nine themes across four worlds | **Keep all nine**, in solid sequential blocks — reversed after seeing them in the `#themes` gallery | **Decided, T249.** Recorded in `campaignThemes.ts`; reaches the game with the level table |',
-  '| **D-5** | Free/premium split | **No premium at all.** All four worlds free; the restriction comes out of the campaign | to do |',
-  '| **D-6** | Existing saves | **Bump the save version and wipe progress** | to do |',
+  '| **D-5** | Free/premium split | **No premium at all.** All four worlds free; the restriction comes out of the campaign | **Done, T252** (`A98`) |',
+  '| **D-6** | Existing saves | **Bump the save version and wipe progress** | to do — the last open item |',
   '',
   '## 8. What happens once this is approved',
   '',
@@ -815,7 +735,7 @@ w(
   '   before the data — a check has to exist before the thing it guards.',
   '3. ~~**D-3**, the density layer.~~ **Done — T250.** It applies to the',
   '   current campaign as well, so it is observable now rather than waiting.',
-  '4. **The 180-level table**, generated from a source of truth carrying the',
+  '4. ~~**The 180-level table.**~~ **Done — T252** (`A98`), generated from',
   '   constants in this file, with a `data:check` that fails when the file and',
   '   the generator disagree. Hand-authoring 180 rows of magic numbers is how a',
   '   campaign ends up with a level nobody can explain.',

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ENEMY_STAT_TYPES, ENEMY_STATS } from './enemyStatsData';
 import { AS3_ENEMY_TURN_MULTIPLIER, ENEMY_TURN_MULTIPLIER, getBaseStats, isBossLevel, isShooter, resolveEnemyStats, totalLevelHealth } from './enemyStats';
 import { BESTIARY } from './bestiaryData';
-import { LEVELS, getLevel } from '../levels/levelData';
+import { AS3_LEVELS, LEVELS, getLevel } from '../levels/levelData';
 import { DIFFICULTY_PROFILES, ENEMY_TIER_MULTIPLIERS } from '../config/difficultyMultipliers';
 import { Difficulties, EnemyLevels } from '../config/constants';
 
@@ -300,7 +300,7 @@ describe('level integration', () => {
     // `LEVELS` rather than `getLevel`, which since T250 also applies the `D-3`
     // density tuning — the played level is 12 enemies and 120 hp, and that
     // belongs to `campaignTuning.test.ts`, not to a statement about the AS3.
-    const health = totalLevelHealth(LEVELS[0][0].enemies, 'Easy');
+    const health = totalLevelHealth(AS3_LEVELS[0][0].enemies, 'Easy');
     expect(health).toBe(100);
   });
 
@@ -330,11 +330,31 @@ describe('flag model', () => {
   });
 
   it('preserves a known flag row', () => {
-    // flagModelW1 row 3 is [10, 102]; world 1 level 3 is the first Flag level.
-    const level = getLevel(1, 3)!;
+    // flagModelW1 row 3 is [10, 102]; world 1 level 3 is the first Flag level
+    // **in the AS3**. The campaign's own 1-3 is a Defense level (T252), so this
+    // reads the record — the claim is about `ScreenGame.as`, not about what is
+    // played.
+    const level = AS3_LEVELS[0][2];
     expect(level.mode).toBe('Flag');
     expect(level.flagCount).toBe(10);
     expect(level.flagMoney).toBe(102);
+  });
+
+  it("carries flag numbers onto the campaign's own Flag levels", () => {
+    // The counterpart, and the thing that would actually break the mode: every
+    // Flag level the game plays must have flags to capture, and no other level
+    // may have any.
+    for (const [w, world] of LEVELS.entries()) {
+      for (const [l, spec] of world.entries()) {
+        const where = `${w + 1}-${l + 1}`;
+        if (spec.mode === 'Flag') {
+          expect(spec.flagCount, where).toBeGreaterThan(0);
+          expect(spec.flagMoney, where).toBeGreaterThan(0);
+        } else {
+          expect(spec.flagCount, where).toBe(0);
+        }
+      }
+    }
   });
 });
 

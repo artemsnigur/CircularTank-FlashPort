@@ -30,6 +30,8 @@
  *   9  PRNG seed          feeds PM_PRNG for deterministic prop placement
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import * as design from './lib/campaign-design.mjs';
+import { buildCampaign } from './lib/campaign-build.mjs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -194,6 +196,105 @@ const total = worlds.reduce((n, w) => n + w.length, 0);
 const seeds = new Set(worlds.flatMap((w) => w.map((l) => l.seed)));
 
 const q = (v) => JSON.stringify(v);
+
+function assert(cond, message) {
+  if (!cond) throw new Error(`campaign invariant failed: ${message}`);
+}
+
+/**
+ * The theme blocks, parsed from `campaignThemes.ts`.
+ *
+ * That module is the specification and carries the tests, so it is read rather
+ * than restated — a settled boundary written in two places drifts, which is
+ * what happened to the plan document's own copy. Parsed because Node's ESM
+ * loader will not take a TS file that imports its neighbours without
+ * extensions.
+ */
+const themeForCampaignLevel = (() => {
+  const text = readFileSync(
+    join(projectRoot, 'src/game/levels/campaignThemes.ts'),
+    'utf8',
+  );
+  const open = text.indexOf('{', text.indexOf('=', text.indexOf('export const CAMPAIGN_THEMES')));
+  let depth = 0;
+  let literal = '';
+  for (let i = open; i < text.length; i += 1) {
+    if (text[i] === '{') depth += 1;
+    else if (text[i] === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        literal = text.slice(open, i + 1);
+        break;
+      }
+    }
+  }
+  const table = JSON.parse(
+    literal
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '')
+      .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":')
+      .replace(/([{,]\s*)(\d+)\s*:/g, '$1"$2":')
+      .replace(/'([^']*)'/g, '"$1"')
+      .replace(/,(\s*[}\]])/g, '$1'),
+  );
+
+  const used = Object.values(table).flatMap((blocks) => blocks.map((b) => b.theme));
+  assert(used.length === 9, `theme blocks name ${used.length} themes, expected 9`);
+  assert(new Set(used).size === 9, 'a theme is used by two blocks');
+
+  return (world, level) => {
+    const blocks = table[world] ?? [];
+    let found = null;
+    for (const block of blocks) if (block.from <= level) found = block.theme;
+    assert(found !== null, `no theme for ${world}-${level}`);
+    return found;
+  };
+})();
+
+/**
+ * The twenty types in the order the AS3 first fields them.
+ *
+ * Derived by walking the transcription, not listed: the redesign's rule 2 is
+ * that this order survives, and a hand-typed copy could not enforce it.
+ */
+const introOrder = (() => {
+  const seen = new Set();
+  const order = [];
+  for (const world of worlds) {
+    for (const level of world) {
+      for (const e of level.enemies) {
+        if (!seen.has(e.type)) {
+          seen.add(e.type);
+          order.push(e.type);
+        }
+      }
+    }
+  }
+  assert(order.length === 20, `found ${order.length} enemy types, expected 20`);
+  return order;
+})();
+
+/**
+ * Tier shares for a new world, averaged over the old worlds it replaces.
+ *
+ * So the escalation curve is inherited from the original rather than drawn
+ * fresh — new world 1 plays like old worlds 1-2, new world 4 like old 7-9.
+ */
+const tierMix = (world) => {
+  const counts = { 1: 0, 2: 0, 3: 0 };
+  let total = 0;
+  for (const source of design.TIER_SOURCE[world]) {
+    for (const level of worlds[source - 1]) {
+      for (const e of level.enemies) {
+        if (e.level === 'B') continue;
+        counts[e.level] += e.count;
+        total += e.count;
+      }
+    }
+  }
+  assert(total > 0, `world ${world} has no tier data`);
+  return { t1: counts[1] / total, t2: counts[2] / total, t3: counts[3] / total };
+};
 const out = [];
 out.push('/**');
 out.push(' * GENERATED FILE — do not edit by hand.');
@@ -207,7 +308,6 @@ out.push(' * Columns 2-5 of every source row are zero and carry no meaning, so t
 out.push(' * dropped here rather than preserved as unnamed noise.');
 out.push(' */');
 out.push('');
-out.push("import { applySizeOverride } from './levelSizeOverrides';");
 out.push("import { tuneLevel } from '../config/campaignTuning';");
 out.push('');
 out.push('/** Level archetype — column 6. */');
@@ -280,9 +380,107 @@ out.push('  flagMoney: number;');
 out.push('}');
 out.push('');
 out.push('');
-out.push(`/** ${WORLD_COUNT} worlds, ${total} levels total. Indexed [world - 1][level - 1]. */`);
-out.push('export const LEVELS: readonly (readonly LevelSpec[])[] = [');
+out.push('/**');
+out.push(` * The AS3's own ${WORLD_COUNT} worlds and ${total} levels — a pure transcription.`);
+out.push(' *');
+out.push(' * **This is the record, not the campaign.** The game plays `LEVELS` below,');
+out.push(' * which is 4 worlds of 45 built from these rows plus the redesign\'s own');
+out.push(' * rules. Keeping the original intact is what lets `roomSizeSource.test.ts`');
+out.push(' * go on checking the port against `ScreenGame.as`, and what any future');
+out.push(' * question about "what did the original do here" is answered from.');
+out.push(' */');
+out.push('export const AS3_LEVELS: readonly (readonly LevelSpec[])[] = [');
 for (const levels of worlds) {
+  out.push('  [');
+  for (const l of levels) {
+    const enemies = l.enemies
+      .map((e) => `{ type: ${q(e.type)}, level: ${q(e.level)}, count: ${e.count} }`)
+      .join(', ');
+    out.push(
+      `    { roomWidth: ${l.roomWidth}, roomHeight: ${l.roomHeight}, mode: ${q(l.mode)}, ` +
+        `upgradeLimit: ${l.upgradeLimit}, theme: ${q(l.theme)}, seed: ${l.seed}, ` +
+        `totalEnemies: ${l.totalEnemies}, spawnInterval: ${l.spawnInterval}, ` +
+        `enemies: [${enemies}], ` +
+        `flagCount: ${l.flagCount}, flagMoney: ${l.flagMoney} },`,
+    );
+  }
+  out.push('  ],');
+}
+out.push('];');
+out.push('');
+
+// ── The campaign the game plays ────────────────────────────────────────────
+const campaign = buildCampaign({
+  as3Flat: worlds.flat(),
+  design,
+  themeFor: themeForCampaignLevel,
+  introOrder,
+  tierMix,
+});
+
+{
+  const built = campaign.reduce((n, w) => n + w.length, 0);
+  assert(campaign.length === design.WORLDS, `campaign has ${campaign.length} worlds`);
+  assert(built === design.TOTAL_LEVELS, `campaign has ${built} levels`);
+
+  // Every level's wave adds up to its kill target, or it cannot be finished.
+  for (const [wi, w] of campaign.entries()) {
+    for (const [li, l] of w.entries()) {
+      const sum = l.enemies.reduce((n, e) => n + e.count, 0);
+      assert(sum === l.totalEnemies, `${wi + 1}-${li + 1}: wave ${sum} vs target ${l.totalEnemies}`);
+      assert(l.enemies.length > 0, `${wi + 1}-${li + 1} has no enemies`);
+      const entryCap =
+        l.mode === 'Boss' ? design.MAX_BOSS_LEVEL_ENTRIES : design.MAX_WAVE_ENTRIES;
+      assert(
+        l.enemies.length <= entryCap,
+        `${wi + 1}-${li + 1} (${l.mode}) has ${l.enemies.length} entries, cap ${entryCap}`,
+      );
+      assert(l.enemies.every((e) => e.count >= 1), `${wi + 1}-${li + 1} has an empty entry`);
+      assert(l.theme !== undefined && l.theme !== null, `${wi + 1}-${li + 1} has no theme`);
+    }
+  }
+
+  // Every type debuts, in the original's order, and never before its level.
+  const firstSeen = new Map();
+  campaign.forEach((w, wi) =>
+    w.forEach((l, li) => {
+      for (const e of l.enemies) {
+        if (!firstSeen.has(e.type)) firstSeen.set(e.type, wi * design.PER_WORLD + li + 1);
+      }
+    }),
+  );
+  assert(
+    firstSeen.size === introOrder.length,
+    `${firstSeen.size} types reach the campaign, expected ${introOrder.length}`,
+  );
+  const seenOrder = [...firstSeen.entries()].sort((a, b) => a[1] - b[1]).map(([t]) => t);
+  assert(
+    seenOrder.join() === introOrder.join(),
+    `debut order drifted:\n  got  ${seenOrder.join()}\n  want ${introOrder.join()}`,
+  );
+
+  const modes = {};
+  for (const w of campaign) for (const l of w) modes[l.mode] = (modes[l.mode] ?? 0) + 1;
+  for (const [mode, n] of Object.entries({ Normal: 40, Flag: 40, Tower: 20, Defense: 40, Boss: 40 })) {
+    assert(modes[mode] === n, `${mode}: ${modes[mode]} levels, expected ${n}`);
+  }
+}
+
+out.push('/**');
+out.push(' * The campaign the game plays — 4 worlds of 45.');
+out.push(' *');
+out.push(' * GENERATED from `AS3_LEVELS` above plus the redesign\'s rules:');
+out.push(' * `scripts/lib/campaign-design.mjs` for the mode layout, boss schedule and');
+out.push(' * debut cadence, `campaignThemes.ts` for the theme blocks, and');
+out.push(' * `scripts/lib/campaign-build.mjs` for the wave compositions.');
+out.push(' *');
+out.push(' * Enemy counts, spawn intervals, seeds and flag numbers are taken from the');
+out.push(' * old level at the same fraction of the campaign, so the pacing is inherited');
+out.push(' * rather than invented. The compositions are new, because the roster at a');
+out.push(' * given point is different — the debuts were compressed.');
+out.push(' */');
+out.push('export const LEVELS: readonly (readonly LevelSpec[])[] = [');
+for (const levels of campaign) {
   out.push('  [');
   for (const l of levels) {
     const enemies = l.enemies
@@ -308,26 +506,23 @@ out.push('');
 out.push('/**');
 out.push(' * Level spec by 1-based world and level, or undefined when out of range.');
 out.push(' *');
-out.push(' * `LEVELS` above is a pure transcription of the AS3. Deliberate divergences');
-out.push(' * live in `levelSizeOverrides.ts` and `config/campaignTuning.ts`, and are');
-out.push(' * applied here, on the way out, so this file stays a function of the source');
-out.push(' * alone and what the game plays is still what `roomSizeSource.test.ts`');
-out.push(' * checks.');
+out.push(' * `LEVELS` is the redesigned campaign and already carries its own room');
+out.push(' * sizes, so the only thing applied here is the density tuning');
+out.push(' * (`config/campaignTuning.ts`, `D-3`).');
 out.push(' *');
-out.push(' * **Order is size, then density.** `tuneLevel` reads the mode and the');
-out.push(' * composition, neither of which a size override touches, so the two commute');
-out.push(' * today — writing density last keeps that true if an override ever changes a');
-out.push(' * mode, and makes the tuned counts the last word.');
+out.push(' * `levelSizeOverrides.ts` used to be applied here too. It listed fifteen');
+out.push(' * world-1 rooms that the port played at a different size from the AS3, and');
+out.push(' * the campaign now sets every room from its mode — so the list described a');
+out.push(' * divergence from a table nothing plays. It was retired rather than left to');
+out.push(' * rot, which its own "every override is used" test would have caught anyway.');
 out.push(' *');
-out.push(' * **`LEVELS` and this therefore disagree by more than room size.** A test');
-out.push(' * whose claim is this-matches-ScreenGame has to read `LEVELS`; one');
-out.push(' * about what the game plays reads this.');
+out.push(' * **`AS3_LEVELS` and this are different campaigns**, not two views of one. A');
+out.push(' * test whose claim is about `ScreenGame.as` reads `AS3_LEVELS`; one about');
+out.push(' * what the game plays reads this.');
 out.push(' */');
 out.push('export function getLevel(world: number, level: number): LevelSpec | undefined {');
 out.push('  const spec = LEVELS[world - 1]?.[level - 1];');
-out.push('  return spec === undefined');
-out.push('    ? undefined');
-out.push('    : tuneLevel(applySizeOverride(spec, world, level));');
+out.push('  return spec === undefined ? undefined : tuneLevel(spec);');
 out.push('}');
 out.push('');
 
@@ -346,8 +541,9 @@ if (args.check) {
 
 writeFileSync(outPath, content);
 console.log(
-  `Wrote levelData.ts — ${WORLD_COUNT} worlds, ${total} levels, ` +
-    `${seeds.size} distinct seeds, modes: ${[...modes].sort().join('/')}.`,
+  `Wrote levelData.ts — AS3 record: ${WORLD_COUNT} worlds, ${total} levels, ` +
+    `${seeds.size} distinct seeds. Campaign: ${design.WORLDS} worlds, ` +
+    `${design.TOTAL_LEVELS} levels, modes ${[...modes].sort().join('/')}.`,
 );
 if (!reservedAlwaysZero) {
   console.warn('  ! columns 2-5 were not all zero; they may carry meaning after all.');

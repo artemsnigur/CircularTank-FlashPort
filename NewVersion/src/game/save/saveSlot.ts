@@ -36,7 +36,7 @@ import {
 } from '../levels/levelProgressSave';
 import { createInitialLevelSelectData } from '../levels/levelProgressSave';
 import type { LevelSelectSaveData } from '../levels/levelProgressSave';
-import { formatWorldAndLevel } from '../levels/levelProgress';
+import { formatWorldAndLevel, REACHABLE_WORLDS } from '../levels/levelProgress';
 
 import {
   decodeEnemyKnowledgeFields,
@@ -96,9 +96,17 @@ export function createInitialSaveSlot(): SaveSlotData {
   };
 }
 
-/** Worlds a save can reach — Main.as sets 9 with premium, 6 without. */
-function worldCount(hasPremium: boolean): number {
-  return hasPremium ? 9 : 6;
+/**
+ * Worlds a save can reach — the whole campaign, `D-5`.
+ *
+ * `Main.as` sets 9 with premium and 6 without. The port has no premium source,
+ * and the redesigned campaign is four worlds and free; see
+ * `levelProgress.REACHABLE_WORLDS` for why the split went rather than being
+ * rescaled. `hasPremium` is still read from a slot and still pays the one-time
+ * money grant (`onboarding/mainFlags.ts`) — it simply no longer gates levels.
+ */
+function worldCount(): number {
+  return REACHABLE_WORLDS;
 }
 
 /**
@@ -109,7 +117,11 @@ export function encodeSaveSlot(
   data: SaveSlotData,
   context: SaveSlotContext = {},
 ): SaveField[] {
-  const { now = new Date(), hasPremium = false } = context;
+  // `hasPremium` is deliberately not destructured any more: since `D-5` it
+  // gates nothing here, and an unused binding is how a dead rule looks alive.
+  // It stays on `SaveSlotContext` because the slot format carries the flag and
+  // `onboarding/mainFlags.ts` still pays the one-time grant from it.
+  const { now = new Date() } = context;
 
   const produced = new Map<string, string>();
   const add = (fields: readonly SaveField[]): void => {
@@ -127,7 +139,7 @@ export function encodeSaveSlot(
   produced.set(DATE_TIME_KEY, formatSaveDateTime(now));
   produced.set(
     WORLD_AND_LEVEL_KEY,
-    formatWorldAndLevel(data.levelSelect.progress, worldCount(hasPremium), hasPremium),
+    formatWorldAndLevel(data.levelSelect.progress, worldCount()),
   );
 
   // Emit in schema order so the result matches the AS3 byte for byte.

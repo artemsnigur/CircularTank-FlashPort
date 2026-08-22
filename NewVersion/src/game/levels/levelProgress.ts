@@ -139,10 +139,21 @@ export function getCurrentWorldAndLevel(
   return [0, 0];
 }
 
-/** Worlds available without premium — Main.as:319. */
-const FREE_WORLD_COUNT = 6;
-/** Worlds available with premium — Main.as:315. */
-export const PREMIUM_WORLD_COUNT = 9;
+/**
+ * Worlds a save can reach — **all of them**, decision `D-5`.
+ *
+ * `Main.as:310-320` sets `totalWorlds` to 6 without premium and 9 with. The
+ * port has no premium source and never had one, and the original contradicts
+ * itself anyway: `ButtonNextLevel` computes its own unconditional 9 and offers
+ * the next world regardless of the picker's cap, so finishing 6-45 in the
+ * original hands you world 7 either way. `levelUnlock.ts` already made the
+ * same call for the picker.
+ *
+ * The redesigned campaign is four worlds and free, so the split is gone rather
+ * than rescaled: two-thirds of four is not a boundary anyone would draw, and a
+ * paywall the game cannot take payment for is only a way to lose levels.
+ */
+export const REACHABLE_WORLDS = WORLD_COUNT;
 
 /** A world/level pair. */
 export interface LevelRef {
@@ -190,9 +201,14 @@ export function nextLevelAfter(world: number, level: number): LevelRef | null {
  *
  * Two details are load-bearing:
  *   - the separator is **two spaces**: "World 3  Level 12"
- *   - when every scanned level has been played the label is hardcoded to
- *     "World 6  Level 45" for a free save, because a free save only ever
- *     scans 6 worlds. A premium save reports "Premium Completed" instead.
+ *   - when every level has been played the label names the **last** level of
+ *     the campaign rather than falling back to "", so a finished save reads as
+ *     finished rather than as empty.
+ *
+ * The AS3's third case is gone with the premium split (`D-5`): it reported
+ * "Premium Completed" for a premium save and a hardcoded "World 6  Level 45"
+ * for a free one, because a free save only ever scanned six worlds. There is
+ * one kind of save now, and it scans the whole campaign.
  *
  * Returns "" when there are no worlds to scan; the AS3 falls out of its loop
  * with an uninitialised local there, which coerces to null on a String return.
@@ -200,7 +216,6 @@ export function nextLevelAfter(world: number, level: number): LevelRef | null {
 export function formatWorldAndLevel(
   progress: ProgressTable,
   totalWorlds: number = progress.length,
-  hasPremium = false,
 ): string {
   const limit = Math.min(totalWorlds, progress.length);
   if (limit <= 0) return '';
@@ -208,9 +223,11 @@ export function formatWorldAndLevel(
   const [world, level] = getCurrentWorldAndLevel(progress, limit);
   if (world > 0) return `World ${world}  Level ${level}`;
 
-  return hasPremium
-    ? 'Premium Completed'
-    : `World ${FREE_WORLD_COUNT}  Level ${LEVELS[FREE_WORLD_COUNT - 1]?.length ?? 45}`;
+  // Everything played: name the campaign's last level. Derived from the table
+  // rather than written out, so it follows the campaign rather than pinning a
+  // world count that has now changed twice.
+  const lastWorld = Math.min(limit, LEVELS.length);
+  return `World ${lastWorld}  Level ${LEVELS[lastWorld - 1]?.length ?? 45}`;
 }
 
 /**

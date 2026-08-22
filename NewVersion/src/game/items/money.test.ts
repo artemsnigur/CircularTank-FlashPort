@@ -13,6 +13,7 @@ import {
   COIN_MAX_SPEED,
   COIN_SPEED_SCALE,
   DENOMINATIONS,
+  baseDropAmount,
   bossShare,
   decomposeMoney,
   dropAmount,
@@ -20,13 +21,26 @@ import {
   tickCoin,
 } from './money';
 import type { Coin, DropInput } from './money';
+import { campaignMoney } from '../config/campaignTuning';
 import { MONEY_CLIPS, coinRadius } from './moneyArt';
 
 const BOUNDS = { roomWidth: 640, roomHeight: 960 };
 const TANK = { x: 320, y: 480, radius: 14 };
 
+/**
+ * The AS3's payout, without the campaign multiplier.
+ *
+ * `baseDropAmount`, not `dropAmount`: this whole describe is about the
+ * original's two branches — Flag pays nothing, a Boss level halves its
+ * ordinary enemies — and `dropAmount` now scales the result by
+ * `CAMPAIGN_MONEY_MULTIPLIER` (`D-3`). Driving the scaled function here would
+ * multiply every expected figure by 2.05 for no gain and would stop the
+ * numbers being the AS3's.
+ *
+ * The multiplier has its own test below, on the seam between the two.
+ */
 const drop = (over: Partial<DropInput> = {}): number =>
-  dropAmount({
+  baseDropAmount({
     money: 100,
     isBoss: false,
     // One by default, which is the no-op: every test written before the split
@@ -531,5 +545,42 @@ describe('figureFit', () => {
     // answer is 4 units and would be unreadable.
     const smallestDisc = 10;
     expect(MONEY_FIGURE_MIN).toBeGreaterThan(Math.round(smallestDisc * MONEY_FIGURE_SCALE));
+  });
+});
+
+describe('the campaign multiplier sits on top of the AS3 payout', () => {
+  const input: DropInput = {
+    money: 100,
+    isBoss: false,
+    bossAmount: 1,
+    mode: 'Normal',
+    reachedTank: false,
+    tankHp: 50,
+  };
+
+  it('scales what the original would have paid', () => {
+    // The seam, stated once: `dropAmount` is the AS3's rule with `D-3`'s
+    // multiplier applied. Driven rather than described, because the two are in
+    // separate modules and nothing else checks they are composed.
+    expect(dropAmount(input)).toBe(campaignMoney(baseDropAmount(input)));
+    expect(dropAmount(input)).toBeGreaterThan(baseDropAmount(input));
+  });
+
+  it('leaves a zero payout at zero', () => {
+    /*
+     * The counterpart, and the one that matters: multiplying is not the same as
+     * paying. A kill that pays nothing — the enemy reached the tank, the tank
+     * died, a Flag level — must still pay nothing, not `0 * 2.05` rounded up
+     * to a coin.
+     */
+    for (const over of [
+      { reachedTank: true },
+      { tankHp: 0 },
+      { mode: 'Flag' },
+    ] as Partial<DropInput>[]) {
+      const zeroed = { ...input, ...over };
+      expect(baseDropAmount(zeroed), JSON.stringify(over)).toBe(0);
+      expect(dropAmount(zeroed), JSON.stringify(over)).toBe(0);
+    }
   });
 });

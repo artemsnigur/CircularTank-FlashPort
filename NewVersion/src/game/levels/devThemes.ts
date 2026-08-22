@@ -84,9 +84,32 @@ export function orderThemes(
   });
 }
 
-/** Themes in first-appearance order, with unused ones last. */
+/**
+ * The campaign level a theme first appears on, counted from 1 across all
+ * worlds, or undefined if nothing uses it.
+ */
+export function themeFirstLevel(theme: LevelTheme): number | undefined {
+  let index = 0;
+  for (const world of LEVELS) {
+    for (const spec of world) {
+      index += 1;
+      if (spec.theme === theme) return index;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Themes in first-appearance order, with unused ones last.
+ *
+ * Keyed on the **level** a theme first appears on, not the world. Those were
+ * the same thing while a world had one theme; since `D-4` world 1 crosses
+ * Desert, Grass and Beach, and keying on the world made all three tie and fall
+ * to the alphabetical tiebreak — which put Beach first, in a gallery whose
+ * whole job is showing the order the player meets them in.
+ */
 export function themeOrder(): LevelTheme[] {
-  return orderThemes(allThemes(), (theme) => themeWorlds(theme)[0]);
+  return orderThemes(allThemes(), themeFirstLevel);
 }
 
 /** One prop type and how much of a theme's scatter it is. */

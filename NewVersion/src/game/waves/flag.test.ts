@@ -13,7 +13,7 @@ import {
   tickFlag,
 } from './flag';
 import { createWaveState, isWaveComplete, registerFlagCaptured } from './waveState';
-import { getLevel } from '../levels/levelData';
+import { LEVELS, getLevel } from '../levels/levelData';
 
 const FRAME = 1000 / 30;
 const room = { roomWidth: 640, roomHeight: 960, flagRadius: 12 };
@@ -201,14 +201,17 @@ describe('the live-enemy guard must not veto Flag or Boss', () => {
     expect(isWaveComplete(wave, 0)).toBe(true);
   });
 
-  it('level 1-3 specifically: ten flags, then done', () => {
-    // The level manual QA failed on.
-    const spec = getLevel(1, 3)!;
-    expect(spec.mode).toBe('Flag');
-    expect(spec.flagCount).toBe(10);
+  it('a real Flag level: capture them all, then done', () => {
+    // The shape manual QA failed on. Found rather than named: 1-3 was the
+    // first Flag level in the AS3 and is a Defense level in the redesigned
+    // campaign (T252), so a level number is not a stable way to say "a Flag
+    // level".
+    const spec = LEVELS.flat().find((l) => l.mode === 'Flag');
+    expect(spec, 'the campaign has a Flag level at all').toBeDefined();
+    expect(spec!.flagCount).toBeGreaterThan(0);
 
-    const wave = createWaveState(spec);
-    for (let i = 0; i < 10; i += 1) {
+    const wave = createWaveState(spec!);
+    for (let i = 0; i < spec!.flagCount; i += 1) {
       expect(isWaveComplete(wave, 5)).toBe(false);
       registerFlagCaptured(wave);
     }

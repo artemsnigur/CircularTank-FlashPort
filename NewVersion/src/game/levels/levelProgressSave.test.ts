@@ -6,6 +6,7 @@ import {
   WORLD_VALUES_KEY,
 } from './levelProgressSave';
 import { recordLevelResult } from './levelProgress';
+import { LEVELS } from './levelData';
 import { buildSlotBody, EMPTY_SAVE_STRING, parseSlotFields, writeSlot } from '../save/saveString';
 import { encodeAchievementFields } from '../achievements/achievementSave';
 import { createInitialStates } from '../achievements/achievementState';
@@ -39,11 +40,14 @@ describe('level select save round trip', () => {
     expect(decodeLevelSelectFields(encodeLevelSelectFields(data))).toEqual(data);
   });
 
-  it('encodes the whole table as 1215 bare digits', () => {
-    // 9 worlds x 45 levels x 3 values, no separators.
+  it('encodes the whole table as one digit per value, no separators', () => {
+    // Three values a level, one digit each. Sized from the campaign rather
+    // than from a literal: it was `9 * 45 * 3` and the campaign is now 4x45
+    // (T252), so a literal would have to be rewritten every time the shape
+    // moves — and the codec's actual rule is "the whole table".
     const fields = encodeLevelSelectFields(createInitialLevelSelectData());
     const wva = fields.find((f) => f.key === WORLD_VALUES_KEY);
-    expect(wva?.value).toHaveLength(9 * 45 * 3);
+    expect(wva?.value).toHaveLength(LEVELS.length * 45 * 3);
     expect(wva?.value).toMatch(/^[0-3]+$/);
   });
 
@@ -78,9 +82,9 @@ describe('level select save round trip', () => {
 
   it('recovers a correctly-shaped table from a truncated wva', () => {
     // The codec discards a trailing incomplete world; the decoder must still
-    // produce a full 9x45 table rather than a short one.
+    // produce a full table rather than a short one.
     const decoded = decodeLevelSelectFields([{ key: WORLD_VALUES_KEY, value: '333' }]);
-    expect(decoded.progress).toHaveLength(9);
+    expect(decoded.progress).toHaveLength(LEVELS.length);
     for (const world of decoded.progress) expect(world).toHaveLength(45);
     expect(decoded.progress[0][0]).toEqual([0, 0, 0]);
   });

@@ -21,17 +21,19 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { getLevel, LEVELS } from '../levels/levelData';
+import { AS3_LEVELS, getLevel, LEVELS } from '../levels/levelData';
 
-describe('the level table describes five room sizes, not one', () => {
-  // These read `LEVELS` rather than `getLevel`, which is the distinction the
-  // describe already claims: this is about what the *table* holds. `getLevel`
-  // applies the deliberate world-1 divergences in `levelSizeOverrides.ts`, so
-  // asserting the table through it would conflate "the extraction is right"
-  // with "we chose to play something else". Fidelity is checked here; the
-  // played sizes are checked in levels/roomSizeSource.test.ts.
+describe('the level table describes many room sizes, not one', () => {
+  // These read `AS3_LEVELS` — the transcription — rather than `getLevel`,
+  // which is the distinction the describe already claims: this is about what
+  // the *table* holds, and conflating it with what we chose to play would let
+  // an extraction bug hide behind a deliberate divergence.
+  //
+  // The table used to be `LEVELS`. It is not any more: since T252 `LEVELS` is
+  // the redesigned campaign, which authors one room size per mode, and the
+  // original's five sizes live only in the record.
   it('level 1-1 is 640x400 in the table, not the hardcoded 640x960', () => {
-    const spec = LEVELS[0][0];
+    const spec = AS3_LEVELS[0][0];
     expect({ width: spec.roomWidth, height: spec.roomHeight }).toEqual({
       width: 640,
       height: 400,
@@ -46,27 +48,39 @@ describe('the level table describes five room sizes, not one', () => {
     });
   });
 
-  it('world 1 Normal and Flag levels are standardised when played', () => {
-    // The other side of the same coin, so this file cannot be read as saying
-    // 1-1 plays at 640x400 or 1-2 at 900x720 — neither does, by decision.
-    expect(getLevel(1, 1)).toMatchObject({ roomWidth: 800, roomHeight: 600 });
-    expect(getLevel(1, 2)).toMatchObject({ roomWidth: 800, roomHeight: 600 });
-    // A Boss level in the same world is untouched. Tower is no longer an
-    // example of that: it has its own mode-wide widening to 800x800.
-    const boss = LEVELS[0].findIndex((l) => l.mode === 'Boss');
-    expect(getLevel(1, boss + 1)).toMatchObject({
-      roomWidth: LEVELS[0][boss].roomWidth,
-      roomHeight: LEVELS[0][boss].roomHeight,
-    });
+  it('plays one room size per mode, not the AS3 mix', () => {
+    /*
+     * The other side of the same coin, so this file cannot be read as saying
+     * the game plays 640x400 anywhere — it does not, by decision. The AS3
+     * spreads three sizes across its Normal levels with no rule behind it; the
+     * campaign gives each mode one, and the port's own settled divergences
+     * (Tower 800x800, Defense 712x960) are folded into that table.
+     */
+    const byMode = new Map<string, Set<string>>();
+    for (const [w, world] of LEVELS.entries()) {
+      for (const [l, spec] of world.entries()) {
+        const played = getLevel(w + 1, l + 1)!;
+        // Tuning never touches the room, so the played size is the authored one.
+        expect(played.roomWidth, `${w + 1}-${l + 1}`).toBe(spec.roomWidth);
+        const sizes = byMode.get(spec.mode) ?? new Set<string>();
+        sizes.add(`${played.roomWidth}x${played.roomHeight}`);
+        byMode.set(spec.mode, sizes);
+      }
+    }
+
+    expect(byMode.get('Tower')).toEqual(new Set(['800x800']));
+    expect(byMode.get('Defense')).toEqual(new Set(['712x960']));
+    expect(byMode.get('Normal')).toEqual(new Set(['800x600']));
+    expect(byMode.get('Flag')).toEqual(new Set(['900x720']));
+    // Boss is the one mode with two, by design: a level fielding five or more
+    // bosses gets the larger room.
+    expect(byMode.get('Boss')!.size).toBe(2);
   });
 
   it('the 405 levels span five distinct sizes', () => {
     const sizes = new Set<string>();
-    for (let world = 1; world <= 9; world += 1) {
-      for (let level = 1; level <= 45; level += 1) {
-        const spec = LEVELS[world - 1][level - 1];
-        sizes.add(`${spec.roomWidth}x${spec.roomHeight}`);
-      }
+    for (const world of AS3_LEVELS) {
+      for (const spec of world) sizes.add(`${spec.roomWidth}x${spec.roomHeight}`);
     }
     expect([...sizes].sort()).toEqual([
       '640x400',

@@ -1,12 +1,26 @@
 import { describe, expect, it } from 'vitest';
 
-import { CAMPAIGN_TUNING, tuneLevel, tuneSpeeds, tuningFor } from './campaignTuning';
-import { LEVELS, getLevel } from '../levels/levelData';
+import {
+  CAMPAIGN_MONEY_MULTIPLIER,
+  CAMPAIGN_TUNING,
+  campaignMoney,
+  tuneLevel,
+  tuneSpeeds,
+  tuningFor,
+} from './campaignTuning';
+import { baseDropAmount, dropAmount } from '../items/money';
+import { resolveEnemyStats } from '../enemies/enemyStats';
+import { AS3_LEVELS, LEVELS, getLevel } from '../levels/levelData';
 import type { LevelMode, LevelSpec } from '../levels/levelData';
 
 const MODES: LevelMode[] = ['Normal', 'Flag', 'Tower', 'Defense', 'Boss'];
 
-/** The source row, before `getLevel` applies anything. */
+/**
+ * A row of the campaign as authored, before `getLevel` tunes it.
+ *
+ * `LEVELS` is the campaign — `AS3_LEVELS` is the original, and neither is a
+ * view of the other since T252.
+ */
 const source = (world: number, level: number): LevelSpec => LEVELS[world - 1][level - 1];
 
 describe('the tuning as decided', () => {
@@ -56,6 +70,9 @@ describe('tuneLevel', () => {
 
     expect(before.enemies).toEqual([{ type: 'Basic', level: '1', count: 10 }]);
     expect(after.enemies[0].count).toBe(12);
+    // The AS3's own opener, for contrast — same ten Basic, and this table is
+    // never tuned.
+    expect(AS3_LEVELS[0][0].totalEnemies).toBe(10);
     expect(after.spawnInterval).toBeCloseTo(before.spawnInterval * 0.7, 6);
   });
 
@@ -68,7 +85,7 @@ describe('tuneLevel', () => {
    * can never be reached. Driven across every level rather than on a sample,
    * because a rounding failure is exactly the kind that hits one row in 405.
    */
-  it('keeps the kill target equal to the sum of the wave, on all 405', () => {
+  it('keeps the kill target equal to the sum of the wave, on every level', () => {
     for (let w = 1; w <= LEVELS.length; w += 1) {
       for (let l = 1; l <= LEVELS[w - 1].length; l += 1) {
         const spec = getLevel(w, l)!;
@@ -85,9 +102,9 @@ describe('tuneLevel', () => {
      * its ordinary entries beside it so "leaves alone" cannot quietly become
      * "leaves everything alone".
      */
-    const before = source(1, 9);
+    const before = source(1, 5);
     const after = tuneLevel(before);
-    expect(before.mode).toBe('Boss');
+    expect(before.mode, 'fixture is a Boss level').toBe('Boss');
 
     const bossBefore = before.enemies.filter((e) => e.level === 'B');
     const bossAfter = after.enemies.filter((e) => e.level === 'B');
@@ -116,7 +133,7 @@ describe('tuneLevel', () => {
 
   it('gives Defense a shorter interval than the same level would get elsewhere', () => {
     // The mode split, driven on one spec so the only difference is the mode.
-    const base = source(1, 11);
+    const base = source(1, 3);
     const asDefense = tuneLevel({ ...base, mode: 'Defense' });
     const asNormal = tuneLevel({ ...base, mode: 'Normal' });
 
@@ -171,5 +188,86 @@ describe('tuneSpeeds', () => {
       damage: 5,
       shootType: 'BulletEnemy',
     });
+  });
+});
+
+describe('the campaign pays what the original did', () => {
+  /**
+   * Total money a player can earn, assuming everything dies and every flag is
+   * collected.
+   *
+   * Computed with `dropAmount`'s own rules rather than a second copy of them —
+   * Flag levels pay nothing on a kill, a Boss level halves its ordinary
+   * enemies, and a boss's bounty is split across the level's bosses. Getting
+   * any of those wrong here would move the total by tens of percent.
+   */
+  function campaignTotal(worlds: readonly (readonly LevelSpec[])[], tuned: boolean): number {
+    let total = 0;
+    for (const world of worlds) {
+      for (const authored of world) {
+        const spec = tuned ? tuneLevel(authored) : authored;
+        const bossAmount =
+          spec.enemies.filter((e) => e.level === 'B').reduce((n, e) => n + e.count, 0) || 1;
+
+        if (spec.mode === 'Flag') {
+          total += (tuned ? campaignMoney(spec.flagMoney) : spec.flagMoney) * spec.flagCount;
+          continue;
+        }
+        for (const entry of spec.enemies) {
+          const stats = resolveEnemyStats(entry.type, entry.level, 'Easy');
+          if (!stats) continue;
+          const per = tuned
+            ? dropAmount({
+                money: stats.money,
+                isBoss: entry.level === 'B',
+                bossAmount,
+                mode: spec.mode,
+                reachedTank: false,
+                tankHp: 100,
+              })
+            : baseDropAmount({
+                money: stats.money,
+                isBoss: entry.level === 'B',
+                // The AS3 divided a boss's *stat line*; `baseDropAmount` divides
+                // the payout. Same result, and this is the original's side of
+                // the comparison, so it takes the same divisor.
+                bossAmount,
+                mode: spec.mode,
+                reachedTank: false,
+                tankHp: 100,
+              });
+          total += per * entry.count;
+        }
+      }
+    }
+    return total;
+  }
+
+  it('lands within 5% of the original 405-level campaign', () => {
+    /*
+     * The mechanism behind `CAMPAIGN_MONEY_MULTIPLIER`. That constant is
+     * pinned rather than derived, so **this is what stops it going stale**: if
+     * a future edit changes the campaign's length, its rosters or its flag
+     * numbers, the totals drift apart and someone is told to re-measure.
+     *
+     * 5% because the figure assumes perfect collection on both sides and the
+     * multiplier is deliberately rounded to something a person can hold.
+     */
+    const original = campaignTotal(AS3_LEVELS, false);
+    const redesign = campaignTotal(LEVELS, true);
+
+    expect(original, 'the original earns something').toBeGreaterThan(0);
+    expect(Math.abs(redesign / original - 1)).toBeLessThan(0.05);
+  });
+
+  it('would be less than half of it untuned, which is the reason it exists', () => {
+    // The counterpart. Without it, "within 5%" would pass just as well for a
+    // campaign that never needed a multiplier at all — and the whole finding
+    // is that 180 levels earn 0.48x what 405 did.
+    const original = campaignTotal(AS3_LEVELS, false);
+    const untuned = campaignTotal(LEVELS, false);
+
+    expect(untuned / original).toBeLessThan(0.6);
+    expect(CAMPAIGN_MONEY_MULTIPLIER).toBeGreaterThan(1.5);
   });
 });

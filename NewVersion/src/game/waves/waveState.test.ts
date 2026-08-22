@@ -16,7 +16,8 @@ import {
   tickWave,
 } from './waveState';
 import type { WaveState } from './waveState';
-import { LEVELS, getLevel } from '../levels/levelData';
+import { AS3_LEVELS, getLevel } from '../levels/levelData';
+import type { LevelMode, LevelSpec } from '../levels/levelData';
 
 const FRAME = 1000 / 30;
 
@@ -29,10 +30,28 @@ const FRAME = 1000 / 30;
  * — 12 Basic, 6 Fast, an interval of 45.53 — and they were pinning the
  * fixture's size while claiming to test the spawner. They read the spec now.
  */
-const spec1 = () => getLevel(1, 1)!;
-const spec2 = () => getLevel(1, 2)!;
+const spec1 = () => guard(getLevel(1, 1)!, 'Normal', 1);
+const spec2 = () => guard(getLevel(1, 4)!, 'Normal', 2);
 const world1Level1 = () => createWaveState(spec1());
 const world1Level2 = () => createWaveState(spec2());
+
+/**
+ * Asserts a fixture is the shape the tests below need, and returns it.
+ *
+ * **Added because a fixture changed meaning underneath these tests.** They used
+ * 1-2, which was a Normal level in the AS3's campaign and is a **Flag** level
+ * in the redesigned one (T252). Flag mode never consumes its pool, so
+ * `while (state.remainingTotal > 0)` stopped terminating and the whole suite
+ * hung — no failure, no message, just a run that never ended.
+ *
+ * A level number is not a stable description of a level. Naming what the
+ * fixture has to be turns that into one failed assertion in one file.
+ */
+function guard(spec: LevelSpec, mode: LevelMode, entries: number): LevelSpec {
+  expect(spec.mode, `fixture should be a ${mode} level`).toBe(mode);
+  expect(spec.enemies.length, `fixture should have ${entries} entries`).toBe(entries);
+  return spec;
+}
 
 /**
  * The wiring seam, not the module.
@@ -48,7 +67,10 @@ const world1Level2 = () => createWaveState(spec2());
  * itself, and the two rules that read it: completion and the spawn gate.
  */
 describe('a Boss level built the way the scene builds it', () => {
-  const bossLevel = () => getLevel(1, 9)!;
+  // 1-5 is the campaign's first boss level: one boss and two support types.
+  // The entry count is guarded so a composition change fails here rather than
+  // in whichever assertion happens to read `enemies[1]`.
+  const bossLevel = () => guard(getLevel(1, 5)!, 'Boss', 3);
 
   it('is a Boss level with a boss in its composition', () => {
     // Guards the fixture: if 1-9 ever stops being a Boss level the tests below
@@ -59,11 +81,22 @@ describe('a Boss level built the way the scene builds it', () => {
   });
 
   it('derives the boss count from the composition', () => {
-    expect(bossCountFor(bossLevel())).toBe(1);
+    // From the spec's own `B` entry, not a literal: the campaign sets boss
+    // counts per level and 1-5 fields two. What must hold is that the
+    // derivation agrees with the row, whatever the row says.
+    const spec = bossLevel();
+    const declared = spec.enemies
+      .filter((e) => e.level === 'B')
+      .reduce((n, e) => n + e.count, 0);
+
+    expect(declared, 'the fixture has bosses at all').toBeGreaterThan(0);
+    expect(bossCountFor(spec)).toBe(declared);
   });
 
   it('carries a non-zero bossAmount without being told one', () => {
-    expect(createWaveState(bossLevel()).bossAmount).toBe(1);
+    const spec = bossLevel();
+    expect(createWaveState(spec).bossAmount).toBe(bossCountFor(spec));
+    expect(createWaveState(spec).bossAmount).toBeGreaterThan(0);
   });
 
   it('is not already complete on the first frame', () => {
@@ -119,14 +152,14 @@ describe('createWaveState', () => {
     // **source table**, because that is what "enemyModel column 1" means; the
     // carry-through is asserted against whatever the accessor hands over, so it
     // survives the `D-3` tuning that now shortens it.
-    expect(LEVELS[0][0].spawnInterval).toBeCloseTo(45.53, 5);
-    expect(LEVELS[0][1].spawnInterval).toBe(42);
+    expect(AS3_LEVELS[0][0].spawnInterval).toBeCloseTo(45.53, 5);
+    expect(AS3_LEVELS[0][1].spawnInterval).toBe(42);
 
     expect(world1Level1().reloadTimeEnemyMax).toBeCloseTo(spec1().spawnInterval, 5);
     expect(world1Level2().reloadTimeEnemyMax).toBeCloseTo(spec2().spawnInterval, 5);
     // ...and the tuning is really in the path, or the two lines above agree
     // about an untouched number and prove nothing.
-    expect(world1Level1().reloadTimeEnemyMax).toBeLessThan(LEVELS[0][0].spawnInterval);
+    expect(world1Level1().reloadTimeEnemyMax).toBeLessThan(AS3_LEVELS[0][0].spawnInterval);
   });
 
   it('starts ready to spawn immediately', () => {
@@ -240,13 +273,16 @@ describe('drawEnemy — weighted draw without replacement', () => {
   });
 
   it('respects the composition weighting', () => {
-    // Basic occupies the first `count / total` of the range — two thirds on
-    // this level, at whatever absolute counts the tuning produces.
-    const state = world1Level2();
-    expect(drawEnemy(state, undefined, () => 0.1)?.type).toBe('Basic');
+    // The first pool entry occupies the first `count / total` of the range and
+    // the last occupies the end of it. Named from the spec, not written out:
+    // which type is first is a property of the level, and this test is about
+    // the weighting.
+    const spec = spec2();
+    const [first, last] = [spec.enemies[0].type, spec.enemies[spec.enemies.length - 1].type];
+    expect(first, 'the fixture has two different types').not.toBe(last);
 
-    const other = world1Level2();
-    expect(drawEnemy(other, undefined, () => 0.9)?.type).toBe('Fast');
+    expect(drawEnemy(createWaveState(spec), undefined, () => 0.1)?.type).toBe(first);
+    expect(drawEnemy(createWaveState(spec), undefined, () => 0.9)?.type).toBe(last);
   });
 
   it('drains a level to exactly its composition', () => {
@@ -291,11 +327,15 @@ describe('drawEnemy — Flag and Boss modes', () => {
   });
 
   it('skips a type that is already over-represented', () => {
-    const state = world1Level2();
+    const spec = spec2();
+    const [first, last] = [spec.enemies[0].type, spec.enemies[spec.enemies.length - 1].type];
+
+    const state = createWaveState(spec);
     state.mode = 'Flag';
-    // Basic's share is 12/18; flood the arena with Basic so it is skipped.
-    const drawn = drawEnemy(state, { countsByType: { Basic: 35 } }, () => 0.1);
-    expect(drawn?.type).toBe('Fast');
+    // Flood the arena with the type a roll of 0.1 would otherwise draw, so the
+    // balanced branch has to pass over it.
+    const drawn = drawEnemy(state, { countsByType: { [first]: 35 } }, () => 0.1);
+    expect(drawn?.type).toBe(last);
   });
 
   // These build a Boss-mode spec and let the quota derive from its composition,
@@ -358,7 +398,7 @@ describe('at most four bosses are out at once (A95)', () => {
    */
   const bossLevel = (bosses: number) =>
     createWaveState({
-      ...getLevel(1, 9)!,
+      ...getLevel(1, 5)!,
       mode: 'Boss',
       enemies: [
         { type: 'Basic', level: 'B', count: bosses },
@@ -422,7 +462,7 @@ describe('at most four bosses are out at once (A95)', () => {
 
   it('draws nothing at all when the cap bites and there is no support', () => {
     const state = createWaveState({
-      ...getLevel(1, 9)!,
+      ...getLevel(1, 5)!,
       mode: 'Boss',
       enemies: [{ type: 'Basic', level: 'B', count: 10 }],
     });

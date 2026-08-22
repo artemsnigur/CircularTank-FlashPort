@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getLevel, LEVELS, levelsInWorld, WORLD_COUNT } from './levelData';
+import { AS3_LEVELS, getLevel, LEVELS, levelsInWorld, WORLD_COUNT } from './levelData';
 import {
   createEmptyProgress,
   DIFFICULTY_RANK,
@@ -18,9 +18,12 @@ import { evaluate } from '../achievements/achievementState';
 import { getAchievement } from '../achievements/achievementState';
 
 describe('level data', () => {
-  it('has 9 worlds of 45 levels', () => {
-    expect(WORLD_COUNT).toBe(9);
+  it('has 4 worlds of 45 levels', () => {
+    // The redesigned campaign (T252). The AS3's own nine are still here as
+    // `AS3_LEVELS` and are checked separately, in `roomSizeSource.test.ts`.
+    expect(WORLD_COUNT).toBe(4);
     for (let w = 1; w <= WORLD_COUNT; w += 1) expect(levelsInWorld(w)).toBe(45);
+    expect(AS3_LEVELS, 'the record is untouched').toHaveLength(9);
   });
 
   it('gives every level a unique PRNG seed', () => {
@@ -36,7 +39,7 @@ describe('level data', () => {
      * own tuned numbers here, which is the one thing this test must not do.
      * `campaignTuning.test.ts` pins what the accessor adds.
      */
-    expect(LEVELS[0][0]).toEqual({
+    expect(AS3_LEVELS[0][0]).toEqual({
       // The extracted 640x400. This used to read `getLevel` and assert the
       // 800x600 that `levelSizeOverrides` substitutes; now that the accessor
       // also tunes counts and intervals (`D-3`), the whole row is asserted at
@@ -81,17 +84,54 @@ describe('level data', () => {
     }
   });
 
-  it('uses only room sizes that appear in the AS3 tables', () => {
-    const allowed = new Set(['640x400', '800x600', '900x720', '640x640', '640x960']);
+  it('uses one room size per mode', () => {
+    /*
+     * The AS3 mixes three sizes across its Normal levels with no rule behind
+     * it. The campaign gives each mode one size — see `ROOMS` in
+     * `scripts/lib/campaign-design.mjs`, which folded in the port's own
+     * settled divergences (Tower 800x800, Defense 712x960).
+     *
+     * Asserted as "one size per mode" rather than as a list of sizes, because
+     * the property that matters is the consistency, not the numbers.
+     */
+    const byMode = new Map<string, Set<string>>();
     for (const level of LEVELS.flat()) {
-      expect(allowed.has(`${level.roomWidth}x${level.roomHeight}`)).toBe(true);
+      const sizes = byMode.get(level.mode) ?? new Set<string>();
+      sizes.add(`${level.roomWidth}x${level.roomHeight}`);
+      byMode.set(level.mode, sizes);
     }
+
+    for (const [mode, sizes] of byMode) {
+      // Boss is the exception, and a deliberate one: a level fielding five or
+      // more bosses gets the larger of the two Boss rooms.
+      expect(sizes.size, `${mode}: ${[...sizes].join(', ')}`).toBeLessThanOrEqual(
+        mode === 'Boss' ? 2 : 1,
+      );
+    }
+    expect(byMode.size, 'every mode is represented').toBe(5);
   });
 
-  it('gives each world a single theme', () => {
+  it('moves through themes in solid blocks within a world', () => {
+    /*
+     * `D-4`, reversed after the `#themes` gallery: all nine themes are kept and
+     * a world crosses two or three of them, so "one theme per world" — true of
+     * every one of the AS3's 405 rows — is deliberately no longer true.
+     *
+     * What must hold is that a theme never returns: `campaignThemes.test.ts`
+     * proves it of the mapping, and this proves it of the data.
+     */
     for (const world of LEVELS) {
-      expect(new Set(world.map((l) => l.theme)).size).toBe(1);
+      const runs: string[] = [];
+      for (const level of world) {
+        if (runs[runs.length - 1] !== level.theme) runs.push(level.theme);
+      }
+      expect(runs.length, 'no theme returns').toBe(new Set(runs).size);
+      expect(runs.length).toBeGreaterThan(1);
     }
+
+    // All nine across the campaign, each in exactly one world's run.
+    const themes = LEVELS.flat().map((l) => l.theme);
+    expect(new Set(themes).size).toBe(9);
   });
 });
 
@@ -236,7 +276,9 @@ describe('getTotalValues', () => {
       (n, type) => n + getTotalValues(progress, type, 'Hard'),
       0,
     );
-    expect(sum).toBe(405);
+    // Every level counts once and only once, so the sum is the campaign.
+    expect(sum).toBe(LEVELS.flat().length);
+    expect(sum).toBe(180);
   });
 });
 
@@ -345,7 +387,10 @@ describe('nextLevelAfter', () => {
     // successor and the run dead-ended at all 8 world boundaries.
     expect(levelsInWorld(1)).toBe(45);
     expect(nextLevelAfter(1, 45)).toEqual({ world: 2, level: 1 });
-    expect(nextLevelAfter(8, 45)).toEqual({ world: 9, level: 1 });
+    expect(nextLevelAfter(WORLD_COUNT - 1, 45)).toEqual({ world: WORLD_COUNT, level: 1 });
+    // ...and the end of the campaign offers nothing, which is the other half
+    // of the same branch.
+    expect(nextLevelAfter(WORLD_COUNT, 45)).toBeNull();
   });
 
   it('returns null after the very last level of the last world', () => {

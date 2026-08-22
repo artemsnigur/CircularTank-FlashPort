@@ -169,40 +169,57 @@ describe('the wl field', () => {
     expect(readWorldAndLevel(encodeSaveSlot(data, { now: FIXED_DATE }))).toBe('World 2  Level 1');
   });
 
-  it('reports the hardcoded free-save label when all 6 worlds are done', () => {
+  /*
+   * ── The premium split is gone (`D-5`, T252) ──────────────────────────────
+   *
+   * Three tests lived here: a free save reporting a hardcoded "World 6  Level
+   * 45", a premium one reporting "Premium Completed", and a free one refusing
+   * to show world-7 progress because it only scanned six worlds. All three
+   * described the AS3's paywall, which the port never had a way to take money
+   * for and which makes no sense across four worlds.
+   *
+   * They are replaced rather than deleted: what the label does at the end of
+   * the campaign still needs pinning, and the flag still needs to be inert.
+   */
+  it('names the last level of the campaign when everything is done', () => {
     const data = createInitialSaveSlot();
-    for (let w = 1; w <= 6; w += 1) {
+    for (let w = 1; w <= LEVELS.length; w += 1) {
       for (let l = 1; l <= LEVELS[w - 1].length; l += 1) {
         data.levelSelect.progress = recordLevelResult(data.levelSelect.progress, w, l, 'Easy', 1);
       }
     }
-    expect(readWorldAndLevel(encodeSaveSlot(data, { now: FIXED_DATE, hasPremium: false }))).toBe(
-      'World 6  Level 45',
-    );
+    const last = `World ${LEVELS.length}  Level ${LEVELS[LEVELS.length - 1].length}`;
+    expect(readWorldAndLevel(encodeSaveSlot(data, { now: FIXED_DATE }))).toBe(last);
   });
 
-  it('reports Premium Completed when all 9 worlds are done on a premium save', () => {
+  it('reads the same on a premium save as on a free one', () => {
+    // The flag is inert for progress now. Driven both ways on identical data,
+    // because "premium no longer gates levels" is exactly the kind of claim
+    // that looks true while one branch still exists.
     const data = createInitialSaveSlot();
-    for (let w = 1; w <= 9; w += 1) {
-      for (let l = 1; l <= LEVELS[w - 1].length; l += 1) {
-        data.levelSelect.progress = recordLevelResult(data.levelSelect.progress, w, l, 'Easy', 1);
-      }
+    for (let l = 1; l <= LEVELS[0].length; l += 1) {
+      data.levelSelect.progress = recordLevelResult(data.levelSelect.progress, 1, l, 'Easy', 1);
     }
-    expect(readWorldAndLevel(encodeSaveSlot(data, { now: FIXED_DATE, hasPremium: true }))).toBe(
-      'Premium Completed',
-    );
+
+    const free = readWorldAndLevel(encodeSaveSlot(data, { now: FIXED_DATE, hasPremium: false }));
+    const premium = readWorldAndLevel(encodeSaveSlot(data, { now: FIXED_DATE, hasPremium: true }));
+
+    expect(free).toBe(premium);
+    // ...and it is a real label, not two matching blanks.
+    expect(free).toBe('World 2  Level 1');
   });
 
-  it('only scans 6 worlds on a free save, so world 7 progress does not show', () => {
+  it('scans every world, so late progress shows', () => {
+    // The counterpart to the old "only scans 6 worlds": progress in the final
+    // world reaches the label instead of being cut off by a paywall.
     const data = createInitialSaveSlot();
-    for (let w = 1; w <= 6; w += 1) {
+    for (let w = 1; w < LEVELS.length; w += 1) {
       for (let l = 1; l <= LEVELS[w - 1].length; l += 1) {
         data.levelSelect.progress = recordLevelResult(data.levelSelect.progress, w, l, 'Easy', 1);
       }
     }
-    // A premium save with the same progress points into world 7.
-    expect(readWorldAndLevel(encodeSaveSlot(data, { now: FIXED_DATE, hasPremium: true }))).toBe(
-      'World 7  Level 1',
+    expect(readWorldAndLevel(encodeSaveSlot(data, { now: FIXED_DATE }))).toBe(
+      `World ${LEVELS.length}  Level 1`,
     );
   });
 });
@@ -260,6 +277,6 @@ describe('full slot round trip', () => {
     expect(data.upgrades.money).toBe(0);
     expect(data.knownEnemies).toEqual(['Basic']);
     expect(data.tutorial.completed).toBe(false);
-    expect(data.levelSelect.progress).toHaveLength(9);
+    expect(data.levelSelect.progress).toHaveLength(LEVELS.length);
   });
 });

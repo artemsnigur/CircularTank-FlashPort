@@ -9,7 +9,21 @@
  * compared the played size against the source.
  *
  * So this parses the AS3 tables independently, with no shared code with
- * `gen-levels.mjs`, and asserts the port plays what the original specified.
+ * `gen-levels.mjs`, and asserts the transcription matches the original.
+ *
+ * ── What it checks, since the campaign replaced the AS3's 405 levels ──────
+ * `AS3_LEVELS`, not `LEVELS`. The game plays a redesigned 4x45 campaign whose
+ * rooms are authored from each level's mode (`campaign-design.mjs`), so asking
+ * whether *it* matches `ScreenGame.as` is a question with no meaning. What
+ * still matters, and matters more now that nothing else reads it, is that the
+ * **record** is faithful: it is the reference every future question about the
+ * original is answered from, and a silent transcription bug in a table nobody
+ * plays would go unnoticed forever.
+ *
+ * `levelSizeOverrides.ts` is gone with the campaign (T252). It enumerated
+ * fifteen world-1 rooms the port played at a different size, and the campaign
+ * now sets every room itself — so the list described a divergence from a table
+ * nothing plays.
  *
  * Row shape (`ScreenGame.as:54`):
  *
@@ -21,14 +35,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { LEVELS, WORLD_COUNT, getLevel, levelsInWorld } from './levelData';
-import {
-  LEVEL_SIZE_OVERRIDES,
-  MODE_SIZE_OVERRIDES,
-  OVERRIDDEN_MODES,
-  findModeOverride,
-  findSizeOverride,
-} from './levelSizeOverrides';
+import { AS3_LEVELS } from './levelData';
 
 const SOURCE = readFileSync('../SWFimported/scripts/ScreenGame.as', 'utf8');
 
@@ -93,7 +100,7 @@ describe('the parse itself is sound', () => {
   });
 });
 
-describe('every level plays at the size the original specified', () => {
+describe('the AS3 record carries the size the original specified', () => {
   it('matches all 405 rooms, world by world', () => {
     const mismatches: string[] = [];
 
@@ -101,9 +108,9 @@ describe('every level plays at the size the original specified', () => {
       const rows = parseWorld(world);
       rows.forEach((row, index) => {
         const level = index + 1;
-        const spec = LEVELS[world - 1]?.[index];
+        const spec = AS3_LEVELS[world - 1]?.[index];
         if (!spec) {
-          mismatches.push(`${world}-${level}: missing from LEVELS`);
+          mismatches.push(`${world}-${level}: missing from AS3_LEVELS`);
           return;
         }
         if (spec.roomWidth !== row.width || spec.roomHeight !== row.height) {
@@ -124,7 +131,7 @@ describe('every level plays at the size the original specified', () => {
     // mismatches; if it does not, the comparison is vacuous and every
     // assertion above is worthless.
     const rows = parseWorld(1);
-    const wrongWorld = LEVELS[1];
+    const wrongWorld = AS3_LEVELS[1];
     const disagreements = rows.filter(
       (row, i) =>
         wrongWorld[i] !== undefined &&
@@ -135,281 +142,11 @@ describe('every level plays at the size the original specified', () => {
   });
 
   it('has the same number of levels per world as the source', () => {
-    expect(WORLD_COUNT).toBe(9);
+    // `WORLD_COUNT` and `levelsInWorld` describe the **campaign** now, so they
+    // are the wrong thing to ask — the record is what has nine worlds of 45.
+    expect(AS3_LEVELS).toHaveLength(9);
     for (const world of WORLDS) {
-      expect(levelsInWorld(world), `world ${world}`).toBe(parseWorld(world).length);
+      expect(AS3_LEVELS[world - 1], `world ${world}`).toHaveLength(parseWorld(world).length);
     }
-  });
-});
-
-/**
- * The deliberate divergences, and why this section makes the check stronger.
- *
- * `LEVELS` above is still asserted to match the AS3 exactly — that never
- * relaxes. What the game actually *plays* comes from `getLevel`, which applies
- * `LEVEL_SIZE_OVERRIDES`. So the played size is checked too, against the source
- * plus an override that had to predict the exact value it replaced.
- *
- * The alternative — excusing levels from the comparison — would turn a proof
- * into a rubber stamp. Every assertion here exists to stop that.
- */
-describe('deliberate room-size divergences', () => {
-  it('every level plays either its source size or a declared override', () => {
-    const wrong: string[] = [];
-
-    for (const world of WORLDS) {
-      parseWorld(world).forEach((row, index) => {
-        const level = index + 1;
-        const played = getLevel(world, level);
-        if (!played) {
-          wrong.push(`${world}-${level}: getLevel returned nothing`);
-          return;
-        }
-        const override = findSizeOverride(world, level) ?? findModeOverride(played.mode);
-
-        if (!override) {
-          if (played.roomWidth !== row.width || played.roomHeight !== row.height) {
-            wrong.push(
-              `${world}-${level}: plays ${played.roomWidth}x${played.roomHeight}, ` +
-                `source ${row.width}x${row.height}, and no override declares it`,
-            );
-          }
-          return;
-        }
-
-        // An override only excuses the divergence it predicted.
-        if (override.from[0] !== row.width || override.from[1] !== row.height) {
-          wrong.push(
-            `${world}-${level}: override claims the source is ` +
-              `${override.from[0]}x${override.from[1]}, but it is ${row.width}x${row.height}`,
-          );
-        }
-        if (played.roomWidth !== override.to[0] || played.roomHeight !== override.to[1]) {
-          wrong.push(
-            `${world}-${level}: override says play ${override.to[0]}x${override.to[1]}, ` +
-              `but it plays ${played.roomWidth}x${played.roomHeight}`,
-          );
-        }
-      });
-    }
-
-    expect(wrong).toEqual([]);
-  });
-
-  it('leaves the raw table untouched', () => {
-    // The override is applied at the accessor. If it ever mutated LEVELS, the
-    // source comparison above would start passing for the wrong reason.
-    const raw = LEVELS[0][0];
-    expect([raw.roomWidth, raw.roomHeight]).toEqual([640, 400]);
-    expect(getLevel(1, 1)).toMatchObject({ roomWidth: 800, roomHeight: 600 });
-  });
-
-  it('has no override that changes nothing', () => {
-    // A no-op entry would misrepresent what diverges, and would survive a
-    // re-extraction that made it wrong. The six world-1 levels already at
-    // 800x600 are deliberately absent from the table for this reason.
-    for (const o of LEVEL_SIZE_OVERRIDES) {
-      expect(
-        `${o.from[0]}x${o.from[1]}`,
-        `override ${o.world}-${o.level} is a no-op`,
-      ).not.toBe(`${o.to[0]}x${o.to[1]}`);
-    }
-  });
-
-  it('has no stale override for a level that already matches', () => {
-    // Guards the list against rotting: if a re-extraction brought a level to
-    // the overridden size, the entry must be deleted rather than left.
-    for (const o of LEVEL_SIZE_OVERRIDES) {
-      const row = parseWorld(o.world)[o.level - 1];
-      expect(
-        [row.width, row.height],
-        `override ${o.world}-${o.level} no longer diverges from the source`,
-      ).not.toEqual([o.to[0], o.to[1]]);
-    }
-  });
-
-  it('stays inside the declared scope: world 1, Normal and Flag only', () => {
-    // Stops the table growing into a general escape hatch. A Tower or Defense
-    // entry, or anything outside world 1, fails here.
-    for (const o of LEVEL_SIZE_OVERRIDES) {
-      expect(o.world, `override ${o.world}-${o.level} is outside world 1`).toBe(1);
-      const mode = LEVELS[o.world - 1][o.level - 1].mode;
-      expect(OVERRIDDEN_MODES, `override ${o.world}-${o.level} is a ${mode} level`).toContain(mode);
-    }
-  });
-
-  it('covers every world-1 Normal and Flag level, one way or the other', () => {
-    // The rule is "all of them are 800x600". A level running a size experiment
-    // is the one sanctioned exception, and it has to be *declared* as one —
-    // this reads the reason rather than hardcoding which level is exempt, so
-    // an untagged divergence still fails.
-    const missed: string[] = [];
-    LEVELS[0].forEach((spec, index) => {
-      if (!OVERRIDDEN_MODES.includes(spec.mode)) return;
-      const level = index + 1;
-      if (findSizeOverride(1, level)?.reason === 'experiment') return;
-
-      const played = getLevel(1, level)!;
-      if (played.roomWidth !== 800 || played.roomHeight !== 600) {
-        missed.push(`1-${level} (${spec.mode}) plays ${played.roomWidth}x${played.roomHeight}`);
-      }
-    });
-    expect(missed).toEqual([]);
-  });
-
-  it('has no experiments left running', () => {
-    // The 1600x1200 trial on 1-1 was reverted after testing. An experiment
-    // left in place is the failure this asserts against — it would look like a
-    // decision while actually being an unfinished trial. The machinery stays,
-    // because it is what let the standardisation rule remain exactly
-    // assertable while one was running.
-    const experiments = LEVEL_SIZE_OVERRIDES.filter((o) => o.reason === 'experiment');
-    expect(experiments.map((o) => `${o.world}-${o.level}`)).toEqual([]);
-  });
-
-  it('requires any future experiment to explain itself', () => {
-    // Still bites when one is added, rather than going quiet with the list.
-    for (const o of LEVEL_SIZE_OVERRIDES) {
-      if (o.reason !== 'experiment') continue;
-      expect(o.note, `experiment ${o.world}-${o.level} has no note`).toBeTruthy();
-    }
-  });
-
-  it('covers all eighteen: twelve overridden, six already correct', () => {
-    // The exact split, so neither category can grow quietly.
-    const standard = LEVEL_SIZE_OVERRIDES.filter((o) => o.reason === 'standard');
-    expect(standard).toHaveLength(12);
-    const alreadyCorrect = LEVELS[0].filter(
-      (spec, i) =>
-        OVERRIDDEN_MODES.includes(spec.mode) &&
-        !findSizeOverride(1, i + 1) &&
-        spec.roomWidth === 800 &&
-        spec.roomHeight === 600,
-    );
-    expect(alreadyCorrect).toHaveLength(6);
-    expect(standard.length + alreadyCorrect.length).toBe(18);
-  });
-
-  it('leaves Boss and Defense at their extracted sizes', () => {
-    // Tower was in this list until it got a mode rule of its own. Boss and
-    // Defense still are: Defense's 640x960 lane is load-bearing for a mode
-    // that is not ported yet, so sizing it now would be guessing.
-    LEVELS[0].forEach((spec, index) => {
-      if (OVERRIDDEN_MODES.includes(spec.mode)) return;
-      if (findModeOverride(spec.mode)) return;
-      const played = getLevel(1, index + 1)!;
-      expect(
-        [played.roomWidth, played.roomHeight],
-        `1-${index + 1} (${spec.mode}) must not be standardised`,
-      ).toEqual([spec.roomWidth, spec.roomHeight]);
-    });
-  });
-
-  it('Defense keeps its lane height exactly', () => {
-    // Widening was width-only on purpose. The unported parts of the mode — the
-    // defended line, the shields, the y-relative teleport rules — are all
-    // vertical, so height is the dimension that must not move ahead of them.
-    const defense = LEVELS[0].findIndex((l) => l.mode === 'Defense');
-    expect(LEVELS[0][defense].roomHeight).toBe(960);
-    expect(getLevel(1, defense + 1)).toMatchObject({ roomWidth: 712, roomHeight: 960 });
-  });
-
-  it.each(MODE_SIZE_OVERRIDES)('the $mode rule holds for every $mode level', (rule) => {
-    // The premise each mode rule rests on, checked against the AS3 itself:
-    // every level of the mode really is the size the rule claims to replace.
-    // Ninety explicit rows would state that ninety times; this states it once
-    // and proves it for all of them, so a rule that stopped being uniformly
-    // true fails rather than quietly applying to a level it never meant.
-    let seen = 0;
-    for (const world of WORLDS) {
-      const rows = parseWorld(world);
-      LEVELS[world - 1].forEach((spec, index) => {
-        if (spec.mode !== rule.mode) return;
-        seen += 1;
-
-        const row = rows[index];
-        expect([row.width, row.height], `${world}-${index + 1} source`).toEqual([...rule.from]);
-
-        const played = getLevel(world, index + 1)!;
-        expect([played.roomWidth, played.roomHeight], `${world}-${index + 1} played`).toEqual([
-          ...rule.to,
-        ]);
-      });
-    }
-    expect(seen, `${rule.mode} level count`).toBe(90);
-  });
-
-  it('widens Tower to a square and Defense by width alone', () => {
-    // The two rules exist for the same reason and answer it differently, so
-    // the shapes are pinned rather than left to a passing glance at the table.
-    expect(findModeOverride('Tower')!.to).toEqual([800, 800]);
-
-    const defense = findModeOverride('Defense')!;
-    expect(defense.to).toEqual([712, 960]);
-    // Height untouched: the tall lane is the mode.
-    expect(defense.to[1]).toBe(defense.from[1]);
-    // And only just wide enough — 712 is the minimum that fills a 711.1-unit
-    // 16:9 view. Any more reintroduces horizontal camera scroll, which the
-    // original never had (setCamera pins x to 0 when roomWidth == cameraWidth).
-    expect(defense.to[0]).toBeGreaterThan(711.1);
-    expect(defense.to[0]).toBeLessThan(720);
-  });
-
-  it('keeps Tower square, which is what the size was chosen for', () => {
-    // 800x600 would have filled the screen equally well and made the orbit
-    // elliptical: side walls 400 units out against 300 for top and bottom.
-    // If this ever stops being square, that asymmetry is back.
-    const rule = findModeOverride('Tower')!;
-    expect(rule.to[0]).toBe(rule.to[1]);
-    expect(rule.from[0]).toBe(rule.from[1]);
-  });
-
-  it('has one mode rule, and it does not overlap the per-level scope', () => {
-    // Tower is not in OVERRIDDEN_MODES, so the two mechanisms cannot both
-    // claim a level and disagree about it.
-    expect(MODE_SIZE_OVERRIDES.map((o) => o.mode)).toEqual(['Tower', 'Defense']);
-    for (const o of MODE_SIZE_OVERRIDES) {
-      expect(OVERRIDDEN_MODES).not.toContain(o.mode);
-    }
-  });
-
-  it('changes exactly twelve levels', () => {
-    // Six of the eighteen were already 800x600. The exact figure, so a silent
-    // widening of the table shows up as a failed count rather than a bigger
-    // number nobody reads.
-    expect(LEVEL_SIZE_OVERRIDES).toHaveLength(12);
-  });
-});
-
-describe('the four spare columns', () => {
-  it('are zero in every row of every world', () => {
-    // Recorded rather than assumed. If a future extraction finds a non-zero
-    // here, this fails and the column means something — which is the outcome
-    // the `enemyModel` column-1 mistake taught us to leave a tripwire for.
-    for (const world of WORLDS) {
-      parseWorld(world).forEach((row, index) => {
-        expect(row.spare, `${world}-${index + 1}`).toEqual([0, 0, 0, 0]);
-      });
-    }
-  });
-});
-
-describe('the distinct sizes are a fact about the data, not a maintained list', () => {
-  it('derives exactly five, and they come from the source', () => {
-    // `constants.ts` used to carry a hand-written ROOM_SIZES list that nothing
-    // read and nothing checked. Deleted; this is the replacement, and it is
-    // computed from the AS3 rather than transcribed from it.
-    const fromSource = new Set(
-      WORLDS.flatMap((world) => parseWorld(world).map((r) => `${r.width}x${r.height}`)),
-    );
-    const fromPort = new Set(
-      LEVELS.flat().map((spec) => `${spec.roomWidth}x${spec.roomHeight}`),
-    );
-
-    expect([...fromSource].sort()).toEqual([...fromPort].sort());
-    expect(fromPort.size).toBe(5);
-    expect([...fromPort].sort()).toEqual(
-      ['640x400', '640x640', '640x960', '800x600', '900x720'].sort(),
-    );
   });
 });

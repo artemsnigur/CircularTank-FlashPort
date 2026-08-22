@@ -132,6 +132,53 @@ export function tuneLevel(spec: LevelSpec): LevelSpec {
   };
 }
 
+/**
+ * Every payout is worth this much more than the tables say — decision `D-3`.
+ *
+ * ── Why the campaign needs it ─────────────────────────────────────────────
+ * Income scales with levels played, and the campaign went from 405 levels to
+ * 180 while upgrade prices stayed where they were. **Measured** across every
+ * level, assuming everything is killed and every flag collected:
+ *
+ *   | | total money |
+ *   |---|---|
+ *   | the AS3's 405 levels | 1,581,846 |
+ *   | the 180-level campaign, untouched | 762,638 (0.48x) |
+ *   | with this multiplier | 1,563,408 (0.99x) |
+ *
+ * So a player would have finished the redesign with under half the money the
+ * original gave them, against the same shop. This closes it.
+ *
+ * ── A pinned number, not a derived one ────────────────────────────────────
+ * It could be computed from the two tables at build time, and deliberately is
+ * not: a multiplier that silently re-tunes itself whenever a level's roster
+ * changes is one nobody can reason about, and a balance change would arrive
+ * with no commit that made it. `campaignTuning.test.ts` measures the campaign
+ * instead and fails if the totals drift more than 5% apart — so the number is
+ * stable until someone is told to re-measure it.
+ *
+ * 2.05 rather than the exact 2.074, because the difference is 1% and a figure
+ * a person can hold is worth more than the last percent of a total that
+ * already assumes perfect collection.
+ */
+export const CAMPAIGN_MONEY_MULTIPLIER = 2.05;
+
+/**
+ * A payout scaled for the campaign's length.
+ *
+ * Applied to **everything the player earns** — enemy drops through
+ * `dropAmount`, flag rewards at the capture site — so the two cannot drift
+ * apart into a campaign that pays well for kills and badly for flags.
+ *
+ * Rounded, because money is whole and `decomposeMoney` splits an integer into
+ * coins; floored at 1 for a positive input, so a scaled-up amount can never
+ * round to nothing.
+ */
+export function campaignMoney(amount: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  return Math.max(1, Math.round(amount * CAMPAIGN_MONEY_MULTIPLIER));
+}
+
 /** The subset of resolved stats this layer changes. */
 export interface TunableSpeeds {
   moveSpeedMax: number;

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { buildStatusPages, initialPageIndex, revealPages, unlockSummary } from './statusPages';
 import { ACHIEVEMENTS } from '../achievements/achievementData';
 import { BESTIARY } from '../enemies/bestiaryData';
+import { LEVELS } from '../levels/levelData';
 import { discoverEnemies } from '../enemies/enemyKnowledge';
 
 const HUD = readFileSync('src/ui/Hud.tsx', 'utf8');
@@ -172,7 +173,12 @@ describe('enemy pages use the display names discovery produced', () => {
   it('match on displayName, not on a re-derived id', () => {
     // `discoverEnemies` maps "ScaredGhost" to "Scared Ghost". Re-deriving here
     // is how the two spellings drift apart.
-    const result = discoverEnemies([], 9, 1);
+    //
+    // World 9 no longer exists — the campaign is four worlds (T252) — and
+    // `discoverEnemies` on a level that is not there finds nothing, which made
+    // this pass its `toHaveLength` on two empty lists. The last world's last
+    // level is the deepest roster the campaign has.
+    const result = discoverEnemies([], LEVELS.length, LEVELS[LEVELS.length - 1].length);
     expect(result.newlyDiscovered.length).toBeGreaterThan(0);
 
     const pages = buildStatusPages({

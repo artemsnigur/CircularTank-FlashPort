@@ -24,6 +24,9 @@
  * Down from `0.46`, which was chosen when the disc still had a rim to compete
  * with. Without one, the same ratio simply crowded the edge.
  */
+
+import { campaignMoney } from '../config/campaignTuning';
+
 export const MONEY_FIGURE_SCALE = 0.38;
 
 /**
@@ -219,6 +222,16 @@ export interface DropInput {
  * worth. See `DropInput.bossAmount`.
  */
 export function dropAmount(input: DropInput): number {
+  return campaignMoney(baseDropAmount(input));
+}
+
+/**
+ * The AS3's own payout, before the campaign multiplier.
+ *
+ * Split out so the two rules stay separable: this half is the original's, and
+ * `campaignMoney` is ours (`D-3`). A test can drive either without the other.
+ */
+export function baseDropAmount(input: DropInput): number {
   if (input.reachedTank) return 0;
   // `:368` — checked here rather than at the spawn site, because the AS3 zeroes
   // the count inside `spawnMoney` and so applies it to the flag reward too.

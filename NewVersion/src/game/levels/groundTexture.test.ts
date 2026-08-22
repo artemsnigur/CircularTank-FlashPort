@@ -32,17 +32,22 @@ describe('one tile per theme', () => {
     expect([...used].sort()).toEqual([...THEMES].sort());
   });
 
-  it('matches the world names, which is what the picker labels worlds with', () => {
-    // Theme is per-level data and world order is a separate constant; they
-    // agree across all 405 rows today, and the picker would look wrong if they
-    // stopped.
-    expect([...Worlds]).toEqual(
-      LEVELS.map((world) => world[0].theme),
-    );
+  it('names every theme the campaign reaches', () => {
+    /*
+     * This used to assert `Worlds` equalled the campaign's per-world themes,
+     * one each. Since `D-4` a world crosses two or three themes in blocks
+     * (T252), so world order is no longer a description of theme order — what
+     * survives is that `Worlds` covers everything the campaign plays.
+     */
+    const played = new Set(LEVELS.flat().map((l) => l.theme));
+    for (const theme of played) expect([...Worlds], theme).toContain(theme);
+    expect(played.size, 'all nine are in use').toBe(9);
   });
 
-  it('gives every world of the campaign a distinct ground', () => {
-    const keys = LEVELS.map((world) => groundForTheme(world[0].theme).key);
+  it('gives every theme the campaign plays a distinct ground', () => {
+    const keys = [...new Set(LEVELS.flat().map((l) => l.theme))].map(
+      (theme) => groundForTheme(theme).key,
+    );
     expect(new Set(keys).size).toBe(9);
   });
 });
