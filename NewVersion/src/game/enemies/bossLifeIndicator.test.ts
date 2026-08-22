@@ -115,31 +115,27 @@ describe('the disc scale', () => {
 });
 
 describe('the denominator is the boss stat rule, already ported', () => {
-  /**
-   * `:971` — `round(enemyStats[1] * multiplierHealth / bossAmount)` with
-   * `multiplierHealth` forced to 1 for a boss (`:951-963`).
-   *
-   * **Driven on a multi-boss level**, because `bossAmount` divides: at 1 the
-   * division is invisible and any implementation passes.
-   */
   /** `resolveEnemyStats` returns undefined for an unknown type; a miss here is
    *  a real failure, so it is asserted rather than silenced with `!`. */
-  const health = (
-    level: 'B' | '1',
-    difficulty: 'Easy' | 'Hard',
-    bossAmount?: number,
-  ): number => {
-    const stats = resolveEnemyStats('Basic', level, difficulty, { bossAmount });
+  const health = (level: 'B' | '1', difficulty: 'Easy' | 'Hard'): number => {
+    const stats = resolveEnemyStats('Basic', level, difficulty);
     expect(stats, `Basic ${level} on ${difficulty}`).toBeDefined();
     return stats!.health;
   };
 
-  it('splits a boss stat line across bossAmount', () => {
+  /**
+   * ── This assertion used to be its own inverse (`A95`) ───────────────────
+   *
+   * It read `splits a boss stat line across bossAmount` and drove 1/2/4 to
+   * 500/250/125, deliberately on a multi-boss level because at 1 the division
+   * is invisible. The division is now gone, so the same call on the same input
+   * is a flat 500 — and that number comes from `ENEMY_STATS`, the stat table,
+   * not from the code under test.
+   */
+  it('gives a boss the whole stat line, undivided', () => {
     expect(ENEMY_STATS.Basic.boss.health).toBe(500);
-
-    expect(health('B', 'Easy', 1)).toBe(500);
-    expect(health('B', 'Easy', 2)).toBe(250);
-    expect(health('B', 'Easy', 4)).toBe(125);
+    expect(health('B', 'Easy')).toBe(500);
+    expect(health('B', 'Hard')).toBe(500);
   });
 
   /**
@@ -149,17 +145,17 @@ describe('the denominator is the boss stat rule, already ported', () => {
    * happened to be 1 for everyone.
    */
   it('exempts a boss from the difficulty multiplier, and only a boss', () => {
-    expect(health('B', 'Hard', 1), 'boss health does not move with difficulty')
-      .toBe(health('B', 'Easy', 1));
+    expect(health('B', 'Hard'), 'boss health does not move with difficulty')
+      .toBe(health('B', 'Easy'));
     expect(health('1', 'Hard'), 'an ordinary enemy does')
       .toBeGreaterThan(health('1', 'Easy'));
   });
 
   /** And the wipe reads that number, so the two agree end to end. */
-  it('reveals half the disc at half a two-boss level stat line', () => {
-    const total = health('B', 'Hard', 2);
-    expect(total).toBe(250);
-    expect(wipeDegrees(125, total)).toBe(180);
+  it('reveals half the disc at half a boss stat line', () => {
+    const total = health('B', 'Hard');
+    expect(total).toBe(500);
+    expect(wipeDegrees(250, total)).toBe(180);
   });
 });
 

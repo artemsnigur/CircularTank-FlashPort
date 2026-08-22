@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   bossCountFor,
+  bossesOut,
   canSpawn,
+  canSpawnBoss,
   computeSpawnInterval,
   createWaveState,
   drawEnemy,
   isWaveComplete,
+  MAX_BOSSES_ALIVE,
   MAX_ENEMIES,
   registerEnemyKilled,
   registerEnemySpawned,
@@ -309,6 +312,170 @@ describe('drawEnemy — Flag and Boss modes', () => {
       const drawn = drawEnemy(state, undefined, () => Math.random());
       if (drawn) expect(drawn.level).not.toBe('B');
     }
+  });
+});
+
+describe('at most four bosses are out at once (A95)', () => {
+  /**
+   * A ten-boss level with support, and a three-boss one to sit beside it.
+   *
+   * The pair is the point. "Only four spawned" proves nothing on its own — a
+   * gate that never opens gives the same answer — so every cap assertion below
+   * has a counterpart on a level *under* the cap, where nothing may be
+   * withheld.
+   */
+  const bossLevel = (bosses: number) =>
+    createWaveState({
+      ...getLevel(1, 9)!,
+      mode: 'Boss',
+      enemies: [
+        { type: 'Basic', level: 'B', count: bosses },
+        { type: 'Fast', level: '1', count: 20 },
+      ],
+    });
+
+  /** Draws n times with a fixed roll and reports what came out. */
+  const draw = (state: WaveState, times: number): string[] => {
+    const out: string[] = [];
+    for (let i = 0; i < times; i += 1) {
+      const drawn = drawEnemy(state, { countsByType: {} }, () => 0.1);
+      out.push(drawn ? `${drawn.type}:${drawn.level}` : 'null');
+    }
+    return out;
+  };
+
+  /**
+   * Four is a decision, not a ported number, so it is pinned to make a change
+   * to it deliberate — the `TANK_ROT_SPEED_MAX` lesson. There is no AS3 value
+   * to check it against: the original has no cap at all.
+   */
+  it('caps at four', () => {
+    expect(MAX_BOSSES_ALIVE).toBe(4);
+  });
+
+  it('withholds the fifth boss on a ten-boss level', () => {
+    const state = bossLevel(10);
+    expect(state.bossAmount).toBe(10);
+
+    const drawn = draw(state, 8);
+    expect(state.bossAmountSpawned).toBe(MAX_BOSSES_ALIVE);
+    expect(drawn.slice(0, 4)).toEqual(Array(4).fill('Basic:B'));
+    // The counterpart to "no more bosses": the level does not go quiet. Once
+    // capped it keeps feeding support enemies instead of drawing nothing.
+    expect(drawn.slice(4)).toEqual(Array(4).fill('Fast:1'));
+  });
+
+  it('withholds nothing on a three-boss level', () => {
+    const state = bossLevel(3);
+    const drawn = draw(state, 4);
+
+    expect(state.bossAmountSpawned).toBe(3);
+    expect(drawn.slice(0, 3)).toEqual(Array(3).fill('Basic:B'));
+    expect(drawn[3]).toBe('Fast:1');
+  });
+
+  it('releases exactly one more boss per death', () => {
+    const state = bossLevel(10);
+    draw(state, 4);
+    expect(bossesOut(state)).toBe(4);
+
+    registerEnemyKilled(state, true);
+    expect(bossesOut(state)).toBe(3);
+
+    expect(draw(state, 1)).toEqual(['Basic:B']);
+    expect(state.bossAmountSpawned).toBe(5);
+    // ...and one only: back at the cap, the next draw is support again.
+    expect(draw(state, 1)).toEqual(['Fast:1']);
+  });
+
+  it('draws nothing at all when the cap bites and there is no support', () => {
+    const state = createWaveState({
+      ...getLevel(1, 9)!,
+      mode: 'Boss',
+      enemies: [{ type: 'Basic', level: 'B', count: 10 }],
+    });
+
+    expect(draw(state, 4)).toEqual(Array(4).fill('Basic:B'));
+    expect(draw(state, 3)).toEqual(Array(3).fill('null'));
+  });
+
+  /**
+   * The failure the cap could plausibly introduce: bosses that never all come
+   * out, so the level cannot be finished. Driven end to end rather than
+   * reasoned about — spawn, kill, repeat, until the quota is met or the loop
+   * gives up.
+   */
+  it('still delivers all ten, and the level completes', () => {
+    const state = bossLevel(10);
+    let guard = 0;
+
+    while (state.bossAmountKilled < state.bossAmount && guard < 500) {
+      guard += 1;
+      const drawn = drawEnemy(state, { countsByType: {} }, () => 0.1);
+      if (drawn?.level === 'B') continue;
+      // Nothing new to draw, or support drawn: kill whatever boss is out.
+      if (bossesOut(state) > 0) registerEnemyKilled(state, true);
+    }
+
+    expect(guard, 'the loop finished rather than timing out').toBeLessThan(500);
+    expect(state.bossAmountSpawned).toBe(10);
+    expect(state.bossAmountKilled).toBe(10);
+    expect(isWaveComplete(state)).toBe(true);
+  });
+
+  it('never lets more than four be out at any point of that run', () => {
+    const state = bossLevel(10);
+    let peak = 0;
+
+    for (let i = 0; i < 200 && state.bossAmountKilled < 10; i += 1) {
+      const drawn = drawEnemy(state, { countsByType: {} }, () => 0.1);
+      peak = Math.max(peak, bossesOut(state));
+      if (drawn?.level !== 'B' && bossesOut(state) > 0) {
+        registerEnemyKilled(state, true);
+      }
+    }
+
+    expect(peak).toBe(MAX_BOSSES_ALIVE);
+  });
+
+  /**
+   * The gate's negative, driven against its positive on the same state: an
+   * identical wave in Normal mode may never draw a boss, and in Boss mode may.
+   */
+  it('gates on the mode, and says yes in the mode it gates for', () => {
+    const state = bossLevel(10);
+    expect(canSpawnBoss(state)).toBe(true);
+
+    state.mode = 'Normal';
+    expect(canSpawnBoss(state)).toBe(false);
+  });
+
+  /**
+   * The boundary, from both sides on the identical state.
+   *
+   * This is what proves the number is load-bearing rather than decorative, and
+   * it is why there is no mutation probe here: a cap that did not exist would
+   * answer `true` at four, and a cap of three would answer `false` at three.
+   * Only four passes both halves.
+   */
+  it('opens at three out and closes at four', () => {
+    const state = bossLevel(10);
+
+    draw(state, 3);
+    expect(bossesOut(state)).toBe(3);
+    expect(canSpawnBoss(state), 'room for one more at three out').toBe(true);
+
+    draw(state, 1);
+    expect(bossesOut(state)).toBe(4);
+    expect(canSpawnBoss(state), 'and none at four').toBe(false);
+  });
+
+  it('says no once the quota is spawned, even with room on the map', () => {
+    const state = bossLevel(2);
+    draw(state, 2);
+
+    expect(bossesOut(state)).toBeLessThan(MAX_BOSSES_ALIVE);
+    expect(canSpawnBoss(state)).toBe(false);
   });
 });
 

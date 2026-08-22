@@ -907,18 +907,32 @@ in the original's order at a flat 9-level cadence. Generated with `node
 scripts/gen-campaign-plan.mjs`, whose two dozen assertions run *before* it
 writes, so a layout slip is a non-zero exit rather than a plausible row.
 
-Two findings in it outlive the redesign and are worth knowing even if the plan
-is rejected:
+**All six decisions are answered**; the plan's section 7 is the record. D-1 is
+done (below), D-4 is blocked on a theme dev page that has to exist before the
+four themes can be picked by eye, and D-3, D-5 and D-6 are queued.
 
-  - **More bosses currently makes a boss level easier.** `enemyStats.ts:129`
-    divides boss health *and* money by `bossAmount` (faithful to
-    `PartInterface.as:971`), so total boss health on a level is constant
-    however many spawn — and splash weapons hit more of them at once. Written
-    up as decision `D-1`.
-  - **`achievementReachability.test.ts` does not prove reachability.** It
-    feeds the evaluator a fabricated total, so it proves the rule *fires*, not
-    that the campaign can supply the number. Five of the fifteen medal
-    thresholds would become unearnable at 180 levels and nothing would fail.
+**Bosses take their whole stat line, and at most four are out at once
+(`A95`, T247).** Two changes that are **one decision** — separating them breaks
+the game in one direction or the other:
+
+  - `enemyStats.ts` no longer divides boss health or money by the level's boss
+    count, so a boss on a ten-boss level is the boss it would be alone;
+  - `MAX_BOSSES_ALIVE = 4` and `canSpawnBoss` in `waves/waveState.ts` cap how
+    many are on the map. Past the cap `drawEnemy` falls through to the ordinary
+    weighted draw, so the level keeps sending support enemies instead of going
+    quiet, and the rest queue behind boss deaths.
+
+**The divisor had never run**, which is why that landed with no balance change
+to observe: `bossAmount` reached the resolver only through `EnemySpawnConfig`,
+and `Enemy.spawn` — the sole call site — never passed it. Five tests drove the
+division at 1, 2, 3 and 4 and all passed. **A test that constructs its own
+input cannot detect an input nobody constructs**; check the call sites, not
+the coverage.
+
+**`achievementReachability.test.ts` does not prove reachability**, and this one
+is still open. It feeds the evaluator a fabricated total, so it proves the rule
+*fires*, not that the campaign can supply the number. Five of the fifteen medal
+thresholds go unearnable at 180 levels with nothing failing.
 
 **`musicPaused` belongs to `GameplayScene` and is cleared on its SHUTDOWN
 (`A94`).** It sits on a `SoundManager` that outlives every scene, and

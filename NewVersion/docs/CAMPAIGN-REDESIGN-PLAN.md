@@ -127,31 +127,39 @@ player who knows the old rhythm still reads it — the spacing just alternates
 | Bosses spawned across the campaign | 80 | 205 | x2.56 |
 | Bosses per boss level | 1.8 mean, 1-3 | 5.1 mean, 2-10 | **x2.88** |
 
-### :warning: Decision D-1 — as the code stands, more bosses makes a level *easier*
+### Decision D-1 — DECIDED and shipped: option A, plus a cap
 
-**This is the most important finding in the document, and it is not in the**
-**brief.** `enemyStats.ts:129-135` divides a boss's health *and* its money by
-the level's boss count, faithfully to `PartInterface.as:971`:
+**Landed in T247.** The divisor is gone, each boss carries its whole stat
+line, and `MAX_BOSSES_ALIVE = 4` in `waveState.ts` keeps at most four on the
+map with the rest queuing behind their deaths. Divergence `A95`.
 
-```ts
-const divisor = boss && bossAmount > 0 ? bossAmount : 1;
-health: Math.round((base.health * healthMultiplier) / divisor),
-```
+**The premise this section originally argued was half wrong, and the**
+**correction is worth keeping.** The claim was that raising the boss count
+would make levels *easier*, because `enemyStats.ts` divided a boss health and
+money by the level boss count (`PartInterface.as:971`). That was true of the
+**code** and false of the **game**: `bossAmount` reached the resolver only
+through `EnemySpawnConfig`, and `Enemy.spawn` — its one and only call site —
+has never passed it. Every boss this port has ever spawned already had full
+health, so option A changed no observable behaviour. It deleted a rule that
+was already inert and made the code say what the game does.
 
-**Total boss health on a level is therefore constant however many bosses**
-**spawn.** A Basic boss is 500 HP alone, 250 each as a pair, 62 each as eight.
-Raising the count as rule 5 asks, with nothing else changed:
+Five tests drove that divisor at 1, 2, 3 and 4 and all passed — one of them
+deliberately on a multi-boss level, because "at 1 the division is invisible
+and any implementation passes". None could see that nothing supplied the
+number. **A test that constructs its own input cannot detect an input nobody
+constructs.**
 
-- splits one boss worth of health into more, smaller targets — and splash
-  weapons hit several at once, so the fight gets **faster**, not harder;
-- pays the same money out, divided;
-- at 8-10 bosses drops per-boss health near an ordinary tier-3 enemy, which
-  will read as wrong on the boss health wipe.
+**The cap is the part that is genuinely new.** The AS3 spawns every boss back
+to back and lets them all live, which it can afford *because* of the divisor.
+With each boss whole, ten arriving at once is not a fight. Past four out,
+`drawEnemy` falls through to the ordinary weighted draw, so the level keeps
+sending support enemies rather than going quiet.
 
-Bosses also all spawn **before any support enemy** (`waveState.ts:234`), so on
-a 10-boss level ten of them arrive back to back at the start.
+**Left open on purpose:** boss *money* is no longer divided either, so a
+ten-boss level pays ten boss bounties. That follows from option A as
+approved; balancing it belongs with the D-3 density pass, not here.
 
-Three ways out. This needs your call before any data is written:
+The three options as they were put, for the record:
 
 | | Change | At 8 bosses | Note |
 |---|---|---|---|
@@ -259,6 +267,11 @@ progress rather than a migration nobody can verify.
 ---
 
 ## 6. Every level
+
+**The theme headings below are a placeholder.** D-4 was answered "pick exactly
+four, one per world", and which four is decided by eye off the theme dev page
+once it exists — so the mid-world switches shown here will collapse to one
+theme per world. Nothing else in the table depends on it.
 
 `Types` is the target number of distinct enemy types in the wave and `Roster`
 how many have debuted by then. `Source` is the old level at the same fraction
@@ -469,14 +482,17 @@ not a wave to copy: composition is authored to the variety rule above.
 
 ## 7. Open decisions
 
-| | Question | Recommendation |
-|---|---|---|
-| **D-1** | Boss health is divided by the boss count, so rule 5 as written makes boss levels *easier*. Which fix? | **A** — drop the divisor. |
-| **D-2** | Should the freed Tower slots grow Normal/Flag/Defense instead of Boss? | **No** — rule 5 as written; the three hold their old rate. |
-| **D-3** | Enemy count and spawn interval on ordinary levels: keep the original means, or raise density for the shorter campaign? | Raise counts ~15%, cut spawn intervals ~10%, so 180 levels carry the weight of 405. |
-| **D-4** | Nine themes across four worlds — switch mid-world as tabled, or pick four and drop five? | **Keep all nine.** No art retires and each world still reads as one place. |
-| **D-5** | Free/premium split, currently 6 worlds of 9. | 2 of 4 — the same two-thirds. |
-| **D-6** | Existing saves point at worlds 5-9. | Version bump, progress reset. |
+All six are answered. This is now the record of what was decided, not a set
+of open questions.
+
+| | Question | **Decision** | State |
+|---|---|---|---|
+| **D-1** | The boss health divisor | **Option A** — dropped, plus a four-alive cap with the rest queuing behind deaths | **Done, T247** (`A95`) |
+| **D-2** | Should the freed Tower slots grow Normal/Flag/Defense instead of Boss? | **No** — rule 5 as written; the other three hold their old rate | settled; the tables above reflect it |
+| **D-3** | Enemy density on ordinary levels | **+20% enemy count, -30% spawn interval.** Defense levels instead take **-40% interval and +50% enemy move speed** | to do |
+| **D-4** | Nine themes across four worlds | **Pick exactly four, one per world.** A dev page showing all nine gets built first, so the four are chosen by eye | **blocked on that page**; the theme column in section 6 is a placeholder |
+| **D-5** | Free/premium split | **No premium at all.** All four worlds free; the restriction comes out of the campaign | to do |
+| **D-6** | Existing saves | **Bump the save version and wipe progress** | to do |
 
 ## 8. What happens once this is approved
 
@@ -484,8 +500,10 @@ In order, one commit each — the boundaries matter, because a boss balance
 regression that bisects to "one of these four things" is most of the value of
 having bisected at all:
 
-1. **D-1 alone.** It is a stat rule with its own tests and no dependency on
-   the new data.
+1. ~~**D-1 alone.** A stat rule with its own tests and no dependency on the
+   new data.~~ **Done — T247.**
+2. **The theme dev page**, so D-4 can be answered by looking rather than
+   guessing. It gates the theme column of the level table.
 2. **The achievement rescale and the new ceiling check**, also alone, and also
    before the data — a check has to exist before the thing it guards.
 3. **The 180-level table**, generated from a source of truth carrying the

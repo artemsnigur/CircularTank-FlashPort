@@ -200,34 +200,62 @@ describe('resolveEnemyStats — bosses', () => {
     );
   });
 
-  it('splits health across the number of bosses', () => {
+  /**
+   * ── Divergence `A95`: the boss count no longer divides anything ─────────
+   *
+   * The AS3 divides a boss's health and money by `ScreenGame.bossAmount`
+   * (`PartInterface.as:971`), so three bosses split one boss's worth. This
+   * port does not, and there is nothing left to pass a count to.
+   *
+   * **The expected values here come from `ENEMY_STATS`, not from the AS3's
+   * arithmetic**, which is the point: the source value for a lone Basic boss
+   * is 500 and that is now what every Basic boss is worth, on a one-boss level
+   * and on a ten-boss one alike.
+   */
+  it('gives a boss its whole stat line, whatever the level asks for', () => {
     const base = ENEMY_STATS.Basic.boss;
-    const resolved = resolveEnemyStats('Basic', 'B', 'Easy', { bossAmount: 3 });
-    expect(resolved?.health).toBe(Math.round(base.health / 3));
+    expect(base.health).toBe(500);
+
+    const resolved = resolveEnemyStats('Basic', 'B', 'Easy');
+    expect(resolved?.health).toBe(base.health);
+    expect(resolved?.money).toBe(Math.round(base.money / 10) * 10);
   });
 
-  it('splits money and rounds it to the nearest 10', () => {
-    const base = ENEMY_STATS.Basic.boss;
-    const resolved = resolveEnemyStats('Basic', 'B', 'Easy', { bossAmount: 3 });
-    expect(resolved?.money).toBe(Math.round(base.money / 3 / 10) * 10);
-    expect(resolved!.money % 10).toBe(0);
+  /**
+   * The counterpart that makes the assertion above mean something: an
+   * **ordinary** enemy's health does still scale, so "nothing divides" is not
+   * passing because nothing multiplies either.
+   */
+  it('still scales an ordinary enemy by tier and difficulty', () => {
+    const base = ENEMY_STATS.Basic.normal;
+    const t1 = resolveEnemyStats('Basic', '1', 'Easy')!.health;
+    const t3 = resolveEnemyStats('Basic', '3', 'Easy')!.health;
+    const hard = resolveEnemyStats('Basic', '1', 'Hard')!.health;
+
+    expect(t1).toBe(base.health);
+    expect(t3).toBeGreaterThan(t1);
+    expect(hard).toBeGreaterThan(t1);
   });
 
   it('rounds every boss money value to a multiple of 10', () => {
     for (const type of ENEMY_STAT_TYPES) {
-      for (const amount of [1, 2, 3]) {
-        const resolved = resolveEnemyStats(type, 'B', 'Hard', { bossAmount: amount });
-        expect(resolved!.money % 10, `${type} x${amount}`).toBe(0);
-      }
+      const resolved = resolveEnemyStats(type, 'B', 'Hard');
+      expect(resolved!.money % 10, type).toBe(0);
     }
   });
 
-  it('treats a zero or negative bossAmount as 1 rather than producing Infinity', () => {
-    const single = resolveEnemyStats('Basic', 'B', 'Easy', { bossAmount: 1 });
-    for (const bad of [0, -3]) {
-      const resolved = resolveEnemyStats('Basic', 'B', 'Easy', { bossAmount: bad });
-      expect(Number.isFinite(resolved!.health)).toBe(true);
-      expect(resolved!.health).toBe(single!.health);
+  /**
+   * There is no longer an argument that can produce `Infinity` here, so the
+   * old guard test is gone rather than reworded. This replaces it with the
+   * claim that actually needs holding: every boss line is finite and positive.
+   */
+  it('produces a finite, positive health for every boss on every difficulty', () => {
+    for (const type of ENEMY_STAT_TYPES) {
+      for (const difficulty of Difficulties) {
+        const health = resolveEnemyStats(type, 'B', difficulty)!.health;
+        expect(Number.isFinite(health), `${type}/${difficulty}`).toBe(true);
+        expect(health, `${type}/${difficulty}`).toBeGreaterThan(0);
+      }
     }
   });
 });
@@ -241,7 +269,7 @@ describe('resolveEnemyStats — robustness', () => {
     for (const type of ENEMY_STAT_TYPES) {
       for (const level of EnemyLevels) {
         for (const difficulty of Difficulties) {
-          const resolved = resolveEnemyStats(type, level, difficulty, { bossAmount: 3 });
+          const resolved = resolveEnemyStats(type, level, difficulty);
           const where = `${type}/${level}/${difficulty}`;
           expect(resolved, where).toBeDefined();
           expect(Number.isFinite(resolved!.health), where).toBe(true);

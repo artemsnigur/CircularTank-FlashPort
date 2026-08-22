@@ -16,9 +16,26 @@
  *      `getTotalHealth` sets it to 1 for `enemyLevel == "B"` — a boss is
  *      already scaled by its own stat table, so difficulty must not stack on
  *      top. The tier multiplier is likewise 1 for bosses.
- *   2. **Boss health and money are divided by `bossAmount`**, the number of
- *      bosses the level spawns, so three bosses split one boss's worth of
- *      health and reward rather than tripling it.
+ *   2. **Boss health and money are NOT divided by the level's boss count.**
+ *      Divergence `A95`. The AS3 divides both by `ScreenGame.bossAmount`
+ *      (`PartInterface.as:971`), so three bosses split one boss's worth of
+ *      health and reward rather than tripling it. This port does not, for two
+ *      reasons — and the second is the one that settles it:
+ *
+ *        - the redesigned campaign runs boss levels up to ten bosses deep, and
+ *          under the AS3 rule a ten-boss level is one boss's health cut into
+ *          ten pieces that splash clears faster than the single boss it
+ *          replaced. **More bosses made the level easier**, which inverts what
+ *          the level is for;
+ *        - **the divisor never reached the running game.** `Enemy.spawn` is
+ *          its sole call site and has never passed a count, so every boss this
+ *          port has ever spawned already had full health. Deleting it makes
+ *          the code say what the game does; it does not change what the game
+ *          does. That is why this lands with no balance change to observe.
+ *
+ *      What keeps a ten-boss level survivable is `MAX_BOSSES_ALIVE` in
+ *      `waves/waveState.ts`: at most four are out at once and the rest queue
+ *      behind their deaths.
  *
  * Rounding is applied exactly where the AS3 applies it: `Math.round` on damage,
  * health, money and reload time, nothing on the speeds. Boss money is rounded
@@ -45,11 +62,6 @@ export interface ResolvedEnemyStats {
   /** Frames between shots at 30 fps. */
   reloadTimeMax?: number;
   bulletAmount?: number;
-}
-
-export interface ResolveOptions {
-  /** `ScreenGame.bossAmount` — how many bosses this level spawns. */
-  bossAmount?: number;
 }
 
 /** Base table for a type and variant, or undefined for an unknown type. */
@@ -112,7 +124,6 @@ export function resolveEnemyStats(
   type: string,
   level: EnemyLevel,
   difficulty: Difficulty,
-  { bossAmount = 1 }: ResolveOptions = {},
 ): ResolvedEnemyStats | undefined {
   const base = getBaseStats(type, level);
   if (!base) return undefined;
@@ -125,15 +136,12 @@ export function resolveEnemyStats(
   const healthMultiplier = boss ? 1 : profile.enemyHealth * tier;
   const damageMultiplier = profile.enemyDamage * tier;
 
-  // Guard against a zero or negative bossAmount producing Infinity/NaN.
-  const divisor = boss && bossAmount > 0 ? bossAmount : 1;
-
   const resolved: ResolvedEnemyStats = {
     damage: Math.round(base.damage * damageMultiplier),
-    health: Math.round((base.health * healthMultiplier) / divisor),
-    money: boss
-      ? Math.round(base.money / divisor / 10) * 10
-      : Math.round(base.money * tier),
+    // No `/ bossAmount` — see rule 2 in the module docstring (`A95`). A boss
+    // on a ten-boss level is the same boss it would be alone.
+    health: Math.round(base.health * healthMultiplier),
+    money: boss ? Math.round(base.money / 10) * 10 : Math.round(base.money * tier),
     moveSpeedMax: base.moveSpeedMax * profile.enemySpeed,
     accSpeed: base.accSpeed * profile.enemySpeed,
     // **Divergence `A12`** — see `ENEMY_TURN_MULTIPLIER`. Applied on top of the
@@ -161,10 +169,9 @@ export function resolveEnemyStats(
 export function totalLevelHealth(
   enemies: readonly { type: string; level: EnemyLevel; count: number }[],
   difficulty: Difficulty,
-  options: ResolveOptions = {},
 ): number {
   return enemies.reduce((sum, entry) => {
-    const stats = resolveEnemyStats(entry.type, entry.level, difficulty, options);
+    const stats = resolveEnemyStats(entry.type, entry.level, difficulty);
     return stats ? sum + stats.health * entry.count : sum;
   }, 0);
 }

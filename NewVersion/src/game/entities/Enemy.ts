@@ -172,7 +172,6 @@ export interface EnemySpawnConfig {
   x: number;
   y: number;
   wall: SpawnGeometry['wall'];
-  bossAmount?: number;
 }
 
 export class Enemy extends Phaser.GameObjects.Container {
@@ -365,9 +364,7 @@ export class Enemy extends Phaser.GameObjects.Container {
    * a bad level row should not take the scene down.
    */
   static spawn(scene: Phaser.Scene, config: EnemySpawnConfig): Enemy | null {
-    const stats = resolveEnemyStats(config.type, config.level, config.difficulty, {
-      bossAmount: config.bossAmount ?? 1,
-    });
+    const stats = resolveEnemyStats(config.type, config.level, config.difficulty);
     if (!stats) {
       console.warn(`[Enemy] No stats for "${config.type}"; not spawning.`);
       return null;
@@ -571,8 +568,10 @@ export class Enemy extends Phaser.GameObjects.Container {
    * That function (`PartGameArea.as:2300-2341`) recomputes the figure from the
    * stat row and the difficulty and tier multipliers every time it is called.
    * `resolveEnemyStats` already produces exactly the same number, including the
-   * boss exemption from the difficulty multiplier and the division by
-   * `bossAmount`, so this is a named accessor rather than a reimplementation.
+   * boss exemption from the difficulty multiplier, so this is a named accessor
+   * rather than a reimplementation. It no longer divides by the level's boss
+   * count — divergence `A95`, and one this class never saw anyway: the option
+   * existed here and was never once passed.
    *
    * Named so callers read intent: `health / maxHealth` is a fraction of full,
    * where `health / stats.health` looks like it could be a mistake.

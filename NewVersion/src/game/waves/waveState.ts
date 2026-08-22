@@ -26,6 +26,24 @@ import type { EnemyLevel } from '../config/constants';
 /** ScreenGame.as:45 — hard cap on enemies alive plus pending. */
 export const MAX_ENEMIES = 35;
 
+/**
+ * How many bosses may be out at once. **Divergence `A95`, no AS3 counterpart.**
+ *
+ * The AS3 spawns every boss on the level back to back and lets them all live
+ * together, which it can afford because it *divides each boss's health by the
+ * count* — ten bosses there are one boss's health in ten pieces. This port
+ * dropped that divisor (`enemies/enemyStats.ts`), so each boss is whole, and
+ * ten whole bosses arriving at once is not a fight.
+ *
+ * The two changes are therefore one decision and must not be separated: keep
+ * the cap without the divisor and a big boss level is merely long; drop the
+ * cap without the divisor and it is unplayable.
+ *
+ * Four rather than three or five is a judgement, not a ported number — it is
+ * the most that fit on the smallest room (640x400) with space to circle.
+ */
+export const MAX_BOSSES_ALIVE = 4;
+
 /** SWF frame rate; all the interval maths is in frames. */
 const AS3_FPS = 30;
 
@@ -230,8 +248,11 @@ export function drawEnemy(
 ): DrawnEnemy | null {
   const balanced = state.mode === 'Boss' || state.mode === 'Flag';
 
-  // Boss mode spawns the boss itself until the quota is met.
-  if (state.mode === 'Boss' && state.bossAmountSpawned < state.bossAmount) {
+  // Boss mode spawns the boss itself until the quota is met — but no more
+  // than `MAX_BOSSES_ALIVE` at a time. Past that this falls through to the
+  // weighted draw below, so the level keeps sending support enemies rather
+  // than going quiet while the player clears the four that are out.
+  if (canSpawnBoss(state)) {
     return drawBoss(state);
   }
 
@@ -239,8 +260,15 @@ export function drawEnemy(
   let cumulative = 0;
 
   const drawable = state.pool.filter((entry) => entry.level !== 'B');
-  const liveDenominator =
-    state.maxEnemies - state.bossAmount + state.bossAmountKilled || 1;
+  // `Math.max(1, ...)` rather than `|| 1`: the old form only caught an exact
+  // zero, and a boss level deeper than `maxEnemies` would make this negative,
+  // which inverts `liveShare < share` and hands every draw to the first entry.
+  // Unreachable on the AS3's data (3 bosses at most) and reachable on the
+  // redesign's (ten), which is why it is guarded now rather than later.
+  const liveDenominator = Math.max(
+    1,
+    state.maxEnemies - state.bossAmount + state.bossAmountKilled,
+  );
 
   for (let i = 0; i < drawable.length; i += 1) {
     const entry = drawable[i];
@@ -263,6 +291,32 @@ export function drawEnemy(
   }
 
   return null;
+}
+
+/**
+ * Bosses spawned but not yet killed — pending warnings included.
+ *
+ * `bossAmountSpawned` counts at **warning** time, not at the moment the boss
+ * appears, so this counts a boss that is on its way. That is the conservative
+ * reading and the one the cap wants: queueing a fifth while four are inbound
+ * would put five on the map.
+ */
+export function bossesOut(state: WaveState): number {
+  return Math.max(0, state.bossAmountSpawned - state.bossAmountKilled);
+}
+
+/**
+ * Whether a boss may be drawn this frame — quota left, and room on the map.
+ *
+ * Exported so the rule can be driven directly. When it says no on a level that
+ * still owes bosses, `drawEnemy` falls through to the ordinary weighted draw
+ * and the level keeps feeding support enemies while the player works through
+ * the four that are out; the remaining bosses queue behind their deaths.
+ */
+export function canSpawnBoss(state: WaveState): boolean {
+  if (state.mode !== 'Boss') return false;
+  if (state.bossAmountSpawned >= state.bossAmount) return false;
+  return bossesOut(state) < MAX_BOSSES_ALIVE;
 }
 
 /** Boss mode's dedicated branch: draw a `B` entry and count it. */
