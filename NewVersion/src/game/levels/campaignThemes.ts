@@ -11,18 +11,36 @@
  * Grass at 16 and reaches Beach at 31 — the ground changing under you as the
  * campaign advances, rather than at a world boundary you only see in a menu.
  *
- * ── This is a specification, and the game does not read it yet ────────────
- * **Nothing consumes this at runtime**, because the 180-level table it
- * describes does not exist — the campaign is still the AS3's 9x45. That is not
- * an oversight to fix by wiring it into `getLevel`: applied to the current
- * data it would re-theme worlds 1-4 and leave 5-9 alone, which is neither
- * campaign.
+ * -- This is a build-time specification, not runtime code ----------------
  *
- * It is written now, tested now, and consumed by `scripts/gen-campaign-plan.mjs`
- * so the plan document shows the real mapping. The level-table generator reads
- * it when that lands. Recorded here rather than in the plan's prose because a
- * boundary written in a document drifts from a boundary written in code, and
- * this one has already been decided twice.
+ * **This file is the source of truth for the theme blocks, and it is
+ * consumed by reading it as text rather than by importing it.**
+ * `gen-levels.mjs:215` parses it and bakes a `theme` onto every row of the
+ * generated `levelData.ts`; `gen-campaign-plan.mjs:147` parses it again so
+ * the plan document shows the same mapping. Nothing imports it at runtime,
+ * because by the time the game runs the answer is already in the table.
+ *
+ * **Two consequences, and the second is a trap.** The blocks below are
+ * parsed with a regex, so their *formatting* is load-bearing: reformatting
+ * this file can break the generator without changing a single value. That
+ * is not hypothetical -- running Prettier over it once rewrote the quotes
+ * and the wrapping, which is why this warning is here.
+ *
+ * **And `knip` reports this file as unused, wrongly.** Knip follows
+ * imports, and a `readFileSync` is not one. The edge is real but invisible
+ * to it. Deleting the file is still caught, just not by knip: both
+ * generators throw on the missing file, so `npm run levels:data:check`
+ * fails. The guarantee is the generator's own failure, not this paragraph.
+ *
+ * Recorded in code rather than in the plan's prose because a boundary
+ * written in a document drifts from a boundary written in code, and this
+ * one has already been decided twice.
+ *
+ * **This section used to say the opposite** -- "nothing consumes this at
+ * runtime, because the 180-level table it describes does not exist". That
+ * was true when the blocks were written (T249) and stopped being true when
+ * the table landed (T252); it survived four passes because a header nobody
+ * has a reason to re-read is the last thing to be updated.
  *
  * ── The rules the blocks obey ─────────────────────────────────────────────
  * Every one is checked in `campaignThemes.test.ts` rather than described:
