@@ -900,6 +900,26 @@ against all 405 rows. Generated — `node scripts/gen-level-dossier.mjs` — so
 re-run it rather than editing it. Written for the planned 9-world -> 4-world
 redesign.
 
+**`docs/CAMPAIGN-REDESIGN-PLAN.md` is that redesign, and it is awaiting**
+**approval — no game code implements any of it.** 4 worlds x 45 levels, Tower
+at exactly half its old rate and Boss at exactly double, the 20 enemy debuts
+in the original's order at a flat 9-level cadence. Generated with `node
+scripts/gen-campaign-plan.mjs`, whose two dozen assertions run *before* it
+writes, so a layout slip is a non-zero exit rather than a plausible row.
+
+Two findings in it outlive the redesign and are worth knowing even if the plan
+is rejected:
+
+  - **More bosses currently makes a boss level easier.** `enemyStats.ts:129`
+    divides boss health *and* money by `bossAmount` (faithful to
+    `PartInterface.as:971`), so total boss health on a level is constant
+    however many spawn — and splash weapons hit more of them at once. Written
+    up as decision `D-1`.
+  - **`achievementReachability.test.ts` does not prove reachability.** It
+    feeds the evaluator a fabricated total, so it proves the rule *fires*, not
+    that the campaign can supply the number. Five of the fifteen medal
+    thresholds would become unearnable at 180 levels and nothing would fail.
+
 **`musicPaused` belongs to `GameplayScene` and is cleared on its SHUTDOWN
 (`A94`).** It sits on a `SoundManager` that outlives every scene, and
 `handleMusicChange` gates the whole crossfade on it — left set, every later

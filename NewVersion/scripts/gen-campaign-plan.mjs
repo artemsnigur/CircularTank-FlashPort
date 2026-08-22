@@ -1,0 +1,770 @@
+/**
+ * Writes `docs/CAMPAIGN-REDESIGN-PLAN.md` — the proposed 4-world campaign.
+ *
+ * ── A generator, and specifically a *checked* one ──────────────────────────
+ * The plan is 180 levels of mode, boss count and roster, and every rule in it
+ * is arithmetic: 45 levels a world, Tower at exactly half its old rate, Boss
+ * at exactly double, twenty enemy debuts in the original's order. Hand-typing
+ * a table like that produces a document that is wrong in one cell and read as
+ * authoritative — the failure this repo has already paid for twice.
+ *
+ * So the design lives here as constants, the tables are derived from them, and
+ * `assert()` fires before anything is written. A slip in the layout is a
+ * non-zero exit, not a plausible-looking row.
+ *
+ * ── It touches no game code, by construction ──────────────────────────────
+ * It reads `levelData.ts` and writes one file under `docs/`. Nothing here is
+ * imported by the game. The plan is a proposal awaiting approval; turning it
+ * into level data is a separate job with its own gate.
+ */
+import { readFileSync, writeFileSync } from 'node:fs';
+
+const SRC = 'src/game/levels/levelData.ts';
+const OUT = 'docs/CAMPAIGN-REDESIGN-PLAN.md';
+
+function assert(cond, message) {
+  if (!cond) throw new Error(`plan invariant failed: ${message}`);
+}
+
+/* ── The original, parsed from the generated table ───────────────────────── */
+
+function arrayLiteral(text, name) {
+  const start = text.indexOf(`export const ${name}`);
+  if (start === -1) throw new Error(`${name} not found in ${SRC}`);
+  // From the `=`, not the name: the type annotation carries brackets of its
+  // own and scanning from the name found one of those instead.
+  const open = text.indexOf('[', text.indexOf('=', start));
+  let depth = 0;
+  for (let i = open; i < text.length; i += 1) {
+    if (text[i] === '[') depth += 1;
+    else if (text[i] === ']') {
+      depth -= 1;
+      if (depth === 0) return text.slice(open, i + 1);
+    }
+  }
+  throw new Error(`unterminated ${name}`);
+}
+
+const OLD = JSON.parse(
+  arrayLiteral(readFileSync(SRC, 'utf8'), 'LEVELS')
+    .replace(/\/\/[^\n]*/g, '')
+    .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":')
+    .replace(/,(\s*[}\]])/g, '$1'),
+);
+assert(OLD.length === 9, `expected 9 source worlds, got ${OLD.length}`);
+
+const oldFlat = [];
+OLD.forEach((w, wi) =>
+  w.forEach((s, li) => oldFlat.push({ world: wi + 1, level: li + 1, g: wi * 45 + li + 1, ...s })),
+);
+assert(oldFlat.length === 405, `expected 405 source levels, got ${oldFlat.length}`);
+
+/** Debut order — the sequence rule 2 requires the redesign to preserve. */
+const seen = new Set();
+const OLD_INTROS = [];
+for (const s of oldFlat) {
+  for (const e of s.enemies) {
+    if (seen.has(e.type)) continue;
+    seen.add(e.type);
+    OLD_INTROS.push({ type: e.type, g: s.g, at: `${s.world}-${s.level}`, mode: s.mode });
+  }
+}
+assert(OLD_INTROS.length === 20, `expected 20 enemy types, got ${OLD_INTROS.length}`);
+
+const oldBossCount = (s) =>
+  s.enemies.filter((e) => e.level === 'B').reduce((n, e) => n + e.count, 0);
+const oldModeCount = (m) => oldFlat.filter((s) => s.mode === m).length;
+const distinctTypes = (s) => new Set(s.enemies.map((e) => e.type)).size;
+
+const OLD_BOSS_LEVELS = oldFlat.filter((s) => s.mode === 'Boss');
+const OLD_BOSS_TOTAL = OLD_BOSS_LEVELS.reduce((n, s) => n + oldBossCount(s), 0);
+const OLD_NONBOSS = oldFlat.filter((s) => s.mode !== 'Boss');
+const OLD_MEAN_TYPES = OLD_NONBOSS.reduce((n, s) => n + distinctTypes(s), 0) / OLD_NONBOSS.length;
+const OLD_MAX_ENTRIES = Math.max(...oldFlat.map((s) => s.enemies.length));
+
+/** Tier share of every enemy spawned in a set of worlds, as percentages. */
+function tierMix(worlds) {
+  const c = { 1: 0, 2: 0, 3: 0, B: 0 };
+  let total = 0;
+  for (const wi of worlds) {
+    for (const s of OLD[wi - 1]) {
+      for (const e of s.enemies) {
+        c[e.level] += e.count;
+        total += e.count;
+      }
+    }
+  }
+  return { t1: (c[1] / total) * 100, t2: (c[2] / total) * 100, t3: (c[3] / total) * 100 };
+}
+
+/* ── The design ──────────────────────────────────────────────────────────── */
+
+const WORLDS = 4;
+const PER_WORLD = 45;
+const TOTAL = WORLDS * PER_WORLD;
+
+/**
+ * Boss levels within every world.
+ *
+ * The original's five (9, 18, 27, 36, 45) are all kept, and a sixth through
+ * tenth is inserted at the midpoint of each gap. That is what "evenly across
+ * the four worlds" buys without throwing away the cadence players already
+ * read: every boss the old campaign had is still a boss, and the new ones sit
+ * between them rather than displacing them.
+ */
+const BOSS_LEVELS = [5, 9, 14, 18, 23, 27, 32, 36, 41, 45];
+
+/**
+ * How many bosses each boss level spawns, in order, per world.
+ *
+ * Ramped inside a world and across the campaign. The old game's range was
+ * 1..3 with a mean of 2; this runs 2..10.
+ */
+const BOSS_AMOUNTS = {
+  1: [2, 2, 3, 3, 3, 4, 4, 4, 5, 5],
+  2: [3, 3, 4, 4, 4, 5, 5, 5, 6, 6],
+  3: [4, 4, 5, 5, 5, 6, 6, 6, 7, 8],
+  4: [5, 5, 6, 6, 6, 7, 7, 8, 9, 10],
+};
+
+/**
+ * The non-boss mode layout, in level order, for world 1.
+ *
+ * Ten segments sit between the boss levels, alternating four and three long.
+ * Each three-segment carries the world's one Tower, which lands the Tower on
+ * levels 7, 16, 25, 34 and 43 — five of them, exactly half the old rate.
+ */
+const BASE_LAYOUT = [
+  'Normal', 'Flag', 'Defense', 'Normal',            // 1-4
+  'Defense', 'Tower', 'Normal',                     // 6-8
+  'Normal', 'Flag', 'Defense', 'Flag',              // 10-13
+  'Flag', 'Tower', 'Defense',                       // 15-17
+  'Normal', 'Flag', 'Defense', 'Defense',           // 19-22
+  'Defense', 'Tower', 'Normal',                     // 24-26
+  'Normal', 'Flag', 'Defense', 'Normal',            // 28-31
+  'Flag', 'Tower', 'Defense',                       // 33-35
+  'Normal', 'Flag', 'Defense', 'Flag',              // 37-40
+  'Normal', 'Tower', 'Flag',                        // 42-44
+];
+
+/**
+ * Worlds 2-4 rotate that sequence by 7 slots each.
+ *
+ * The Towers sit 7 apart, so a rotation by 7 maps the Tower set onto itself —
+ * the Tower cadence stays fixed at 7/16/25/34/43 in every world while Normal,
+ * Flag and Defense land differently. One template, four layouts, and the mode
+ * counts come out identical by construction rather than by care.
+ */
+const LAYOUT_ROTATION = 7;
+
+/**
+ * Where each type debuts, as `world -> [level, ...]`.
+ *
+ * The **order is the original's, unchanged** — rule 2. Only the spacing moves:
+ * after the opening three the cadence is a flat nine levels, so the longest
+ * wait for something new drops from 39 levels to 9.
+ */
+const INTRO_LEVELS = {
+  1: [1, 2, 4, 11, 19, 28, 37],
+  2: [1, 10, 19, 28, 37],
+  3: [1, 10, 19, 28, 37],
+  4: [1, 10, 19],
+};
+
+/** How many distinct enemy types a non-boss level should field, per world. */
+const VARIETY_BAND = {
+  1: [2, 4],
+  2: [3, 5],
+  3: [4, 6],
+  4: [4, 6],
+};
+
+/**
+ * The cap on wave entries, and why it is 6 rather than a round 8.
+ *
+ * `levelPreview` renders one row per entry in the level-select panel, and the
+ * original's busiest level has 6. Six is therefore a layout the UI is known to
+ * survive; seven is a guess. Raising it is a UI change with its own look.
+ */
+const MAX_WAVE_ENTRIES = 6;
+
+/** Theme per world, as `[theme, firstLevel]` — all nine survive the cut. */
+const THEMES = {
+  1: [['Desert', 1], ['Grass', 31]],
+  2: [['BlueDirt', 1], ['Beach', 24]],
+  3: [['Concrete', 1], ['Biology', 24]],
+  4: [['Hell', 1], ['MagicStone', 16], ['Futuristic', 31]],
+};
+
+/** Mode -> room size. The original already locks Tower, Defense and Boss. */
+const ROOMS = {
+  Tower: '640x640',
+  Defense: '640x960',
+  Normal: '800x600',
+  Flag: '900x720',
+  Boss: '800x600',
+};
+/** A boss level with a big crowd gets the larger of the two Boss rooms. */
+const BIG_BOSS_ROOM = '900x720';
+const BIG_BOSS_FROM = 5;
+
+/** Which old worlds each new world inherits its tier mix from. */
+const TIER_SOURCE = { 1: [1, 2], 2: [3, 4], 3: [5, 6], 4: [7, 8, 9] };
+
+/* ── Derivation ──────────────────────────────────────────────────────────── */
+
+const introByWorldLevel = new Map();
+{
+  let n = 0;
+  for (const w of [1, 2, 3, 4]) {
+    for (const level of INTRO_LEVELS[w]) {
+      introByWorldLevel.set(`${w}-${level}`, OLD_INTROS[n]);
+      n += 1;
+    }
+  }
+  assert(n === 20, `intro schedule places ${n} types, expected 20`);
+}
+
+const NONBOSS_LEVELS = [];
+for (let l = 1; l <= PER_WORLD; l += 1) if (!BOSS_LEVELS.includes(l)) NONBOSS_LEVELS.push(l);
+assert(
+  NONBOSS_LEVELS.length === BASE_LAYOUT.length,
+  `layout has ${BASE_LAYOUT.length} slots for ${NONBOSS_LEVELS.length} non-boss levels`,
+);
+
+function layoutFor(world) {
+  const k = (LAYOUT_ROTATION * (world - 1)) % BASE_LAYOUT.length;
+  return BASE_LAYOUT.map((_, i) => BASE_LAYOUT[(i + k) % BASE_LAYOUT.length]);
+}
+
+function themeAt(world, level) {
+  let theme = THEMES[world][0][0];
+  for (const [name, from] of THEMES[world]) if (level >= from) theme = name;
+  return theme;
+}
+
+/** The variety target at a point in the campaign, bounded by the roster. */
+function varietyAt(world, level, roster) {
+  const [lo, hi] = VARIETY_BAND[world];
+  const t = (level - 1) / (PER_WORLD - 1);
+  return Math.min(roster, MAX_WAVE_ENTRIES, lo + Math.round(t * (hi - lo)));
+}
+
+const PLAN = [];
+let roster = 0;
+for (let world = 1; world <= WORLDS; world += 1) {
+  const layout = layoutFor(world);
+  let slot = 0;
+  for (let level = 1; level <= PER_WORLD; level += 1) {
+    const g = (world - 1) * PER_WORLD + level;
+    const intro = introByWorldLevel.get(`${world}-${level}`);
+    if (intro) roster += 1;
+
+    const bossIndex = BOSS_LEVELS.indexOf(level);
+    const isBoss = bossIndex !== -1;
+    const mode = isBoss ? 'Boss' : layout[slot];
+    if (!isBoss) slot += 1;
+
+    const bosses = isBoss ? BOSS_AMOUNTS[world][bossIndex] : 0;
+    const room = isBoss ? (bosses >= BIG_BOSS_FROM ? BIG_BOSS_ROOM : ROOMS.Boss) : ROOMS[mode];
+
+    PLAN.push({
+      world,
+      level,
+      g,
+      mode,
+      room,
+      bosses,
+      intro: intro?.type ?? null,
+      roster,
+      // A boss level's support wave is narrower: the boss row takes an entry
+      // of its own, and the original keeps 2-3 support types alongside it.
+      types: isBoss ? Math.min(roster, 3) : varietyAt(world, level, roster),
+      theme: themeAt(world, level),
+      // Pacing reference only: the old level at the same fraction of the
+      // campaign. The wave itself is authored to the variety rule.
+      source: Math.min(405, Math.max(1, Math.round((g - 0.5) * (405 / TOTAL)))),
+    });
+  }
+  assert(slot === layout.length, `world ${world} filled ${slot} of ${layout.length} layout slots`);
+}
+
+/* ── The invariants, checked before a word is written ────────────────────── */
+
+assert(PLAN.length === TOTAL, `plan has ${PLAN.length} levels, expected ${TOTAL}`);
+
+const count = (m) => PLAN.filter((r) => r.mode === m).length;
+const NEW_MODES = {
+  Normal: count('Normal'),
+  Flag: count('Flag'),
+  Tower: count('Tower'),
+  Defense: count('Defense'),
+  Boss: count('Boss'),
+};
+
+for (let w = 1; w <= WORLDS; w += 1) {
+  const rows = PLAN.filter((r) => r.world === w);
+  assert(rows.length === PER_WORLD, `world ${w} has ${rows.length} levels`);
+  for (const [m, n] of Object.entries({ Normal: 10, Flag: 10, Tower: 5, Defense: 10, Boss: 10 })) {
+    const got = rows.filter((r) => r.mode === m).length;
+    assert(got === n, `world ${w} has ${got} ${m} levels, expected ${n}`);
+  }
+  const towers = rows.filter((r) => r.mode === 'Tower').map((r) => r.level);
+  assert(towers.join() === '7,16,25,34,43', `world ${w} Towers at ${towers.join()}`);
+}
+
+// Rule 4: Tower at exactly half its old share. Rule 5: Boss at exactly double.
+const oldShare = (m) => oldModeCount(m) / oldFlat.length;
+const newShare = (m) => NEW_MODES[m] / TOTAL;
+const near = (a, b) => Math.abs(a - b) < 1e-9;
+assert(near(newShare('Tower'), oldShare('Tower') / 2), 'Tower is not exactly half its old rate');
+assert(near(newShare('Boss'), oldShare('Boss') * 2), 'Boss is not exactly double its old rate');
+for (const m of ['Normal', 'Flag', 'Defense']) {
+  assert(near(newShare(m), oldShare(m)), `${m} share moved, and nothing asked it to`);
+}
+
+// Rule 2: the debut order is the original's, and every type debuts once.
+const newOrder = PLAN.filter((r) => r.intro).map((r) => r.intro);
+assert(newOrder.length === 20, `${newOrder.length} debuts scheduled, expected 20`);
+assert(
+  newOrder.join() === OLD_INTROS.map((i) => i.type).join(),
+  'debut order diverges from the original',
+);
+// No debut lands on a boss level: a new type wants a level that is about it.
+const onBoss = PLAN.filter((r) => r.intro && r.mode === 'Boss').map((r) => `${r.world}-${r.level}`);
+assert(onBoss.length === 0, `debuts on boss levels: ${onBoss.join(', ')}`);
+
+const NEW_BOSS_TOTAL = PLAN.reduce((n, r) => n + r.bosses, 0);
+assert(NEW_BOSS_TOTAL > OLD_BOSS_TOTAL, 'the campaign does not spawn more bosses');
+for (const r of PLAN) {
+  if (r.mode !== 'Boss') assert(r.bosses === 0, `${r.world}-${r.level} is not a boss level`);
+  else assert(r.bosses >= 2, `${r.world}-${r.level} spawns only ${r.bosses}`);
+}
+// BossOnlySpecial needs a level with three bosses, and could not be earned in
+// world 1 of the original because no world-1 level has three.
+const firstThree = PLAN.find((r) => r.bosses >= 3);
+assert(firstThree.world === 1, `first 3-boss level is in world ${firstThree.world}`);
+
+const newNonBoss = PLAN.filter((r) => r.mode !== 'Boss');
+const NEW_MEAN_TYPES = newNonBoss.reduce((n, r) => n + r.types, 0) / newNonBoss.length;
+assert(NEW_MEAN_TYPES > OLD_MEAN_TYPES, 'variety did not increase');
+// Every level fields at least two types *once two exist*. 1-1 is the one
+// exception and cannot be otherwise: Basic is the only thing that has debuted.
+const thin = newNonBoss.filter((r) => r.types < 2 && r.roster >= 2);
+assert(thin.length === 0, `single-type levels with a roster to draw on: ${thin.length}`);
+
+const introG = PLAN.filter((r) => r.intro).map((r) => r.g);
+const gaps = introG.slice(1).map((g, i) => g - introG[i]);
+const OLD_GAPS = OLD_INTROS.slice(1).map((t, i) => t.g - OLD_INTROS[i].g);
+assert(Math.max(...gaps) < Math.max(...OLD_GAPS), 'the longest drought did not shrink');
+
+/* ── Medal ceilings: the consequence that is not in the brief ────────────── */
+
+const MEDAL_MODES = {
+  Stars: 'Normal',
+  Flags: 'Flag',
+  Towers: 'Tower',
+  Shields: 'Defense',
+  Bosses: 'Boss',
+};
+/** `achievementData.ts:51-65`. Three medals is the most one level can award. */
+const REQUIREMENTS = {
+  Stars: [60, 120, 180],
+  Flags: [60, 120, 180],
+  Towers: [60, 120, 180],
+  Shields: [60, 120, 180],
+  Bosses: [30, 60, 90],
+};
+const MEDALS_PER_LEVEL = 3;
+const medals = Object.entries(MEDAL_MODES).map(([type, mode]) => ({
+  type,
+  mode,
+  oldCeiling: oldModeCount(mode) * MEDALS_PER_LEVEL,
+  newCeiling: NEW_MODES[mode] * MEDALS_PER_LEVEL,
+  reqs: REQUIREMENTS[type],
+}));
+const broken = medals.flatMap((m) =>
+  m.reqs
+    .map((r, i) => ({ id: `${m.type}${i + 1}`, req: r, ceiling: m.newCeiling }))
+    .filter((a) => a.req > a.ceiling),
+);
+assert(broken.length > 0, 'expected the medal ceilings to bite — recheck the thresholds');
+
+/* ── Output ─────────────────────────────────────────────────────────────── */
+
+const pct = (n) => `${(n * 100).toFixed(1)}%`;
+const one = (n) => n.toFixed(1);
+const L = [];
+const w = (...lines) => L.push(...lines);
+const introRows = PLAN.filter((r) => r.intro);
+
+w(
+  '# Campaign redesign — 9 worlds to 4',
+  '',
+  '**Generated. Do not edit by hand — run `node scripts/gen-campaign-plan.mjs`.**',
+  '',
+  '**This is a proposal, not the data.** Nothing under `src/` has changed. Every',
+  'number below is derived from the design constants at the top of the generator',
+  'and checked by two dozen assertions before the file is written, so a slip in',
+  'the layout is a non-zero exit rather than a plausible-looking row.',
+  '',
+  `${WORLDS} worlds, ${PER_WORLD} levels each, ${TOTAL} levels — down from 9 and 405.`,
+  '',
+  'Companions: `LEVEL-DOSSIER.md` is the original campaign level by level,',
+  '`ENEMY-DOSSIER.md` every enemy stat and multiplier.',
+  '',
+  '---',
+  '',
+  '## 1. The mode arithmetic',
+  '',
+  'Compressing 405 levels into 180 is a factor of 4/9. Held proportional, every',
+  'mode keeps its share exactly. Rules 4 and 5 then move two of them:',
+  '',
+  '| Mode | Original | Share | Proportional at 180 | **This plan** | Share | Rate vs original |',
+  '|---|---|---|---|---|---|---|',
+);
+for (const m of ['Normal', 'Flag', 'Tower', 'Defense', 'Boss']) {
+  const prop = Math.round(oldModeCount(m) * (TOTAL / 405));
+  const ratio = newShare(m) / oldShare(m);
+  const mark = ratio === 1 ? 'unchanged' : `**x${ratio.toFixed(1)}**`;
+  w(
+    `| ${m} | ${oldModeCount(m)} | ${pct(oldShare(m))} | ${prop} | ` +
+      `**${NEW_MODES[m]}** | ${pct(newShare(m))} | ${mark} |`,
+  );
+}
+w(
+  `| **Total** | **405** | | **180** | **${TOTAL}** | | |`,
+  '',
+  '### The two rules cancel exactly, and that is worth saying out loud',
+  '',
+  'Rule 4 halves Tower: 40 proportional slots become 20, freeing **20**.',
+  'Rule 5 doubles Boss: 20 proportional slots become 40, consuming **20**.',
+  '',
+  'The ledger nets to zero, so Normal, Flag and Defense land on their',
+  'proportional 40 apiece. Rule 4 asks for the freed Tower slots to go to "other',
+  'existing game modes", and rule 5 is what takes them — Boss being one of them.',
+  'At a fixed 180 levels there is no other closed solution: the campaign has no',
+  'spare slots, so anything Normal/Flag/Defense gain has to come out of Boss.',
+  '',
+  '> **Decision D-2 — do you want Normal/Flag/Defense to visibly grow instead?**',
+  '> Then Boss cannot double. Trading 6 boss levels back gives Boss 34 and 42',
+  '> each of the other three — Boss at x1.7 rather than x2.0. The plan below',
+  '> assumes **no**: rule 5 as written, the other three held at their old rate.',
+  '',
+  '---',
+  '',
+  '## 2. Where each enemy is introduced',
+  '',
+  'Rule 2 fixes the **order** and frees the **spacing**. Every type debuts in',
+  'exactly the position it held in the original sequence; what changes is that',
+  'the droughts between them are gone.',
+  '',
+  '| # | Enemy | Original | Gap | **New** | Gap | Debut mode |',
+  '|---|---|---|---|---|---|---|',
+);
+introRows.forEach((r, i) => {
+  const o = OLD_INTROS[i];
+  const og = i === 0 ? '—' : String(o.g - OLD_INTROS[i - 1].g);
+  const ng = i === 0 ? '—' : String(r.g - introRows[i - 1].g);
+  w(`| ${i + 1} | **${r.intro}** | ${o.at} | ${og} | **${r.world}-${r.level}** | ${ng} | ${r.mode} |`);
+});
+const meanOld = OLD_GAPS.reduce((a, b) => a + b, 0) / OLD_GAPS.length;
+const meanNew = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+const oldPerWorld = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(
+  (n) => OLD_INTROS.filter((i) => Math.ceil(i.g / 45) === n).length,
+);
+const newPerWorld = [1, 2, 3, 4].map((n) => introRows.filter((r) => r.world === n).length);
+w(
+  '',
+  '| | Original | This plan |',
+  '|---|---|---|',
+  `| Longest run with nothing new | **${Math.max(...OLD_GAPS)} levels** | **${Math.max(...gaps)} levels** |`,
+  `| Mean gap between debuts | ${one(meanOld)} | ${one(meanNew)} |`,
+  `| Last debut | ${OLD_INTROS[19].at} — level ${OLD_INTROS[19].g} of 405 | ` +
+    `${introRows[19].world}-${introRows[19].level} — level ${introG[19]} of ${TOTAL} |`,
+  `| Debuts per world | ${oldPerWorld.join(', ')} | ${newPerWorld.join(', ')} |`,
+  '',
+  'After the opening three the cadence is a flat **nine levels**. That is why',
+  'the shape of the old back half — 6 new types spread across its last 180',
+  'levels — does not survive. Two consequences worth being explicit about:',
+  '',
+  `- **World 1 carries ${newPerWorld[0]} debuts.** That is the front-loading the original`,
+  '  already had (6 in world 1, 9 across the first two), compressed. The player',
+  '  meets something new every 8-9 levels for the whole of world 1.',
+  `- **World 4 carries ${newPerWorld[3]}, all within its first ${INTRO_LEVELS[4][2]} levels.** Only three types remain`,
+  '  in the original ordering after Tiny, and moving one later would break rule',
+  '  2. World 4 escalates by **tier and boss count**, not by novelty — and',
+  '  Soldier debuting at 4-19 leaves 26 levels of runway to actually use it,',
+  '  against the original 9-1 followed by 44 levels of the same roster.',
+  '',
+  `No debut lands on a boss level, and ${introRows.filter((r) => r.mode === 'Normal' || r.mode === 'Flag').length} of the 20 land on a Normal or`,
+  'Flag level — the two modes where a player can look at a new thing without a',
+  'lane to hold or a tower to protect.',
+  '',
+);
+w(
+  '---',
+  '',
+  '## 3. The boss schedule',
+  '',
+  '### Which levels',
+  '',
+  `**${BOSS_LEVELS.join(', ')}** — the same ten in every world, ${NEW_MODES.Boss} in total.`,
+  '',
+  "The original's five (9, 18, 27, 36, 45) are **all kept**, and the new five sit",
+  'at the midpoint of each gap. Nothing that was a boss stops being one, so a',
+  'player who knows the old rhythm still reads it — the spacing just alternates',
+  '4 and 5 levels instead of a flat 9.',
+  '',
+  '### How many bosses on each',
+  '',
+  `| World | ${BOSS_LEVELS.map((l) => `L${l}`).join(' | ')} | Total |`,
+  `|---|${BOSS_LEVELS.map(() => '---').join('|')}|---|`,
+);
+for (let world = 1; world <= WORLDS; world += 1) {
+  const a = BOSS_AMOUNTS[world];
+  w(`| **${world}** | ${a.join(' | ')} | ${a.reduce((x, y) => x + y, 0)} |`);
+}
+const oldPerBoss = OLD_BOSS_TOTAL / OLD_BOSS_LEVELS.length;
+const newPerBoss = NEW_BOSS_TOTAL / NEW_MODES.Boss;
+w(
+  '',
+  '| | Original | This plan | Factor |',
+  '|---|---|---|---|',
+  `| Boss levels | ${OLD_BOSS_LEVELS.length} of 405 (${pct(oldShare('Boss'))}) | ` +
+    `${NEW_MODES.Boss} of ${TOTAL} (${pct(newShare('Boss'))}) | **x2.0 by rate** |`,
+  `| Bosses spawned across the campaign | ${OLD_BOSS_TOTAL} | ${NEW_BOSS_TOTAL} | ` +
+    `x${(NEW_BOSS_TOTAL / OLD_BOSS_TOTAL).toFixed(2)} |`,
+  `| Bosses per boss level | ${one(oldPerBoss)} mean, ` +
+    `${Math.min(...OLD_BOSS_LEVELS.map(oldBossCount))}-${Math.max(...OLD_BOSS_LEVELS.map(oldBossCount))} | ` +
+    `${one(newPerBoss)} mean, ${Math.min(...PLAN.filter((r) => r.bosses).map((r) => r.bosses))}-` +
+    `${Math.max(...PLAN.map((r) => r.bosses))} | **x${(newPerBoss / oldPerBoss).toFixed(2)}** |`,
+  '',
+  '### :warning: Decision D-1 — as the code stands, more bosses makes a level *easier*',
+  '',
+  '**This is the most important finding in the document, and it is not in the**',
+  "**brief.** `enemyStats.ts:129-135` divides a boss's health *and* its money by",
+  "the level's boss count, faithfully to `PartInterface.as:971`:",
+  '',
+  '```ts',
+  'const divisor = boss && bossAmount > 0 ? bossAmount : 1;',
+  'health: Math.round((base.health * healthMultiplier) / divisor),',
+  '```',
+  '',
+  '**Total boss health on a level is therefore constant however many bosses**',
+  '**spawn.** A Basic boss is 500 HP alone, 250 each as a pair, 62 each as eight.',
+  'Raising the count as rule 5 asks, with nothing else changed:',
+  '',
+  '- splits one boss worth of health into more, smaller targets — and splash',
+  '  weapons hit several at once, so the fight gets **faster**, not harder;',
+  '- pays the same money out, divided;',
+  '- at 8-10 bosses drops per-boss health near an ordinary tier-3 enemy, which',
+  '  will read as wrong on the boss health wipe.',
+  '',
+  'Bosses also all spawn **before any support enemy** (`waveState.ts:234`), so on',
+  'a 10-boss level ten of them arrive back to back at the start.',
+  '',
+  'Three ways out. This needs your call before any data is written:',
+  '',
+  '| | Change | At 8 bosses | Note |',
+  '|---|---|---|---|',
+  '| **A** *(recommended)* | Drop the divisor — each boss keeps full health | 8x total health, 8x money | The honest reading of "more epic and difficult". Biggest balance swing, and the one players will feel. |',
+  '| **B** | Divide by `sqrt(bossAmount)` | 2.8x total health | A middle setting, but the number stops being legible from the data. |',
+  '| **C** | Keep the divisor, add a per-level `bossHealthScale` column | whatever each level says | Most control, most rows to author, easiest to get inconsistent. |',
+  '',
+  'All three change `resolveEnemyStats`, not level data. **A** is one line plus a',
+  'divergence entry in `AUDIT-2026-07.md`. The boss health wipe reads `maxHealth`',
+  'off the enemy (`bossLifeIndicator.ts`) and needs no change under any of them.',
+  '',
+  '### One thing this schedule fixes for free',
+  '',
+  '`BossOnlySpecial` ("CHUCK NORRIS") needs a boss level with **three or more**',
+  'bosses — `GameplayScene.ts:2116` sets its flag from `bossAmount >= 3`. No',
+  'world-1 level in the original has three, so it could not be earned there at',
+  `all. Under this plan **${firstThree.world}-${firstThree.level}** is the first 3-boss level and world 1 has`,
+  `${BOSS_AMOUNTS[1].filter((n) => n >= 3).length} of them.`,
+  '',
+  '---',
+  '',
+  '## 4. Enemy variety on ordinary levels',
+  '',
+  '| | Original | This plan |',
+  '|---|---|---|',
+  `| Distinct types on a non-boss level, mean | **${one(OLD_MEAN_TYPES)}** | **${one(NEW_MEAN_TYPES)}** |`,
+  `| Range | ${Math.min(...OLD_NONBOSS.map(distinctTypes))}-${Math.max(...OLD_NONBOSS.map(distinctTypes))} | ` +
+    `${Math.min(...newNonBoss.map((r) => r.types))}-${Math.max(...newNonBoss.map((r) => r.types))} |`,
+  `| Levels fielding a single type | ${OLD_NONBOSS.filter((s) => distinctTypes(s) === 1).length} | ` +
+    `${newNonBoss.filter((r) => r.types === 1).length} — only 1-1, where Basic is the whole roster |`,
+  '',
+  'The target ramps inside each world and across the campaign:',
+  '',
+  '| World | Types per non-boss level | Actually achieved |',
+  '|---|---|---|',
+);
+for (let world = 1; world <= WORLDS; world += 1) {
+  const [lo, hi] = VARIETY_BAND[world];
+  const rows = newNonBoss.filter((r) => r.world === world);
+  const lim = rows.some((r) => r.roster < hi) ? ' — held down early by the roster' : '';
+  w(
+    `| ${world} | ${lo} -> ${hi} | ${Math.min(...rows.map((r) => r.types))}-` +
+      `${Math.max(...rows.map((r) => r.types))}, mean ${one(rows.reduce((n, r) => n + r.types, 0) / rows.length)}${lim} |`,
+  );
+}
+w(
+  '',
+  'Two hard limits sit above the band. A level cannot field more types than have',
+  'debuted, which binds in world 1 only; and wave entries are capped at',
+  `**${MAX_WAVE_ENTRIES}**, because \`levelPreview\` draws one row per entry and the busiest`,
+  `level in the original has ${OLD_MAX_ENTRIES}. Six is a layout the level-select panel is known`,
+  'to survive; seven is a guess. Raising it is a UI change with its own look, not',
+  'a data change.',
+  '',
+  '### Tier mix per world',
+  '',
+  'Each new world inherits the tier balance of the old worlds it replaces, so the',
+  'escalation curve is preserved rather than re-invented:',
+  '',
+  '| New world | Replaces old | tier 1 | tier 2 | tier 3 |',
+  '|---|---|---|---|---|',
+);
+for (let world = 1; world <= WORLDS; world += 1) {
+  const src = TIER_SOURCE[world];
+  const m = tierMix(src);
+  w(`| ${world} | ${src.join(', ')} | ${m.t1.toFixed(0)}% | ${m.t2.toFixed(0)}% | ${m.t3.toFixed(0)}% |`);
+}
+w('');
+w(
+  '---',
+  '',
+  '## 5. :warning: What a shorter campaign breaks — the medal ceilings',
+  '',
+  'Fifteen achievements count medals earned in one mode, three medals to a level.',
+  'Fewer levels of a mode means a lower ceiling, and several thresholds end up',
+  'above it:',
+  '',
+  '| Group | Mode | Levels | Ceiling (x3) | Thresholds | Status |',
+  '|---|---|---|---|---|---|',
+);
+for (const m of medals) {
+  const status = m.reqs
+    .map((r, i) =>
+      r > m.newCeiling
+        ? `**${m.type}${i + 1} impossible**`
+        : r === m.newCeiling
+          ? `${m.type}${i + 1} needs a perfect run`
+          : null,
+    )
+    .filter(Boolean);
+  w(
+    `| ${m.type}1-3 | ${m.mode} | ${oldModeCount(m.mode)} -> **${NEW_MODES[m.mode]}** | ` +
+      `${m.oldCeiling} -> **${m.newCeiling}** | ${m.reqs.join(' / ')} | ` +
+      `${status.length ? status.join('; ') : 'fine'} |`,
+  );
+}
+w(
+  '',
+  `Unearnable outright: **${broken.map((b) => b.id).join(', ')}**.`,
+  '',
+  '**No test catches this.** `achievementReachability.test.ts` is titled "every',
+  'achievement is reachable" and it feeds the evaluator a fabricated total, so it',
+  'proves the rule *fires* — it never asks whether the campaign can supply the',
+  'number. That is the shape `CLAUDE.md` tracks under "a guarantee is only worth',
+  'what enforces it", and it is worth closing in the same pass:',
+  '',
+  '- rescale each threshold to the same fraction of the new ceiling — roughly',
+  '  **25 / 50 / 80** for Stars, Flags, Shields and Bosses, and **15 / 30 / 40**',
+  '  for Towers. `achievementData.ts` restates the number in prose',
+  '  ("Earn 60 stars."), so the description has to move with it;',
+  '- add a check deriving each ceiling from `LEVELS` and failing when a',
+  '  requirement exceeds it, so the next campaign edit cannot quietly reopen it.',
+  '',
+  '### Other code that assumes nine worlds',
+  '',
+  '| Where | What it holds | Needs |',
+  '|---|---|---|',
+  '| `levelData.ts` | the 405-row table | replaced — this is the job |',
+  '| `levelProgress.ts:143-145` | `FREE_WORLD_COUNT = 6`, `PREMIUM_WORLD_COUNT = 9` | a new split — 2 of 4? |',
+  '| `levelProgress.ts:213` | the hardcoded "World 6  Level 45" completion label | follows the split |',
+  '| `levelSizeOverrides.ts` | 15 world-1 room overrides | fold into the new data, then retire the file |',
+  '| `achievementData.ts:51-65` | 15 thresholds and their prose | rescale, above |',
+  '| `levelUnlock.ts:91`, `WORLD_COUNT` | derived from `LEVELS.length` | **nothing — already derived** |',
+  '',
+  'Save compatibility is the other open question. A slot stores progress as a',
+  'table shaped like the campaign, so every existing save points at worlds that',
+  'will no longer exist; the simplest answer is a save-version bump that resets',
+  'progress rather than a migration nobody can verify.',
+  '',
+  '---',
+  '',
+  '## 6. Every level',
+  '',
+  '`Types` is the target number of distinct enemy types in the wave and `Roster`',
+  'how many have debuted by then. `Source` is the old level at the same fraction',
+  'of the campaign — a **pacing reference** for enemy count and spawn interval,',
+  'not a wave to copy: composition is authored to the variety rule above.',
+  '',
+);
+for (let world = 1; world <= WORLDS; world += 1) {
+  const themes = THEMES[world].map(([t, from]) => `${t} (from ${from})`).join(' -> ');
+  w(
+    `### World ${world} — ${themes}`,
+    '',
+    '| Level | Mode | Room | Bosses | New enemy | Types | Roster | Source |',
+    '|---|---|---|---|---|---|---|---|',
+  );
+  for (const r of PLAN.filter((x) => x.world === world)) {
+    const src = oldFlat[r.source - 1];
+    w(
+      `| **${r.world}-${r.level}** | ${r.mode} | ${r.room} | ${r.bosses || '—'} | ` +
+        `${r.intro ? `**NEW: ${r.intro}**` : '—'} | ${r.types} | ${r.roster} | ` +
+        `${src.world}-${src.level} |`,
+    );
+  }
+  w('');
+}
+w(
+  '---',
+  '',
+  '## 7. Open decisions',
+  '',
+  '| | Question | Recommendation |',
+  '|---|---|---|',
+  '| **D-1** | Boss health is divided by the boss count, so rule 5 as written makes boss levels *easier*. Which fix? | **A** — drop the divisor. |',
+  '| **D-2** | Should the freed Tower slots grow Normal/Flag/Defense instead of Boss? | **No** — rule 5 as written; the three hold their old rate. |',
+  '| **D-3** | Enemy count and spawn interval on ordinary levels: keep the original means, or raise density for the shorter campaign? | Raise counts ~15%, cut spawn intervals ~10%, so 180 levels carry the weight of 405. |',
+  '| **D-4** | Nine themes across four worlds — switch mid-world as tabled, or pick four and drop five? | **Keep all nine.** No art retires and each world still reads as one place. |',
+  '| **D-5** | Free/premium split, currently 6 worlds of 9. | 2 of 4 — the same two-thirds. |',
+  '| **D-6** | Existing saves point at worlds 5-9. | Version bump, progress reset. |',
+  '',
+  '## 8. What happens once this is approved',
+  '',
+  'In order, one commit each — the boundaries matter, because a boss balance',
+  'regression that bisects to "one of these four things" is most of the value of',
+  'having bisected at all:',
+  '',
+  '1. **D-1 alone.** It is a stat rule with its own tests and no dependency on',
+  '   the new data.',
+  '2. **The achievement rescale and the new ceiling check**, also alone, and also',
+  '   before the data — a check has to exist before the thing it guards.',
+  '3. **The 180-level table**, generated from a source of truth carrying the',
+  '   constants in this file, with a `data:check` that fails when the file and',
+  '   the generator disagree. Hand-authoring 180 rows of magic numbers is how a',
+  '   campaign ends up with a level nobody can explain.',
+  '4. **The world-count consequences** — premium split, completion label,',
+  '   retiring `levelSizeOverrides`, the save version.',
+  '',
+  'Steps 1 and 2 can land before the redesign is finalised; they are corrections',
+  'either way.',
+  '',
+);
+
+writeFileSync(OUT, `${L.join('\n')}\n`, 'utf8');
+console.log(
+  `${OUT}: ${L.length} lines, ${TOTAL} levels, ${NEW_MODES.Boss} boss levels, ${NEW_BOSS_TOTAL} bosses`,
+);
+console.log(`  modes: ${Object.entries(NEW_MODES).map(([m, n]) => `${m} ${n}`).join(', ')}`);
+console.log(
+  `  debut gap: max ${Math.max(...OLD_GAPS)} -> ${Math.max(...gaps)}, mean ${one(meanOld)} -> ${one(meanNew)}`,
+);
+console.log(`  variety: ${one(OLD_MEAN_TYPES)} -> ${one(NEW_MEAN_TYPES)} types per non-boss level`);
+console.log(`  medal thresholds broken by the shorter campaign: ${broken.map((b) => b.id).join(', ')}`);
