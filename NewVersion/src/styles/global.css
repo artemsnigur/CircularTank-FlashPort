@@ -2379,17 +2379,37 @@ code {
   background-image: linear-gradient(180deg, #3a424c 0%, #23282e 55%, #14171b 100%);
 }
 
+/*
+ * The world picker — a 2x2 for the campaign's four worlds.
+ *
+ * It was `repeat(3, ...)` on both axes, which was right for nine and leaves a
+ * four-world campaign with one card wrapped onto a second row and a third row
+ * of nothing. Two by two fills the plate with no remainder.
+ *
+ * **Capped and centred rather than edge to edge.** Two columns across an
+ * unbounded plate stretch each card into a letterbox on a wide display — at
+ * 21:9 a full-width card is over twice as wide as it is tall, which reads as a
+ * banner rather than a card. The cap holds the proportion and the auto margins
+ * put the pair in the middle of the plate, which is what makes four worlds look
+ * chosen rather than left over.
+ *
+ * Rows and columns stay `1fr`, so within the cap the grid still fills the
+ * height exactly and can never need a scrollbar — the property the nine-world
+ * version had and the reason it was written this way.
+ */
 .world-grid {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  /* Three rows for nine worlds, each taking an equal share of what is left —
-     so the grid fills the plate exactly and can never need a scrollbar. */
-  grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: clamp(0.35rem, 1.4cqh, 1.1rem);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  /* Roomier than the nine-world grid's, because there are four gaps to draw
+     rather than twelve and the cards can afford the separation. */
+  gap: clamp(0.5rem, 2cqh, 1.6rem);
+  width: 100%;
+  max-width: min(100%, 78rem);
   padding: 0;
-  margin: 0;
+  margin: 0 auto;
   list-style: none;
 }
 
@@ -2403,8 +2423,16 @@ code {
  * One world, as a glass card.
  *
  * `container-type: inline-size` so the parts inside measure the card rather
- * than the screen — the same reason the level tiles carry it. Nine cards
- * across a 4K display and a 1024 laptop are very different objects.
+ * than the screen — the same reason the level tiles carry it. Four cards across
+ * a 4K display and a 1024 laptop are very different objects.
+ *
+ * **The `clamp` ceilings below were raised with the grid (T255).** Every part
+ * of the card is sized in `cqw`, so a card that grew by half again would have
+ * kept the same *proportions* — except that most of those ceilings were already
+ * reached at three across, so the type would have stayed where it was inside a
+ * box nearly twice the area. Raising them by about the same factor is what
+ * keeps the card looking like itself rather than like a small card in a big
+ * frame.
  */
 .world-grid__cell {
   position: relative;
@@ -2485,7 +2513,7 @@ code {
    * container share is right for how these scale and wrong past a point, which
    * is what a ceiling is for.
    */
-  font-size: clamp(1rem, 15cqw, 3.5rem);
+  font-size: clamp(1rem, 15cqw, 5rem);
   line-height: 1;
   text-shadow:
     0 1px 0 rgb(0 0 0 / 90%),
@@ -2497,7 +2525,7 @@ code {
   position: absolute;
   top: 6cqw;
   right: 5cqw;
-  font-size: clamp(0.55rem, 8cqw, 1.6rem);
+  font-size: clamp(0.55rem, 8cqw, 2.1rem);
   line-height: 1;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2507,7 +2535,7 @@ code {
 /* The world's name — the port's addition; the original labels only by number. */
 .world-grid__name {
   padding: 3cqw 5cqw 1cqw;
-  font-size: clamp(0.55rem, 8cqw, 1.5rem);
+  font-size: clamp(0.55rem, 8cqw, 2rem);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: rgb(255 235 200 / 82%);
@@ -2520,13 +2548,21 @@ code {
   flex-direction: column;
   gap: 1cqw;
   padding: 0 5cqw 4cqw;
+  /*
+   * Pushed to the bottom of the card (T255). A 2x2 card is taller than a 3x3
+   * one for the same content, so without this the name and the three tallies
+   * bunch under the terrain and leave the slack as a gap below them. Anchored
+   * to the foot instead, the slack sits *between* the name and the tallies,
+   * which reads as a layout rather than as an unfinished one.
+   */
+  margin-top: auto;
 }
 
 .world-tally {
   display: flex;
   align-items: center;
   gap: 2cqw;
-  font-size: clamp(0.5rem, 7.5cqw, 1.4rem);
+  font-size: clamp(0.5rem, 7.5cqw, 1.9rem);
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -2537,8 +2573,8 @@ code {
 }
 
 .world-tally__icon {
-  width: clamp(0.5rem, 7cqw, 1.5rem);
-  height: clamp(0.5rem, 7cqw, 1.5rem);
+  width: clamp(0.5rem, 7cqw, 1.9rem);
+  height: clamp(0.5rem, 7cqw, 1.9rem);
 }
 
 .world-tally--gold {

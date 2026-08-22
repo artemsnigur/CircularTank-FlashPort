@@ -992,14 +992,35 @@ describe('the world grid`s layout rules', () => {
   };
 
   /**
-   * Nine worlds in a fixed 3x3 that shares out the plate, so the grid fills it
-   * exactly and can never need a scrollbar. `:1510` steps `xPos` by 135 and
-   * wraps every third button.
+   * Four worlds in a fixed 2x2 that shares out the plate, so the grid fills it
+   * exactly and can never need a scrollbar.
+   *
+   * It was 3x3, which is what `:1510` describes — the AS3 steps `xPos` by 135
+   * and wraps every third button, for nine worlds. The campaign is four now
+   * (`A98`), and three columns left one card alone on a second row with a third
+   * row of nothing.
+   *
+   * **This is a source-shape test and proves only that the rule is written**,
+   * not that anything lays out. The geometry was driven separately at 1024x600,
+   * 1366x768, 1920x1080 and 2560x1080: two columns, two rows, four cards,
+   * centred to the pixel, zero overflow.
    */
-  it('is three across and shares the height between three rows', () => {
+  it('is two across and shares the height between two rows', () => {
     const grid = block('.world-grid');
-    expect(grid).toMatch(/grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
-    expect(grid).toMatch(/grid-template-rows:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+    expect(grid).toMatch(/grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+    expect(grid).toMatch(/grid-template-rows:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  });
+
+  it('caps its width and centres what is left', () => {
+    /*
+     * Two columns across an unbounded plate stretch each card into a banner on
+     * a wide display — measured at 2560x1080, an uncapped card would be 1250px
+     * across and 369 tall. The cap holds the proportion; the auto margins put
+     * the pair in the middle rather than against one edge.
+     */
+    const grid = block('.world-grid');
+    expect(grid).toMatch(/max-width:\s*min\(100%,\s*\d+rem\)/);
+    expect(grid).toMatch(/margin:\s*0 auto/);
   });
 
   it('measures the plate, not the window', () => {
