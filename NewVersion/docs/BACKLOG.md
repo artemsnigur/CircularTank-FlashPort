@@ -1528,6 +1528,67 @@ Small, and none of it blocks anything else:
 | ~~**M6**~~ | ~~Level Guide — 912 lines / 5 classes~~ — **CLOSED T102.** (a)-(d) shipped; **(e) closed by decision, divergence `A8`** — not pending. `selectFromLevelGuide` and `canSelectFromLevelGuide` are deliberately not reproduced: this port's click-to-start level select is an intentional divergence, so porting them would mean building a selection step that contradicts the interaction model rather than completing it. The filing was wrong on four counts: **8** classes not 5, **951** lines not 912, **17** files reference it not 5, and the widget lives on the **shop**, not level select | closed |
 | ~~**M5**~~ | ~~PartInfoText — the hover panel~~ — **CLOSED T104.** `infoTextSites.ts` reads **9 wired / 4 redundant / 7 no-consumer / 0 deferred = 20**: every site with a live consumer is wired, and nothing waits on unbuilt work. Shop rows, achievement cells, bestiary badges, the next-level preview, the Level Guide's four (T102) and the achievement reveal icon (T104). The "three dependencies outstanding" this row used to claim resolved as **decisions, not builds** — the Level Guide shipped, and `ImageEnemy.as:174`/`:178` became `no-consumer` behind `A8`. **One AS3 branch stays unported behind them:** `addStrengthsAndWeaknessIcons`' `"Normal"` mode (`:446-453`). Detail in `HANDOFF.md` §5 | closed |
 
+## Postponed by decision — not blocked, not forgotten
+
+Ideas that were scoped and then **deliberately parked**, at the user's word. They
+are not waiting on anything; someone chose to secure what exists first. Each row
+says what it depends on, because "postponed" and "cheap" are different axes and
+this document's own opening warning is about a list that stopped meaning what it
+said.
+
+### N1 — A fourth difficulty tier — **POSTPONED 22 August 2026**
+
+Requested by name after T256, then postponed by the same message that asked for
+the campaign review: *"Let's put the 4th difficulty tier into our backlog of
+postponed ideas for now. I want to secure what we have."*
+
+**The cheap part is real.** `Difficulties` is a single `as const` array
+(`config/constants.ts:38`), `Difficulty` is derived from it, and only **six**
+non-test files touch it or `DIFFICULTY_PROFILES` — driven with an unlimited
+grep, not sampled: `constants.ts`, `difficultyMultipliers.ts`,
+`enemies/bestiaryStats.ts`, `enemies/enemyStats.ts`, `ui/screens/BestiaryScreen.tsx`,
+`ui/screens/LevelSelectScreen.tsx`. **Both UI files iterate the array rather than
+listing the three by hand** (`BestiaryScreen.tsx:170`, and `LevelSelectScreen.tsx`
+imports it as `DIFFICULTIES`), so a fourth entry appears in the picker and the
+bestiary comparison with no UI work at all. `ENEMY_TIER_MULTIPLIERS` is a
+separate axis and is untouched by this.
+
+So the shape is what `ENEMY-DOSSIER.md` says: one more `DifficultyProfile`, its
+entry in `DIFFICULTY_PROFILES`, and one more member of the union.
+
+**Three things to settle before writing any numbers**, and they are the reason
+this is a scoping row rather than a one-line change:
+
+1. **Bosses are exempt from difficulty entirely, and boss levels are now 22% of
+   the campaign.** `PartGameArea.getTotalHealth` leaves a boss's tier multiplier
+   at 1 *and* skips the difficulty multiplier — recorded at
+   `difficultyMultipliers.ts:85-88`. Under the AS3's 405 levels that exempted 45
+   levels (11%); the redesign has **40 boss levels of 180 (22%)**, so a fourth
+   tier would leave *twice as large a share* of the campaign exactly as hard as
+   Easy — including every one of the ten-boss finales. Whether the new tier
+   lifts that exemption is a **design decision and the only lever the existing
+   three do not pull**. It is not a porting question: the AS3 has no fourth tier
+   to be faithful to.
+2. **The `amount` lever is dead code, and a harder tier is the first thing that
+   would need it.** `multiplierAmountMedium` and `multiplierAmountHard` are both
+   **1** (`DifficultyMultipliers.as:6`, `:8`), so the AS3's enemy-redistribution
+   loop (`getTotalEnemyAmount`, `:341-360` feeding `:121-141`) computes a bound of
+   exactly zero on every level at every difficulty and **never executes**. It is
+   deliberately not ported for that reason — see the long note at
+   `levels/levelPreview.ts:56-71`. **If the fourth tier sets `amount > 1`, that
+   unported loop becomes the dependency**, and it is the one piece of this whose
+   output cannot be checked against the original, because the original never runs
+   it either. A tier built from the other seven multipliers has no such problem.
+3. **`campaignTuning.ts` already multiplies the campaign once.** Density is
+   +20% enemies / −30% intervals globally (−40% and +50% speed on Defense), on
+   top of whichever difficulty is chosen. A fourth tier stacks on that, not on
+   the AS3's baseline, so the numbers to reason about are the tuned ones.
+
+**Lift, honestly graded:** small *if* it is seven multipliers and the boss
+exemption stays; a subsystem *if* it wants more enemies or a boss rule of its
+own. Graded by dependency rather than by how the description sounds — the rule
+that got Shotgun, Penetration and Laser Cannon wrong the other way.
+
 **Read this next to `docs/HANDOFF.md` §5, not instead of it.** This document
 covers what was visible when the enemies landed; **§5 is the live queue, and this
 paragraph deliberately no longer duplicates it.** The four items it used to name
