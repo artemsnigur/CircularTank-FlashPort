@@ -29,14 +29,22 @@ describe('level data', () => {
   });
 
   it('preserves known rows from ScreenGame.as, level data and enemy model', () => {
-    expect(getLevel(1, 1)).toEqual({
-      // 800x600, not the extracted 640x400: world 1's Normal and Flag levels
-      // are deliberately standardised — see levelSizeOverrides.ts. The
-      // extracted value is still asserted against ScreenGame.as itself in
-      // levels/roomSizeSource.test.ts, so fidelity is not lost here, only
-      // relocated to where the divergence is described.
-      roomWidth: 800,
-      roomHeight: 600,
+    /*
+     * Reads the **source row**, not `getLevel`. Since T250 the accessor also
+     * applies `campaignTuning` (`D-3`), so asserting the AS3's 10 enemies and
+     * 45.53-frame interval through it would fail — and "fix" it by writing our
+     * own tuned numbers here, which is the one thing this test must not do.
+     * `campaignTuning.test.ts` pins what the accessor adds.
+     */
+    expect(LEVELS[0][0]).toEqual({
+      // The extracted 640x400. This used to read `getLevel` and assert the
+      // 800x600 that `levelSizeOverrides` substitutes; now that the accessor
+      // also tunes counts and intervals (`D-3`), the whole row is asserted at
+      // the source instead — which is what the test's name claims and is
+      // strictly the stronger check. Both divergences have their own tests:
+      // `levelSizeOverrides` for the room, `campaignTuning` for the rest.
+      roomWidth: 640,
+      roomHeight: 400,
       mode: 'Normal',
       // levelDataModel column 7. Named `tier` until T83, when both AS3 reads
       // turned out to call it `selectedUpgradeLimit` (`ScreenGame.as:365`,

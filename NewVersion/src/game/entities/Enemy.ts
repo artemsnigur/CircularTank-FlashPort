@@ -14,6 +14,7 @@
  */
 import Phaser from 'phaser';
 import { resolveEnemyStats } from '../enemies/enemyStats';
+import { tuneSpeeds } from '../config/campaignTuning';
 import type { ResolvedEnemyStats } from '../enemies/enemyStats';
 import { resolveSpawn } from '../enemies/enemySpawn';
 import type { SpawnGeometry } from '../enemies/enemySpawn';
@@ -364,7 +365,11 @@ export class Enemy extends Phaser.GameObjects.Container {
    * a bad level row should not take the scene down.
    */
   static spawn(scene: Phaser.Scene, config: EnemySpawnConfig): Enemy | null {
-    const stats = resolveEnemyStats(config.type, config.level, config.difficulty);
+    const base = resolveEnemyStats(config.type, config.level, config.difficulty);
+    // `D-3`: Defense levels run their enemies 50% faster. Applied here rather
+    // than inside `resolveEnemyStats`, which stays a port of the AS3's stat
+    // block with none of our tuning folded into it.
+    const stats = base === undefined ? undefined : tuneSpeeds(base, config.mode);
     if (!stats) {
       console.warn(`[Enemy] No stats for "${config.type}"; not spawning.`);
       return null;

@@ -5978,6 +5978,9 @@ export class GameplayScene extends Phaser.Scene {
       dropAmount({
         money: enemy.stats.money,
         isBoss: enemy.enemyLevel === 'B',
+        // The live quota, not a constant: `bossCountFor` derives it from the
+        // spec and it is 0 outside Boss mode, where `dropAmount` ignores it.
+        bossAmount: this.wave?.bossAmount ?? 1,
         mode: this.levelSpec?.mode ?? 'Normal',
         reachedTank: !payMoney,
         tankHp: this.hp,

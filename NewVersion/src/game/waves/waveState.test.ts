@@ -16,12 +16,23 @@ import {
   tickWave,
 } from './waveState';
 import type { WaveState } from './waveState';
-import { getLevel } from '../levels/levelData';
+import { LEVELS, getLevel } from '../levels/levelData';
 
 const FRAME = 1000 / 30;
 
-const world1Level1 = () => createWaveState(getLevel(1, 1)!);
-const world1Level2 = () => createWaveState(getLevel(1, 2)!);
+/*
+ * These deliberately go through `getLevel`, not `LEVELS` — the header below
+ * explains why, and T250 makes it matter more: the accessor now applies the
+ * `D-3` density tuning, so this is the level as the scene receives it.
+ *
+ * The consequence is that no assertion here may hardcode a count. Several did
+ * — 12 Basic, 6 Fast, an interval of 45.53 — and they were pinning the
+ * fixture's size while claiming to test the spawner. They read the spec now.
+ */
+const spec1 = () => getLevel(1, 1)!;
+const spec2 = () => getLevel(1, 2)!;
+const world1Level1 = () => createWaveState(spec1());
+const world1Level2 = () => createWaveState(spec2());
 
 /**
  * The wiring seam, not the module.
@@ -87,20 +98,35 @@ describe('a Boss level built the way the scene builds it', () => {
 
 describe('createWaveState', () => {
   it('seeds the pool from the level composition', () => {
-    const state = world1Level2();
-    expect(state.pool).toEqual([
-      { type: 'Basic', level: '1', remaining: 12 },
-      { type: 'Fast', level: '1', remaining: 6 },
-    ]);
-    expect(state.remainingTotal).toBe(18);
-    expect(state.enemiesLeft).toBe(18);
+    const spec = spec2();
+    const state = createWaveState(spec);
+
+    // Mirrors the spec entry for entry. Not a tautology: `createWaveState` is
+    // the module under test and the spec is its input, from `levelData`.
+    expect(state.pool).toEqual(
+      spec.enemies.map((e) => ({ type: e.type, level: e.level, remaining: e.count })),
+    );
+    expect(state.pool).toHaveLength(2);
+    expect(state.remainingTotal).toBe(spec.totalEnemies);
+    expect(state.enemiesLeft).toBe(spec.totalEnemies);
   });
 
   it('takes the spawn interval from enemyModel column 1', () => {
     // The column I previously mis-read as unused; ScreenGame.as:473 assigns it
     // to reloadTimeEnemyMax.
-    expect(world1Level1().reloadTimeEnemyMax).toBeCloseTo(45.53, 5);
-    expect(world1Level2().reloadTimeEnemyMax).toBe(42);
+    //
+    // Two claims, kept apart. The AS3's own numbers are asserted against the
+    // **source table**, because that is what "enemyModel column 1" means; the
+    // carry-through is asserted against whatever the accessor hands over, so it
+    // survives the `D-3` tuning that now shortens it.
+    expect(LEVELS[0][0].spawnInterval).toBeCloseTo(45.53, 5);
+    expect(LEVELS[0][1].spawnInterval).toBe(42);
+
+    expect(world1Level1().reloadTimeEnemyMax).toBeCloseTo(spec1().spawnInterval, 5);
+    expect(world1Level2().reloadTimeEnemyMax).toBeCloseTo(spec2().spawnInterval, 5);
+    // ...and the tuning is really in the path, or the two lines above agree
+    // about an untouched number and prove nothing.
+    expect(world1Level1().reloadTimeEnemyMax).toBeLessThan(LEVELS[0][0].spawnInterval);
   });
 
   it('starts ready to spawn immediately', () => {
@@ -205,14 +231,17 @@ describe('drawEnemy — weighted draw without replacement', () => {
   });
 
   it('consumes from the pool', () => {
-    const state = world1Level1();
+    const spec = spec1();
+    const state = createWaveState(spec);
     drawEnemy(state, undefined, () => 0.5);
-    expect(state.pool[0].remaining).toBe(9);
-    expect(state.remainingTotal).toBe(9);
+
+    expect(state.pool[0].remaining).toBe(spec.enemies[0].count - 1);
+    expect(state.remainingTotal).toBe(spec.totalEnemies - 1);
   });
 
   it('respects the composition weighting', () => {
-    // 12 Basic, 6 Fast: Basic occupies the first 12/18 = 0.667 of the range.
+    // Basic occupies the first `count / total` of the range — two thirds on
+    // this level, at whatever absolute counts the tuning produces.
     const state = world1Level2();
     expect(drawEnemy(state, undefined, () => 0.1)?.type).toBe('Basic');
 
@@ -221,7 +250,8 @@ describe('drawEnemy — weighted draw without replacement', () => {
   });
 
   it('drains a level to exactly its composition', () => {
-    const state = world1Level2();
+    const spec = spec2();
+    const state = createWaveState(spec);
     const drawn: Record<string, number> = {};
 
     let rolls = 0;
@@ -231,7 +261,7 @@ describe('drawEnemy — weighted draw without replacement', () => {
       drawn[enemy.type] = (drawn[enemy.type] ?? 0) + 1;
     }
 
-    expect(drawn).toEqual({ Basic: 12, Fast: 6 });
+    expect(drawn).toEqual(Object.fromEntries(spec.enemies.map((e) => [e.type, e.count])));
     expect(state.remainingTotal).toBe(0);
   });
 
@@ -251,11 +281,13 @@ describe('drawEnemy — weighted draw without replacement', () => {
 
 describe('drawEnemy — Flag and Boss modes', () => {
   it('does not consume the pool in Flag mode', () => {
-    const state = world1Level2();
+    const spec = spec2();
+    const state = createWaveState(spec);
     state.mode = 'Flag';
     drawEnemy(state, { countsByType: {} }, () => 0.1);
-    expect(state.remainingTotal).toBe(18);
-    expect(state.pool[0].remaining).toBe(12);
+
+    expect(state.remainingTotal).toBe(spec.totalEnemies);
+    expect(state.pool[0].remaining).toBe(spec.enemies[0].count);
   });
 
   it('skips a type that is already over-represented', () => {
@@ -485,16 +517,17 @@ describe('spawn bookkeeping', () => {
     registerSpawn(state);
 
     expect(state.pendingWarnings).toBe(1);
-    expect(state.enemiesLeft).toBe(17);
+    expect(state.enemiesLeft).toBe(spec2().totalEnemies - 1);
     expect(state.reloadTimeEnemy).toBeGreaterThan(0);
     expect(canSpawn(state)).toBe(false);
   });
 
   it('does not decrement enemiesLeft in Flag mode', () => {
-    const state = world1Level2();
+    const spec = spec2();
+    const state = createWaveState(spec);
     state.mode = 'Flag';
     registerSpawn(state);
-    expect(state.enemiesLeft).toBe(18);
+    expect(state.enemiesLeft).toBe(spec.totalEnemies);
   });
 
   it('moves a warning into the live count', () => {
@@ -562,7 +595,8 @@ describe('tickWave', () => {
 
 describe('a full level drains', () => {
   it('spawns exactly the composition and completes', () => {
-    const state = world1Level2();
+    const spec = spec2();
+    const state = createWaveState(spec);
     let spawned = 0;
     const counts: Record<string, number> = {};
     let rolls = 0;
@@ -583,8 +617,10 @@ describe('a full level drains', () => {
       }
     }
 
-    expect(spawned).toBe(18);
-    expect(counts).toEqual({ Basic: 12, Fast: 6 });
+    expect(spawned).toBe(spec.totalEnemies);
+    expect(counts).toEqual(
+      Object.fromEntries(spec.enemies.map((e) => [e.type, e.count])),
+    );
     expect(isWaveComplete(state)).toBe(true);
   });
 

@@ -922,6 +922,31 @@ leak: `gameConfig.ts` registers the scene only under `import.meta.env.DEV`, and
 `sceneForRoute('#themes', false)` is null beside `sceneForRoute('#upgrades',
 false)`, which is not.
 
+**Every level is denser, applied at `getLevel` (`A96`, `D-3`).**
+`config/campaignTuning.ts`: counts x1.2 and interval x0.7, Defense x0.6 with
+enemies 1.5x faster. It sits beside `levelSizeOverrides` so `LEVELS` stays a
+pure AS3 transcription, and so the kill target, the level-select preview and
+the spawned wave cannot disagree. **Boss entries pass through unscaled**, and
+`totalEnemies` is the sum of the scaled entries rather than scaled itself — the
+two are equal on all 405 rows and splitting them can make a level unwinnable.
+
+**So `LEVELS` and `getLevel` now differ by more than room size.** A test whose
+claim is "this matches `ScreenGame.as`" must read `LEVELS`; one about what the
+game plays reads `getLevel`. Twenty-one assertions were on the wrong side of
+that line, most of them hardcoding a fixture's counts while claiming to test
+the spawner.
+
+**Boss money divides again; boss health does not (`A96`).** Undivided, the
+redesign's boss schedule pays **4.6x** the original campaign's boss income on a
+campaign 44% the length — measured. `money.ts:bossShare` splits the bounty and
+lands it at 0.89x. `DropInput.bossAmount` is **required**, because the version
+that failed was optional with a `?? 1` that nothing ever passed.
+
+**Still open: the campaign gets poorer overall.** Non-boss income scales with
+levels played, so 180 levels at 1.2x counts is about 0.53 of the original
+against unchanged upgrade prices. The lever is the per-level counts in the
+180-level table, so it belongs to that task.
+
 **A theme level is not empty, and cannot be.** `isWaveComplete` on a Normal
 level is true the instant nothing is left, so a genuinely empty arena hands over
 to the results overlay before it draws. `createThemeLevel` therefore carries

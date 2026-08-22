@@ -12,7 +12,21 @@ import {
   levelPreview,
   previewForLevel,
 } from './levelPreview';
-import { LEVELS, getLevel } from './levelData';
+import { LEVELS } from './levelData';
+import type { LevelSpec } from './levelData';
+
+/**
+ * `LEVELS` is the AS3 transcription; `getLevel` is what the game plays, and
+ * since T250 the two differ by more than room size — `campaignTuning` raises
+ * every count by 20% and shortens every interval on the way out (`D-3`).
+ *
+ * A test whose claim is "this matches `ScreenGame.as`" therefore has to read
+ * the **source row**, or it stops checking the AS3 and starts checking our
+ * tuning. That distinction already existed for room sizes and is now load
+ * bearing for the whole row.
+ */
+const source = (world: number, level: number): LevelSpec => LEVELS[world - 1][level - 1];
+
 import { getDifficultyProfile } from '../config/difficultyMultipliers';
 import { enemyShape } from '../entities/enemyArt';
 import { shapeUrls } from '../../assets/registry';
@@ -33,7 +47,7 @@ describe('LevelSpec.enemies is the AS3 pair walk, not an approximation', () => {
    * would pass every "a list renders" check and fail here.
    */
   it('round-trips level 1-9 through the flat row the AS3 indexes', () => {
-    const spec = getLevel(1, 9)!;
+    const spec = source(1, 9);
     // 1-9 is the useful fixture: Boss mode, four pairs, and the boss is
     // **first**, so an implementation that assumed bosses sort last fails.
     expect(spec.mode).toBe('Boss');
@@ -74,7 +88,7 @@ describe('the amount label, four branches', () => {
    */
   it('Normal/Tower/Defense print a count', () => {
     // 1-2: Normal, Basic 12 and Fast 6 of 18.
-    const spec = getLevel(1, 2)!;
+    const spec = source(1, 2);
     expect(spec.mode).toBe('Normal');
     expect(amountLabel(spec, 0, 'Easy')).toBe('12 X');
     expect(amountLabel(spec, 1, 'Easy')).toBe('6 X');
@@ -82,7 +96,7 @@ describe('the amount label, four branches', () => {
 
   it('Flag prints a share of the whole roster', () => {
     // 1-3: Flag, Basic 10 and Fast 4 of 14.
-    const spec = getLevel(1, 3)!;
+    const spec = source(1, 3);
     expect(spec.mode).toBe('Flag');
     expect(spec.totalEnemies).toBe(14);
     // 10/14 = 71.428… -> 71.4%, 4/14 = 28.571… -> 28.6%.
@@ -96,7 +110,7 @@ describe('the amount label, four branches', () => {
    * bosses**, and a boss row prints a count rather than a share.
    */
   it('Boss mode excludes the bosses from the denominator', () => {
-    const spec = getLevel(1, 9)!;
+    const spec = source(1, 9);
     expect(spec.totalEnemies).toBe(20);
     expect(bossCount(spec)).toBe(1);
 
@@ -113,9 +127,9 @@ describe('the amount label, four branches', () => {
 
   it('rounds to one decimal, dropping a trailing zero as the AS3 does', () => {
     // `Math.round(x * 1000) / 10` yields a Number, so 50.0 prints as "50".
-    const spec = getLevel(1, 3)!;
+    const spec = source(1, 3);
     // Fast is 4 of 14; construct the exact-half case from 1-5 instead.
-    const half = getLevel(1, 5)!;
+    const half = source(1, 5);
     expect(half.mode).toBe('Flag');
     expect(amountLabel(half, 0, 'Easy')).toBe('100%');
     expect(spec.enemies.length).toBe(2);
@@ -139,7 +153,7 @@ describe('the difficulty multiplier is 1, and that is load-bearing', () => {
 
   /** So every difficulty produces the same per-type counts. */
   it('gives the same counts on Easy, Medium and Hard', () => {
-    const spec = getLevel(1, 2)!;
+    const spec = source(1, 2);
     const byDifficulty = DIFFICULTIES.map((d) => enemyAmounts(spec, d));
     expect(byDifficulty[0]).toEqual([12, 6]);
     for (const amounts of byDifficulty) expect(amounts).toEqual(byDifficulty[0]);
@@ -151,7 +165,7 @@ describe('the difficulty multiplier is 1, and that is load-bearing', () => {
    * loudly.
    */
   it('refuses to answer if a multiplier ever stops being 1', () => {
-    const spec = getLevel(1, 2)!;
+    const spec = source(1, 2);
     const profile = getDifficultyProfile('Hard');
     const original = profile.amount;
     try {
@@ -214,7 +228,7 @@ describe('the panel does not print an upgrade limit', () => {
     // `A11` drops the *display* and the *enforcement*, not the extraction.
     // Silently dropping a column whose meaning is known is how `enemyModel[1]`
     // was nearly lost — see CLAIMING SOMETHING IS UNUSED in CLAUDE.md.
-    const spec = getLevel(1, 9)!;
+    const spec = source(1, 9);
     expect(spec.upgradeLimit).toBe(2);
     expect(spec.upgradeLimit).toBeGreaterThanOrEqual(1);
     expect(spec.upgradeLimit).toBeLessThanOrEqual(10);
@@ -237,10 +251,14 @@ describe('the whole preview for a named level', () => {
     expect(
       preview.rows.map((r) => [r.type, r.levelLabel, r.amountLabel, r.isBoss]),
     ).toEqual([
+      // The played level, so the shares are of the tuned wave (`D-3`): the
+      // authored 7/6/6 become 8/7/7 and the boss row is untouched, which is
+      // why the denominator is 22 and not 20 x 1.2. The AS3's own row is
+      // asserted at the source in `levelProgress.test.ts`.
       ['Basic', 'BOSS', '1 X', true],
-      ['Fast', 'LVL 1', '36.8%', false],
-      ['Basic', 'LVL 1', '31.6%', false],
-      ['Shooting', 'LVL 1', '31.6%', false],
+      ['Fast', 'LVL 1', '36.4%', false],
+      ['Basic', 'LVL 1', '31.8%', false],
+      ['Shooting', 'LVL 1', '31.8%', false],
     ]);
 
     // ── A boss row draws the BOSS clip. This is a deliberate divergence ────
@@ -277,7 +295,9 @@ describe('the whole preview for a named level', () => {
     // Explosions and Bullets.
     const withBadges = levelPreview(1, 13, 'Easy', 'Kill 24 Enemies')!;
     const strong = withBadges.rows.find((r) => r.type === 'Strong')!;
-    expect(strong.amountLabel, 'Defense counts rather than shares').toBe('10 X');
+    // Tuned: the authored 10 is what the AS3 says, and `previewForLevel`
+    // reads `getLevel`, so the panel shows what the level actually fields.
+    expect(strong.amountLabel, 'Defense counts rather than shares').toBe('12 X');
     expect(strong.strengths.map((b) => b.label)).toEqual(['Explosions', 'Bullets']);
     expect(strong.strengths.every((b) => b.damageType !== null)).toBe(true);
   });
@@ -356,8 +376,10 @@ describe('previewForLevel is per-level, not cached', () => {
     expect(a.summary).toContain('Mode: Normal');
     expect(b.summary).toContain('Mode: Flag');
     // …and the rows differ too, not just the heading.
-    expect(a.rows.map((r) => r.amountLabel)).toEqual(['12 X', '6 X']);
-    expect(b.rows.map((r) => r.amountLabel)).toEqual(['71.4%', '28.6%']);
+    // Tuned counts and shares — 12/6 authored becomes 14/7, and 1-3's 10/4
+    // becomes 12/5, which is 70.6/29.4 rather than 71.4/28.6.
+    expect(a.rows.map((r) => r.amountLabel)).toEqual(['14 X', '7 X']);
+    expect(b.rows.map((r) => r.amountLabel)).toEqual(['70.6%', '29.4%']);
   });
 
   /** Asking twice returns equal content — pure, so re-hover is not a fresh answer. */
@@ -367,7 +389,8 @@ describe('previewForLevel is per-level, not cached', () => {
 
   /** The objective is wired, not blank — the field the three callers shared. */
   it('fills the objective from the level, per mode', () => {
-    expect(previewForLevel(1, 2, 'Easy')!.summary).toContain('Objective: Kill 18 Enemies');
+    // 12 Basic + 6 Fast authored, 14 + 7 played — `D-3`.
+    expect(previewForLevel(1, 2, 'Easy')!.summary).toContain('Objective: Kill 21 Enemies');
     expect(previewForLevel(1, 3, 'Easy')!.summary).toContain('Objective: Collect 10 Flags');
     expect(previewForLevel(1, 9, 'Easy')!.summary).toContain('Objective: Kill 1 Boss');
   });

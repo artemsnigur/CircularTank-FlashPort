@@ -174,6 +174,25 @@ export interface DropInput {
   /** `theEnemy.money`, already scaled by tier and difficulty. */
   money: number;
   isBoss: boolean;
+  /**
+   * `ScreenGame.bossAmount` — how many bosses the level fields.
+   *
+   * **Required, and it is the point of this field.** `A95` dropped the AS3's
+   * division of boss health *and* money by this number so that ten bosses are
+   * ten whole bosses. Health had to stop being divided; money did not, and
+   * leaving it undivided made a ten-boss level pay ten bounties. Measured
+   * against the plan's boss schedule that is **4.6x the original campaign's
+   * boss income** on a campaign 44% the length.
+   *
+   * So the division comes back here, on the reward, while health stays whole.
+   * Required rather than defaulted for the reason the old one failed: it used
+   * to sit on `EnemySpawnConfig` with a `?? 1`, nothing ever passed it, and
+   * five tests drove the division at 1, 2, 3 and 4 without noticing. A
+   * required field makes the compiler name the call site instead.
+   *
+   * Ignored unless `isBoss`.
+   */
+  bossAmount: number;
   mode: string;
   /** `noMoney` — set when the enemy reached the tank (`:5304`, `:5485`). */
   reachedTank: boolean;
@@ -194,6 +213,10 @@ export interface DropInput {
  * with every ordinary enemy worth a rounded half. Neither is a special case
  * bolted on; both fall out of those two conditions, which is exactly why they
  * are easy to lose when transcribing.
+ *
+ * On top of those, `A95`: a boss's share is the level's bounty split between
+ * however many bosses it fields, so a ten-boss level pays one boss level's
+ * worth. See `DropInput.bossAmount`.
  */
 export function dropAmount(input: DropInput): number {
   if (input.reachedTank) return 0;
@@ -203,7 +226,28 @@ export function dropAmount(input: DropInput): number {
 
   if (input.mode === 'Flag') return 0;
   if (input.mode === 'Boss' && !input.isBoss) return Math.round(input.money / 2);
+  if (input.isBoss) return bossShare(input.money, input.bossAmount);
   return input.money;
+}
+
+/**
+ * One boss's share of the level's bounty — `PartInterface.as:971`'s divisor,
+ * kept for money after `A95` dropped it for health.
+ *
+ * Rounded to the nearest 10 like every other boss payout in the AS3, and
+ * floored at 10 so a deep boss level still drops something per kill rather
+ * than nothing: at ten bosses the cheapest boss in the game (`Basic`, 500)
+ * pays 50 each, so the floor is headroom rather than a live case — but a
+ * future stat table with a cheaper boss would otherwise pay zero, and a coin
+ * worth nothing is worse than no coin.
+ *
+ * A non-positive count is treated as one, which is the same guard the health
+ * divisor carried: it cannot happen through `bossCountFor`, and `Infinity`
+ * coins is a worse failure than an unsplit bounty.
+ */
+export function bossShare(money: number, bossAmount: number): number {
+  const divisor = bossAmount > 0 ? bossAmount : 1;
+  return Math.max(10, Math.round(money / divisor / 10) * 10);
 }
 
 export interface Coin {

@@ -13,6 +13,7 @@ import {
   COIN_MAX_SPEED,
   COIN_SPEED_SCALE,
   DENOMINATIONS,
+  bossShare,
   decomposeMoney,
   dropAmount,
   spawnMoney,
@@ -25,7 +26,17 @@ const BOUNDS = { roomWidth: 640, roomHeight: 960 };
 const TANK = { x: 320, y: 480, radius: 14 };
 
 const drop = (over: Partial<DropInput> = {}): number =>
-  dropAmount({ money: 100, isBoss: false, mode: 'Normal', reachedTank: false, tankHp: 50, ...over });
+  dropAmount({
+    money: 100,
+    isBoss: false,
+    // One by default, which is the no-op: every test written before the split
+    // existed keeps asserting exactly what it did.
+    bossAmount: 1,
+    mode: 'Normal',
+    reachedTank: false,
+    tankHp: 50,
+    ...over,
+  });
 
 describe('decomposeMoney', () => {
   it('takes the largest denomination first', () => {
@@ -68,6 +79,70 @@ describe('dropAmount — the two AS3 branches', () => {
     expect(drop({ mode: 'Normal' })).toBe(100);
     expect(drop({ mode: 'Flag' })).toBe(0);
     expect(drop({ mode: 'Flag', isBoss: true })).toBe(0);
+  });
+
+  /*
+   * ── `A95`: the bounty is the level's, split between its bosses ──────────
+   *
+   * `T247` dropped the AS3's division of boss health *and* money by the boss
+   * count. Health had to stop being divided — that is what makes ten bosses a
+   * fight rather than one boss in ten pieces. Money did not, and undivided it
+   * pays ten bounties: measured against the redesign's boss schedule, **4.6x
+   * the original campaign's boss income on a campaign 44% the length**.
+   */
+  it('splits a boss bounty across the level\'s bosses', () => {
+    expect(drop({ mode: 'Boss', isBoss: true, bossAmount: 1, money: 1000 })).toBe(1000);
+    expect(drop({ mode: 'Boss', isBoss: true, bossAmount: 2, money: 1000 })).toBe(500);
+    expect(drop({ mode: 'Boss', isBoss: true, bossAmount: 10, money: 1000 })).toBe(100);
+  });
+
+  it('pays about one bounty however many bosses carry it', () => {
+    /*
+     * The property the split exists for: N bosses at a share each is one
+     * bounty, not N.
+     *
+     * "About", and the tolerance is stated rather than fudged — each share is
+     * rounded to the nearest 10, which moves it by up to 5, so a level total
+     * can drift by 5 per boss and no more. Three bosses on a 2000 bounty pay
+     * 670 each, which is 2010. Written as an equality first, and that is what
+     * it caught.
+     */
+    for (const bossAmount of [1, 2, 3, 4, 5, 8, 10]) {
+      const total = drop({ mode: 'Boss', isBoss: true, bossAmount, money: 2000 }) * bossAmount;
+      expect(Math.abs(total - 2000), `${bossAmount} bosses`).toBeLessThanOrEqual(5 * bossAmount);
+
+      // And the inflation this prevents, on the same input: nowhere near the
+      // N bounties an undivided share would pay.
+      if (bossAmount > 1) {
+        expect(total, `${bossAmount} bosses undivided`).toBeLessThan(2000 * bossAmount);
+      }
+    }
+  });
+
+  it('leaves every other kind of drop alone', () => {
+    /*
+     * The counterpart, on the identical count. Without it, "dividing by
+     * bossAmount" would pass for an implementation that divides everything —
+     * and an ordinary enemy on a 10-boss level would pay a tenth.
+     */
+    expect(drop({ mode: 'Boss', isBoss: false, bossAmount: 10 })).toBe(50);
+    expect(drop({ mode: 'Normal', isBoss: false, bossAmount: 10 })).toBe(100);
+    // A boss outside Boss mode does not exist in the data, but the rule is
+    // written on `isBoss`, so pin what it does: still splits.
+    expect(drop({ mode: 'Flag', isBoss: true, bossAmount: 10 })).toBe(0);
+  });
+
+  it('rounds a share to ten and never to nothing', () => {
+    // Boss money is a multiple of 10 everywhere in the AS3, and the floor is
+    // headroom rather than a live case — the cheapest boss is 500, so ten of
+    // them still pay 50 each.
+    expect(bossShare(1450, 3) % 10).toBe(0);
+    expect(bossShare(500, 10)).toBe(50);
+    expect(bossShare(5, 10), 'floored, not zeroed').toBe(10);
+    // Not an assumption about `bossCountFor`, which cannot return this — the
+    // same guard the health divisor carried, for the same reason.
+    expect(bossShare(1000, 0)).toBe(1000);
+    expect(Number.isFinite(bossShare(1000, 0))).toBe(true);
   });
 
   it('halves an ordinary enemy in a Boss level but not the boss', () => {

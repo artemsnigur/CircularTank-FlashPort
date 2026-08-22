@@ -491,7 +491,7 @@ of open questions.
 |---|---|---|---|
 | **D-1** | The boss health divisor | **Option A** — dropped, plus a four-alive cap with the rest queuing behind deaths | **Done, T247** (`A95`) |
 | **D-2** | Should the freed Tower slots grow Normal/Flag/Defense instead of Boss? | **No** — rule 5 as written; the other three hold their old rate | settled; the tables above reflect it |
-| **D-3** | Enemy density on ordinary levels | **+20% enemy count, -30% spawn interval.** Defense levels instead take **-40% interval and +50% enemy move speed** | to do |
+| **D-3** | Enemy density on ordinary levels | **+20% enemy count, -30% spawn interval.** Defense levels instead take **-40% interval and +50% enemy move speed** | **Done, T250** (`A96`) — `config/campaignTuning.ts`, live on the current campaign too |
 | **D-4** | Nine themes across four worlds | **Keep all nine**, in solid sequential blocks — reversed after seeing them in the `#themes` gallery | **Decided, T249.** Recorded in `campaignThemes.ts`; reaches the game with the level table |
 | **D-5** | Free/premium split | **No premium at all.** All four worlds free; the restriction comes out of the campaign | to do |
 | **D-6** | Existing saves | **Bump the save version and wipe progress** | to do |
@@ -510,11 +510,13 @@ having bisected at all:
    **nothing reads them yet** — the 180-level table is what will.
 2. **The achievement rescale and the new ceiling check**, also alone, and also
    before the data — a check has to exist before the thing it guards.
-3. **The 180-level table**, generated from a source of truth carrying the
+3. ~~**D-3**, the density layer.~~ **Done — T250.** It applies to the
+   current campaign as well, so it is observable now rather than waiting.
+4. **The 180-level table**, generated from a source of truth carrying the
    constants in this file, with a `data:check` that fails when the file and
    the generator disagree. Hand-authoring 180 rows of magic numbers is how a
    campaign ends up with a level nobody can explain.
-4. **The world-count consequences** — premium split, completion label,
+5. **The world-count consequences** — premium split, completion label,
    retiring `levelSizeOverrides`, the save version.
 
 Steps 1 and 2 can land before the redesign is finalised; they are corrections

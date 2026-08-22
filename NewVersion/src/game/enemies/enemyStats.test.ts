@@ -296,9 +296,11 @@ describe('level integration', () => {
   });
 
   it('makes world 1 level 1 a gentle opener', () => {
-    const level = getLevel(1, 1)!;
-    const health = totalLevelHealth(level.enemies, 'Easy');
-    // 10 basic tier-1 enemies at 10 hp each.
+    // The authored row: 10 basic tier-1 enemies at 10 hp each. Read from
+    // `LEVELS` rather than `getLevel`, which since T250 also applies the `D-3`
+    // density tuning — the played level is 12 enemies and 120 hp, and that
+    // belongs to `campaignTuning.test.ts`, not to a statement about the AS3.
+    const health = totalLevelHealth(LEVELS[0][0].enemies, 'Easy');
     expect(health).toBe(100);
   });
 

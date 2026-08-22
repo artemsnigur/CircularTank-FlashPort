@@ -11,6 +11,7 @@
  */
 
 import { applySizeOverride } from './levelSizeOverrides';
+import { tuneLevel } from '../config/campaignTuning';
 
 /** Level archetype — column 6. */
 export type LevelMode = "Boss" | "Defense" | "Flag" | "Normal" | "Tower";
@@ -516,12 +517,24 @@ export const levelsInWorld = (world: number): number => LEVELS[world - 1]?.lengt
  * Level spec by 1-based world and level, or undefined when out of range.
  *
  * `LEVELS` above is a pure transcription of the AS3. Deliberate divergences
- * live in `levelSizeOverrides.ts` and are applied here, on the way out, so
- * this file stays a function of the source alone and what the game plays is
- * still what `roomSizeSource.test.ts` checks.
+ * live in `levelSizeOverrides.ts` and `config/campaignTuning.ts`, and are
+ * applied here, on the way out, so this file stays a function of the source
+ * alone and what the game plays is still what `roomSizeSource.test.ts`
+ * checks.
+ *
+ * **Order is size, then density.** `tuneLevel` reads the mode and the
+ * composition, neither of which a size override touches, so the two commute
+ * today — writing density last keeps that true if an override ever changes a
+ * mode, and makes the tuned counts the last word.
+ *
+ * **`LEVELS` and this therefore disagree by more than room size.** A test
+ * whose claim is this-matches-ScreenGame has to read `LEVELS`; one
+ * about what the game plays reads this.
  */
 export function getLevel(world: number, level: number): LevelSpec | undefined {
   const spec = LEVELS[world - 1]?.[level - 1];
-  return spec === undefined ? undefined : applySizeOverride(spec, world, level);
+  return spec === undefined
+    ? undefined
+    : tuneLevel(applySizeOverride(spec, world, level));
 }
 

@@ -70,13 +70,18 @@ describe('the count is conserved', () => {
 
 describe('the old formula was wrong', () => {
   it('undercounted for the whole life of a warning marker', () => {
-    const wave = createWaveState(getLevel(1, 1)!);
+    const spec = getLevel(1, 1)!;
+    const wave = createWaveState(spec);
     registerSpawn(wave);
 
     // One enemy announced but not yet spawned: the total is unchanged, but the
     // old formula has already lost it.
-    expect(remaining(wave, 0)).toBe(10);
-    expect(withoutPending(wave, 0)).toBe(9);
+    //
+    // Taken from the spec rather than written as 10, because `getLevel` tunes
+    // the count (`D-3`) and the claim here is about the *formula* — a hard 10
+    // would pin the fixture's size instead of the arithmetic under test.
+    expect(remaining(wave, 0)).toBe(spec.totalEnemies);
+    expect(withoutPending(wave, 0)).toBe(spec.totalEnemies - 1);
   });
 });
 
