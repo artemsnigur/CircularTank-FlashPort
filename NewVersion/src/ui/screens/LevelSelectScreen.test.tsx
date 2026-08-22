@@ -1039,6 +1039,43 @@ describe('the world grid`s layout rules', () => {
     expect(block('.world-tally')).toMatch(/font-size:\s*clamp\([^;]*cqw[^;]*\)/);
   });
 
+  /**
+   * The padlock's shape must not follow the card's (T256).
+   *
+   * It was `inset: 34% 42% 30%`, which draws a body whose width comes from the
+   * card's width and whose height comes from the card's height — so the 2x2
+   * card's taller box stretched it. Everything is `em` of one clamped
+   * `font-size` now, so the padlock scales with the card and keeps its
+   * proportions.
+   *
+   * A source-shape test, and it proves only that the rule is written. The
+   * geometry was driven: at 1920x1080, 1366x768 and 1024x600 the card's aspect
+   * runs 1.67 -> 2.55 while the lock body holds 1.34 at all three, centred to
+   * the pixel.
+   */
+  it('sizes the padlock from one lever, not from the card box', () => {
+    const lock = block('.world-grid__cell .world-grid__lock');
+    expect(lock, 'no inset that ties height to the card').not.toMatch(/inset:/);
+    expect(lock).toMatch(/font-size:\s*clamp\([^;]*cqw[^;]*\)/);
+    // The body and the shackle are multiples of that lever.
+    expect(lock).toMatch(/width:\s*[\d.]+em/);
+    expect(lock).toMatch(/height:\s*[\d.]+em/);
+    expect(block('.world-grid__cell .world-grid__lock::before')).toMatch(
+      /border:\s*[\d.]+em solid/,
+    );
+  });
+
+  it('shows a locked world its own terrain, blurred and darkened', () => {
+    // The AS3 leaves a locked card empty; this port previews the world behind
+    // the lock. Both halves of "blurred **and** darkened" are asserted — a
+    // blur with no darkening would leave the lock competing with the ground.
+    const preview = block('.world-grid__preview');
+    expect(preview).toMatch(/filter:[^;]*blur\(/);
+    expect(preview).toMatch(/filter:[^;]*brightness\(/);
+    // Oversized, so the blur's own fade falls outside the card and is clipped.
+    expect(preview).toMatch(/inset:\s*-\d+%/);
+  });
+
   it('does not lift a card on hover', () => {
     // Consistent with the level tiles and SELECT WORLD — nothing on this screen
     // moves under the pointer.

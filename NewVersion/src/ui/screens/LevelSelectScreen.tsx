@@ -250,9 +250,27 @@ function WorldPicker(): React.ReactElement {
                 </span>
               </>
             ) : (
-              /* `:1521-1524` blanks every field on a locked world; the padlock
-                 is all that is left. */
-              <span className="world-grid__lock" aria-hidden="true" />
+              /*
+               * `:1521-1524` blanks every field on a locked world — the number,
+               * the progress line and all three tallies — so the padlock is all
+               * that is left of the *data*.
+               *
+               * **The terrain is not data, and this port shows it (T256).** The
+               * AS3 leaves a locked card empty; here it carries its own world's
+               * texture, blurred and darkened behind the lock, so the picker
+               * reads as four places one of which is shut rather than as two
+               * cards and two grey boxes. Nothing about progress leaks — the
+               * blur is heavy enough that what survives is a colour and a mood,
+               * which is all a locked door should give away.
+               */
+              <>
+                <span
+                  className="world-grid__preview"
+                  style={{ backgroundImage: worldBand(entry.world) }}
+                  aria-hidden="true"
+                />
+                <span className="world-grid__lock" aria-hidden="true" />
+              </>
             )}
           </button>
         </li>
