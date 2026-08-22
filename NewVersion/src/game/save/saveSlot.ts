@@ -21,6 +21,7 @@ import { SAVE_SLOT_FIELDS } from './saveSchema';
 import { buildSlotBody, parseSlotFields, partOfSaveString, writeSlot } from './saveString';
 import type { SaveField } from './saveString';
 import { formatSaveDateTime } from './saveCodec';
+import { isReadableVersion, SAVE_SCHEMA_VERSION, SAVE_VERSION_KEY, slotVersion } from './saveVersion';
 
 import { decodeUpgradeFields, encodeUpgradeFields } from '../upgrades/upgradeSave';
 import { createInitialUpgradeState } from '../upgrades/upgradeState';
@@ -136,6 +137,7 @@ export function encodeSaveSlot(
   add(encodeTutorialFields(data.tutorial));
   add(encodeMainFlagFields(data.mainFlags));
 
+  produced.set(SAVE_VERSION_KEY, String(SAVE_SCHEMA_VERSION));
   produced.set(DATE_TIME_KEY, formatSaveDateTime(now));
   produced.set(
     WORLD_AND_LEVEL_KEY,
@@ -156,8 +158,24 @@ export function encodeSaveSlot(
   return encoded;
 }
 
-/** Reads a slot back. Every slice falls back to its own defaults. */
+/**
+ * Reads a slot back. Every slice falls back to its own defaults.
+ *
+ * **A slot from another schema version reads as a fresh one** — `D-6`. The
+ * campaign changed shape under it, so its progress table describes worlds that
+ * are gone and its resume point names a level `getLevel` cannot answer for.
+ * Reset rather than migrated, because there is no honest mapping from a
+ * world-7 clear onto a four-world campaign; `saveVersion.ts` has the whole
+ * argument.
+ *
+ * Discarded here rather than at the call sites, so **every** reader gets the
+ * same answer — `readSaveSlot`, the slot-summary list and anything future.
+ * A version check bolted onto one caller is the shape that leaves the other
+ * three reading a save nobody can play.
+ */
 export function decodeSaveSlot(fields: readonly SaveField[]): SaveSlotData {
+  if (!isReadableVersion(slotVersion(fields))) return createInitialSaveSlot();
+
   return {
     upgrades: decodeUpgradeFields(fields),
     loadout: decodeLoadoutFields(fields),

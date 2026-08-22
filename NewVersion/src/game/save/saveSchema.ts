@@ -26,7 +26,7 @@ type SaveFieldCodec =
   | 'csv' // stringArrayToShortString
   | 'digits3' // numberArrayToShortString(..., 3)
   | 'plusOne' // value + 1, used by every achievement counter
-  | 'computed'; // produced by a helper, e.g. dt / wl
+  | 'computed'; // produced by a helper, e.g. dt / wl / sv
 
 export interface SaveFieldSpec {
   /** Key as it appears in the save string. */
@@ -38,7 +38,23 @@ export interface SaveFieldSpec {
   codec: SaveFieldCodec;
 }
 
-/** All 63 fields, in the exact order updateSaveStringSlot() writes them. */
+/**
+ * Keys this port added, which `updateSaveStringSlot` never wrote.
+ *
+ * Kept as a set so the AS3's own count stays checkable: "63 fields" is a fact
+ * about `SaveManager.as`, and appending to `SAVE_SLOT_FIELDS` without this
+ * would turn it into a number that follows whatever we add — the same trap
+ * `MENU_MUSIC_SCENES` was rescued from.
+ */
+export const PORT_ONLY_FIELD_KEYS: ReadonlySet<string> = new Set(['sv']);
+
+/** How many fields `updateSaveStringSlot()` writes. A fact about the AS3. */
+export const AS3_SLOT_FIELD_COUNT = 63;
+
+/**
+ * Every field, in the exact order updateSaveStringSlot() writes them, with
+ * this port's own appended after.
+ */
 export const SAVE_SLOT_FIELDS: readonly SaveFieldSpec[] = [
   { key: "m", source: "ScreenUpgrades.money", owner: "ScreenUpgrades", codec: 'raw' },
   { key: "la", source: "numberArrayToAlphabetShortString(ScreenUpgrades.levelsArray)", owner: "ScreenUpgrades", codec: 'alphabet' },
@@ -103,6 +119,19 @@ export const SAVE_SLOT_FIELDS: readonly SaveFieldSpec[] = [
   { key: "emg", source: "booleanToNumber(Main.extraMoneyGiven)", owner: "Main", codec: 'boolean' },
   { key: "dt", source: "setDateAndTime()", owner: "(computed)", codec: 'computed' },
   { key: "wl", source: "setWorldAndLevel()", owner: "(computed)", codec: 'computed' },
+  /*
+   * ── Not the AS3's, and last on purpose (`D-6`, T253) ──────────────────
+   *
+   * The port's save-schema version. `SaveManager` has no such field: the
+   * original's campaign never changed shape, so an old slot always described a
+   * game that still existed. This port's does — 9 worlds became 4 — and a slot
+   * written before that points at levels there is no longer any answer for.
+   *
+   * Appended rather than inserted, so every AS3 field keeps the index and the
+   * order `updateSaveStringSlot` writes them in and the format stays readable
+   * against the original up to this point. See `saveVersion.ts`.
+   */
+  { key: "sv", source: "(none — this port)", owner: "(computed)", codec: 'computed' },
 ];
 
 /** Classes that must be ported before the slot can actually be read or written. */

@@ -12,7 +12,8 @@ import {
   WORLD_AND_LEVEL_KEY,
   writeSaveSlot,
 } from './saveSlot';
-import { SAVE_SLOT_FIELDS } from './saveSchema';
+import { AS3_SLOT_FIELD_COUNT, PORT_ONLY_FIELD_KEYS, SAVE_SLOT_FIELDS } from './saveSchema';
+import { SAVE_VERSION_KEY } from './saveVersion';
 import { EMPTY_SAVE_STRING, parseSlotFields, slotHasData } from './saveString';
 import { recordLevelResult } from '../levels/levelProgress';
 import { purchaseNextLevel } from '../upgrades/upgradeState';
@@ -52,14 +53,17 @@ function playedSlot() {
 }
 
 describe('encodeSaveSlot', () => {
-  it('names the two computed fields exactly as the schema does', () => {
+  it('names the computed fields exactly as the schema does', () => {
+    // Three now: `dt` and `wl` are the AS3's, `sv` is the port's save-schema
+    // version (`D-6`).
     const computed = SAVE_SLOT_FIELDS.filter((f) => f.owner === '(computed)').map((f) => f.key);
-    expect(computed.sort()).toEqual([DATE_TIME_KEY, WORLD_AND_LEVEL_KEY].sort());
+    expect(computed.sort()).toEqual([DATE_TIME_KEY, WORLD_AND_LEVEL_KEY, SAVE_VERSION_KEY].sort());
   });
 
-  it('produces all 63 fields', () => {
+  it('produces every field the schema declares', () => {
     const fields = encodeSaveSlot(createInitialSaveSlot(), { now: FIXED_DATE });
-    expect(fields).toHaveLength(63);
+    expect(fields).toHaveLength(SAVE_SLOT_FIELDS.length);
+    expect(fields).toHaveLength(AS3_SLOT_FIELD_COUNT + PORT_ONLY_FIELD_KEYS.size);
     expect(() => assertSlotComplete(fields)).not.toThrow();
   });
 

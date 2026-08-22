@@ -247,9 +247,10 @@ describe('save round trip', () => {
     expect(all).toHaveLength(61);
     expect(new Set(all.map((f) => f.key)).size).toBe(61);
 
-    // The two not covered are computed at save time, not owned by any class.
+    // The rest are computed at save time, not owned by any class: `dt` and
+    // `wl` from the AS3, and `sv` — the port's save-schema version (`D-6`).
     const computed = SAVE_SLOT_FIELDS.filter((f) => f.owner === '(computed)').map((f) => f.key);
-    expect(computed.sort()).toEqual(['dt', 'wl']);
+    expect(computed.sort()).toEqual(['dt', 'sv', 'wl']);
     expect(SAVE_SLOT_FIELDS).toHaveLength(all.length + computed.length);
 
     const text = writeSlot(EMPTY_SAVE_STRING, 3, buildSlotBody(all));

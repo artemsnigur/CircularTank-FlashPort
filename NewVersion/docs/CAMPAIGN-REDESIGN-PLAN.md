@@ -501,7 +501,7 @@ of open questions.
 | **D-3** | Enemy density on ordinary levels | **+20% enemy count, -30% spawn interval.** Defense levels instead take **-40% interval and +50% enemy move speed** | **Done, T250** (`A96`) — `config/campaignTuning.ts`, live on the current campaign too |
 | **D-4** | Nine themes across four worlds | **Keep all nine**, in solid sequential blocks — reversed after seeing them in the `#themes` gallery | **Decided, T249.** Recorded in `campaignThemes.ts`; reaches the game with the level table |
 | **D-5** | Free/premium split | **No premium at all.** All four worlds free; the restriction comes out of the campaign | **Done, T252** (`A98`) |
-| **D-6** | Existing saves | **Bump the save version and wipe progress** | to do — the last open item |
+| **D-6** | Existing saves | **Bump the save version and wipe progress** | **Done, T253** (`A99`) |
 
 ## 8. What happens once this is approved
 

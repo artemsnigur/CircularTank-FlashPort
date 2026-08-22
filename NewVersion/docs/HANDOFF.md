@@ -922,6 +922,15 @@ leak: `gameConfig.ts` registers the scene only under `import.meta.env.DEV`, and
 `sceneForRoute('#themes', false)` is null beside `sceneForRoute('#upgrades',
 false)`, which is not.
 
+**Saves carry a schema version, and a pre-redesign slot resets (`A99`,
+`D-6`).** `sv` in the slot; `decodeSaveSlot` returns a fresh slot when it does
+not match, so every reader gets the same answer. Absent means version 1, which
+is every save written before the campaign redesign. **Bump
+`SAVE_SCHEMA_VERSION` whenever a change makes an older slot describe a game that
+no longer exists** — not for a new field that decodes to a sensible default.
+`sv` is appended *after* the AS3's 63 fields and excluded from that count by
+`PORT_ONLY_FIELD_KEYS`, so "63 fields" stays a fact about `SaveManager.as`.
+
 **The campaign is four worlds of 45, and `levelData.ts` has two tables
 (`A98`).** `AS3_LEVELS` is the untouched 9x45 transcription — the record, and
 what `roomSizeSource.test.ts` checks the port against. `LEVELS` is what the game
