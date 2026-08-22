@@ -907,9 +907,26 @@ in the original's order at a flat 9-level cadence. Generated with `node
 scripts/gen-campaign-plan.mjs`, whose two dozen assertions run *before* it
 writes, so a layout slip is a non-zero exit rather than a plausible row.
 
-**All six decisions are answered**; the plan's section 7 is the record. D-1 is
-done (below), D-4 is blocked on a theme dev page that has to exist before the
-four themes can be picked by eye, and D-3, D-5 and D-6 are queued.
+**All six decisions are answered**; the plan's section 7 is the record. D-1 and
+the theme gallery D-4 needs are done (both below); D-3, D-5 and D-6 are queued,
+and D-4 itself waits on the maintainer naming four themes.
+
+**DEV-AID: the ground-theme gallery is at `#themes` (T248).** Nine swatches of
+the real tiles at their true repeat, each with the worlds and props that use it
+and a **View ›** that opens an empty 900x720 arena on that theme. Seven
+`DEV-AID:` tags in seven files, all registered in `devAids.test.ts`, and it
+**comes out as one unit once D-4 is answered** — the removal list is in that
+registry's comment. Two gates keep it out of production and either alone would
+leak: `gameConfig.ts` registers the scene only under `import.meta.env.DEV`, and
+`menuRoute.ts` withholds the `themes` slug there. Both halves are driven —
+`sceneForRoute('#themes', false)` is null beside `sceneForRoute('#upgrades',
+false)`, which is not.
+
+**A theme level is not empty, and cannot be.** `isWaveComplete` on a Normal
+level is true the instant nothing is left, so a genuinely empty arena hands over
+to the results overlay before it draws. `createThemeLevel` therefore carries
+three enemies — which is also how you judge whether things read against a
+ground. Pinned against the empty counterpart.
 
 **Bosses take their whole stat line, and at most four are out at once
 (`A95`, T247).** Two changes that are **one decision** — separating them breaks

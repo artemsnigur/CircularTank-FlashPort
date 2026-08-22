@@ -9,6 +9,7 @@ import { EnemiesScene } from '../scenes/EnemiesScene';
 import { OptionsScene } from '../scenes/OptionsScene';
 import { AchievementsScene } from '../scenes/AchievementsScene';
 import { BestiaryScene } from '../scenes/BestiaryScene';
+import { ThemeGalleryScene } from '../scenes/ThemeGalleryScene';
 import { INITIAL_HEIGHT, INITIAL_WIDTH } from './viewport';
 
 /**
@@ -122,9 +123,16 @@ export function createGameConfig({
       UpgradesScene,
       EnemiesScene,
       BestiaryScene,
-  OptionsScene,
-  AchievementsScene,
+      OptionsScene,
+      AchievementsScene,
       GameplayScene,
+      // DEV-AID: the ground-theme gallery, `#themes`. **This spread is what
+      // keeps it out of production** — with no scene registered under the key,
+      // nothing can start it, and `menuRoute.ts` withholds the slug as well.
+      // Two gates rather than one because either alone leaves a way in: a slug
+      // with no scene throws, and a scene with no slug is still reachable by
+      // any `ui:goto` a future screen emits.
+      ...(import.meta.env.DEV ? [ThemeGalleryScene] : []),
     ],
   };
 }

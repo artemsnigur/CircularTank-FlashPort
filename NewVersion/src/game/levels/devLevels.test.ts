@@ -10,15 +10,18 @@ import {
   createSingleTypeLevel,
   DEV_COMBINED_LEVEL,
   DEV_COUNT_PER_TYPE,
-  DEV_FIRST_SINGLE_LEVEL,
   DEV_SINGLE_TYPE_COUNT,
   DEV_WORLD,
   devEnemyTypes,
+  devFirstThemeLevel,
+  devLevelForTheme,
   devLevelForType,
   devLevelSpec,
+  devThemeForLevel,
   devTypeForLevel,
   isDevLevel,
 } from './devLevels';
+import { themeOrder } from './devThemes';
 import { ENEMY_STATS } from '../enemies/enemyStatsData';
 import { resolveEnemyStats } from '../enemies/enemyStats';
 import { createEmptyProgress, isLevelCleared, recordLevelResult } from './levelProgress';
@@ -28,6 +31,7 @@ import {
   canSpawn,
   createWaveState,
   drawEnemy,
+  isWaveComplete,
   registerEnemyKilled,
   registerEnemySpawned,
   registerSpawn,
@@ -112,6 +116,84 @@ describe('every type can actually spawn', () => {
   });
 });
 
+describe('the theme levels', () => {
+  it('gives every theme its own level, and round-trips', () => {
+    const levels = themeOrder().map((theme) => devLevelForTheme(theme));
+    expect(new Set(levels).size).toBe(themeOrder().length);
+    for (const theme of themeOrder()) {
+      expect(devThemeForLevel(devLevelForTheme(theme)!)).toBe(theme);
+    }
+  });
+
+  /*
+   * The collision this numbering exists to avoid. The theme levels start
+   * immediately after the isolated enemy levels, so a literal offset would be
+   * correct today and would overlap the moment a twenty-first enemy type
+   * arrived — `devLevelSpec` would then answer one number with two meanings.
+   *
+   * Driven as disjointness of the two sets rather than as "the constant is
+   * right", because the constant is the thing under suspicion.
+   */
+  it('never shares a level number with an enemy level', () => {
+    const enemyLevels = devEnemyTypes().map((t) => devLevelForType(t)!);
+    const themeLevels = themeOrder().map((t) => devLevelForTheme(t)!);
+
+    expect(new Set([...enemyLevels, ...themeLevels]).size).toBe(
+      enemyLevels.length + themeLevels.length,
+    );
+    // And they abut rather than leaving a gap that `isDevLevel` would reject.
+    expect(Math.min(...themeLevels)).toBe(Math.max(...enemyLevels) + 1);
+    expect(devFirstThemeLevel()).toBe(Math.min(...themeLevels));
+  });
+
+  it('builds a spec carrying that theme, through the shared entry point', () => {
+    for (const theme of themeOrder()) {
+      const spec = devLevelSpec(DEV_WORLD, devLevelForTheme(theme)!);
+      expect(spec, theme).not.toBeNull();
+      expect(spec!.theme, theme).toBe(theme);
+      // The bigger room, so more ground is on screen than the dev default.
+      expect(spec!.roomWidth).toBe(900);
+      expect(spec!.roomHeight).toBe(720);
+    }
+  });
+
+  /**
+   * The failure mode an "empty arena" walks straight into.
+   *
+   * `isWaveComplete` on a Normal level is `enemiesLeft <= 0 && currentEnemies
+   * <= 0 && ...`, so a level with nothing in it is complete on the first frame
+   * and hands over to the results overlay before the ground is ever looked at.
+   * Pinned against exactly that: the same spec with its enemies removed.
+   */
+  it('does not finish the instant it starts, where an empty one would', () => {
+    const spec = devLevelSpec(DEV_WORLD, devFirstThemeLevel())!;
+    expect(isWaveComplete(createWaveState(spec))).toBe(false);
+
+    const empty = { ...spec, enemies: [], totalEnemies: 0 };
+    expect(isWaveComplete(createWaveState(empty)), 'the counterpart').toBe(true);
+  });
+
+  it('scatters identically on every visit', () => {
+    // A fixed seed, so two themes compared on different days differ by their
+    // art and by nothing else. `PM_PRNG` takes this straight from the spec.
+    const first = devLevelSpec(DEV_WORLD, devFirstThemeLevel())!;
+    const again = devLevelSpec(DEV_WORLD, devFirstThemeLevel())!;
+    expect(first.seed).toBe(again.seed);
+  });
+
+  it('is not a theme level for a number past the last theme', () => {
+    expect(devThemeForLevel(devFirstThemeLevel() + themeOrder().length)).toBeNull();
+    expect(devThemeForLevel(devFirstThemeLevel() - 1)).toBeNull();
+    // Beside the positive on an adjacent number, so "returns null" is a rule
+    // here rather than something this function does for everything.
+    expect(devThemeForLevel(devFirstThemeLevel())).toBe(themeOrder()[0]);
+  });
+
+  it('does not answer a theme for a real world', () => {
+    expect(devLevelSpec(1, devFirstThemeLevel())).toBeNull();
+  });
+});
+
 describe('it cannot pollute a save', () => {
   it('world 0 is not a real world', () => {
     expect(getLevel(DEV_WORLD, DEV_COMBINED_LEVEL)).toBeUndefined();
@@ -139,11 +221,24 @@ describe('the sentinel', () => {
     }
   });
 
-  it('rejects real worlds and levels past the last type', () => {
+  it('rejects real worlds and levels past the last theme', () => {
     expect(isDevLevel(1, 1)).toBe(false);
     expect(isDevLevel(7, 1)).toBe(false);
-    expect(isDevLevel(DEV_WORLD, DEV_FIRST_SINGLE_LEVEL + devEnemyTypes().length)).toBe(false);
     expect(isDevLevel(DEV_WORLD, 0)).toBe(false);
+
+    /*
+     * The end of the range, which moved when the theme levels were added
+     * (T248). It used to sit at `DEV_FIRST_SINGLE_LEVEL + types`, which is now
+     * the *first* theme level — so this assertion was the old boundary and had
+     * to move rather than be deleted, or nothing would check that the range
+     * ends anywhere at all.
+     *
+     * Both sides, on adjacent numbers: the last theme is a dev level and the
+     * one after it is not. A range that never ends passes the first half.
+     */
+    const lastTheme = devFirstThemeLevel() + themeOrder().length - 1;
+    expect(isDevLevel(DEV_WORLD, lastTheme), 'the last theme').toBe(true);
+    expect(isDevLevel(DEV_WORLD, lastTheme + 1), 'one past it').toBe(false);
   });
 });
 

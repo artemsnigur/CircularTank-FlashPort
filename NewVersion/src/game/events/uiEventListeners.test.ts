@@ -58,6 +58,13 @@ const PAIRS: { screen: string; scene: string }[] = [
   { screen: `${SCREEN_DIR}/LevelSelectScreen.tsx`, scene: `${SCENE_DIR}/LevelSelectScene.ts` },
   { screen: `${SCREEN_DIR}/UpgradesScreen.tsx`, scene: `${SCENE_DIR}/UpgradesScene.ts` },
   { screen: `${SCREEN_DIR}/EnemiesScreen.tsx`, scene: `${SCENE_DIR}/EnemiesScene.ts` },
+  // DEV-AID: the ground-theme gallery. Paired like any other screen — it emits
+  // `ui:start-game` to open a theme's arena, and its own scene has to handle
+  // that, because MainMenuScene is torn down while this one is up.
+  {
+    screen: `${SCREEN_DIR}/ThemeGalleryScreen.tsx`,
+    scene: `${SCENE_DIR}/ThemeGalleryScene.ts`,
+  },
   { screen: `${SCREEN_DIR}/BestiaryScreen.tsx`, scene: `${SCENE_DIR}/BestiaryScene.ts` },
   { screen: `${SCREEN_DIR}/OptionsScreen.tsx`, scene: `${SCENE_DIR}/OptionsScene.ts` },
   {

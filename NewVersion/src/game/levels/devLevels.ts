@@ -12,6 +12,8 @@
  *
  *   level 1        three of *every* type — "does anything look wrong"
  *   levels 2..21   thirty of *one* type — "what exactly does this one do"
+ *   then one per   an empty arena in one ground theme — "which of these nine
+ *   theme          do we keep" (`D-4`; see `devThemes.ts`)
  *
  * The isolated levels are the ones to reach for when watching a single
  * behaviour: thirty Teleporters with nothing else on screen makes the pattern
@@ -44,7 +46,8 @@
  */
 
 import { ENEMY_STATS } from '../enemies/enemyStatsData';
-import type { LevelSpec } from './levelData';
+import { themeOrder } from './devThemes';
+import type { LevelSpec, LevelTheme } from './levelData';
 
 /** Sentinel world for every dev level. Deliberately outside 1-9. */
 export const DEV_WORLD = 0;
@@ -94,11 +97,37 @@ export function devTypeForLevel(level: number): string | null {
   return devEnemyTypes()[level - DEV_FIRST_SINGLE_LEVEL] ?? null;
 }
 
+/**
+ * Where the theme levels start — **derived, never written down.**
+ *
+ * The isolated levels occupy one slot per enemy type, and that count is itself
+ * derived from `ENEMY_STATS`. A literal here would be correct today and would
+ * silently collide with a twenty-first enemy type the next time the SWF is
+ * re-extracted: the new type's level and the first theme's level would be the
+ * same number, and `devLevelSpec` would answer with whichever branch it tested
+ * first. Deriving it means the theme levels simply move up.
+ */
+export function devFirstThemeLevel(): number {
+  return DEV_FIRST_SINGLE_LEVEL + devEnemyTypes().length;
+}
+
+/** Level number for a theme's empty arena, or null if it is not a theme. */
+export function devLevelForTheme(theme: string): number | null {
+  const index = themeOrder().indexOf(theme as LevelTheme);
+  return index === -1 ? null : devFirstThemeLevel() + index;
+}
+
+/** The theme a level number refers to, or null. */
+export function devThemeForLevel(level: number): LevelTheme | null {
+  return themeOrder()[level - devFirstThemeLevel()] ?? null;
+}
+
 /** True when this world/level pair is one of the dev levels. */
 export function isDevLevel(world: number, level: number): boolean {
   if (world !== DEV_WORLD) return false;
   if (level === DEV_COMBINED_LEVEL) return true;
-  return devTypeForLevel(level) !== null;
+  if (devTypeForLevel(level) !== null) return true;
+  return devThemeForLevel(level) !== null;
 }
 
 /** Shared shape; only the composition differs between the two kinds. */
@@ -153,6 +182,59 @@ export function createSingleTypeLevel(type: string): LevelSpec {
 }
 
 /**
+ * Room for a theme level — the campaign's most common size, at 120 of 405.
+ *
+ * Bigger than the dev default so more ground is visible at once, which is the
+ * entire point of the level.
+ */
+export const DEV_THEME_ROOM = { width: 900, height: 720 } as const;
+
+/**
+ * Enemies on a theme level, and why it is not zero.
+ *
+ * Two reasons, and the second is the one that forces a number above zero at
+ * all. A ground is being judged partly on whether things **read** against it,
+ * so a few enemies is information rather than clutter. And a `Normal` level
+ * with nothing in it satisfies `isWaveComplete` on the first frame — an empty
+ * arena would hand over to the results overlay before it drew.
+ */
+export const DEV_THEME_ENEMY_COUNT = 3;
+
+/**
+ * Frames between spawns on a theme level.
+ *
+ * Slow on purpose — the opposite of `DEV_SPAWN_INTERVAL`, which exists to get
+ * enemies out fast. Here they should trickle, so the ground is what is on
+ * screen.
+ */
+const DEV_THEME_SPAWN_INTERVAL = 240;
+
+/**
+ * An empty arena in one theme, for comparing the nine grounds (`D-4`).
+ *
+ * Real ground tile, real background props, real camera zoom — the point is to
+ * see the theme as a level actually renders it, which no still image or CSS
+ * approximation can show. `ThemeGalleryScreen` is the contact sheet; this is
+ * the one you walk around in.
+ */
+export function createThemeLevel(theme: LevelTheme): LevelSpec {
+  return {
+    ...devSpec(
+      [{ type: 'Basic', level: '1', count: DEV_THEME_ENEMY_COUNT }],
+      DEV_THEME_ENEMY_COUNT,
+    ),
+    roomWidth: DEV_THEME_ROOM.width,
+    roomHeight: DEV_THEME_ROOM.height,
+    spawnInterval: DEV_THEME_SPAWN_INTERVAL,
+    theme,
+    // `PM_PRNG` seeds the prop layout from this, so a fixed value makes the
+    // scatter identical every visit — two themes compared on different days
+    // differ by their art and by nothing else.
+    seed: 1,
+  };
+}
+
+/**
  * The spec for a dev level number, or null when it is not one.
  *
  * The single entry point the scene uses, so there is one place that decides
@@ -163,5 +245,8 @@ export function devLevelSpec(world: number, level: number): LevelSpec | null {
   if (level === DEV_COMBINED_LEVEL) return createDevTestLevel();
 
   const type = devTypeForLevel(level);
-  return type === null ? null : createSingleTypeLevel(type);
+  if (type !== null) return createSingleTypeLevel(type);
+
+  const theme = devThemeForLevel(level);
+  return theme === null ? null : createThemeLevel(theme);
 }

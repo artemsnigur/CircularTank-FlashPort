@@ -47,6 +47,32 @@ export const MENU_ROUTES: Readonly<Record<string, SceneKey>> = {
   achievements: SceneKeys.Achievements,
 };
 
+/**
+ * Slugs that exist only in a development build.
+ *
+ * Kept apart from `MENU_ROUTES` rather than merged behind a branch, so the
+ * production table stays a plain object anyone can read, and so the split can
+ * be driven from both sides: `sceneForRoute('#themes', false)` is null while
+ * `sceneForRoute('#upgrades', false)` is not.
+ */
+export const DEV_MENU_ROUTES: Readonly<Record<string, SceneKey>> = {
+  themes: SceneKeys.ThemeGallery,
+};
+
+/**
+ * The slug table in force, which in a dev build includes the dev-only slugs.
+ *
+ * `dev` is a parameter with a default rather than a read of `import.meta.env`
+ * at each site, because a test cannot flip that flag — and "this is not
+ * reachable in production" is exactly the claim that needs driving rather than
+ * describing.
+ */
+export function menuRoutes(
+  dev: boolean = import.meta.env.DEV,
+): Readonly<Record<string, SceneKey>> {
+  return dev ? { ...MENU_ROUTES, ...DEV_MENU_ROUTES } : MENU_ROUTES;
+}
+
 /** Where a hash that names no menu lands. */
 export const DEFAULT_SCENE: SceneKey = SceneKeys.MainMenu;
 
@@ -64,9 +90,12 @@ export const UNROUTED_SCENES: Readonly<Record<string, string>> = {
  * **alone** rather than clearing it: the stale menu slug is exactly what makes
  * a refresh during a level land somewhere sensible.
  */
-export function routeForScene(scene: SceneKey | null): string | null {
+export function routeForScene(
+  scene: SceneKey | null,
+  dev: boolean = import.meta.env.DEV,
+): string | null {
   if (scene === null) return null;
-  const found = Object.entries(MENU_ROUTES).find(([, key]) => key === scene);
+  const found = Object.entries(menuRoutes(dev)).find(([, key]) => key === scene);
   return found ? found[0] : null;
 }
 
@@ -78,7 +107,10 @@ export function routeForScene(scene: SceneKey | null): string | null {
  * arrives from the address bar, so it is user input and cannot be assumed to
  * be in the shape this module writes.
  */
-export function sceneForRoute(hash: string): SceneKey | null {
+export function sceneForRoute(
+  hash: string,
+  dev: boolean = import.meta.env.DEV,
+): SceneKey | null {
   if (typeof hash !== 'string') return null;
 
   const slug = hash
@@ -88,7 +120,7 @@ export function sceneForRoute(hash: string): SceneKey | null {
     .split(/[?&]/)[0]
     .toLowerCase();
 
-  return MENU_ROUTES[slug] ?? null;
+  return menuRoutes(dev)[slug] ?? null;
 }
 
 /**
@@ -98,6 +130,6 @@ export function sceneForRoute(hash: string): SceneKey | null {
  * no slug that maps to it. That is the gameplay exception enforced by the
  * table rather than by a branch someone has to remember to write.
  */
-export function landingScene(hash: string): SceneKey {
-  return sceneForRoute(hash) ?? DEFAULT_SCENE;
+export function landingScene(hash: string, dev: boolean = import.meta.env.DEV): SceneKey {
+  return sceneForRoute(hash, dev) ?? DEFAULT_SCENE;
 }

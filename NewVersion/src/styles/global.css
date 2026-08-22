@@ -6629,3 +6629,72 @@ code {
   outline: 2px solid rgb(150 200 255 / 85%);
   outline-offset: 3px;
 }
+
+/* ── Ground theme gallery ──────────────────────────────────────────────────
+   DEV-AID: the nine grounds side by side, for decision `D-4`. The screen is
+   behind `import.meta.env.DEV` by way of its scene, so these rules are dead
+   weight in a production stylesheet and harmless — same arrangement as
+   `.dev-jump` above.
+
+   The swatch deliberately does **not** size the texture to the cell. Its
+   `background-size` is set inline to the design units one repeat covers, so a
+   cell shows a window onto the ground at a consistent scale across all nine.
+   Fitting the image would make every theme look equally fine-grained, which is
+   the one property the choice turns on. */
+.screen--themes { overflow-y: auto; }
+.screen--themes .screen__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.5rem 0;
+  background: var(--surface);
+}
+.themes__totals { margin-left: auto; font-size: var(--text-2xs); color: var(--text-dim); }
+.themes__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* auto-fit rather than a fixed three columns: the gallery is read on a
+     laptop and on a phone, and nine cards reflow to 3x3, 2x5 or 1x9 without a
+     breakpoint per shape. */
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.75rem;
+}
+.themes__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.themes__swatch {
+  height: 8.5rem;
+  background-repeat: repeat;
+  background-position: center;
+  /* A checker under the image, so a texture that fails to load reads as
+     missing rather than as a dark theme. */
+  background-color: color-mix(in srgb, var(--border) 40%, transparent);
+}
+.themes__meta { padding: 0.5rem 0.6rem 0.6rem; display: grid; gap: 0.15rem; }
+.themes__name { margin: 0; font-size: var(--text-sm); }
+.themes__where { margin: 0; font-size: var(--text-2xs); color: var(--text-dim); }
+.themes__props { margin: 0; font-size: var(--text-3xs); color: var(--text-dim); }
+.themes__repeat { margin: 0; font-size: var(--text-3xs); color: var(--text-dim); opacity: 0.75; }
+.themes__view {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  /* Opaque, not translucent: it sits on nine different grounds and has to stay
+     legible on the pale ones as well as the dark. */
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-3xs);
+  cursor: pointer;
+}

@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_SCENE,
+  DEV_MENU_ROUTES,
   MENU_ROUTES,
   UNROUTED_SCENES,
   landingScene,
+  menuRoutes,
   routeForScene,
   sceneForRoute,
 } from './menuRoute';
@@ -44,6 +46,48 @@ describe('the slug table', () => {
     // Beside a scene that *does* route, so "returns null" is a rule here and
     // not something this function does for everything.
     expect(routeForScene(SceneKeys.Upgrades)).toBe('upgrades');
+  });
+});
+
+describe('the dev-only slugs', () => {
+  /*
+   * The claim is "reachable in development, absent in production", and neither
+   * half can be read off `import.meta.env` in a test — the flag is fixed for
+   * the whole run. So the functions take it as an argument and both halves are
+   * driven on the identical input.
+   */
+  it('routes #themes in a dev build and nowhere in a production one', () => {
+    expect(sceneForRoute('#themes', true)).toBe(SceneKeys.ThemeGallery);
+    expect(sceneForRoute('#themes', false)).toBeNull();
+  });
+
+  it('still routes an ordinary slug in a production build', () => {
+    // The counterpart. Without it, the line above passes for a `menuRoutes`
+    // that returns nothing at all when `dev` is false.
+    expect(sceneForRoute('#upgrades', false)).toBe(SceneKeys.Upgrades);
+    expect(sceneForRoute('#upgrades', true)).toBe(SceneKeys.Upgrades);
+  });
+
+  it('writes no slug for the gallery in a production build', () => {
+    // The other direction: nothing may put `#themes` in the address bar there.
+    expect(routeForScene(SceneKeys.ThemeGallery, true)).toBe('themes');
+    expect(routeForScene(SceneKeys.ThemeGallery, false)).toBeNull();
+  });
+
+  it('lands a production build on the menu for a dev slug', () => {
+    // What a shared `#themes` link actually does once the aid is gone: the
+    // main menu, not a crash and not a blank screen.
+    expect(landingScene('#themes', false)).toBe(DEFAULT_SCENE);
+    expect(landingScene('#themes', true)).toBe(SceneKeys.ThemeGallery);
+  });
+
+  it('keeps the dev slugs out of the production table', () => {
+    expect(Object.keys(menuRoutes(false))).not.toContain('themes');
+    expect(Object.keys(menuRoutes(true))).toContain('themes');
+    // Every dev slug, not just the one that exists today.
+    for (const slug of Object.keys(DEV_MENU_ROUTES)) {
+      expect(menuRoutes(false)[slug], slug).toBeUndefined();
+    }
   });
 });
 
