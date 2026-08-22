@@ -28,16 +28,18 @@ function assert(cond, message) {
 
 /* ── The original, parsed from the generated table ───────────────────────── */
 
-function arrayLiteral(text, name) {
+function arrayLiteral(text, name, bracket = '[') {
+  const close = bracket === '[' ? ']' : '}';
   const start = text.indexOf(`export const ${name}`);
-  if (start === -1) throw new Error(`${name} not found in ${SRC}`);
+  if (start === -1) throw new Error(`${name} not found`);
   // From the `=`, not the name: the type annotation carries brackets of its
   // own and scanning from the name found one of those instead.
-  const open = text.indexOf('[', text.indexOf('=', start));
+  const open = text.indexOf(bracket, text.indexOf('=', start));
+  if (open === -1) throw new Error(`${name} has no ${bracket} after its =`);
   let depth = 0;
   for (let i = open; i < text.length; i += 1) {
-    if (text[i] === '[') depth += 1;
-    else if (text[i] === ']') {
+    if (text[i] === bracket) depth += 1;
+    else if (text[i] === close) {
       depth -= 1;
       if (depth === 0) return text.slice(open, i + 1);
     }
@@ -45,12 +47,23 @@ function arrayLiteral(text, name) {
   throw new Error(`unterminated ${name}`);
 }
 
-const OLD = JSON.parse(
-  arrayLiteral(readFileSync(SRC, 'utf8'), 'LEVELS')
+/** Object/array literal with bare keys -> JSON. Both tables are uniform. */
+function parseLiteral(literal) {
+  const json = literal
+    .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/\/\/[^\n]*/g, '')
     .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":')
-    .replace(/,(\s*[}\]])/g, '$1'),
-);
+    // Numeric keys too — `CAMPAIGN_THEMES` is keyed by world number, and the
+    // identifier rule above does not match `1:`. Left out at first, and the
+    // parse threw rather than producing a partial table, which is the whole
+    // reason the assertions around this exist.
+    .replace(/([{,]\s*)(\d+)\s*:/g, '$1"$2":')
+    .replace(/'([^']*)'/g, '"$1"')
+    .replace(/,(\s*[}\]])/g, '$1');
+  return JSON.parse(json);
+}
+
+const OLD = parseLiteral(arrayLiteral(readFileSync(SRC, 'utf8'), 'LEVELS'));
 assert(OLD.length === 9, `expected 9 source worlds, got ${OLD.length}`);
 
 const oldFlat = [];
@@ -188,13 +201,45 @@ const VARIETY_BAND = {
  */
 const MAX_WAVE_ENTRIES = 6;
 
-/** Theme per world, as `[theme, firstLevel]` — all nine survive the cut. */
-const THEMES = {
-  1: [['Desert', 1], ['Grass', 31]],
-  2: [['BlueDirt', 1], ['Beach', 24]],
-  3: [['Concrete', 1], ['Biology', 24]],
-  4: [['Hell', 1], ['MagicStone', 16], ['Futuristic', 31]],
-};
+/**
+ * Theme per world — **read from `campaignThemes.ts`, not restated here.**
+ *
+ * It used to be a copy, with a comment saying which four themes might be cut.
+ * Decision `D-4` settled on keeping all nine in solid blocks, and a settled
+ * boundary written in two places is a boundary that drifts. The module is the
+ * specification and carries the tests; this document reports it.
+ *
+ * Parsed rather than imported for the same reason `levelData.ts` is: the source
+ * imports its neighbours without file extensions, which Node's ESM loader will
+ * not take. The assertions below are what make that safe — a parse that finds
+ * the wrong thing fails loudly instead of printing a plausible table.
+ */
+const THEMES = (() => {
+  const source = readFileSync('src/game/levels/campaignThemes.ts', 'utf8');
+  const literal = arrayLiteral(source, 'CAMPAIGN_THEMES', '{');
+  const parsed = parseLiteral(literal);
+
+  const out = {};
+  for (const [world, blocks] of Object.entries(parsed)) {
+    out[Number(world)] = blocks.map((b) => [b.theme, b.from]);
+  }
+  return out;
+})();
+
+assert(Object.keys(THEMES).length === WORLDS, `theme table covers ${Object.keys(THEMES).length} worlds`);
+{
+  const used = Object.values(THEMES).flatMap((blocks) => blocks.map(([theme]) => theme));
+  // Nine, each once: the substance of D-4. A parse that silently produced an
+  // empty or partial table would fail right here rather than in the document.
+  assert(used.length === 9, `theme blocks name ${used.length} themes, expected 9`);
+  assert(new Set(used).size === 9, 'a theme is used by two blocks');
+  for (const [world, blocks] of Object.entries(THEMES)) {
+    assert(blocks[0][1] === 1, `world ${world} does not start at level 1`);
+    for (let i = 1; i < blocks.length; i += 1) {
+      assert(blocks[i][1] > blocks[i - 1][1], `world ${world} blocks are not ascending`);
+    }
+  }
+}
 
 /** Mode -> room size. The original already locks Tower, Defense and Boss. */
 const ROOMS = {
@@ -706,10 +751,12 @@ w(
   '',
   '## 6. Every level',
   '',
-  '**The theme headings below are a placeholder.** D-4 was answered "pick exactly',
-  'four, one per world", and which four comes off the gallery at `#themes`',
-  '(T248) — so the mid-world switches shown here collapse to one theme per world',
-  'once the four are named. Nothing else in the table depends on it.',
+  '**All nine themes are kept** — D-4, settled after looking at them in the',
+  '`#themes` gallery. A world moves through two or three of them in solid',
+  'blocks, so the ground changes under the player mid-world rather than at a',
+  'boundary they only see in a menu. The blocks come from',
+  '`src/game/levels/campaignThemes.ts`, which is the specification and carries',
+  'the tests; this document reads it rather than restating it.',
   '',
   '`Types` is the target number of distinct enemy types in the wave and `Roster`',
   'how many have debuted by then. `Source` is the old level at the same fraction',
@@ -748,7 +795,7 @@ w(
   '| **D-1** | The boss health divisor | **Option A** — dropped, plus a four-alive cap with the rest queuing behind deaths | **Done, T247** (`A95`) |',
   '| **D-2** | Should the freed Tower slots grow Normal/Flag/Defense instead of Boss? | **No** — rule 5 as written; the other three hold their old rate | settled; the tables above reflect it |',
   '| **D-3** | Enemy density on ordinary levels | **+20% enemy count, -30% spawn interval.** Defense levels instead take **-40% interval and +50% enemy move speed** | to do |',
-  '| **D-4** | Nine themes across four worlds | **Pick exactly four, one per world.** | **Page built, T248** — open `#themes` in a dev build; awaiting the four |',
+  '| **D-4** | Nine themes across four worlds | **Keep all nine**, in solid sequential blocks — reversed after seeing them in the `#themes` gallery | **Decided, T249.** Recorded in `campaignThemes.ts`; reaches the game with the level table |',
   '| **D-5** | Free/premium split | **No premium at all.** All four worlds free; the restriction comes out of the campaign | to do |',
   '| **D-6** | Existing saves | **Bump the save version and wipe progress** | to do |',
   '',
@@ -761,8 +808,9 @@ w(
   '1. ~~**D-1 alone.** A stat rule with its own tests and no dependency on the',
   '   new data.~~ **Done — T247.**',
   '2. ~~**The theme dev page**, so D-4 can be answered by looking rather than',
-  '   guessing.~~ **Done — T248**, at `#themes`. The theme column of the level',
-  '   table stays a placeholder until the four are named.',
+  '   guessing.~~ **Done — T248** at `#themes`, and it changed the answer: all',
+  '   nine kept, not four. The blocks are in `campaignThemes.ts` (T249) and',
+  '   **nothing reads them yet** — the 180-level table is what will.',
   '2. **The achievement rescale and the new ceiling check**, also alone, and also',
   '   before the data — a check has to exist before the thing it guards.',
   '3. **The 180-level table**, generated from a source of truth carrying the',

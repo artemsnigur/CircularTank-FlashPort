@@ -268,17 +268,19 @@ progress rather than a migration nobody can verify.
 
 ## 6. Every level
 
-**The theme headings below are a placeholder.** D-4 was answered "pick exactly
-four, one per world", and which four comes off the gallery at `#themes`
-(T248) — so the mid-world switches shown here collapse to one theme per world
-once the four are named. Nothing else in the table depends on it.
+**All nine themes are kept** — D-4, settled after looking at them in the
+`#themes` gallery. A world moves through two or three of them in solid
+blocks, so the ground changes under the player mid-world rather than at a
+boundary they only see in a menu. The blocks come from
+`src/game/levels/campaignThemes.ts`, which is the specification and carries
+the tests; this document reads it rather than restating it.
 
 `Types` is the target number of distinct enemy types in the wave and `Roster`
 how many have debuted by then. `Source` is the old level at the same fraction
 of the campaign — a **pacing reference** for enemy count and spawn interval,
 not a wave to copy: composition is authored to the variety rule above.
 
-### World 1 — Desert (from 1) -> Grass (from 31)
+### World 1 — Desert (from 1) -> Grass (from 16) -> Beach (from 31)
 
 | Level | Mode | Room | Bosses | New enemy | Types | Roster | Source |
 |---|---|---|---|---|---|---|---|
@@ -328,7 +330,7 @@ not a wave to copy: composition is authored to the variety rule above.
 | **1-44** | Flag | 900x720 | — | — | 4 | 7 | 3-8 |
 | **1-45** | Boss | 900x720 | 5 | — | 3 | 7 | 3-10 |
 
-### World 2 — BlueDirt (from 1) -> Beach (from 24)
+### World 2 — BlueDirt (from 1) -> Concrete (from 23)
 
 | Level | Mode | Room | Bosses | New enemy | Types | Roster | Source |
 |---|---|---|---|---|---|---|---|
@@ -378,7 +380,7 @@ not a wave to copy: composition is authored to the variety rule above.
 | **2-44** | Normal | 800x600 | — | — | 5 | 12 | 5-19 |
 | **2-45** | Boss | 900x720 | 6 | — | 3 | 12 | 5-21 |
 
-### World 3 — Concrete (from 1) -> Biology (from 24)
+### World 3 — Biology (from 1) -> Hell (from 23)
 
 | Level | Mode | Room | Bosses | New enemy | Types | Roster | Source |
 |---|---|---|---|---|---|---|---|
@@ -428,7 +430,7 @@ not a wave to copy: composition is authored to the variety rule above.
 | **3-44** | Defense | 640x960 | — | — | 6 | 17 | 7-30 |
 | **3-45** | Boss | 900x720 | 8 | — | 3 | 17 | 7-33 |
 
-### World 4 — Hell (from 1) -> MagicStone (from 16) -> Futuristic (from 31)
+### World 4 — Futuristic (from 1) -> MagicStone (from 23)
 
 | Level | Mode | Room | Bosses | New enemy | Types | Roster | Source |
 |---|---|---|---|---|---|---|---|
@@ -490,7 +492,7 @@ of open questions.
 | **D-1** | The boss health divisor | **Option A** — dropped, plus a four-alive cap with the rest queuing behind deaths | **Done, T247** (`A95`) |
 | **D-2** | Should the freed Tower slots grow Normal/Flag/Defense instead of Boss? | **No** — rule 5 as written; the other three hold their old rate | settled; the tables above reflect it |
 | **D-3** | Enemy density on ordinary levels | **+20% enemy count, -30% spawn interval.** Defense levels instead take **-40% interval and +50% enemy move speed** | to do |
-| **D-4** | Nine themes across four worlds | **Pick exactly four, one per world.** | **Page built, T248** — open `#themes` in a dev build; awaiting the four |
+| **D-4** | Nine themes across four worlds | **Keep all nine**, in solid sequential blocks — reversed after seeing them in the `#themes` gallery | **Decided, T249.** Recorded in `campaignThemes.ts`; reaches the game with the level table |
 | **D-5** | Free/premium split | **No premium at all.** All four worlds free; the restriction comes out of the campaign | to do |
 | **D-6** | Existing saves | **Bump the save version and wipe progress** | to do |
 
@@ -503,8 +505,9 @@ having bisected at all:
 1. ~~**D-1 alone.** A stat rule with its own tests and no dependency on the
    new data.~~ **Done — T247.**
 2. ~~**The theme dev page**, so D-4 can be answered by looking rather than
-   guessing.~~ **Done — T248**, at `#themes`. The theme column of the level
-   table stays a placeholder until the four are named.
+   guessing.~~ **Done — T248** at `#themes`, and it changed the answer: all
+   nine kept, not four. The blocks are in `campaignThemes.ts` (T249) and
+   **nothing reads them yet** — the 180-level table is what will.
 2. **The achievement rescale and the new ceiling check**, also alone, and also
    before the data — a check has to exist before the thing it guards.
 3. **The 180-level table**, generated from a source of truth carrying the
