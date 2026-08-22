@@ -38,3 +38,6 @@ npm-debug.log*
 
 # Claude Code session transcript exports (/export)
 *-local-command-caveat*.txt
+
+# Electron desktop build output (electron-builder.yml)
+/release/

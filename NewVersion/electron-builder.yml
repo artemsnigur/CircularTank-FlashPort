@@ -1,0 +1,64 @@
+# The Windows desktop build.
+#
+# Kept in its own file rather than a "build" key in package.json so that
+# package.json stays a scripts-and-dependencies manifest — this config is
+# already long enough to bury those.
+appId: com.circulartank.game
+productName: Circular Tank
+copyright: Port of the original Flash game
+
+directories:
+  # **Outside `NewVersion/`, and that is not arbitrary.**
+  #
+  # Vite's dev server watches this project recursively, and on Windows a watch
+  # holds a handle to every directory it covers — which makes renaming any
+  # directory that *contains* a subdirectory fail with EPERM. electron-builder
+  # extracts to `win-unpacked.tmp` and renames it into place, so with a dev
+  # server up the packaging step failed every time while the Vite build in
+  # front of it succeeded.
+  #
+  # Driven rather than guessed: the same rename succeeded at a path outside the project, failed
+  # under the project, and succeeded again for a directory holding only files.
+  # Writing one level up puts the output where no watcher is looking, so the
+  # build no longer depends on whether someone has `npm run dev` open.
+  output: ../release
+  buildResources: electron
+
+# What goes inside the app bundle. This is an allow-list on purpose: the
+# default sweeps the whole project folder, which here would mean `src/`, the
+# 643 decompiled `.as` files' sibling docs, `.look/` frame dumps and every dev
+# dependency. `dist/` is the built game and `electron/` is the shell; nothing
+# else is needed at runtime.
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+
+win:
+  icon: electron/icon.ico
+  target:
+    # Two artefacts, because they answer different questions:
+    #   nsis     — a normal installer, Start-menu entry, uninstaller
+    #   portable — one .exe that runs from anywhere, nothing written to
+    #              Program Files, which is what you want for handing a build
+    #              to someone to try
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Circular Tank
+
+portable:
+  artifactName: CircularTank-${version}-portable.exe
+
+# Electron ships its own Chromium, so the build is reproducible without any
+# machine-specific SDK. It is *not* code-signed: an unsigned binary raises
+# Windows SmartScreen on first run for anyone but the person who built it.
+# Signing needs a certificate, which is a purchasing decision rather than a
+# build one — see `docs/PACKAGING.md`.

@@ -138,6 +138,44 @@ clean disc, which is exactly what the "none" badge is supposed to look like),
 has a single resistance, so the first run draws no badges at all and proves
 nothing about them; 1-13 is the earliest roster that does).
 
+### It ships as a Windows `.exe` too -- T259
+
+The game now packages as a native desktop build. **Electron**, not Tauri:
+Electron carries its own Chromium, so the desktop build draws with the same
+engine every visual decision here was checked against, and it needs no new
+language toolchain (`cargo` and `rustc` are not installed on the build
+machine). The cost is size -- ~122 MB against Tauri's ~10.
+
+```bash
+npm run desktop:dev      # the game in the Electron shell, with HMR
+npm run desktop:build    # NSIS installer + portable .exe, into ../release/
+npm run desktop:smoke    # launch the packaged app and prove it boots
+```
+
+**`npm run desktop:smoke` is the desktop counterpart of `npm run smoke`, and
+it is not optional after touching the shell or the build.** A green web
+build proves nothing about the packaged app: it loads over `file://` rather
+than from a dev server, which is a different protocol and a different
+asset-resolution rule. It checks the canvas separately from the menu,
+because those fail apart -- the menu is React DOM and renders whether or not
+WebGL came up.
+
+Two things worth carrying, both in `docs/PACKAGING.md` in full:
+
+- **The output goes to `../release/`, outside the project, and must stay
+  there.** Vite's dev server watches this folder recursively, and on Windows
+  a watch holds a handle to every directory it covers -- so a directory
+  containing a watched subdirectory cannot be renamed, and electron-builder
+  packages by renaming `win-unpacked.tmp` into place. With `npm run dev` up,
+  the build failed every time with EPERM while the Vite build in front of it
+  succeeded. This is a new instrument trap, and it is in §4.
+- **The artefacts are unsigned.** electron-builder logs "signing with
+  signtool.exe", which is signing with no certificate. SmartScreen will warn
+  on any machine but the one that built them.
+
+`vite.config.ts:8`'s `base: './'` is what makes `file://` loading work. It
+was already there for Capacitor; **two shipping targets now depend on it and
+neither fails at build time if it is removed.**
 ---
 
 ## 2. The working discipline
@@ -479,6 +517,25 @@ decisive, wrong result and was believed.*
    **skips `pointer-events: none`**, so a passive readout correctly reports the
    canvas beneath it rather than itself.
 
+0b. **EPERM on a directory whose files are all unlocked is a *watcher*, not a
+   permission.** electron-builder failed every run renaming `win-unpacked.tmp`
+   into place, inside the project folder. Every obvious reading was wrong, and
+   each was ruled out by driving it: renaming an **empty** directory there
+   worked, so it was not a blanket permission; a directory holding only
+   **files** worked, so content was not it; the same rename worked on `C:` and
+   elsewhere on `F:`, so it was not the volume; every file inside opened with
+   `FileShare.None`, so nothing held a file; and it still failed with the
+   sandbox disabled, so it was not the tooling. Only a directory containing a
+   **subdirectory** failed. `Get-CimInstance Win32_Process` then showed a
+   `vite.js` running from this project: Vite's recursive watcher holds a handle
+   to every directory it covers, and a directory with a watched child cannot be
+   renamed on Windows.
+
+   **The tell was the shape, not the message.** "Permission denied" pointed at
+   ACLs and antivirus, and neither was involved. Fixed by writing the build
+   output outside the watched tree, so the build does not care whether a dev
+   server is up -- *not* by killing the server, which would have hidden it
+   until the next person hit it.
 1. **Truncated grep.** `grep … | head -4` answers "the first four matches", not
    "the matches". Produced "enemies never shoot", then "defeat is unreachable".
    **Recurred four times**, most recently as "`setMusic` has zero production
