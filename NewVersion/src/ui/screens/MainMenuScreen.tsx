@@ -36,6 +36,7 @@
  * `A27`.
  */
 import { useGameStore } from '../../state/gameStore';
+import { useSlotDeletion, type SlotDeletion } from '../slotDeletion';
 import { AudioToggles } from '../AudioToggles';
 import { TypeTitle } from '../TypeTitle';
 import { GameEvents } from '../../game/events/GameEvents';
@@ -51,18 +52,62 @@ const MENU_SCENE_SHAPE = CHROME_CLIPS.BackgroundMainMenu.frames[0].layers[0].sha
  */
 const WORDMARK = 'CIRCULAR TANK';
 
-/** One save slot, as a clean sub-box inside the floating card. */
+/**
+ * One save slot, as a clean sub-box inside the floating card.
+ *
+ * The confirmation is owned by the screen, not by the box — see `deletion`'s
+ * type. Per box, two rows could be mid-question at once; per screen, asking
+ * about one withdraws the question on any other, which is what the picker
+ * already did and what reads correctly.
+ */
 function SlotBox({
   slot,
   hasData,
   progress,
   dateTime,
+  deletion,
 }: {
   slot: number;
   hasData: boolean;
   progress?: string;
   dateTime?: string;
+  deletion: SlotDeletion;
 }): React.ReactElement {
+  /*
+   * "Are you sure?", in place of the slot rather than over it (T257).
+   *
+   * The box is swapped for the question instead of a dialog opening above it,
+   * for the reason the AS3 does the same (`ButtonGameSave.as:373`, `makePage2`
+   * flips the button into a second page): the card is a fixed-height floating
+   * panel, and a layer over it either covers the other two slots or needs a
+   * scrim, a focus trap and an escape route. Replacing one box costs none of
+   * that and cannot be mistaken for asking about a different slot.
+   */
+  if (deletion.isPending(slot)) {
+    return (
+      <div className="menu-slot menu-slot--confirm" role="group" aria-label={`Delete slot ${slot}?`}>
+        <div className="menu-slot__body menu-slot__body--confirm">
+          <span className="menu-slot__name">Delete slot {slot}?</span>
+          <span className="menu-slot__line menu-slot__line--dim">
+            {progress ? `${progress} will be lost.` : 'This cannot be undone.'}
+          </span>
+          <span className="menu-slot__confirm-row">
+            <button
+              type="button"
+              className="menu-slot__answer menu-slot__answer--danger"
+              onClick={deletion.confirm}
+            >
+              Delete
+            </button>
+            <button type="button" className="menu-slot__answer" onClick={deletion.cancel}>
+              Cancel
+            </button>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="menu-slot">
       <button
@@ -87,7 +132,7 @@ function SlotBox({
           type="button"
           className="menu-slot__delete"
           aria-label={`Delete slot ${slot}`}
-          onClick={() => GameEvents.emit('ui:delete-slot', { slot })}
+          onClick={() => deletion.ask(slot)}
         >
           ✕
         </button>
@@ -104,12 +149,16 @@ export function MainMenuScreen(): React.ReactElement | null {
   const slots = useGameStore((s) => s.slotList);
   // Echoed back, never decided here — MainMenuScene publishes it.
   const difficulty = useGameStore((s) => s.difficulty);
+  // The same condition as the early return below, named — the hook has to be
+  // called before that return, so it cannot read the answer from it.
+  const visible = activeScene === 'MainMenu' && phase === 'ready' && !slotPickerOpen;
+  const deletion = useSlotDeletion(visible);
 
   // The slot picker is drawn over the menu and both are keyed to MainMenu, so
   // without this they render at once — the picker appeared *behind* the menu,
   // its rows off-screen, while its DOM text read correctly. A text assertion
   // passed on that; the screenshot did not.
-  if (activeScene !== 'MainMenu' || phase !== 'ready' || slotPickerOpen) return null;
+  if (!visible) return null;
 
   // 1-1 until the scene has published a resume point — a fresh save resolves
   // there anyway, so the fallback and the real answer agree for a new player.
@@ -154,6 +203,7 @@ export function MainMenuScreen(): React.ReactElement | null {
               hasData={entry.hasData}
               progress={entry.progress}
               dateTime={entry.dateTime}
+              deletion={deletion}
             />
           ))}
         </div>

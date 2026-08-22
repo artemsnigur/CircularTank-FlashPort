@@ -13,9 +13,9 @@
  * empty one starts a fresh game, is `MainMenuScene.selectSlot` reproducing
  * `onReleaseHandler` (`:110-134`). This renders `slotList` and emits a number.
  */
-import { useState } from 'react';
 import { useGameStore } from '../../state/gameStore';
 import { GameEvents } from '../../game/events/GameEvents';
+import { useSlotDeletion } from '../slotDeletion';
 
 /** `Main.extraStuff` — no premium build yet, so a premium save is unreadable. */
 const HAS_PREMIUM = false;
@@ -25,12 +25,19 @@ export function SaveSlotScreen(): React.ReactElement | null {
   const open = useGameStore((s) => s.slotPickerOpen);
   const slots = useGameStore((s) => s.slotList);
 
-  // Which row is asking "Delete slot?". The AS3 flips the button itself into a
-  // second page (`makePage2`, `:373`) rather than opening a dialog, so the
-  // confirmation is per-row state and never leaves this component.
-  const [confirming, setConfirming] = useState<number | null>(null);
+  /*
+   * Which row is asking "Delete slot?". The AS3 flips the button itself into a
+   * second page (`makePage2`, `:373`) rather than opening a dialog, so the
+   * confirmation replaces the row and never leaves this screen.
+   *
+   * It was local `useState` here, and the main menu's ✕ — the *other* delete
+   * control, on the more visible screen — had no confirmation at all. Shared
+   * now, so there is one rule rather than one rule and one omission (T257).
+   */
+  const visible = activeScene === 'MainMenu' && open;
+  const deletion = useSlotDeletion(visible);
 
-  if (activeScene !== 'MainMenu' || !open) return null;
+  if (!visible) return null;
 
   return (
     <div className="screen screen--slots">
@@ -53,7 +60,7 @@ export function SaveSlotScreen(): React.ReactElement | null {
           // `makePage2` clears the row's contents and shows the question with
           // Confirm and Cancel side by side. Same shape here: the row is
           // replaced, not covered.
-          if (confirming === slot.slot) {
+          if (deletion.isPending(slot.slot)) {
             return (
               <li key={slot.slot}>
                 <div className="slot-grid__cell slot-grid__cell--confirm" role="group">
@@ -62,17 +69,14 @@ export function SaveSlotScreen(): React.ReactElement | null {
                     <button
                       type="button"
                       className="menu__button menu__button--primary"
-                      onClick={() => {
-                        GameEvents.emit('ui:delete-slot', { slot: slot.slot });
-                        setConfirming(null);
-                      }}
+                      onClick={deletion.confirm}
                     >
                       Confirm
                     </button>
                     <button
                       type="button"
                       className="menu__button menu__button--ghost"
-                      onClick={() => setConfirming(null)}
+                      onClick={deletion.cancel}
                     >
                       Cancel
                     </button>
@@ -116,7 +120,7 @@ export function SaveSlotScreen(): React.ReactElement | null {
                   type="button"
                   className="slot-grid__delete"
                   aria-label={`Delete slot ${slot.slot}`}
-                  onClick={() => setConfirming(slot.slot)}
+                  onClick={() => deletion.ask(slot.slot)}
                 >
                   ✕
                 </button>
