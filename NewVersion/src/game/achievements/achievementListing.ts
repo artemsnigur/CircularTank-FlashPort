@@ -20,6 +20,7 @@
  */
 
 import { describeAchievement } from './achievementWording';
+import { scaleDescription } from './achievementScaling';
 import { ACHIEVEMENTS } from './achievementData';
 import type { AchievementSpec } from './achievementData';
 import type { AchievementStates } from './achievementState';
@@ -63,7 +64,16 @@ function toEntry(spec: AchievementSpec, state: number | undefined): AchievementE
   return {
     id: spec.id,
     title: spec.title,
-    description: describeAchievement(spec.id, spec.description),
+    // Two corrections, in order. `scaleDescription` brings the medal number
+    // in line with the rescaled threshold (`achievementScaling.ts`);
+    // `describeAchievement` replaces three strings outright (`A?`, T214).
+    // Scaling first, so a rewritten string is never re-scaled — the three it
+    // rewrites are Boolean achievements with no number in them, so this is
+    // belt and braces rather than a live case.
+    description: describeAchievement(
+      spec.id,
+      scaleDescription(spec.id, spec.description, spec.requirement),
+    ),
     x: spec.x,
     y: spec.y,
     earned,

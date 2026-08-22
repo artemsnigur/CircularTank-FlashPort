@@ -47,6 +47,7 @@
  */
 
 import { ACHIEVEMENTS } from './achievementData';
+import { requirementFor } from './achievementScaling';
 import type { AchievementSpec } from './achievementData';
 import type { Difficulty } from '../config/constants';
 
@@ -119,7 +120,7 @@ export function evaluate(
     case 'Number': {
       const numeric = typeof value === 'number' ? value : 0;
       const winState = winStateFor(spec, difficulty);
-      if (numeric >= spec.requirement && currentState < winState) {
+      if (numeric >= requirementFor(spec) && currentState < winState) {
         return { won: true, newState: winState };
       }
       return unchanged;
@@ -141,10 +142,14 @@ export function evaluate(
       // that clears the requirement determines the state. -1 when none do,
       // which can never beat a currentState of -1 — so nothing is won.
       const counts = Array.isArray(value) ? value : [0, 0, 0];
+      // Rescaled for the 180-level campaign — `achievementScaling.ts`. Read
+      // once: three reads of a function that could disagree between them is
+      // the kind of thing that only shows up at a tier boundary.
+      const required = requirementFor(spec);
       let winState = -1;
-      if ((counts[0] ?? 0) >= spec.requirement) winState = 3;
-      else if ((counts[1] ?? 0) >= spec.requirement) winState = 2;
-      else if ((counts[2] ?? 0) >= spec.requirement) winState = 1;
+      if ((counts[0] ?? 0) >= required) winState = 3;
+      else if ((counts[1] ?? 0) >= required) winState = 2;
+      else if ((counts[2] ?? 0) >= required) winState = 1;
 
       if (currentState < winState) return { won: true, newState: winState };
       return unchanged;
